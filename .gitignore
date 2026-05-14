@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+jspm_packages/
+
+# Angular build output
+dist/
+tmp/
+out-tsc/
+.angular/
+.nx/
+
+# Generic build / artifacts
+build/
+out/
+coverage/
+*.log
+logs/
+
+# IDE / editor
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+.idea/
+.vs/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Cache
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+secrets.json
+*.pfx
+*.pem
+*.key
+*.crt
+*.cer
+*.token
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+appsettings.Development.json
+appsettings.Production.json
+appsettings.Staging.json
+appsettings.*.Local.json
+
+# Claude Code (mantém política base, ignora overrides locais)
+.claude/settings.json.local
