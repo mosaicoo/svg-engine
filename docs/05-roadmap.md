@@ -57,15 +57,22 @@
       `import { ... } from 'svg-engine/core'` valida tree-shaking real
       (bundle separado em `dist/svg-engine/fesm2022/svg-engine-core.mjs`)
 
-### Bloco 2 — `svg-engine/render` (read-only viewer)
+### Bloco 2 — `svg-engine/render` (read-only viewer + plugin point) ✅ concluído
 
-- [ ] Estrutura `projects/svg-engine/render/`
-- [ ] `<svge-renderer>` standalone: input `tree: SvgNode`, renderiza `<svg>`
-- [ ] `ViewportService`: pan, zoom, transformação de coordenadas
-- [ ] Suporte a `viewBox`, `preserveAspectRatio`
-- [ ] Testes: renderiza cada tipo de nó, viewport responde a comandos
-- [ ] `playground` exibe um documento de exemplo via `<svge-renderer>`
-      (consumo via secondary entry point — valida tree-shaking)
+- [x] Estrutura `projects/svg-engine/render/` + ng-package + tsconfig paths
+- [x] `<svge-renderer>` standalone: inputs `tree`, `viewBox?`, `width?`, `height?`, `ariaLabel?`
+- [x] 8 renderer components per-tipo (`<svge-rect>`, `<svge-ellipse>`,
+      `<svge-line>`, `<svge-polygon>`, `<svge-polyline>`, `<svge-path>`,
+      `<svge-text>`, `<svge-image>`) cada um com `<svg:g data-node-id transform>`
+- [x] `<svge-node>` dispatcher: `@switch` dos 8 + `group` recursivo + fallback registry
+- [x] `ViewportService`: signals `zoom/panX/panY/contentBox/viewBox` + APIs pan/zoom/reset/fit/setZoomLimits
+- [x] **`NodeRendererRegistry`** (D-020): plugins registram renderers para tipos custom; dispatcher monta via `*ngComponentOutlet`
+- [x] `renderTransformAttr` util (matrix serialização + omite identidade)
+- [x] `projectDocumentToRenderer` helper para SvgDocument
+- [x] Testes Vitest: **110 verdes em 10 arquivos** (5 novos no render)
+- [x] Playground visual: substitui lista de IDs por `<svge-renderer>` real
+      com botões Add(rect/ellipse/path), nudge, remove, undo/redo, zoom in/out/reset
+- [x] Runtime verificado: bundle contém `svge-renderer`, `svge-rect`, `NodeRendererRegistry`
 
 ## Fase 3 — Seleção e transformação
 

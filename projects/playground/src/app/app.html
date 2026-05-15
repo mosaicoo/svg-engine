@@ -2,29 +2,44 @@
   <header>
     <h1>{{ title() }}</h1>
     <p class="subtitle">
-      Dogfooding harness for <code>svg-engine/core</code>. Renderer arrives in Bloco 2.
+      Dogfooding harness for <code>svg-engine/core</code> + <code>svg-engine/render</code>.
     </p>
   </header>
 
-  <section class="actions" aria-label="Editor commands">
-    <button type="button" (click)="addRect()">Add random rect</button>
-    <button type="button" (click)="nudgeFirst()">Nudge first (+10, +10)</button>
-    <button type="button" (click)="removeFirst()">Remove first</button>
-    <button type="button" (click)="undo()" [disabled]="!canUndo()">Undo</button>
-    <button type="button" (click)="redo()" [disabled]="!canRedo()">Redo</button>
+  <section class="toolbar" aria-label="Editor commands">
+    <fieldset>
+      <legend>Add</legend>
+      <button type="button" (click)="addShape('rect')">Rect</button>
+      <button type="button" (click)="addShape('ellipse')">Ellipse</button>
+      <button type="button" (click)="addShape('path')">Triangle (path)</button>
+    </fieldset>
+    <fieldset>
+      <legend>Edit</legend>
+      <button type="button" (click)="nudgeFirst()">Nudge first (+10, +10)</button>
+      <button type="button" (click)="removeFirst()">Remove first</button>
+      <button type="button" (click)="undo()" [disabled]="!canUndo()">Undo</button>
+      <button type="button" (click)="redo()" [disabled]="!canRedo()">Redo</button>
+    </fieldset>
+    <fieldset>
+      <legend>Viewport</legend>
+      <button type="button" (click)="zoomOut()" aria-label="Zoom out">−</button>
+      <span class="zoom-pct" aria-live="polite">{{ zoomPct() }}</span>
+      <button type="button" (click)="zoomIn()" aria-label="Zoom in">+</button>
+      <button type="button" (click)="resetView()">Reset</button>
+    </fieldset>
   </section>
 
-  <section class="state" aria-label="Document state">
-    <p><strong>Node count:</strong> {{ nodeCount() }}</p>
-    <p><strong>Children (id prefix):</strong></p>
-    <ul>
-      @for (id of nodeIds(); track id) {
-        <li>{{ id }}</li>
-      } @empty {
-        <li class="empty">(no children yet)</li>
-      }
-    </ul>
+  <section class="canvas" aria-label="SVG canvas">
+    <svge-renderer
+      [tree]="tree()"
+      [viewBox]="viewBox()"
+      [ariaLabel]="'Editable SVG document with ' + nodeCount() + ' nodes'"
+    />
   </section>
+
+  <footer class="status" aria-label="Document status">
+    Nodes: <strong>{{ nodeCount() }}</strong> &nbsp;·&nbsp; Zoom: <strong>{{ zoomPct() }}</strong>
+  </footer>
 
   <router-outlet />
 </main>

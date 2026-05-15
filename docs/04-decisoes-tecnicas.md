@@ -290,13 +290,70 @@
 
 ---
 
+## D-020 — Sistema de plugins de primeira classe
+
+- **Data**: 2026-05-14
+- **Status**: Aceita (princípio); implementação em fases
+- **Contexto**: Terceiros precisam estender a library (tipos de nó,
+  renderers, ferramentas, comandos, painéis). Esclarecimento explícito
+  do usuário em 2026-05-14.
+- **Decisão**: **Toda decisão de design subsequente prevê ponto de
+  extensão** para plugins. Concretamente:
+  - `svg-engine/render` (Bloco 2): expõe `NodeRendererRegistry` para
+    plugins registrarem renderer de tipos custom.
+  - `svg-engine/edit` (Fase 3+): expõe `ToolRegistry` (toolbar) e
+    `InspectorPanelRegistry` (painéis customizados).
+  - `Command` interface já é extensível (basta implementar).
+  - `SvgNode` é discriminated union com `type: string` — terceiros podem
+    estender via module augmentation TypeScript ou usando
+    `'custom-${id}'` como type discriminator.
+- **API de plugin** (esboço, refinada na Fase 5):
+  ```typescript
+  export interface SvgEnginePlugin {
+    readonly id: string;
+    readonly version: string;
+    install(ctx: PluginContext): void;
+    uninstall?(ctx: PluginContext): void;
+  }
+  ```
+- **Consequências**: arquitetura "registry-first" em vez de hard-coded.
+  Cada feature da library expõe um registry para o equivalente plugin.
+
+## D-021 — Conceito de Workspace / Prancheta / Página (pendente)
+
+- **Data**: 2026-05-14 (registro)
+- **Status**: **PENDENTE** — definir antes da Fase 4
+- **Contexto**: Editores profissionais (Figma, Sketch, Affinity, Inkscape)
+  têm um conceito de "página" / "frame" / "artboard" / "prancheta" que
+  envolve:
+  - Tamanho e orientação de página.
+  - Background (cor sólida, padrão, imagem, checkerboard de transparência).
+  - Margens, grid, guides (linhas-guia).
+  - Eventual suporte a múltiplas páginas / artboards.
+- **Opções a avaliar**:
+  - **A. Estender `SvgDocument`**: adicionar
+    `presentation: PresentationSettings` opcional. Simples, mas mistura
+    modelo SVG-spec com configuração de UI.
+  - **B. Novo conceito `Workspace`**: contém um ou mais `SvgDocument`
+    mais metadata de apresentação por documento. Mais flexível, suporta
+    multi-page natural.
+- **Quando decidir**: até o início da Fase 4 (UI), pois o painel de
+  configuração de página vive em `svg-engine/ui`.
+- **Quando renderizar background/grid**: o `<svge-renderer>` (Bloco 2)
+  intencionalmente **não** desenha background — fica como camada de UI
+  por cima ou abaixo do canvas. Plugin / consumidor controla.
+
+---
+
 ## Decisões pendentes (em aberto)
 
 | ID provis. | Tema                                                              |
 | ---------- | ----------------------------------------------------------------- |
-| D-020?     | Versionamento + changelog (changesets / standard-version)         |
-| D-021?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo) |
-| D-022?     | Estratégia de i18n no editor                                      |
-| D-023?     | Migração para zoneless (revisar D-010)                            |
-| D-024?     | Lint rule customizada para enforcer headless boundary             |
-| D-025?     | Estratégia de testes E2E (Playwright?)                            |
+| D-022?     | API formal de plugins (manifesto, install/uninstall, lifecycle)   |
+| D-023?     | Versionamento + changelog (changesets / standard-version)         |
+| D-024?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo) |
+| D-025?     | Estratégia de i18n no editor                                      |
+| D-026?     | Migração para zoneless (revisar D-010)                            |
+| D-027?     | Lint rule customizada para enforcer headless boundary             |
+| D-028?     | Estratégia de testes E2E (Playwright?)                            |
+| D-029?     | **Workspace/Página: A vs B** (resolver D-021)                     |

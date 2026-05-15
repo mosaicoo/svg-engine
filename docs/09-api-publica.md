@@ -104,11 +104,58 @@ a fase do roadmap implementa o conteúdo.
   comandos (execute + undo + edge cases), HistoryService (stack
   invariants), CommandBus (round-trip dispatch/undo/redo, integration).
 
-### `svg-engine/render` (Fase 2 final)
+### `svg-engine/render` (Fase 2 Bloco 2) ✅
 
-> Componente renderer (read-only) e viewport.
+> Renderer **read-only** + viewport + ponto de extensão para plugins
+> (D-020). **Zero deps de UI Material.**
 
-_(populado quando Fase 2 entregar)_
+#### Top-level (`./lib/renderer/`)
+
+| Símbolo                                             | Descrição                                                              |
+| --------------------------------------------------- | ---------------------------------------------------------------------- |
+| `<svge-renderer>` (`SvgeRenderer`)                  | Renderer raiz: input `tree`, opcional `viewBox/width/height/ariaLabel` |
+| `projectDocumentToRenderer(doc): { tree, viewBox }` | helper para extrair os dois inputs de um `SvgDocument`                 |
+
+#### Viewport (`./lib/viewport/`)
+
+| Símbolo                                     | Descrição                                                                                                                                                                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ViewportService` (`@Injectable({ root })`) | signals: `contentBox`, `zoom`, `panX`, `panY`, `viewBox` (computed), `minZoom`, `maxZoom`. APIs: `setContentBox`, `setZoom`, `multiplyZoom`, `zoomIn`, `zoomOut`, `setPan`, `pan`, `reset`, `fit`, `setZoomLimits` |
+
+#### Renderers per-tipo + dispatcher (`./lib/renderers/`)
+
+| Componente                                                                                                                        | Renderiza                                                                     |
+| --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `<svge-node>` (`SvgeNodeRenderer`)                                                                                                | Dispatcher: `@switch` dos 8 built-ins + `group` recursivo + fallback registry |
+| `<svge-rect>`, `<svge-ellipse>`, `<svge-line>`, `<svge-polygon>`, `<svge-polyline>`, `<svge-path>`, `<svge-text>`, `<svge-image>` | renderiza o tipo correspondente envolto em `<g data-node-id transform>`       |
+
+#### Plugin extensibility (`./lib/registry/`) — **D-020**
+
+| Símbolo                                          | Descrição                                                                                  |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `NodeRendererRegistry` (`@Injectable({ root })`) | API: `register(type, component)`, `unregister(type)`, `resolve(type)`, `registeredTypes()` |
+| `SvgNodeRendererComponent` (`Type<unknown>`)     | tipo do componente renderer (loose; runtime contract documentado)                          |
+
+> **Plugin install pattern**:
+>
+> ```ts
+> inject(NodeRendererRegistry).register('star', SvgeStarRenderer);
+> ```
+>
+> O dispatcher monta o componente via `*ngComponentOutlet` para qualquer
+> nó com `type === 'star'`, passando `inputs: { node }`.
+
+#### Util (`./lib/util/`)
+
+| Símbolo                                             | Descrição                                                                                       |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `renderTransformAttr(t: Transform): string \| null` | serializa `Transform` em `matrix(a b c d e f)`; retorna `null` para identidade (omite atributo) |
+
+#### Cobertura de testes (Vitest)
+
+- 5 spec files novos no render: `transform-attr`, `node-renderer-registry`,
+  `viewport.service`, `renderers` (smoke por tipo), `svge-renderer.component` (integração).
+- Total da library `svg-engine`: **110 testes em 10 arquivos**, todos verdes.
 
 ### `svg-engine/io` (Fase 5)
 

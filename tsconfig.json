@@ -15,7 +15,8 @@
     "target": "ES2022",
     "paths": {
       "svg-engine": ["./dist/svg-engine"],
-      "svg-engine/core": ["./dist/svg-engine/core"]
+      "svg-engine/core": ["./dist/svg-engine/core"],
+      "svg-engine/render": ["./dist/svg-engine/render"]
     },
     "module": "preserve"
   },

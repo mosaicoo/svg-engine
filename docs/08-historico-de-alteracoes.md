@@ -6,6 +6,90 @@
 
 ---
 
+## 2026-05-14 — Plugin extensibilidade (D-020) + Workspace pendente (D-021)
+
+**O que aconteceu**
+
+Esclarecimento explícito do usuário em 2026-05-14, durante o intervalo
+entre Bloco 1 e Bloco 2 da Fase 2:
+
+1. **Plugin/extensão obrigatória**: terceiros devem poder estender a
+   library com tipos de nó custom (estrelas, gráficos, etc.), renderers
+   custom, ferramentas custom e painéis custom. Toda decisão de design
+   subsequente deve prever ponto de extensão.
+2. **Workspace / prancheta / página**: conceito acima do `SvgDocument`
+   SVG-spec, envolvendo configuração de página (tamanho, orientação),
+   background, margens, grid, eventual multi-página. Apenas para
+   registro — implementação futura.
+
+**Decisões registradas**
+
+- D-020: sistema de plugins de primeira classe — toda feature subsequente
+  expõe registry como ponto de extensão.
+- D-021: conceito de Workspace/Página — **PENDENTE**, definir antes da
+  Fase 4 (UI). Duas opções a avaliar (estender `SvgDocument` vs novo
+  `Workspace`).
+
+**Impacto imediato**
+
+Bloco 2 (renderer) já é desenhado com `NodeRendererRegistry` exposto
+desde o primeiro commit, evitando refatoração futura quando o primeiro
+plugin chegar.
+
+---
+
+## 2026-05-14 — Fase 2 Bloco 2: `svg-engine/render` entregue
+
+**O que foi entregue**
+
+Novo entry point `svg-engine/render` (zero deps de UI Material — D-017):
+
+- **Top-level**: `<svge-renderer>` standalone com inputs `tree`, `viewBox?`,
+  `width?`, `height?`, `ariaLabel?`. Renderiza `<svg>` com `role="img"`
+  para acessibilidade.
+- **8 renderers per-tipo**: `<svge-rect>`, `<svge-ellipse>`, `<svge-line>`,
+  `<svge-polygon>`, `<svge-polyline>`, `<svge-path>`, `<svge-text>`,
+  `<svge-image>` — cada um envolto em `<svg:g data-node-id transform>`
+  para suportar futura camada de seleção/handles.
+- **Dispatcher `<svge-node>`**: `@switch` para os 8 built-ins + `group`
+  recursivo inline (evita import circular) + `@default` fallback no
+  registry.
+- **`ViewportService`**: signals `zoom/panX/panY/contentBox/viewBox`
+  com APIs `pan`, `zoomIn/Out`, `multiplyZoom`, `setZoom`, `setPan`,
+  `reset`, `fit`, `setZoomLimits`. Clamping automático.
+- **`NodeRendererRegistry`** (D-020): API `register/unregister/resolve/registeredTypes`.
+  Dispatcher monta plugins via `*ngComponentOutlet`.
+- **`renderTransformAttr`**: util que serializa matriz para
+  `matrix(a b c d e f)` ou retorna `null` para identidade (omite atributo).
+- **`projectDocumentToRenderer`**: helper para extrair `tree`+`viewBox`
+  de um `SvgDocument`.
+
+**Validação**
+
+- `ng build svg-engine`: **OK** — 3 entry points (primary + core + render)
+  geram FESM separados em `dist/svg-engine/fesm2022/`.
+- `ng lint`: **OK** em ambos projetos.
+- `ng test svg-engine`: **110 testes verdes em 10 arquivos** (44 novos
+  no render: transform-attr 5, registry 5, viewport 17, renderers 12,
+  svge-renderer integração 7).
+- Playground: substituiu lista de IDs por canvas SVG real com 3 botões
+  de Add (rect/ellipse/triangle path), Nudge/Remove/Undo/Redo, controles
+  de Zoom in/out/reset, status com node count e zoom %.
+- Runtime via `ng serve`: bundle do playground contém `svge-renderer`,
+  `svge-rect`, `NodeRendererRegistry` (tree-shaking confirmado).
+
+**Componentização** (cumpre D-016 produto de mercado):
+
+- 1 componente standalone por tipo de nó (focused, OnPush).
+- Dispatcher é o único acoplamento entre tipos.
+- Plugin extensibility (D-020) embutida desde o primeiro commit.
+- Acessibilidade básica: `role="img"` + `aria-label` configurável.
+
+**Próximo**: aguardar validação do usuário antes de Fase 3 (seleção,
+transformação, canvas interativo em `svg-engine/edit`).
+
+---
+
 ## 2026-05-14 — Fase 2 Bloco 1: `svg-engine/core` entregue
 
 **O que foi entregue**

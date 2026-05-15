@@ -25,19 +25,37 @@
 
 ---
 
-## Entry point `svg-engine/render` (Fase 2 final)
+## Entry point `svg-engine/render` (Fase 2 Bloco 2) ✅
 
-### Componentes
+### Componentes top-level + dispatcher
 
-| Selector          | Responsabilidade                                    | Fase |
-| ----------------- | --------------------------------------------------- | ---- |
-| `<svge-renderer>` | Render read-only de uma árvore `SvgNode` em `<svg>` | 2    |
+| Selector          | Responsabilidade                                                                    |
+| ----------------- | ----------------------------------------------------------------------------------- |
+| `<svge-renderer>` | Render read-only top-level. `<svg>` raiz com viewBox/aria                           |
+| `<svge-node>`     | Dispatcher: `@switch` por `node.type`; recursivo para `group`; fallback no registry |
+
+### Componentes per-tipo (built-in)
+
+| Selector          | SVG renderizado  |
+| ----------------- | ---------------- |
+| `<svge-rect>`     | `<svg:rect>`     |
+| `<svge-ellipse>`  | `<svg:ellipse>`  |
+| `<svge-line>`     | `<svg:line>`     |
+| `<svge-polygon>`  | `<svg:polygon>`  |
+| `<svge-polyline>` | `<svg:polyline>` |
+| `<svge-path>`     | `<svg:path>`     |
+| `<svge-text>`     | `<svg:text>`     |
+| `<svge-image>`    | `<svg:image>`    |
+
+> Cada per-tipo é envolto em `<svg:g data-node-id transform>` para suportar
+> futura camada de seleção/handles sem reestruturação.
 
 ### Serviços
 
-| Serviço           | Responsabilidade                                      |
-| ----------------- | ----------------------------------------------------- |
-| `ViewportService` | Pan, zoom, transformação coordenadas tela ↔ documento |
+| Serviço                | Responsabilidade                                                   |
+| ---------------------- | ------------------------------------------------------------------ |
+| `ViewportService`      | Pan, zoom, contentBox/viewBox via signals                          |
+| `NodeRendererRegistry` | Plugin extensibility (D-020): registra renderers para tipos custom |
 
 ---
 
