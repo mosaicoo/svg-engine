@@ -107,7 +107,11 @@ interface DragState {
       </svg:g>
 
       @if (popoverOpen() && currentBBox(); as b) {
-        <svg:g class="popover" aria-label="Pivot anchor picker">
+        <svg:g
+          class="popover"
+          aria-label="Pivot anchor picker"
+          (pointerdown)="onPopoverPointerDown($event, b)"
+        >
           @for (a of popoverAnchors(b); track a.anchor) {
             <svg:circle
               class="popover-dot"
@@ -115,7 +119,7 @@ interface DragState {
               [attr.cx]="a.x"
               [attr.cy]="a.y"
               [attr.r]="popoverDotRadius()"
-              (pointerdown)="onPopoverPick($event, a.anchor, b)"
+              [attr.data-svge-anchor]="a.anchor"
               [attr.aria-label]="'Snap pivot to ' + a.anchor"
             ></svg:circle>
           }
@@ -291,52 +295,36 @@ export class RotationPivot implements OnDestroy {
   }
 
   /**
-   * Apply the picked anchor on **pointerdown** (not click) so the action
-   * happens inside the same event handler that calls `stopPropagation`.
+   * Single pointer-down listener on the popover **wrapper `<svg:g>`**
+   * (not on each `<svg:circle>`).
    *
-   * Defensive design:
-   *  - Capture `focusId` **first thing**, before any other code runs that
-   *    could be a victim of a race against selection state changes.
-   *  - Use `setPivotAnchorForNode(nodeId, ...)` (explicit id) instead of
-   *    `setPivotAnchor(anchor, bbox)` (which depends on
-   *    `selection.focusId()` at the time `storeLocalPivot` runs). Even if
-   *    something else races and clears the selection between the click
-   *    and the pivot store, the pivot will still land on the correct node.
-   *  - `stopImmediatePropagation` (in addition to `stopPropagation`) to
-   *    prevent **any** other listener — including ones on the same
-   *    element — from seeing this event.
-   *  - `setPointerCapture` so any subsequent move/up events route to the
-   *    popover dot rather than the canvas.
+   * Why on the wrapper: in this Angular setup, `(pointerdown)` bindings
+   * directly on the per-anchor `<svg:circle>` inside `@for` were not
+   * actually attaching working DOM listeners (confirmed via diagnostic
+   * logs — the per-dot handler never fired even though the canvas
+   * listener did see the popover-dot as `event.target`). Putting the
+   * listener on the stable wrapper element and reading the clicked dot
+   * via `event.target` + `data-svge-anchor` works around that.
+   *
+   * The handler captures focus immediately, uses
+   * `setPivotAnchorForNode(nodeId, ...)` (explicit id, bypasses any
+   * pivot-mode/focus checks) and `stopImmediatePropagation` so the
+   * canvas does not receive the event.
    */
-  protected onPopoverPick(event: PointerEvent, anchor: BBoxAnchor, bbox: BoundingBox): void {
-    // TEMPORARY DIAGNOSTIC LOG — remove after bug is confirmed fixed.
-
-    console.log('[svge:popover-pick] FIRED', {
-      anchor,
-      focusId: this.selection.focusId(),
-      selectedCount: this.selection.count(),
-      eventTarget: (event.target as Element)?.tagName,
-      eventCurrentTarget: (event.currentTarget as Element)?.tagName,
-      bbox,
-    });
+  protected onPopoverPointerDown(event: PointerEvent, bbox: BoundingBox): void {
+    const target = event.target as Element | null;
+    if (target === null) return;
+    const anchor = target.getAttribute('data-svge-anchor') as BBoxAnchor | null;
+    if (anchor === null || !BBOX_ANCHORS.includes(anchor)) {
+      // Click landed on the wrapper background, not a dot — ignore.
+      return;
+    }
     event.stopPropagation();
     event.stopImmediatePropagation();
     event.preventDefault();
     const focus = this.selection.focusId();
-    const target = event.target as Element & { setPointerCapture?(id: number): void };
-    if (typeof target.setPointerCapture === 'function') {
-      try {
-        target.setPointerCapture(event.pointerId);
-      } catch {
-        // ignore
-      }
-    }
     if (focus !== null) {
       this.transform.setPivotAnchorForNode(focus, anchor, bbox);
-
-      console.log('[svge:popover-pick] pivot stored for', focus.slice(0, 8));
-    } else {
-      console.warn('[svge:popover-pick] focus was null, pivot NOT stored');
     }
     this._popoverOpen.set(false);
   }
