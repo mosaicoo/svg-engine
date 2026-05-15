@@ -181,11 +181,38 @@ _(populado quando Fase 5 entregar)_
 
 _(populado quando Fase 5 entregar)_
 
-### `svg-engine/edit` (Fases 3 e 4)
+### `svg-engine/edit` (Fase 3 Bloco 1) ⏳ em progresso
 
-> Seleção, transformação, canvas interativo, plugins.
+> Seleção, transformação, canvas interativo, plugins. **Zero deps de UI Material** (D-017).
+>
+> **Bloco 1** ✅ entregue: `SelectionService` + hit-testing helpers.
+> **Bloco 2** ⏳ próximo: `<svge-selection-overlay>`, `<svge-rotation-pivot>`.
+> **Bloco 3** ⏳: `TransformService` (drag/resize/rotate com pivot editável — D-022).
+> **Bloco 4** ⏳: `<svge-marquee>`, `SnapService`, alignment.
+> **Bloco 5** ⏳: `ToolRegistry` (D-020 plugin point).
 
-_(populado conforme entregas)_
+#### Selection (`./lib/selection/`)
+
+| Símbolo                                      | Descrição                                                                                                                                                                                           |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SelectionService` (`@Injectable({ root })`) | signals: `selectedIds`, `focusId`, `hoverId`, `count`, `hasSelection`, `isSingleSelection`. APIs: `select`, `selectMany`, `addToSelection`, `toggle`, `deselect`, `clear`, `isSelected`, `setHover` |
+
+**Invariantes**:
+
+- `focusId` é sempre `null` ou membro de `selectedIds`.
+- `select(id)` substitui a seleção por `[id]` e seta foco em `id`.
+- `clear()` zera seleção e foco mas **preserva** hover (ortogonal).
+- Hover é independente da seleção (permite highlight on-cursor sem alterar a seleção ativa).
+
+#### Hit-testing (`./lib/hit-testing/`)
+
+| Símbolo                                                     | Descrição                                                                                                   |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `findOwningNodeId(target: Element \| null): NodeId \| null` | Caminha pelos `parentElement` buscando o `data-node-id` mais próximo. Pure function.                        |
+| `resolveNodeIdFromEvent(event: Event): NodeId \| null`      | Wrapper que aceita um Event e delega; `null` quando target não é Element ou sem ancestor com `data-node-id` |
+
+> O atributo `data-node-id` já é setado pelo dispatcher `<svge-node>`
+> em `svg-engine/render`. Hit-testing funciona out-of-the-box.
 
 ### `svg-engine/ui` (Fase 4)
 

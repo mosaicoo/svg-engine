@@ -12,6 +12,8 @@
     "core/src/**/*.d.ts",
     "core/src/**/*.spec.ts",
     "render/src/**/*.d.ts",
-    "render/src/**/*.spec.ts"
+    "render/src/**/*.spec.ts",
+    "edit/src/**/*.d.ts",
+    "edit/src/**/*.spec.ts"
   ]
 }

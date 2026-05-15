@@ -353,15 +353,48 @@
 
 ---
 
+## D-022 — Pivot de rotação editável (Fase 3)
+
+- **Data**: 2026-05-15
+- **Status**: Aceita (implementação na Fase 3)
+- **Contexto**: Requisito explícito do usuário. Editores profissionais
+  (Illustrator, Affinity Designer, After Effects) permitem mover o
+  ponto de rotação para fora do centro, possibilitando rotações
+  excêntricas (ex.: girar um ponteiro de relógio em torno do pino).
+- **Decisão**:
+  - Pivot é **estado do editor** (`TransformService`), **não** do
+    `SvgNode` — não persiste no documento serializado.
+  - Default do pivot = centro do bounding box do nó (ou da seleção
+    múltipla).
+  - Usuário arrasta um marcador (crosshair) sobre o canvas para
+    relocar o pivot a qualquer ponto (dentro/fora/borda).
+  - Rotação subsequente: matriz aplicada ao nó é
+    `T(pivot) ⋅ R(θ) ⋅ T(-pivot) ⋅ transform_atual`.
+  - **Esc** durante drag do pivot cancela; **double-click** no marcador
+    reseta para o centro.
+  - Reseta automaticamente quando a seleção muda.
+- **Escopo**:
+  - **Aplica apenas a rotação** na fase 3.
+  - **Scale/resize** usam handle oposto como âncora (padrão Figma /
+    Illustrator / Affinity), independente do pivot.
+- **Componentes**: `TransformService` mantém o `pivot: Signal<Point>`;
+  `<svge-rotation-pivot>` (overlay component) renderiza o crosshair
+  draggable.
+- **Consequências**: o `RotateNodeCommand` (a criar na Fase 3) recebe
+  `pivot` como parâmetro além do ângulo, para que o undo restaure
+  exatamente o estado anterior.
+
+---
+
 ## Decisões pendentes (em aberto)
 
 | ID provis. | Tema                                                              |
 | ---------- | ----------------------------------------------------------------- |
-| D-022?     | API formal de plugins (manifesto, install/uninstall, lifecycle)   |
-| D-023?     | Versionamento + changelog (changesets / standard-version)         |
-| D-024?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo) |
-| D-025?     | Estratégia de i18n no editor                                      |
-| D-026?     | Migração para zoneless (revisar D-010)                            |
-| D-027?     | Lint rule customizada para enforcer headless boundary             |
-| D-028?     | Estratégia de testes E2E (Playwright?)                            |
-| D-029?     | **Workspace/Página: A vs B** (resolver D-021)                     |
+| D-023?     | API formal de plugins (manifesto, install/uninstall, lifecycle)   |
+| D-024?     | Versionamento + changelog (changesets / standard-version)         |
+| D-025?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo) |
+| D-026?     | Estratégia de i18n no editor                                      |
+| D-027?     | Migração para zoneless (revisar D-010)                            |
+| D-028?     | Lint rule customizada para enforcer headless boundary             |
+| D-029?     | Estratégia de testes E2E (Playwright?)                            |
+| D-030?     | **Workspace/Página: A vs B** (resolver D-021)                     |

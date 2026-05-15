@@ -11,6 +11,7 @@ import {
   MoveNodeCommand,
   RemoveNodeCommand,
 } from 'svg-engine/core';
+import { resolveNodeIdFromEvent, SelectionService } from 'svg-engine/edit';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
 
 type ShapeKind = 'rect' | 'ellipse' | 'path';
@@ -35,6 +36,7 @@ export class App {
   private readonly bus = inject(CommandBus);
   private readonly state = inject(EditorStateService);
   private readonly history = inject(HistoryService);
+  private readonly selection = inject(SelectionService);
   protected readonly viewport = inject(ViewportService);
 
   protected readonly title = signal('SVGEngine Playground');
@@ -45,6 +47,11 @@ export class App {
   protected readonly canUndo = this.history.canUndo;
   protected readonly canRedo = this.history.canRedo;
   protected readonly zoomPct = computed(() => `${(this.viewport.zoom() * 100).toFixed(0)}%`);
+  protected readonly selectedCount = this.selection.count;
+  protected readonly focusIdShort = computed(() => {
+    const id = this.selection.focusId();
+    return id === null ? '—' : id.slice(0, 8);
+  });
 
   constructor() {
     // Sync the viewport's content box with the document's viewBox so the
@@ -107,6 +114,21 @@ export class App {
 
   protected resetView(): void {
     this.viewport.reset();
+  }
+
+  /**
+   * Canvas pointer-down handler: walks the SVG event chain to find the
+   * owning `data-node-id` (set by the renderer dispatcher) and selects
+   * that node. Clicking the SVG background (no node ancestor) clears
+   * the selection.
+   */
+  protected onCanvasPointerDown(event: PointerEvent): void {
+    const id = resolveNodeIdFromEvent(event);
+    if (id === null) {
+      this.selection.clear();
+    } else {
+      this.selection.select(id);
+    }
   }
 
   private firstChild() {

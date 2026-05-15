@@ -29,7 +29,7 @@
     </fieldset>
   </section>
 
-  <section class="canvas" aria-label="SVG canvas">
+  <section class="canvas" aria-label="SVG canvas" (pointerdown)="onCanvasPointerDown($event)">
     <svge-renderer
       [tree]="tree()"
       [viewBox]="viewBox()"
@@ -38,7 +38,10 @@
   </section>
 
   <footer class="status" aria-label="Document status">
-    Nodes: <strong>{{ nodeCount() }}</strong> &nbsp;·&nbsp; Zoom: <strong>{{ zoomPct() }}</strong>
+    Nodes: <strong>{{ nodeCount() }}</strong> &nbsp;·&nbsp; Zoom:
+    <strong>{{ zoomPct() }}</strong> &nbsp;·&nbsp; Selected:
+    <strong>{{ selectedCount() }}</strong> &nbsp;·&nbsp; Focus:
+    <strong>{{ focusIdShort() }}</strong>
   </footer>
 
   <router-outlet />

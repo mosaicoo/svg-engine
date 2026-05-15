@@ -95,22 +95,23 @@
 
 ### Componentes
 
-| Selector                   | Responsabilidade                            | Fase |
-| -------------------------- | ------------------------------------------- | ---- |
-| `<svge-canvas>`            | Canvas editável (renderer + interações)     | 2-3  |
-| `<svge-selection-overlay>` | Handles de seleção (camada acima do canvas) | 3    |
-| `<svge-marquee>`           | Retângulo de seleção por arrasto            | 3    |
-| `<svge-snap-guides>`       | Linhas-guia de alinhamento (overlay)        | 3    |
+| Selector                   | Responsabilidade                                           | Fase |
+| -------------------------- | ---------------------------------------------------------- | ---- |
+| `<svge-canvas>`            | Canvas editável (renderer + interações)                    | 2-3  |
+| `<svge-selection-overlay>` | Handles de seleção (camada acima do canvas)                | 3    |
+| `<svge-rotation-pivot>`    | Crosshair editável do pivot de rotação (D-022); arrastável | 3    |
+| `<svge-marquee>`           | Retângulo de seleção por arrasto                           | 3    |
+| `<svge-snap-guides>`       | Linhas-guia de alinhamento (overlay)                       | 3    |
 
 ### Serviços
 
-| Serviço            | Responsabilidade                                    |
-| ------------------ | --------------------------------------------------- |
-| `SelectionService` | IDs selecionados, foco, hover                       |
-| `TransformService` | Drag, resize, rotate, scale (gera comandos)         |
-| `SnapService`      | Cálculo de snaps (grid, objetos, distâncias)        |
-| `ClipboardService` | Copy/paste interno e integração com clipboard do SO |
-| `PluginRegistry`   | Registro e ciclo de vida de plugins                 |
+| Serviço            | Responsabilidade                                                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `SelectionService` | IDs selecionados, foco, hover                                                                                                    |
+| `TransformService` | Drag, resize, rotate, scale (gera comandos). Mantém `pivot` editável (D-022) para rotação. Reseta ao centro quando seleção muda. |
+| `SnapService`      | Cálculo de snaps (grid, objetos, distâncias)                                                                                     |
+| `ClipboardService` | Copy/paste interno e integração com clipboard do SO                                                                              |
+| `ToolRegistry`     | Plugin extensibility (D-020): terceiros registram ferramentas customizadas                                                       |
 
 ---
 

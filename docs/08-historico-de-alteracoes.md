@@ -6,6 +6,69 @@
 
 ---
 
+## 2026-05-15 — Fase 3 Bloco 1: `svg-engine/edit` + SelectionService + hit-testing
+
+**O que foi entregue**
+
+Quarto entry point da library: `svg-engine/edit`. Zero deps de UI Material
+(D-017). Bloco 1 implementa as bases para qualquer interação editorial:
+saber **o que está selecionado** e **como descobrir o que o usuário clicou**.
+
+- **Entry point**: `projects/svg-engine/edit/` com `ng-package.json`,
+  path mapping em `tsconfig.json` (`svg-engine/edit` → `dist/svg-engine/edit`),
+  inclusos em `tsconfig.lib.json` e `tsconfig.spec.json`.
+- **`SelectionService`** (signal-based, `providedIn: 'root'`):
+  - Signals: `selectedIds`, `focusId`, `hoverId` + computeds `count`,
+    `hasSelection`, `isSingleSelection`.
+  - APIs: `select`, `selectMany`, `addToSelection`, `toggle`, `deselect`,
+    `clear`, `isSelected`, `setHover`.
+  - Invariantes: `focusId` é sempre membro de `selectedIds` ou `null`.
+    `clear()` preserva hover (ortogonal). `select(id)` substitui
+    completamente a seleção (single-select padrão).
+  - **Estado transient** — não serializa no `SvgDocument`.
+- **Hit-testing** (puro, sem Angular DI):
+  - `findOwningNodeId(target: Element | null)`: walks `parentElement`
+    procurando o `data-node-id` mais próximo. Devolve `null` para clique
+    no background.
+  - `resolveNodeIdFromEvent(event: Event)`: wrapper que aceita Event;
+    `null` para target não-Element.
+  - Funciona out-of-the-box porque o dispatcher `<svge-node>` em
+    `svg-engine/render` já popula `data-node-id` em cada `<svg:g>`.
+
+**Decisão registrada antes do bloco**
+
+- **D-022 — Pivot de rotação editável**: requisito explícito do usuário
+  para a Fase 3. Pivot é estado do editor (no `TransformService` que vem
+  no Bloco 3), não do `SvgNode`. Default = centro do bounding box;
+  arrastável para qualquer ponto; rotação subsequente acontece em torno
+  dele (matriz `T(p) ⋅ R(θ) ⋅ T(-p) ⋅ existente`). Reseta na troca de
+  seleção. Esc cancela; double-click reseta. Aplica **apenas** a rotação;
+  scale/resize usam handle oposto como âncora (padrão Figma/Illustrator).
+  `RotateNodeCommand` (a criar no Bloco 3) recebe `pivot` para undo correto.
+
+**Validação**
+
+- `ng build svg-engine`: **OK** — agora 4 entry points compilam:
+  `dist/svg-engine/fesm2022/svg-engine.mjs` (primary),
+  `svg-engine-core.mjs`, `svg-engine-render.mjs`, `svg-engine-edit.mjs`.
+- `ng lint`: **OK** em ambos projetos.
+- `ng test svg-engine`: **136 testes verdes em 12 arquivos** (+24 novos:
+  16 do SelectionService cobrindo todas as APIs + invariantes,
+  8 do hit-testing cobrindo SVG namespace, walking, edge cases).
+- `ng build playground`: **OK** — bundle inclui `SelectionService` (8 matches)
+  e `resolveNodeIdFromEvent` (2 matches). Bundle 232KB → 258KB (~26KB
+  do edit; tree-shaking confirmado).
+- **Playground integrado**: pointer-down no `.canvas` chama
+  `resolveNodeIdFromEvent` → `selection.select(id)` ou `selection.clear()`.
+  Status bar mostra contagem selecionada + 8 chars iniciais do focus ID.
+  Sem visual de overlay ainda (vem no Bloco 2).
+
+**Próximo**: aguardar validação antes de Bloco 2 (`<svge-selection-overlay>`
+
+- `<svge-rotation-pivot>` — handles visuais e marcador de pivot draggable).
+
+---
+
 ## 2026-05-15 — Fix: zoom/pan agora aplicam mesmo com input viewBox
 
 **Sintoma reportado**: pan/zoom controls no playground não tinham

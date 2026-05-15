@@ -74,13 +74,44 @@
       com botões Add(rect/ellipse/path), nudge, remove, undo/redo, zoom in/out/reset
 - [x] Runtime verificado: bundle contém `svge-renderer`, `svge-rect`, `NodeRendererRegistry`
 
-## Fase 3 — Seleção e transformação
+## Fase 3 — Seleção e transformação (`svg-engine/edit`)
 
-- [ ] `SelectionService` + seleção única e múltipla (marquee)
-- [ ] Handles de seleção (overlay separado)
-- [ ] Drag, resize, rotate, scale via comandos
-- [ ] Snap-to-grid e snap-to-objects opcionais
-- [ ] Alinhamento e distribuição (esquerda, centro, etc.)
+### Bloco 1 — `SelectionService` + hit-testing ✅ concluído
+
+- [x] Estrutura `projects/svg-engine/edit/` (ng-package + path mapping + tsconfig includes)
+- [x] `SelectionService` (signals: `selectedIds`, `focusId`, `hoverId`, `count`, `hasSelection`, `isSingleSelection`)
+- [x] APIs: `select`, `selectMany`, `addToSelection`, `toggle`, `deselect`, `clear`, `isSelected`, `setHover`
+- [x] Hit-testing: `findOwningNodeId(target)` + `resolveNodeIdFromEvent(event)` — usa `data-node-id` setado pelo renderer
+- [x] **136 tests verdes em 12 arquivos** (24 novos: 16 SelectionService + 8 hit-testing)
+- [x] Playground integrado: clique no canvas seleciona o nó (ou limpa); status bar mostra contagem + focus ID
+
+### Bloco 2 — Selection overlay visual
+
+- [ ] `<svge-selection-overlay>`: 8 handles (4 cantos + 4 lados) + handle de rotação
+- [ ] `<svge-rotation-pivot>` (D-022): crosshair do pivot draggable; default = centro
+- [ ] Bounding box reativo a transform/zoom
+
+### Bloco 3 — Transform interativo
+
+- [ ] `TransformService`: signals `pivot`, `dragState`. Métodos `startDrag/drag/endDrag`,
+      `startRotate/rotate/endRotate`, `startResize/resize/endResize`
+- [ ] **Pivot de rotação editável (D-022)**: pivot persiste por seleção; reseta ao centro
+      quando seleção muda; Esc cancela; double-click reseta
+- [ ] `RotateNodeCommand` (no `core`): recebe `angleRad` + `pivot` para undo correto
+- [ ] `ResizeNodeCommand` (handle oposto = âncora)
+- [ ] Integração com `MoveNodeCommand` existente
+
+### Bloco 4 — Marquee + alinhamento
+
+- [ ] `<svge-marquee>`: drag-to-select com box visual
+- [ ] Snap-to-grid e snap-to-objects opcionais (`SnapService`)
+- [ ] Alinhamento e distribuição (esquerda/centro/direita/topo/meio/base)
+
+### Bloco 5 — Plugin extensibility (D-020)
+
+- [ ] `ToolRegistry`: plugins registram ferramentas customizadas
+- [ ] Tool API: `id`, `label`, `icon?`, `cursor?`, `onPointerDown/Move/Up`, `onKey`
+- [ ] Pelo menos 1 ferramenta de referência (ex.: pencil/freehand)
 
 ## Fase 4 — UX completa
 
