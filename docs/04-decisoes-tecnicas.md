@@ -353,48 +353,101 @@
 
 ---
 
-## D-022 — Pivot de rotação editável (Fase 3)
+## D-022 — Pivot de rotação editável (Affinity-grade) (Fase 3)
 
-- **Data**: 2026-05-15
-- **Status**: Aceita (implementação na Fase 3)
-- **Contexto**: Requisito explícito do usuário. Editores profissionais
-  (Illustrator, Affinity Designer, After Effects) permitem mover o
-  ponto de rotação para fora do centro, possibilitando rotações
-  excêntricas (ex.: girar um ponteiro de relógio em torno do pino).
-- **Decisão**:
-  - Pivot é **estado do editor** (`TransformService`), **não** do
-    `SvgNode` — não persiste no documento serializado.
-  - Default do pivot = centro do bounding box do nó (ou da seleção
-    múltipla).
-  - Usuário arrasta um marcador (crosshair) sobre o canvas para
-    relocar o pivot a qualquer ponto (dentro/fora/borda).
-  - Rotação subsequente: matriz aplicada ao nó é
-    `T(pivot) ⋅ R(θ) ⋅ T(-pivot) ⋅ transform_atual`.
-  - **Esc** durante drag do pivot cancela; **double-click** no marcador
-    reseta para o centro.
-  - Reseta automaticamente quando a seleção muda.
-- **Escopo**:
-  - **Aplica apenas a rotação** na fase 3.
-  - **Scale/resize** usam handle oposto como âncora (padrão Figma /
-    Illustrator / Affinity), independente do pivot.
-- **Componentes**: `TransformService` mantém o `pivot: Signal<Point>`;
-  `<svge-rotation-pivot>` (overlay component) renderiza o crosshair
-  draggable.
-- **Consequências**: o `RotateNodeCommand` (a criar na Fase 3) recebe
-  `pivot` como parâmetro além do ângulo, para que o undo restaure
-  exatamente o estado anterior.
+- **Data**: 2026-05-15 (revisada após pesquisa de mercado em 2026-05-15)
+- **Status**: Aceita (implementação na Fase 3, refinamento na Fase 4 Inspector)
+- **Contexto**: Requisito explícito do usuário ("desejo a melhor
+  funcionalidade"). Pesquisa comparativa de 2026-05-15 entre as 4
+  ferramentas de mercado mostrou:
+
+  | Ferramenta        | Movable pivot         | 9-point picker     | Snap-to-anchors | Persistência  | Aplica scale |
+  | ----------------- | --------------------- | ------------------ | --------------- | ------------- | ------------ |
+  | Canva             | ❌                    | ❌                 | ❌              | n/a           | n/a          |
+  | Figma             | ⚠️ Alt-drag escondido | ❌                 | ❌              | sessão        | ❌           |
+  | Illustrator       | ✅ Rotate Tool        | ✅ Transform panel | parcial         | ❌ reseta     | ✅ via panel |
+  | Affinity Designer | ✅ free               | ✅ Anchor 3×3      | ✅              | ✅ por objeto | ✅           |
+
+  Decidido pelo padrão **Affinity-grade** para alinhamento com o tier
+  mais alto do mercado.
+
+- **Decisão (final)**:
+
+  **Pivot é estado do editor** (`TransformService`), **não** do
+  `SvgNode` — não persiste no documento serializado.
+
+  **Default**: centro do bounding box do nó (ou da seleção múltipla).
+
+  **Persistência por nó** (D-022.persist): `TransformService` mantém um
+  `Map<NodeId, Point>` com pivots customizados. Quando o usuário
+  reseleciona um nó previamente editado, o pivot é restaurado.
+  Coordenadas armazenadas em **node-local** (relativas ao bbox do nó),
+  para que o pivot acompanhe transformações posteriores. Sai do mapa
+  quando o nó é deletado ou o `clear()` do TransformService é chamado.
+
+  **Para seleção múltipla**: pivot é relativo à bounding box composta
+  da seleção; reseta quando a composição muda (não persiste —
+  selection bbox é transient).
+
+  **Free-drag**: usuário arrasta crosshair para qualquer ponto
+  (dentro/fora/borda do bbox).
+
+  **Snap-to-anchors** (D-022.snap): ao arrastar, snap automático nas 9
+  posições do bbox (TL/TC/TR/ML/MC/MR/BL/BC/BR) quando a ≤ 5px de uma
+  delas. Hold **Alt** durante drag desativa snap (precisão livre).
+
+  **9-point picker** (D-022.picker): clique no crosshair (sem drag)
+  abre popover 3×3 com as 9 posições do bbox; clique em uma snapa
+  pivot exatamente lá. UI inicialmente no overlay (Bloco 2);
+  espelhada no Inspector na Fase 4.
+
+  **Numerical input X/Y** (D-022.input): coordenadas X/Y do pivot
+  editáveis no Inspector (Fase 4). Não bloqueia a Fase 3.
+
+  **Rotação subsequente**: matriz aplicada ao nó é
+  `T(pivot) ⋅ R(θ) ⋅ T(-pivot) ⋅ transform_atual`.
+
+  **Esc** durante drag cancela; **double-click** no crosshair reseta
+  ao centro (e remove do `Map<NodeId,Point>`).
+
+- **Escopo (Fase 3)**:
+  - **Aplica apenas a rotação**.
+  - **Scale/resize** usam handle oposto como âncora (Figma /
+    Illustrator-Tool style), independente do pivot. Suficiente para
+    cobrir o caso de uso comum.
+  - Affinity vai além e aplica pivot a scale + shear; registrado como
+    **D-022b futura** (ver pendentes). Adia porque exige refatorar
+    todos os 4 handles de scale para considerar pivot, custo alto.
+
+- **Componentes**:
+  - `TransformService` (a criar no Bloco 3):
+    - `pivot: Signal<Point>` (computed: lookup no map ou default centro)
+    - `customPivots: Signal<ReadonlyMap<NodeId, Point>>`
+    - APIs: `setPivot(point)`, `setPivotAnchor(anchor: 9-point)`,
+      `resetPivot()`, `clearAllPivots()`
+  - `<svge-rotation-pivot>` (overlay, Bloco 2): crosshair draggable +
+    popover 3×3 + lógica de snap.
+
+- **Consequências**:
+  - `RotateNodeCommand` (Bloco 3) recebe `pivot` como parâmetro além
+    do ângulo, para undo correto.
+  - Estado de pivots customizados é cleared em "novo documento" /
+    abertura de outro doc.
+  - Documentação no Inspector (Fase 4) terá um pequeno indicador de
+    qual anchor (ou "custom") está ativo.
 
 ---
 
 ## Decisões pendentes (em aberto)
 
-| ID provis. | Tema                                                              |
-| ---------- | ----------------------------------------------------------------- |
-| D-023?     | API formal de plugins (manifesto, install/uninstall, lifecycle)   |
-| D-024?     | Versionamento + changelog (changesets / standard-version)         |
-| D-025?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo) |
-| D-026?     | Estratégia de i18n no editor                                      |
-| D-027?     | Migração para zoneless (revisar D-010)                            |
-| D-028?     | Lint rule customizada para enforcer headless boundary             |
-| D-029?     | Estratégia de testes E2E (Playwright?)                            |
-| D-030?     | **Workspace/Página: A vs B** (resolver D-021)                     |
+| ID provis. | Tema                                                                   |
+| ---------- | ---------------------------------------------------------------------- |
+| D-023?     | API formal de plugins (manifesto, install/uninstall, lifecycle)        |
+| D-024?     | Versionamento + changelog (changesets / standard-version)              |
+| D-025?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo)      |
+| D-026?     | Estratégia de i18n no editor                                           |
+| D-027?     | Migração para zoneless (revisar D-010)                                 |
+| D-028?     | Lint rule customizada para enforcer headless boundary                  |
+| D-029?     | Estratégia de testes E2E (Playwright?)                                 |
+| D-030?     | **Workspace/Página: A vs B** (resolver D-021)                          |
+| D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3 |

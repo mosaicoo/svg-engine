@@ -95,23 +95,23 @@
 
 ### Componentes
 
-| Selector                   | Responsabilidade                                           | Fase |
-| -------------------------- | ---------------------------------------------------------- | ---- |
-| `<svge-canvas>`            | Canvas editável (renderer + interações)                    | 2-3  |
-| `<svge-selection-overlay>` | Handles de seleção (camada acima do canvas)                | 3    |
-| `<svge-rotation-pivot>`    | Crosshair editável do pivot de rotação (D-022); arrastável | 3    |
-| `<svge-marquee>`           | Retângulo de seleção por arrasto                           | 3    |
-| `<svge-snap-guides>`       | Linhas-guia de alinhamento (overlay)                       | 3    |
+| Selector                   | Responsabilidade                                                                                                                                                                                                                                         | Fase |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| `<svge-canvas>`            | Canvas editável (renderer + interações)                                                                                                                                                                                                                  | 2-3  |
+| `<svge-selection-overlay>` | Handles de seleção (camada acima do canvas)                                                                                                                                                                                                              | 3    |
+| `<svge-rotation-pivot>`    | Crosshair editável do pivot de rotação (D-022 Affinity-grade): free-drag com snap-to-anchors (Alt=bypass); clique sem drag abre popover 3×3 para snap exato (TL/TC/TR/ML/MC/MR/BL/BC/BR); Esc cancela; double-click reseta; pivot custom persiste por nó | 3    |
+| `<svge-marquee>`           | Retângulo de seleção por arrasto                                                                                                                                                                                                                         | 3    |
+| `<svge-snap-guides>`       | Linhas-guia de alinhamento (overlay)                                                                                                                                                                                                                     | 3    |
 
 ### Serviços
 
-| Serviço            | Responsabilidade                                                                                                                 |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `SelectionService` | IDs selecionados, foco, hover                                                                                                    |
-| `TransformService` | Drag, resize, rotate, scale (gera comandos). Mantém `pivot` editável (D-022) para rotação. Reseta ao centro quando seleção muda. |
-| `SnapService`      | Cálculo de snaps (grid, objetos, distâncias)                                                                                     |
-| `ClipboardService` | Copy/paste interno e integração com clipboard do SO                                                                              |
-| `ToolRegistry`     | Plugin extensibility (D-020): terceiros registram ferramentas customizadas                                                       |
+| Serviço            | Responsabilidade                                                                                                                                                                                                                                                                                                       |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SelectionService` | IDs selecionados, foco, hover                                                                                                                                                                                                                                                                                          |
+| `TransformService` | Drag, resize, rotate, scale (gera comandos). Mantém pivot Affinity-grade (D-022): `Map<NodeId, Point>` em coordenadas node-local; default centro; APIs `setPivot/setPivotAnchor/resetPivot/clearAllPivots`. Snap a 9 anchors (Alt bypass). Para multi-selection, pivot é relativo à bbox composta e reseta na mudança. |
+| `SnapService`      | Cálculo de snaps (grid, objetos, distâncias)                                                                                                                                                                                                                                                                           |
+| `ClipboardService` | Copy/paste interno e integração com clipboard do SO                                                                                                                                                                                                                                                                    |
+| `ToolRegistry`     | Plugin extensibility (D-020): terceiros registram ferramentas customizadas                                                                                                                                                                                                                                             |
 
 ---
 

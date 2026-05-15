@@ -6,6 +6,55 @@
 
 ---
 
+## 2026-05-15 — D-022 revisada: pivot Affinity-grade
+
+**O que aconteceu**
+
+Pesquisa comparativa solicitada pelo usuário entre Figma, Illustrator,
+Affinity Designer e Canva. Resultado:
+
+| Ferramenta            | Movable pivot         | 9-point picker     | Snap    | Persistência   | Scale     |
+| --------------------- | --------------------- | ------------------ | ------- | -------------- | --------- |
+| Canva                 | ❌                    | ❌                 | ❌      | n/a            | n/a       |
+| Figma                 | ⚠️ Alt-drag escondido | ❌                 | ❌      | sessão         | ❌        |
+| Illustrator           | ✅ Rotate Tool        | ✅ Transform panel | parcial | reseta         | via panel |
+| **Affinity Designer** | ✅ free               | ✅ Anchor 3×3      | ✅      | **per-object** | ✅        |
+
+Usuário decidiu pelo padrão **Affinity-grade** ("desejo a melhor
+funcionalidade") em vez do escopo inicial mínimo (que estava no nível
+Illustrator-Tool).
+
+**D-022 atualizada com**:
+
+- **Persistência per-node**: `Map<NodeId, Point>` em coordenadas
+  node-local; pivot custom restaura ao reselecionar.
+- **Snap-to-9-anchors** durante free-drag (Alt = bypass).
+- **9-point picker popover** ao clicar no crosshair (sem drag) — UI
+  3×3 para snap exato.
+- **Numerical input X/Y** mantido para Fase 4 (Inspector).
+
+**Conscientemente NÃO incluído na Fase 3** (registrado como D-022b
+futura): pivot afetar scale/resize. Affinity faz isso completo;
+adiciona complexidade significativa (todos os 4 handles de scale
+precisam considerar pivot). Mantém-se handle oposto como âncora
+para scale (Figma / Illustrator-Tool style).
+
+**Multi-selection**: pivot relativo à bbox composta da seleção;
+reseta quando a composição muda (não persiste — selection bbox
+é transient).
+
+**Componentes afetados** (especs em D-022, implementação Bloco 2 + 3):
+
+- `<svge-rotation-pivot>` ganha popover 3×3 + snap logic
+- `TransformService` ganha `Map<NodeId, Point>` + APIs
+  `setPivotAnchor`/`resetPivot`/`clearAllPivots`
+- `RotateNodeCommand` recebe `pivot` para undo correto
+
+**Docs atualizados**: `04-decisoes-tecnicas` (D-022 expandida +
+D-022b pendente), `06-componentes`, `05-roadmap` (Bloco 2 e 3).
+
+---
+
 ## 2026-05-15 — Fase 3 Bloco 1: `svg-engine/edit` + SelectionService + hit-testing
 
 **O que foi entregue**

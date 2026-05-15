@@ -85,20 +85,27 @@
 - [x] **136 tests verdes em 12 arquivos** (24 novos: 16 SelectionService + 8 hit-testing)
 - [x] Playground integrado: clique no canvas seleciona o nó (ou limpa); status bar mostra contagem + focus ID
 
-### Bloco 2 — Selection overlay visual
+### Bloco 2 — Selection overlay visual + pivot Affinity-grade
 
 - [ ] `<svge-selection-overlay>`: 8 handles (4 cantos + 4 lados) + handle de rotação
-- [ ] `<svge-rotation-pivot>` (D-022): crosshair do pivot draggable; default = centro
-- [ ] Bounding box reativo a transform/zoom
+- [ ] Bounding box reativo a transform/zoom (handles em pixels constantes)
+- [ ] `<svge-rotation-pivot>` (D-022 Affinity-grade):
+  - [ ] Crosshair draggable; default = centro do bbox
+  - [ ] **Snap-to-9-anchors** durante drag (TL/TC/TR/ML/MC/MR/BL/BC/BR) a ≤5px; Alt = bypass
+  - [ ] **9-point picker popover**: clique no crosshair (sem drag) abre 3×3 para snap exato
+  - [ ] Esc cancela drag; double-click reseta ao centro
+- [ ] Hover state visual (outline leve em `hoverId`)
 
-### Bloco 3 — Transform interativo
+### Bloco 3 — Transform interativo + pivot persistente
 
-- [ ] `TransformService`: signals `pivot`, `dragState`. Métodos `startDrag/drag/endDrag`,
-      `startRotate/rotate/endRotate`, `startResize/resize/endResize`
-- [ ] **Pivot de rotação editável (D-022)**: pivot persiste por seleção; reseta ao centro
-      quando seleção muda; Esc cancela; double-click reseta
+- [ ] `TransformService`: signals `dragState`, `customPivots` (`Map<NodeId, Point>` em node-local)
+- [ ] APIs: `setPivot`, `setPivotAnchor(9-point)`, `resetPivot`, `clearAllPivots`
+- [ ] **Persistência por nó (D-022.persist)**: pivot custom é restaurado ao reselecionar.
+      Para multi-selection, pivot relativo à bbox composta e reseta na mudança de composição.
+- [ ] Métodos: `startDrag/drag/endDrag`, `startRotate/rotate/endRotate`, `startResize/resize/endResize`
 - [ ] `RotateNodeCommand` (no `core`): recebe `angleRad` + `pivot` para undo correto
-- [ ] `ResizeNodeCommand` (handle oposto = âncora)
+      (matriz `T(p) ⋅ R(θ) ⋅ T(-p) ⋅ existente`)
+- [ ] `ResizeNodeCommand` (handle oposto = âncora; pivot **não** afeta scale na Fase 3 — D-022b futura)
 - [ ] Integração com `MoveNodeCommand` existente
 
 ### Bloco 4 — Marquee + alinhamento
