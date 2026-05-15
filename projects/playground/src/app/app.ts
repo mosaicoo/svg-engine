@@ -179,8 +179,17 @@ export class App implements OnDestroy {
    *    propagation, so this handler does not fire.
    */
   protected onCanvasPointerDown(event: PointerEvent): void {
+    // TEMPORARY DIAGNOSTIC LOG — remove after bug is confirmed fixed.
+    const targetEl = event.target as Element | null;
+
+    console.log('[svge:canvas-down] FIRED', {
+      tag: targetEl?.tagName,
+      class: targetEl?.getAttribute('class'),
+      ariaLabel: targetEl?.getAttribute('aria-label'),
+    });
     const id = resolveNodeIdFromEvent(event);
     if (id === null) {
+      console.warn('[svge:canvas-down] no node-id → clearing selection');
       this.selection.clear();
       this.potentialDrag = null;
       return;

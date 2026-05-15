@@ -309,6 +309,16 @@ export class RotationPivot implements OnDestroy {
    *    popover dot rather than the canvas.
    */
   protected onPopoverPick(event: PointerEvent, anchor: BBoxAnchor, bbox: BoundingBox): void {
+    // TEMPORARY DIAGNOSTIC LOG — remove after bug is confirmed fixed.
+
+    console.log('[svge:popover-pick] FIRED', {
+      anchor,
+      focusId: this.selection.focusId(),
+      selectedCount: this.selection.count(),
+      eventTarget: (event.target as Element)?.tagName,
+      eventCurrentTarget: (event.currentTarget as Element)?.tagName,
+      bbox,
+    });
     event.stopPropagation();
     event.stopImmediatePropagation();
     event.preventDefault();
@@ -323,6 +333,10 @@ export class RotationPivot implements OnDestroy {
     }
     if (focus !== null) {
       this.transform.setPivotAnchorForNode(focus, anchor, bbox);
+
+      console.log('[svge:popover-pick] pivot stored for', focus.slice(0, 8));
+    } else {
+      console.warn('[svge:popover-pick] focus was null, pivot NOT stored');
     }
     this._popoverOpen.set(false);
   }
