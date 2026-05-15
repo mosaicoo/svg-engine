@@ -115,7 +115,8 @@ interface DragState {
               [attr.cx]="a.x"
               [attr.cy]="a.y"
               [attr.r]="popoverDotRadius()"
-              (click)="onPopoverPick(a.anchor, b)"
+              (pointerdown)="onPopoverDotPointerDown($event)"
+              (click)="onPopoverPick($event, a.anchor, b)"
               [attr.aria-label]="'Snap pivot to ' + a.anchor"
             ></svg:circle>
           }
@@ -290,9 +291,21 @@ export class RotationPivot implements OnDestroy {
     event.stopPropagation();
   }
 
-  protected onPopoverPick(anchor: BBoxAnchor, bbox: BoundingBox): void {
+  /**
+   * Stop the pointerdown from bubbling to the canvas; otherwise the
+   * playground's `onCanvasPointerDown` runs hit-testing, finds no
+   * `data-node-id` (popover dots are not document nodes) and clears the
+   * selection — which also unmounts the popover before the click event
+   * has a chance to fire.
+   */
+  protected onPopoverDotPointerDown(event: PointerEvent): void {
+    event.stopPropagation();
+  }
+
+  protected onPopoverPick(event: MouseEvent, anchor: BBoxAnchor, bbox: BoundingBox): void {
     this.transform.setPivotAnchor(anchor, bbox);
     this._popoverOpen.set(false);
+    event.stopPropagation();
   }
 
   protected popoverAnchors(
