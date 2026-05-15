@@ -6,6 +6,90 @@
 
 ---
 
+## 2026-05-15 — Fase 3 Bloco 5c: Documentação canônica de plugins (D-020/D-023/D-024)
+
+**O que foi entregue**
+
+Bloco sem código — formaliza a arquitetura de plugins no doc de
+decisões agora que a infra está sólida (5a + 5b). Três decisões
+tocadas, uma tabela reorganizada, refs cruzados atualizados.
+
+**`docs/04-decisoes-tecnicas.md`**:
+
+- **D-020 expandido**: substitui o esboço de 2026-05-14 pelo design
+  real entregue. Inclui interfaces formais (`EditorPlugin`,
+  `PluginContext`, `Disposable`, `PLUGIN_API_VERSION`), exemplo de
+  bootstrap (`provideSvgEnginePlugin`), padrão fixo de capability
+  registry, garantias do `PluginRegistry` (atomicidade, semver
+  major-only, idempotent uninstall, LIFO disposal, resiliência a
+  uninstall a quente), e justificativa explícita do `injector` cru
+  no PluginContext (vs façade que cresce a cada release).
+- **D-023 novo (Categorias de plugin)**: tabela de 9 categorias
+  mapeadas — Renderers (Fase 2 ✅), Tools (Fase 3 ✅), Optimizers/
+  Importers/Exporters (Fase 5), Inspectors/Palettes/Menus+Shortcuts
+  (Fase 4), Effects (Fase 6). Padrão fixo: cada registry implementa
+  exatamente o mesmo template (signal reativo + `register(): Disposable`
+  - helpers de lookup). Omissões deliberadas explicitadas
+    (DataSourceRegistry, ThemeRegistry, ProjectorRegistry — com razão
+    para cada).
+- **D-024 novo (ScriptRuntimePlugin, deferido Fase 6+)**: scripts
+  ≠ plugins. Decisão tomada de antemão para que o desenho da infra
+  já não precluda scripts depois. Sandbox escolhido = WebWorker
+  isolado + API curated por message passing (alternativas avaliadas:
+  Function/eval ❌, QuickJS-WASM fallback se latência virar gargalo,
+  DSL próprio descartado por custo). API ScriptHostAPI esboçada —
+  scripts montam sequência de `CommandRequest`s e retornam ao main
+  thread, que aplica via CommandBus (1 entrada de undo "Run script:
+  X" por execução). Não-objetivos explícitos: NÃO acesso a Injector/
+  DOM/window/state síncrono; NÃO TypeScript inicialmente; NÃO npm
+  install dinâmico; NÃO persistência automática.
+
+**Tabela "Decisões pendentes"**:
+
+- Removidas linhas D-023? (cumprida) e D-024? (renumerada).
+- "Versionamento + changelog" passa a D-031?.
+- Nota de rastreio adicionada explicando o reuso de IDs.
+
+**`docs/06-componentes-editor-svg.md`**:
+
+- Tabela de Serviços do `svg-engine/edit` ganha 5 entradas novas:
+  `MarqueeService` (Bloco 4a), `AlignmentService` (Bloco 4c),
+  `PluginRegistry` (Bloco 5a), `ToolRegistry` + `ToolHostService`
+  (Bloco 5b). `SnapService` ganha descrição completa.
+
+**Decisões técnicas (sobre as próprias decisões)**
+
+- **D-020 reescrito ao invés de adicionar D-023 "API formal"**: o
+  doc de decisões fica mais legível com 1 entrada canônica por tema,
+  não cadeia de erratas. D-020 agora é a única referência sobre como
+  plugins funcionam.
+- **D-024 como decisão "tomada mas deferida"** (não pendente): o
+  caminho técnico está escolhido (WebWorker + curated API); só a
+  implementação é Fase 6+. Pendentes são decisões EM ABERTO; D-024
+  está fechada com data de execução em aberto.
+- **Reuso de IDs D-023/D-024**: documentado na nota da tabela. Próximas
+  decisões pendentes ganham IDs >= D-031 sem gap.
+
+**Bloco 5 completo** (5a infra + 5b ToolRegistry + Pencil/Select +
+5c docs canônicas). **Fase 3 completa**: edit + selection + overlays
+
+- transforms + marquee + snap + align/distribute + plugin scaffolding
+- tool API + reference plugins.
+
+**Próximo: Fase 4 — UX completa**
+
+`svg-engine/ui` com Angular Material (D-005/D-012). Bloco prévio de
+UX completa: painel de camadas, agrupamento, inspector de propriedades,
+toolbar extensível (já preparada para `MenuContributionRegistry`),
+paleta de cores e gradientes, atalhos configuráveis (já preparados
+para `ShortcutRegistry`).
+
+Recordação do D-021 PENDENTE (Workspace/Página) — precisa ser resolvido
+ANTES do início da Fase 4 porque o painel de configuração de página
+vive em `svg-engine/ui`. Ver D-030? na tabela pendentes.
+
+---
+
 ## 2026-05-15 — Fase 3 Bloco 5b: ToolRegistry + builtin tools (Pencil, Select)
 
 **O que foi entregue**

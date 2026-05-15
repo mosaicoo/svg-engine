@@ -300,32 +300,108 @@
 
 ## D-020 — Sistema de plugins de primeira classe
 
-- **Data**: 2026-05-14
-- **Status**: Aceita (princípio); implementação em fases
-- **Contexto**: Terceiros precisam estender a library (tipos de nó,
-  renderers, ferramentas, comandos, painéis). Esclarecimento explícito
-  do usuário em 2026-05-14.
-- **Decisão**: **Toda decisão de design subsequente prevê ponto de
-  extensão** para plugins. Concretamente:
-  - `svg-engine/render` (Bloco 2): expõe `NodeRendererRegistry` para
-    plugins registrarem renderer de tipos custom.
-  - `svg-engine/edit` (Fase 3+): expõe `ToolRegistry` (toolbar) e
-    `InspectorPanelRegistry` (painéis customizados).
-  - `Command` interface já é extensível (basta implementar).
-  - `SvgNode` é discriminated union com `type: string` — terceiros podem
-    estender via module augmentation TypeScript ou usando
-    `'custom-${id}'` como type discriminator.
-- **API de plugin** (esboço, refinada na Fase 5):
-  ```typescript
-  export interface SvgEnginePlugin {
-    readonly id: string;
-    readonly version: string;
-    install(ctx: PluginContext): void;
-    uninstall?(ctx: PluginContext): void;
+- **Data**: 2026-05-14 (princípio); 2026-05-15 (revisada com a infra real entregue na Fase 3 Bloco 5)
+- **Status**: **Aceita e implementada** (Bloco 5a infra + Bloco 5b ToolRegistry como primeira capability registry). Categorias adicionais documentadas em D-023; runtime de scripts em D-024.
+- **Contexto**: Terceiros precisam estender a library em múltiplas dimensões — tipos de nó, ferramentas, comandos, painéis, otimizadores, importadores/exportadores, atalhos, paletas, efeitos. Construir um registry standalone por categoria geraria fragmentação (cada um com lifecycle próprio, estilo de install diferente, sem versionamento comum).
+
+### Decisão
+
+Uma única **infra de plugins** + várias **capability registries** plugadas sobre ela. Plugins instalam-se via uma única API (`provideSvgEnginePlugin` no bootstrap, ou `PluginRegistry.install(plugin)` em runtime), recebem um `PluginContext` com acesso a DI, e contribuem chamando os registries que precisarem.
+
+### API formal (entregue Bloco 5a)
+
+```typescript
+export interface EditorPlugin {
+  readonly id: string; // recomendado: reverse-DNS (com.acme.tools.pencil)
+  readonly version: string; // semver da versão do plugin
+  readonly name: string; // human-readable (toolbar/painel de plugins)
+  readonly apiVersion: string; // semver da API do host que o plugin targeting
+  readonly dependencies?: readonly string[]; // ids de outros plugins requeridos
+  install(ctx: PluginContext): void;
+  uninstall?(ctx: PluginContext): void;
+}
+
+export interface PluginContext {
+  readonly pluginId: string;
+  readonly injector: Injector; // resolve qualquer service via DI
+  track<T extends Disposable>(d: T): T; // cleanup automático em uninstall
+}
+
+export interface Disposable {
+  dispose(): void;
+}
+
+export const PLUGIN_API_VERSION = '1.0.0';
+```
+
+Bootstrap (Angular):
+
+```typescript
+bootstrapApplication(App, {
+  providers: [
+    provideSvgEnginePlugin(selectToolPlugin),
+    provideSvgEnginePlugin(pencilToolPlugin),
+    provideSvgEnginePlugin(myCustomOptimizerPlugin), // futuro
+  ],
+});
+```
+
+Hot-load runtime: `inject(PluginRegistry).install(plugin)`.
+
+### Como uma capability registry pluga (padrão fixo)
+
+```typescript
+@Injectable({ providedIn: 'root' })
+export class XxxRegistry {
+  private readonly _entries = signal<readonly Xxx[]>([]);
+  readonly entries = this._entries.asReadonly();
+  register(entry: Xxx): Disposable {
+    // valida (id único etc.)
+    this._entries.set([...this._entries(), entry]);
+    return { dispose: () => this._entries.set(this._entries().filter((e) => e.id !== entry.id)) };
   }
-  ```
-- **Consequências**: arquitetura "registry-first" em vez de hard-coded.
-  Cada feature da library expõe um registry para o equivalente plugin.
+}
+```
+
+Plugin:
+
+```typescript
+const myPlugin: EditorPlugin = {
+  id: 'com.acme.foo',
+  /* ... */
+  install(ctx) {
+    const reg = ctx.injector.get(XxxRegistry);
+    ctx.track(reg.register(myEntry));
+  },
+};
+```
+
+A regra invariante: **toda capability registry emite `Disposable`, todo plugin trackeia via `ctx.track()`, uninstall limpa tudo automaticamente em LIFO**. Sem exceções — qualquer registry futuro segue.
+
+### Garantias do PluginRegistry
+
+- **Validação no install**: id não-vazio + único; semver major contra `PLUGIN_API_VERSION`; deps presentes (ordem matters: declarar deps antes).
+- **Atomicidade**: se `install(ctx)` throws, todos os disposables já trackeados são rolled back em LIFO.
+- **Errors em install = throw**: configuration error (deve detectar em build/boot), não user action recuperável (compare com `CommandBus.dispatch` que retorna `Result`).
+- **Uninstall idempotent**: returns `false` se id desconhecido. Sequência: hook `uninstall(ctx)` (errors logados, não abortam) → dispose LIFO (errors per-disposable logados, não bloqueiam outros) → remove entry.
+- **Resiliência**: capability registries devem tolerar uninstall a quente. Ex.: `ToolHostService.activeTool` é computed que re-deriva da `ToolRegistry`; se o plugin do tool ativo for desinstalado, `activeTool` vira `null` e routing vira no-op (sem zombie state).
+
+### Por que `injector` cru no PluginContext (não façade)
+
+Capability registries crescem ao longo das fases (Tool, Optimizer, Importer, Exporter, Inspector, Effect, Palette, Menu, Shortcut, ScriptRuntime, ...). Façade método-por-método (`ctx.registerTool`, `ctx.registerOptimizer`, ...) obrigaria editar o core a cada nova categoria — explosão de superfície estável.
+
+`injector.get(XxxRegistry)` é estável para sempre. O preço: plugins precisam saber importar a registry. O ganho: zero edição de core ao adicionar categorias; tree-shake automático (plugin só puxa o que usa); sandbox de scripts (D-024) é uma camada por cima que CONSTRÓI sua própria API curated, sem substituir a infra.
+
+### Categorias e roadmap
+
+Mapeadas em D-023 (9 categorias, qual fase abre cada registry). Runtime de scripts (carregamento de código de usuário final, ≠ plugin TypeScript) em D-024.
+
+### Consequências
+
+- **Arquitetura "registry-first"** em vez de hard-coded em todas as fases subsequentes — confirmada e formalizada.
+- **Toda nova feature do produto** que precisa de extensibilidade abre um `XxxRegistry` seguindo o padrão acima. Sem invenção de mecanismos paralelos.
+- **Testabilidade preservada**: registries são services Angular standalone — testáveis isolados via TestBed; plugins são testáveis via `provideSvgEnginePlugin(plugin)` em TestBed.
+- **Versionamento**: semver major-only é o gate inicial. Quando `PLUGIN_API_VERSION` saltar para `2.0.0`, plugins targeting `1.x.x` falham loud no install — sem ambiguidade.
 
 ## D-021 — Conceito de Workspace / Prancheta / Página (pendente)
 
@@ -438,16 +514,158 @@
 
 ---
 
+## D-023 — Categorias de plugin (roadmap)
+
+- **Data**: 2026-05-15
+- **Status**: Aceita (mapeamento); cada registry abre na fase indicada
+- **Contexto**: D-020 entrega a infra (`EditorPlugin`, `PluginContext`, `PluginRegistry`, `provideSvgEnginePlugin`). Mas a infra sozinha não responde _quais_ tipos de extensão o produto vai suportar e _quando_. Sem esse mapa explícito, capability registries surgem ad-hoc e o ecossistema fica fragmentado.
+
+### Decisão
+
+Nove categorias de plugin antecipadas. Cada uma é uma capability registry específica seguindo o padrão D-020 (emite `Disposable`, plugin trackeia via `ctx.track()`). Implementação distribuída pelas fases:
+
+| #   | Categoria                | Registry                                        | O que registra                                                                                           | Fase   |
+| --- | ------------------------ | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------ |
+| 1   | **Renderers de nó**      | `NodeRendererRegistry`                          | Componente que renderiza um `type: string` custom de `SvgNode`                                           | 2 (✅) |
+| 2   | **Tools**                | `ToolRegistry`                                  | `Tool` com hooks pointer/key + lifecycle (Pencil, Shape, Eyedropper, Hand, custom select, ...)           | 3 (✅) |
+| 3   | **Otimizadores**         | `OptimizerRegistry`                             | `(doc: SvgDocument) => SvgDocument` puro; encadeáveis em pipelines (cleanup, simplify paths, dedup defs) | 5      |
+| 4   | **Importers**            | `ImporterRegistry`                              | `mimeTypes`, `parse(blob): Promise<SvgDocument>` (SVG, AI, EPS, Figma JSON, ...)                         | 5      |
+| 5   | **Exporters**            | `ExporterRegistry`                              | `format`, `serialize(doc): Promise<Blob>` (SVG, PNG via canvas, PDF, JSX, React/Vue componente)          | 5      |
+| 6   | **Inspectors / Painéis** | `InspectorPanelRegistry`                        | Painel reativo a critério de seleção (geometria, estilo, transform, custom por tipo de nó)               | 4      |
+| 7   | **Efeitos / Filtros**    | `EffectRegistry`                                | Preset de `<filter>` SVG + UI panel de parâmetros (blur, drop-shadow, color matrix, custom WebGL shader) | 6      |
+| 8   | **Paletas / Swatches**   | `PaletteRegistry`                               | Conjuntos de cores nomeadas (corporativas, palettes geradas, brand kits)                                 | 4      |
+| 9   | **Menus + Shortcuts**    | `MenuContributionRegistry` + `ShortcutRegistry` | Item de menu (label/icon/when/run) + atalho (combo + command id)                                         | 4      |
+
+### Padrão fixo por categoria
+
+Cada registry implementa exatamente:
+
+```typescript
+@Injectable({ providedIn: 'root' })
+export class XxxRegistry {
+  private readonly _entries = signal<readonly XxxEntry[]>([]);
+  readonly entries = this._entries.asReadonly();
+  register(entry: XxxEntry): Disposable {
+    /* valida + adiciona + retorna remover */
+  }
+  // helpers de lookup específicos da categoria (get(id), getByMimeType(type), etc.)
+}
+```
+
+Sem invenções por categoria — mesmo lifecycle, mesma garantia de cleanup, mesmo tipo de `Disposable`. Capability registries adicionais que surgirem fora deste mapa devem seguir o mesmo padrão (e ganhar entry própria neste D-023 quando entrarem).
+
+### Por que fixar em 9 categorias agora
+
+- **Evita capability sprawl**: sem mapa, cada nova feature inventa seu mecanismo. Com mapa, perguntar "que tipo de plugin é esse?" sempre tem resposta.
+- **Antecipa decisões de API**: saber que vão existir Importers/Exporters Fase 5 informa o design do Bloco 4 (não criar registry concorrente para "format adapters").
+- **Não fecha portas**: a lista pode crescer (ex.: `CollaborationRegistry` para multi-user em fase futura). O critério de inclusão é "tipo de extensão que pelo menos 2 plugins distintos plausivelmente vão usar" — feature one-off vira parâmetro de service específico, não registry.
+
+### Categorias deliberadamente omitidas (e por quê)
+
+- **"DataSourceRegistry"** (importers tipo banco/API): o caso de uso converge com Importer (parser → SvgDocument). Importer aceita qualquer fonte de bytes; bancos podem ser camada do consumer.
+- **"ThemeRegistry"** (temas Material): D-012 já decidiu prebuilt M3 light/dark via OS. Custom themes são CSS overrides do consumer, não plugins do svg-engine.
+- **"ProjectorRegistry"** (renders alternativos do mesmo doc — Canvas, WebGL): adiar até Fase 6 perf. Hoje SVG nativo é o único projector.
+
+### Consequências
+
+- Cada fase futura ganha uma checklist clara de "abrir registry X conforme padrão D-020".
+- Documentação de cada plugin pode referenciar a categoria + tabela acima sem reexplicar o padrão.
+- Onboarding de terceiros: ler D-020 + D-023 dá o quadro completo em ~5min.
+
+---
+
+## D-024 — ScriptRuntimePlugin (deferido para Fase 6+)
+
+- **Data**: 2026-05-15
+- **Status**: **Decidida (escopo + não-objetivos); implementação deferida para Fase 6+**
+- **Contexto**: Plugins TypeScript (D-020) cobrem extensão em build-time — terceiros distribuem código compilado, consumer adiciona via `provideSvgEnginePlugin` no bootstrap. Mas algumas necessidades exigem **scripts de usuário final** carregados em runtime: automatizar tarefas repetitivas, gerar shapes paramétricas, batch-apply de transformações, criar comandos custom no momento. Ex.: "para cada selecionado, crie um clone deslocado X pixels" sem precisar publicar plugin.
+
+### Decisão
+
+Scripts NÃO são plugins. Scripts entram via um **`ScriptRuntimePlugin`** — um plugin TypeScript que se instala como qualquer outro (D-020), mas carrega seu próprio runtime + sandbox + API curated por cima.
+
+Ou seja: **a infra de plugins (D-020/D-023) NÃO precisa mudar para suportar scripts**. Quando chegar a Fase 6+, basta implementar:
+
+1. **`ScriptRuntimePlugin`** (1 plugin TypeScript) que registra:
+   - **`ScriptRegistry`** (nova capability registry seguindo padrão D-023) — armazena scripts carregados (id, name, source, trusted-or-not).
+   - **Sandbox runtime** — onde os scripts efetivamente executam.
+   - **API curated** — subset estável de operações expostas aos scripts (não acesso ao Injector!).
+   - **UI** (Inspector panel registrado via `InspectorPanelRegistry`) para criar/editar/executar scripts.
+
+### Sandbox: opções avaliadas
+
+| Opção                                | Segurança                           | Performance               | Complexidade                 | Acesso DOM         |
+| ------------------------------------ | ----------------------------------- | ------------------------- | ---------------------------- | ------------------ |
+| `Function()` constructor / `eval`    | ❌ inseguro (mesmo escopo)          | ✅ máxima                 | ✅ trivial                   | ✅ direto (perigo) |
+| **WebWorker isolado** ✅ recomendado | ✅ (no DOM, no globals do consumer) | ✅ boa (paralelismo)      | ⚠️ média (msg passing)       | ❌ (intencional)   |
+| QuickJS / Boa em WASM                | ✅ máxima                           | ⚠️ ~10x mais lento que V8 | ❌ alta (bundle WASM, FFI)   | ❌ (intencional)   |
+| DSL próprio (parser + interpreter)   | ✅ máxima                           | ⚠️ depende                | ❌ alta (escrever linguagem) | ❌ (intencional)   |
+
+**Caminho escolhido**: **WebWorker isolado** + **API curated por message passing**. Razões:
+
+- **Segurança**: worker não tem acesso a `window`, DOM, cookies, localStorage, IndexedDB do main thread. Script malicioso não pode exfiltrar dados nem manipular UI.
+- **Performance**: V8 nativo, paralelismo real (não bloqueia render).
+- **Maturidade**: API stable, suporte cross-browser desde 2012.
+- **Custo**: latência ms-level por message passing — aceitável para scripts curtos (intent é "automation tasks", não "real-time animation loop").
+
+QuickJS-WASM fica como **fallback** se descobrirmos requisitos hard de "script bloqueante síncrono no main" — não previsto hoje.
+
+### API curated (esboço)
+
+```typescript
+// Visível DENTRO do worker, montada via worker bootstrap:
+interface ScriptHostAPI {
+  // Snapshot read-only do documento
+  readonly document: () => SvgDocumentSnapshot;
+  // Operações de alto nível — todas voltam comandos (consumer aplica via CommandBus no main thread)
+  readonly ops: {
+    move(id: NodeId, dx: number, dy: number): CommandRequest;
+    scale(id: NodeId, sx: number, sy: number, anchor: Point): CommandRequest;
+    align(ids: NodeId[], axis: AlignAxis): CommandRequest;
+    insert(node: SvgNodeSpec): CommandRequest;
+    // ...
+  };
+  // Selection snapshot (não signal — é snapshot no momento do call)
+  readonly selection: { ids: readonly NodeId[]; focus: NodeId | null };
+}
+```
+
+O script **monta uma sequência de `CommandRequest`s e devolve via postMessage**. Main thread recebe, valida, dispara via `CommandBus` — usuário vê **um único** undo entry "Run script: X" cobrindo a sequência inteira (via `TranslateManyCommand` / wrappers compostos).
+
+### Não-objetivos explícitos
+
+- **Não acesso direto a DOM/window/document**: por design.
+- **Não acesso ao Injector**: script não pode `inject(any service)`. Tudo que script faz passa pela `ScriptHostAPI` curada.
+- **Não acesso síncrono ao state**: script trabalha sobre snapshot; mudanças aplicam após o script retornar (worker → main → CommandBus).
+- **Não persistência automática**: scripts são salvos pelo consumer (localStorage, banco, projeto), não pela library — library só executa.
+- **Não TypeScript no script** (inicialmente): JavaScript ES2022. TypeScript transpilation é responsabilidade do consumer (Monaco/CodeMirror integration).
+- **Não NPM install dentro do script**: script é self-contained, sem fetch dinâmico de módulos. Scripts podem importar de uma allowlist de "stdlib do svg-engine" exposta via `ScriptHostAPI.lib.*`.
+
+### Quando reabrir esta decisão
+
+- **Se aparecer requisito de script blocking síncrono no main** (raro, ex.: substituir comportamento built-in de uma tool em tempo real): reavaliar QuickJS-WASM.
+- **Se o produto demandar marketplace de scripts** (compartilhamento entre usuários): adicionar layer de assinatura/rep + permissões granulares (pedir acesso a `ops.delete`, etc., como Chrome extensions).
+- **Se latência de message passing virar gargalo medido**: considerar SharedArrayBuffer ou wasm-in-main com permissions API ainda mais estrita.
+
+### Consequências
+
+- **Bloco 5a/5b ficam intactos** — nenhuma adaptação necessária para suportar scripts mais tarde.
+- **Roadmap Fase 6+** ganha entrada explícita: implementar `ScriptRuntimePlugin` quando o produto demandar.
+- **Decisão de não-permitir-Injector** evita classe inteira de exploits — vale a pena documentar de antemão para que ninguém adicione "shortcut" inseguro futuramente.
+
+---
+
 ## Decisões pendentes (em aberto)
 
 | ID provis. | Tema                                                                   |
 | ---------- | ---------------------------------------------------------------------- |
-| D-023?     | API formal de plugins (manifesto, install/uninstall, lifecycle)        |
-| D-024?     | Versionamento + changelog (changesets / standard-version)              |
 | D-025?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo)      |
 | D-026?     | Estratégia de i18n no editor                                           |
 | D-027?     | Migração para zoneless (revisar D-010)                                 |
 | D-028?     | Lint rule customizada para enforcer headless boundary                  |
 | D-029?     | Estratégia de testes E2E (Playwright?)                                 |
 | D-030?     | **Workspace/Página: A vs B** (resolver D-021)                          |
+| D-031?     | Versionamento + changelog (changesets / standard-version)              |
 | D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3 |
+
+> **Nota**: D-023 era "API formal de plugins" (cumprida pelo D-020 expandido em 2026-05-15). D-024 era "Versionamento + changelog" (renumerada para D-031 porque o número D-024 foi reusado para `ScriptRuntimePlugin`). Sequência de IDs cumpridas: D-020, D-023, D-024.

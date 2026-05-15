@@ -150,7 +150,12 @@
   - `selectToolPlugin` builtin: tool passthrough; consumer mantém o pipeline nativo de select/marquee/snap quando `activeId === SELECT_TOOL_ID`
   - `pencilToolPlugin` builtin: freehand path drawing; commit via `InsertNodeCommand` no pointerup; ≥2 pontos requeridos; cancela em pointercancel/onDeactivate
   - Wire no playground: `provideSvgEnginePlugin(selectToolPlugin)` + `provideSvgEnginePlugin(pencilToolPlugin)` no app.config; toolbar reativa lê `toolRegistry.tools()`; shortcuts V/P (gated em editable target)
-- [ ] **Bloco 5c**: docs D-020 expandido + novo D-023 roadmap de tipos de plugin (9 categorias mapeadas: Tools, Optimizers, Importers, Exporters, Inspectors, Effects, Palettes, Menus, Shortcuts) + D-024 pendente (ScriptRuntimePlugin Fase 6+)
+- [x] **Bloco 5c**: documentação canônica de plugins
+  - D-020 expandido: substitui esboço pelo design real (interfaces formais, garantias do registry, justificativa de injector cru, padrão fixo de capability registry)
+  - D-023 novo: 9 categorias de plugin mapeadas (Renderers/Tools/Optimizers/Importers/Exporters/Inspectors/Effects/Palettes/Menus+Shortcuts), qual fase abre cada registry, padrão fixo, omissões deliberadas
+  - D-024 novo: `ScriptRuntimePlugin` (Fase 6+) — sandbox WebWorker isolado + API curated, NÃO acesso a Injector/DOM, scripts retornam `CommandRequest`s aplicados via `CommandBus` (1 undo entry por script run). Decisão tomada com não-objetivos explícitos
+  - `06-componentes-editor-svg.md` atualizado: refs aos 5 services novos (Marquee/Snap/Alignment/PluginRegistry/ToolHostService)
+  - Tabela "Decisões pendentes" reorganizada: D-023/D-024 antigos cumpridos, "Versionamento + changelog" renumerado para D-031
 
 ## Fase 4 — UX completa
 
