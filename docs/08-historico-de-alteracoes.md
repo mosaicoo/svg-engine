@@ -75,9 +75,8 @@ non-scaling-stroke`. Pointer-handling fica no consumer — desacoplamento
   remoção em `end()`, atualização contínua via signal).
 - **Total**: +28 testes → 230 passing em 21 arquivos. Zero regressão.
 
-**Próximo**: Bloco 4b (`SnapService` grid + objetos) e 4c (alinhamento
-
-- distribuição).
+**Próximo**: Bloco 4b (`SnapService` grid + objetos) e 4c
+(alinhamento e distribuição).
 
 ---
 
