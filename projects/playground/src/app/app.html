@@ -34,7 +34,10 @@
       [tree]="tree()"
       [viewBox]="viewBox()"
       [ariaLabel]="'Editable SVG document with ' + nodeCount() + ' nodes'"
-    />
+    >
+      <svg:g svgeSelectionOverlay></svg:g>
+      <svg:g svgeRotationPivot></svg:g>
+    </svge-renderer>
   </section>
 
   <footer class="status" aria-label="Document status">

@@ -6,6 +6,92 @@
 
 ---
 
+## 2026-05-15 — Fase 3 Bloco 2: Selection overlay + Pivot Affinity-grade
+
+**O que foi entregue**
+
+Visualização e interação editorial completa para D-022 Affinity-grade.
+Bloco 2 = visual + pivot interativo. Bloco 3 ainda virá com drag de
+handles e dispatch de RotateNodeCommand/ResizeNodeCommand.
+
+**Renderer**:
+
+- `SvgeRenderer` ganhou um `<ng-content />` slot **dentro do `<svg>`**
+  (depois do `<svg:g svgeNode>` principal). Permite overlays serem
+  projetados no mesmo `<svg>`, compartilhando viewBox, coord system e
+  namespace SVG. Decisão arquitetural-chave que evita complexidade de
+  dois `<svg>` sincronizados via CTM.
+
+**Geometry utils** (`svg-engine/edit/lib/geometry/`):
+
+- `BBoxAnchor` (`'tl'|'tc'|'tr'|'ml'|'mc'|'mr'|'bl'|'bc'|'br'`),
+  `BBOX_ANCHORS` ordenado, `anchorPoint`, `allAnchors`,
+  `findNearestAnchor` (snap-to-anchors do D-022).
+- `findRenderedNode`, `getRenderedNodeBBox`, `getCombinedBBox`
+  (DOM-based via `getBBox()` + composição de transforms ancestrais).
+- `parseTransformAttr` — parser próprio do atributo `transform`
+  SVG-1.1 (matrix/translate/scale/rotate/skewX/skewY) que evita
+  dependência de `DOMMatrix` (ausente em jsdom). Usa as helpers de
+  matriz de `svg-engine/core`.
+
+**TransformService skeleton** (`svg-engine/edit/lib/transform/`):
+
+- Pivot apenas (Bloco 3 expande com drag/resize/rotate).
+- Signals: `customPivots: ReadonlyMap<NodeId, Point>` (em coords
+  node-local), `pivotMode` (`'none'|'single'|'multi'`).
+- APIs: `resolvePivot/setPivot/setPivotAnchor/resetPivot/`
+  `clearAllPivots/syncPivotForSelection`.
+- **Persistência per-node** (D-022.persist): pivot custom em coords
+  node-local `(0,0)..(1,1)` para sobreviver a transforms posteriores.
+
+**Componentes overlay** (`svg-engine/edit/lib/overlay/`):
+
+- `<svg:g svgeSelectionOverlay>`: bbox + 8 resize handles + rotation
+  handle + outline dashed para `hoverId`. Handles pixel-constantes via
+  `1/zoom`. Bbox computado via DOM em `afterEveryRender({ read })`.
+  Visual only — drag dos handles vem no Bloco 3.
+- `<svg:g svgeRotationPivot>` (D-022 Affinity-grade):
+  - Crosshair vermelho; preenchido quando custom.
+  - **Free-drag** com pointer capture; **snap-to-9-anchors** (≤5px,
+    `Alt` = bypass).
+  - **Click sem drag** → toggle popover 3×3 anchor picker; clique no
+    anchor snap exato.
+  - **Esc** durante drag → restaura pivot pré-drag; com popover
+    aberto → fecha.
+  - **Double-click** → `resetPivot()`.
+  - Conversão screen→doc via `svg.getScreenCTM().inverse()`.
+
+**Tests** (Vitest, **175 verdes em 15 arquivos**, +39 novos):
+
+- `bbox-anchors.spec.ts` (8): mapeamento + nearest snap.
+- `node-bbox.spec.ts` (9): findRenderedNode, bbox local/com transform,
+  união, edge cases.
+- `transform.service.spec.ts` (22): pivot default centro, persistência
+  per-node sobrevivendo a translate/scale, `setPivotAnchor`,
+  `resetPivot`, multi-selection reset on composition change,
+  `clearAllPivots`.
+
+**Playground integrado**: `<svg:g svgeSelectionOverlay>` e
+`<svg:g svgeRotationPivot>` projetados dentro de `<svge-renderer>`.
+
+**Validação**:
+
+- `ng build svg-engine`: OK (4 entry points).
+- `ng lint`: OK ambos projetos.
+- `ng test svg-engine`: 175 verdes em 15 arquivos.
+- `ng build playground`: OK 1.38MB dev / bundle main 370KB com
+  `SelectionOverlay`, `RotationPivot`, `TransformService` confirmados.
+
+**Próximo (Bloco 3)**: TransformService expandido + `RotateNodeCommand`
+
+- `ResizeNodeCommand` para tornar os handles funcionais.
+
+**Lição registrada**: Angular 21 renomeou `afterRender` para
+`afterEveryRender` (e `afterRenderEffect` é a forma reativa). O nome
+antigo agora exporta apenas `AfterRenderRef`. Atualizei conforme.
+
+---
+
 ## 2026-05-15 — D-022 revisada: pivot Affinity-grade
 
 **O que aconteceu**

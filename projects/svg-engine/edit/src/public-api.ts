@@ -11,13 +11,15 @@
  * build their own UI on top of these services without dragging Material
  * into the bundle.
  *
- * **Bloco 1 — currently exposed**: `SelectionService`, hit-testing utils.
- * **Bloco 2 (next)**: `<svge-selection-overlay>`, `<svge-rotation-pivot>`.
- * **Bloco 3 (next)**: `TransformService` (drag/resize/rotate with movable
- * pivot — D-022), new commands (`RotateNodeCommand`, `ResizeNodeCommand`).
- * **Bloco 4 (next)**: `<svge-marquee>`, `SnapService`, alignment.
- * **Bloco 5 (next)**: `ToolRegistry` (D-020 plugin extensibility for
- * custom tools).
+ * **Bloco 1** ✅: `SelectionService` + hit-testing helpers.
+ * **Bloco 2** ✅: geometry utils (bbox + 9 anchors), `TransformService`
+ *   skeleton (pivot only), `<svge-selection-overlay>`,
+ *   `<svge-rotation-pivot>` Affinity-grade (free-drag + snap-to-anchors
+ *   with Alt-bypass + 3×3 popover + Esc cancel + dbl-click reset).
+ * **Bloco 3** ⏳: `TransformService` expanded (drag/resize/rotate);
+ *   new commands (`RotateNodeCommand`, `ResizeNodeCommand`).
+ * **Bloco 4** ⏳: `<svge-marquee>`, `SnapService`, alignment.
+ * **Bloco 5** ⏳: `ToolRegistry` (D-020 plugin point).
  */
 
 // Selection (Bloco 1)
@@ -25,3 +27,12 @@ export * from './lib/selection';
 
 // Hit-testing utilities (Bloco 1)
 export * from './lib/hit-testing';
+
+// Geometry utilities (Bloco 2)
+export * from './lib/geometry';
+
+// Transform service skeleton — pivot only (Bloco 2; expanded in Bloco 3)
+export * from './lib/transform';
+
+// Visual overlays (Bloco 2)
+export * from './lib/overlay';

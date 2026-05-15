@@ -181,13 +181,13 @@ _(populado quando Fase 5 entregar)_
 
 _(populado quando Fase 5 entregar)_
 
-### `svg-engine/edit` (Fase 3 Bloco 1) ⏳ em progresso
+### `svg-engine/edit` (Fase 3 Blocos 1+2) ⏳ em progresso
 
 > Seleção, transformação, canvas interativo, plugins. **Zero deps de UI Material** (D-017).
 >
 > **Bloco 1** ✅ entregue: `SelectionService` + hit-testing helpers.
-> **Bloco 2** ⏳ próximo: `<svge-selection-overlay>`, `<svge-rotation-pivot>`.
-> **Bloco 3** ⏳: `TransformService` (drag/resize/rotate com pivot editável — D-022).
+> **Bloco 2** ✅ entregue: geometry utils + `TransformService` skeleton + overlay visual + pivot Affinity-grade interativo.
+> **Bloco 3** ⏳ próximo: `TransformService` expandido (drag/resize/rotate); `RotateNodeCommand`, `ResizeNodeCommand`.
 > **Bloco 4** ⏳: `<svge-marquee>`, `SnapService`, alignment.
 > **Bloco 5** ⏳: `ToolRegistry` (D-020 plugin point).
 
@@ -213,6 +213,49 @@ _(populado quando Fase 5 entregar)_
 
 > O atributo `data-node-id` já é setado pelo dispatcher `<svge-node>`
 > em `svg-engine/render`. Hit-testing funciona out-of-the-box.
+
+#### Geometry (Bloco 2 — `./lib/geometry/`)
+
+| Símbolo                                                               | Descrição                                                                                         |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `BBoxAnchor` (`'tl'\|'tc'\|'tr'\|'ml'\|'mc'\|'mr'\|'bl'\|'bc'\|'br'`) | Os 9 anchors padronizados (TL→BR, row-major)                                                      |
+| `BBOX_ANCHORS: readonly BBoxAnchor[]`                                 | Tupla ordenada                                                                                    |
+| `anchorPoint(bbox, anchor): Point`                                    | Coordenadas absolutas de 1 anchor                                                                 |
+| `allAnchors(bbox): Record<BBoxAnchor, Point>`                         | Os 9 pontos de uma vez                                                                            |
+| `findNearestAnchor(bbox, point, radius): BBoxAnchor \| null`          | Anchor mais próximo dentro de `radius` (snap-to-anchors do D-022)                                 |
+| `findRenderedNode(svgRoot, nodeId): SVGGraphicsElement \| null`       | DOM lookup via `data-node-id`                                                                     |
+| `getRenderedNodeBBox(svgRoot, nodeId): BoundingBox \| null`           | Bbox em coords do documento (aplica transforms ancestrais via `parseTransformAttr` + core matrix) |
+| `getCombinedBBox(svgRoot, nodeIds): BoundingBox \| null`              | União AABB de várias bboxes (multi-seleção)                                                       |
+
+#### Transform (Bloco 2 — pivot only; Bloco 3 expande)
+
+| Símbolo                                      | Descrição                                                                                                                                                                                                              |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TransformService` (`@Injectable({ root })`) | Pivot Affinity-grade (D-022). Signals: `customPivots`, `pivotMode`. APIs: `resolvePivot(bbox)`, `setPivot(point, bbox)`, `setPivotAnchor(anchor, bbox)`, `resetPivot()`, `clearAllPivots()`, `syncPivotForSelection()` |
+
+**Persistência per-node**: pivot custom armazenado em coordenadas
+**node-local** `(0,0)..(1,1)` para sobreviver a movimentação/scale do
+nó. Multi-seleção: pivot é transient e reseta na mudança de composição
+(detectada via `syncPivotForSelection`).
+
+#### Overlay (Bloco 2 — `./lib/overlay/`)
+
+| Selector / Símbolo                             | Uso                                                                                                                                                                                                                              |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `g[svgeSelectionOverlay]` (`SelectionOverlay`) | Bbox outline do nó focado + 8 handles de resize (TL/TC/TR/ML/MR/BL/BC/BR) + 1 handle de rotação (acima do TC); outline leve para hover. Pixel-constante via `1/zoom`. **Bloco 2 = visual only**; drag de handles vem no Bloco 3. |
+| `g[svgeRotationPivot]` (`RotationPivot`)       | Crosshair editável do pivot (D-022 Affinity-grade): free-drag com **snap-to-9-anchors** (`Alt` = bypass), **3×3 popover** ao clicar (sem drag), **Esc** cancela drag, **double-click** reseta ao centro                          |
+| `HANDLE_DATA_ATTR`                             | Constante `'data-svge-handle'` que o Bloco 3 vai usar para identificar qual handle foi grabbed                                                                                                                                   |
+
+> **Composição**: ambos overlays são projetados dentro do `<svge-renderer>`
+> via `<ng-content />` (slot adicionado no Bloco 2). Compartilham o mesmo
+> `<svg>`, viewBox e namespace. Uso típico:
+>
+> ```html
+> <svge-renderer [tree]="tree" [viewBox]="viewBox">
+>   <svg:g svgeSelectionOverlay></svg:g>
+>   <svg:g svgeRotationPivot></svg:g>
+> </svge-renderer>
+> ```
 
 ### `svg-engine/ui` (Fase 4)
 

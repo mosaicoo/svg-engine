@@ -85,16 +85,21 @@
 - [x] **136 tests verdes em 12 arquivos** (24 novos: 16 SelectionService + 8 hit-testing)
 - [x] Playground integrado: clique no canvas seleciona o nó (ou limpa); status bar mostra contagem + focus ID
 
-### Bloco 2 — Selection overlay visual + pivot Affinity-grade
+### Bloco 2 — Selection overlay visual + pivot Affinity-grade ✅ concluído
 
-- [ ] `<svge-selection-overlay>`: 8 handles (4 cantos + 4 lados) + handle de rotação
-- [ ] Bounding box reativo a transform/zoom (handles em pixels constantes)
-- [ ] `<svge-rotation-pivot>` (D-022 Affinity-grade):
-  - [ ] Crosshair draggable; default = centro do bbox
-  - [ ] **Snap-to-9-anchors** durante drag (TL/TC/TR/ML/MC/MR/BL/BC/BR) a ≤5px; Alt = bypass
-  - [ ] **9-point picker popover**: clique no crosshair (sem drag) abre 3×3 para snap exato
-  - [ ] Esc cancela drag; double-click reseta ao centro
-- [ ] Hover state visual (outline leve em `hoverId`)
+- [x] `SvgeRenderer` ganha `<ng-content />` slot p/ overlays projetados (compartilham `<svg>`/viewBox/namespace)
+- [x] Geometry utils: `bbox-anchors` (9 pontos + nearest-anchor) + `node-bbox` (DOM-based via `getBBox()` + parser de transform attribute)
+- [x] `TransformService` skeleton (pivot only): `Map<NodeId, Point>` em coords node-local + `resolvePivot/setPivot/setPivotAnchor/resetPivot/clearAllPivots/syncPivotForSelection`
+- [x] `<svge-selection-overlay>`: bbox outline + 8 resize handles + 1 rotation handle (visual only — Bloco 3 wireia drag)
+- [x] Hover outline em `selection.hoverId()` (estilo dashed)
+- [x] Handles em pixels constantes via `1/viewport.zoom()` + `vector-effect: non-scaling-stroke`
+- [x] `<svge-rotation-pivot>` Affinity-grade:
+  - [x] Crosshair draggable; default = centro do bbox
+  - [x] **Snap-to-9-anchors** durante drag (≤5 CSS px); **Alt** = bypass
+  - [x] **9-point picker popover**: clique no crosshair (sem drag) abre 3×3 anchor picker
+  - [x] **Esc** durante drag cancela e restaura pivot; **double-click** reseta ao centro
+- [x] **175 tests verdes em 15 arquivos** (+39 do Bloco 2)
+- [x] Playground integrado: overlay + pivot ativos dentro do `<svge-renderer>`
 
 ### Bloco 3 — Transform interativo + pivot persistente
 

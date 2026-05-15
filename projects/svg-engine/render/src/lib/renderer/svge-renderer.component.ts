@@ -44,6 +44,13 @@ import { ViewportService } from '../viewport/viewport.service';
       [attr.aria-label]="ariaLabel() ?? null"
     >
       <svg:g svgeNode [node]="tree()"></svg:g>
+      <!--
+        Overlay projection slot. Anything projected here renders **inside
+        the same <svg>** as the content, sharing viewBox, coordinate
+        system and namespace. Used by svg-engine/edit for selection
+        overlays, pivot crosshair, marquee, etc.
+      -->
+      <ng-content />
     </svg>
   `,
   styles: `

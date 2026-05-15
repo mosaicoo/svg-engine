@@ -11,7 +11,12 @@ import {
   MoveNodeCommand,
   RemoveNodeCommand,
 } from 'svg-engine/core';
-import { resolveNodeIdFromEvent, SelectionService } from 'svg-engine/edit';
+import {
+  resolveNodeIdFromEvent,
+  RotationPivot,
+  SelectionOverlay,
+  SelectionService,
+} from 'svg-engine/edit';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
 
 type ShapeKind = 'rect' | 'ellipse' | 'path';
@@ -27,7 +32,7 @@ type ShapeKind = 'rect' | 'ellipse' | 'path';
  */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, SvgeRenderer],
+  imports: [RouterOutlet, SvgeRenderer, SelectionOverlay, RotationPivot],
   templateUrl: './app.html',
   styleUrl: './app.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
