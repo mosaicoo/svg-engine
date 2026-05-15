@@ -12,9 +12,9 @@
 
 Primeira capability registry sobre o scaffolding do 5a. `Tool` interface,
 `ToolRegistry` (registra/lista/dispose), `ToolHostService` (tool ativa
-
-- roteamento de eventos do canvas) e dois plugins builtin: `selectToolPlugin`
-  (passthrough) e `pencilToolPlugin` (freehand path drawing end-to-end).
+e roteamento de eventos do canvas) e dois plugins builtin:
+`selectToolPlugin` (passthrough) e `pencilToolPlugin` (freehand path
+drawing end-to-end).
 
 **Estrutura nova** (`svg-engine/edit/src/lib/tool/`):
 
