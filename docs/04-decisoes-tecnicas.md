@@ -8,6 +8,7 @@
 ---
 
 ## D-001 — Distribuição como library Angular
+
 - **Data**: 2026-05-14
 - **Status**: Aceita
 - **Contexto**: O SVGEngine precisa ser reutilizável em múltiplos
@@ -23,6 +24,7 @@
   controle estrito de side-effects.
 
 ## D-002 — DOM SVG nativo + camada própria
+
 - **Data**: 2026-05-14
 - **Status**: Aceita
 - **Contexto**: Necessidade de controle total sobre rendering, performance
@@ -36,6 +38,7 @@
   liberdade arquitetural total.
 
 ## D-003 — Repositório Git no GitHub privado
+
 - **Data**: 2026-05-14
 - **Status**: Aceita
 - **Decisão**: Repo em `https://github.com/mosaicoo/svg-engine` (privado).
@@ -44,6 +47,7 @@
   (Git Credential Manager ou SSH).
 
 ## D-004 — TypeScript estrito
+
 - **Data**: 2026-05-14
 - **Status**: Aceita
 - **Decisão**: `tsconfig.json` com `strict: true`,
@@ -52,6 +56,7 @@
 - **Consequências**: código mais seguro; curva inicial maior.
 
 ## D-005 — Angular Material como UI lib
+
 - **Data**: 2026-05-14
 - **Status**: Aceita
 - **Decisão**: UI do editor (toolbar, painel de camadas, inspector,
@@ -60,6 +65,7 @@
   documentar versões compatíveis no README.
 
 ## D-006 — Angular v21 como versão alvo
+
 - **Data**: 2026-05-14
 - **Status**: Aceita
 - **Contexto**: Em 2026-05-14, o cenário é:
@@ -79,6 +85,7 @@
   (provável janela: 2 a 3 meses após release).
 
 ## D-007 — Vitest como test runner
+
 - **Data**: 2026-05-14
 - **Status**: Aceita
 - **Contexto**: Em Angular CLI v21, Vitest passou a ser o **default**
@@ -90,6 +97,7 @@
   ecossistema). Ambas rejeitadas.
 
 ## D-008 — File name style guide 2025
+
 - **Data**: 2026-05-14
 - **Status**: Aceita
 - **Decisão**: Manter o default v21 (`--file-name-style-guide=2025`):
@@ -98,6 +106,7 @@
   o time com a nova convenção.
 
 ## D-009 — `--ai-config=claude` ativado
+
 - **Data**: 2026-05-14
 - **Status**: Aceita
 - **Decisão**: Workspace gerado com `--ai-config=claude`, criando
@@ -107,6 +116,7 @@
   toda interação; VS Code expõe ferramentas Angular via MCP.
 
 ## D-010 — Zone.js mantido (não-zoneless)
+
 - **Data**: 2026-05-14
 - **Status**: Aceita (revisitar na Fase 6)
 - **Contexto**: Angular v21 oferece `--zoneless` para apps sem zone.js
@@ -120,6 +130,7 @@
   zoneless puro, aceitável durante construção do núcleo.
 
 ## D-011 — Estilo SCSS
+
 - **Data**: 2026-05-14
 - **Status**: Aceita
 - **Decisão**: SCSS para todos os componentes (`--style=scss`).
@@ -127,6 +138,7 @@
   theming (`@use '@angular/material' as mat;`).
 
 ## D-012 — Tema Material: M3 prebuilt + light/dark via OS
+
 - **Data**: 2026-05-14
 - **Status**: Aceita parcialmente — toggle explícito pendente (Fase 4)
 - **Decisão (Fase 1)**:
@@ -140,14 +152,58 @@
 - **Consequências**: dark mode funciona "de graça" para usuários que já
   têm OS em modo escuro; toggle vem depois sem refatorar o tema.
 
+## D-013 — ESLint via angular-eslint v21 + flat config
+
+- **Data**: 2026-05-14
+- **Status**: Aceita
+- **Decisão**: Adotar `@angular-eslint/schematics@21` (flat config
+  `eslint.config.js`) com:
+  - `@eslint/js` recommended
+  - `typescript-eslint` recommended + stylistic
+  - `angular-eslint` `tsRecommended` para `.ts`
+  - `angular-eslint` `templateRecommended` + `templateAccessibility` para `.html`
+  - `eslint-config-prettier` no final (desliga regras conflitantes com Prettier)
+- **Estrutura**: config raiz em `eslint.config.js` + per-project em
+  `projects/<name>/eslint.config.js` (overrides apenas `prefix` do selector).
+- **Comando**: `ng lint` (lint targets configurados em `angular.json`).
+- **Consequências**: lint quebra build se houver violação (rode `ng lint`
+  antes de PR). `npm run lint` é um alias.
+
+## D-014 — Husky + lint-staged como pre-commit gate
+
+- **Data**: 2026-05-14
+- **Status**: Aceita
+- **Decisão**: `husky@9` + `lint-staged@latest`. Hook `.husky/pre-commit`
+  executa `npx lint-staged` que aplica:
+  - `.{ts,html}`: `eslint --fix` + `prettier --write`
+  - `.{json,md,scss,css,yml,yaml}`: `prettier --write`
+- **Bypass**: `git commit --no-verify` (proibido por padrão; só em emergência).
+- **Consequências**: nenhum commit com código mal formatado/linted entra em main.
+
+## D-015 — CI mínimo via GitHub Actions
+
+- **Data**: 2026-05-14
+- **Status**: Aceita
+- **Decisão**: Workflow `.github/workflows/ci.yml` rodando em `push` para
+  `main` e em qualquer `pull_request` para `main`:
+  1. `actions/checkout@v4` + `actions/setup-node@v4` (Node 22, cache npm)
+  2. `npm ci`
+  3. `npx ng lint`
+  4. `npx ng build svg-engine`
+  5. `npx ng build playground --configuration=development`
+  6. `npx ng build playground --configuration=production`
+- **Concurrency**: agrupa por workflow+ref, cancela in-progress.
+- **A adicionar (Fase 2+)**: `npx ng test` quando houver testes reais.
+- **Consequências**: PR não merge se qualquer step falhar.
+
 ---
 
 ## Decisões pendentes (em aberto)
 
-| ID provis. | Tema                                         |
-|------------|----------------------------------------------|
-| D-013?     | Versionamento + changelog (changesets?)      |
-| D-014?     | Registry de publicação                       |
-| D-015?     | Estratégia de i18n no editor                 |
-| D-016?     | Acessibilidade (a11y) — alvo WCAG            |
-| D-017?     | Migração para zoneless (revisar D-010)       |
+| ID provis. | Tema                                    |
+| ---------- | --------------------------------------- |
+| D-016?     | Versionamento + changelog (changesets?) |
+| D-017?     | Registry de publicação                  |
+| D-018?     | Estratégia de i18n no editor            |
+| D-019?     | Acessibilidade (a11y) — alvo WCAG       |
+| D-020?     | Migração para zoneless (revisar D-010)  |

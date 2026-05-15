@@ -81,6 +81,7 @@ src/lib/
 ## 2. Camadas internas da library
 
 ### 2.1 `core/` — Núcleo independente de UI
+
 - **Modelo**: árvore de nós (`SvgNode`) — tipos como `RectNode`,
   `EllipseNode`, `PathNode`, `GroupNode`, `TextNode`, `ImageNode`.
 - **Estado**: `EditorStateService` (signals do Angular como fonte de verdade).
@@ -89,6 +90,7 @@ src/lib/
 - **IDs**: gerador determinístico por sessão (auditável; sem `Math.random`).
 
 ### 2.2 `canvas/` — Renderização e viewport
+
 - Componente `<svg-canvas>` que renderiza a árvore via templates Angular
   (não manipulação DOM imperativa, exceto onde necessário por
   performance — registrado caso a caso).
@@ -96,20 +98,24 @@ src/lib/
 - Camadas de overlay separadas: conteúdo, seleção, handles, snap-guides.
 
 ### 2.3 `selection/` + `transform/`
+
 - `SelectionService` mantém set de IDs selecionados.
 - `transform/` aplica operações via comandos (sempre passam pelo
   `HistoryService`).
 
 ### 2.4 `layers/`, `inspector/`, `toolbar/`, `palette/`
+
 - Componentes Angular Material puros, **sem lógica de negócio inline**:
   consomem serviços de `core/` e despacham comandos.
 
 ### 2.5 `io/`
+
 - Import: parser SVG → árvore de `SvgNode` com **sanitização**
   (script/eventos removidos; `xlink:href` validado).
 - Export: serialização determinística (mesma entrada → mesma saída byte-a-byte).
 
 ### 2.6 `plugins/`
+
 - Interface `EditorPlugin` com hooks (`onInit`, `registerTool`,
   `registerCommand`, `registerInspectorPanel`).
 - Carregamento declarativo via `provideSvgEngine({ plugins: [...] })`.

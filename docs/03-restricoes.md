@@ -13,22 +13,23 @@
 
 ## 2. Diretórios e arquivos bloqueados para leitura automática
 
-Configurados em `.claude/settings.local.json` via `permissions.deny`:
+Configurados em `.claude/settings.json` via `permissions.deny` (compartilhado/commitado;
+overrides pessoais ficam em `.claude/settings.local.json`, gitignored):
 
-| Categoria              | Padrões                                                                 |
-|------------------------|-------------------------------------------------------------------------|
-| Dependências           | `node_modules/**`                                                       |
-| Build / artefatos      | `dist/**`, `build/**`, `out/**`, `.angular/**`, `bin/**`, `obj/**`      |
-| Cache / temporários    | `.cache/**`, `tmp/**`, `logs/**`, `*.log`                               |
-| Cobertura              | `coverage/**`                                                           |
-| IDE / VCS              | `.vscode/**`, `.git/**`                                                 |
-| Variáveis de ambiente  | `.env`, `.env.*`                                                        |
-| Configurações sensíveis| `appsettings.Development.json`, `appsettings.Production.json`, etc.     |
-| Certificados / chaves  | `*.pfx`, `*.pem`, `*.key`, `*.crt`, `*.cer`, `id_rsa`, `*.token`        |
-| Lockfiles              | `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`                      |
-| Assets gráficos / 3D   | `*.svg`, `*.obj`, `*.gltf`, `*.glb`, `*.fbx`, `*.stl`                   |
-| Imagens / fontes       | `*.png`, `*.jpg`, `*.jpeg`, `*.gif`, `*.webp`, `*.ico`, `*.woff(2)`, `*.ttf`, `*.otf` |
-| Compactados / binários | `*.zip`, `*.7z`, `*.rar`, `*.tar`, `*.gz`, `*.dll`, `*.exe`, `*.pdb`    |
+| Categoria               | Padrões                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------- |
+| Dependências            | `node_modules/**`                                                                     |
+| Build / artefatos       | `dist/**`, `build/**`, `out/**`, `.angular/**`, `bin/**`, `obj/**`                    |
+| Cache / temporários     | `.cache/**`, `tmp/**`, `logs/**`, `*.log`                                             |
+| Cobertura               | `coverage/**`                                                                         |
+| IDE / VCS               | `.vscode/**`, `.git/**`                                                               |
+| Variáveis de ambiente   | `.env`, `.env.*`                                                                      |
+| Configurações sensíveis | `appsettings.Development.json`, `appsettings.Production.json`, etc.                   |
+| Certificados / chaves   | `*.pfx`, `*.pem`, `*.key`, `*.crt`, `*.cer`, `id_rsa`, `*.token`                      |
+| Lockfiles               | `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`                                    |
+| Assets gráficos / 3D    | `*.svg`, `*.obj`, `*.gltf`, `*.glb`, `*.fbx`, `*.stl`                                 |
+| Imagens / fontes        | `*.png`, `*.jpg`, `*.jpeg`, `*.gif`, `*.webp`, `*.ico`, `*.woff(2)`, `*.ttf`, `*.otf` |
+| Compactados / binários  | `*.zip`, `*.7z`, `*.rar`, `*.tar`, `*.gz`, `*.dll`, `*.exe`, `*.pdb`                  |
 
 > **Exceção**: arquivos SVG/3D só podem ser lidos quando o usuário solicitar
 > explicitamente e o motivo for justificado antes da leitura.

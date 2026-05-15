@@ -1,19 +1,23 @@
 # 01 — Visão Geral
 
 ## Projeto
+
 **SVGEngine** — Editor SVG profissional, modular e extensível, distribuído
 como **biblioteca Angular reutilizável** com aplicação de demonstração
 embutida.
 
 ## Diretório raiz
+
 `C:\Projetos\ClaudeCode\SVGEngine`
 
 ## Repositório
+
 - GitHub: `https://github.com/mosaicoo/svg-engine` (privado)
 - Owner: `mosaicoo`
 - Branch padrão: `main`
 
 ## Estado atual (2026-05-14)
+
 - Restrições do agente configuradas em `.claude/settings.local.json`.
 - `.gitignore` inicial criado.
 - Pasta `docs/` em estruturação (01–08).
@@ -21,6 +25,7 @@ embutida.
   roadmap e dos documentos 02 e 05.
 
 ## Stack alvo
+
 - **Front-end**: Angular **v21** (vira LTS em 2026-05-19, suporte até 2027-05-19). Decisão D-006.
 - **UI**: Angular Material **v21** (alinhado).
 - **Linguagem**: TypeScript em modo `strict`.
@@ -32,6 +37,7 @@ embutida.
   (persistência server-side, colaboração, exportação pesada).
 
 ## Princípios condutores
+
 1. **Zero alucinação** — tudo verificado antes de afirmar/implementar.
 2. **Library-first** — qualquer feature do editor nasce no projeto
    `svg-engine`; a `playground` apenas consome.
@@ -43,6 +49,7 @@ embutida.
 8. **Sem dependências sem justificativa** registrada em `04-decisoes-tecnicas.md`.
 
 ## Ver também
+
 - [02 — Arquitetura](02-arquitetura.md)
 - [03 — Restrições](03-restricoes.md)
 - [04 — Decisões técnicas](04-decisoes-tecnicas.md)

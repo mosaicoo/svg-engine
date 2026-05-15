@@ -29,6 +29,13 @@
           "options": {
             "tsConfig": "projects/svg-engine/tsconfig.spec.json"
           }
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": ["projects/svg-engine/**/*.ts", "projects/svg-engine/**/*.html"],
+            "eslintConfig": "projects/svg-engine/eslint.config.js"
+          }
         }
       }
     },
@@ -95,6 +102,13 @@
         },
         "test": {
           "builder": "@angular/build:unit-test"
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": ["projects/playground/**/*.ts", "projects/playground/**/*.html"],
+            "eslintConfig": "projects/playground/eslint.config.js"
+          }
         }
       }
     }
