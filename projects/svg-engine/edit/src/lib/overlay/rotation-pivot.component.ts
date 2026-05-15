@@ -107,11 +107,7 @@ interface DragState {
       </svg:g>
 
       @if (popoverOpen() && currentBBox(); as b) {
-        <svg:g
-          class="popover"
-          aria-label="Pivot anchor picker"
-          (pointerdown)="onPopoverPointerDown($event, b)"
-        >
+        <svg:g class="popover" aria-label="Pivot anchor picker">
           @for (a of popoverAnchors(b); track a.anchor) {
             <svg:circle
               class="popover-dot"
@@ -203,13 +199,52 @@ export class RotationPivot implements OnDestroy {
     }
   };
 
+  /**
+   * Imperative pointer-down delegation on the host `<svg:g svgeRotationPivot>`.
+   *
+   * Why imperative (not Angular template binding): in this setup,
+   * Angular `(pointerdown)` bindings on `<svg:circle>` elements inside
+   * `@for` and on `<svg:g>` wrappers inside `@if` did **not** attach
+   * working DOM listeners (confirmed via diagnostic logs — handlers
+   * never fired even though the canvas listener saw the popover-dot
+   * as `event.target`). Attaching the listener directly on the host
+   * via `addEventListener` bypasses any template-binding quirk and
+   * guarantees the handler runs.
+   *
+   * The handler delegates by inspecting `event.target.classList` /
+   * `data-svge-anchor`:
+   *   - `popover-dot`: read its anchor and commit the pivot.
+   *   - anything else inside the host: ignore (let other handlers run).
+   */
+  private readonly onHostPointerDown = (event: PointerEvent): void => {
+    const target = event.target as Element | null;
+    if (target === null) return;
+    if (!target.classList || !target.classList.contains('popover-dot')) return;
+    const anchor = target.getAttribute('data-svge-anchor') as BBoxAnchor | null;
+    const bbox = this._bbox();
+    if (anchor === null || !BBOX_ANCHORS.includes(anchor) || bbox === null) return;
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    event.preventDefault();
+    const focus = this.selection.focusId();
+    if (focus !== null) {
+      this.transform.setPivotAnchorForNode(focus, anchor, bbox);
+    }
+    this._popoverOpen.set(false);
+  };
+
   constructor() {
     afterEveryRender({ read: () => this.recomputeBBox() });
     document.addEventListener('keydown', this.onKeyDown);
+    // Use `capture: true` so we run BEFORE bubble-phase listeners on
+    // ancestors (like the playground's canvas pointerdown). This is the
+    // most reliable way to ensure our delegation runs first.
+    this.elRef.nativeElement.addEventListener('pointerdown', this.onHostPointerDown, true);
   }
 
   ngOnDestroy(): void {
     document.removeEventListener('keydown', this.onKeyDown);
+    this.elRef.nativeElement.removeEventListener('pointerdown', this.onHostPointerDown, true);
   }
 
   protected onPointerDown(event: PointerEvent): void {
@@ -292,41 +327,6 @@ export class RotationPivot implements OnDestroy {
     this.transform.resetPivot();
     this._popoverOpen.set(false);
     event.stopPropagation();
-  }
-
-  /**
-   * Single pointer-down listener on the popover **wrapper `<svg:g>`**
-   * (not on each `<svg:circle>`).
-   *
-   * Why on the wrapper: in this Angular setup, `(pointerdown)` bindings
-   * directly on the per-anchor `<svg:circle>` inside `@for` were not
-   * actually attaching working DOM listeners (confirmed via diagnostic
-   * logs — the per-dot handler never fired even though the canvas
-   * listener did see the popover-dot as `event.target`). Putting the
-   * listener on the stable wrapper element and reading the clicked dot
-   * via `event.target` + `data-svge-anchor` works around that.
-   *
-   * The handler captures focus immediately, uses
-   * `setPivotAnchorForNode(nodeId, ...)` (explicit id, bypasses any
-   * pivot-mode/focus checks) and `stopImmediatePropagation` so the
-   * canvas does not receive the event.
-   */
-  protected onPopoverPointerDown(event: PointerEvent, bbox: BoundingBox): void {
-    const target = event.target as Element | null;
-    if (target === null) return;
-    const anchor = target.getAttribute('data-svge-anchor') as BBoxAnchor | null;
-    if (anchor === null || !BBOX_ANCHORS.includes(anchor)) {
-      // Click landed on the wrapper background, not a dot — ignore.
-      return;
-    }
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-    event.preventDefault();
-    const focus = this.selection.focusId();
-    if (focus !== null) {
-      this.transform.setPivotAnchorForNode(focus, anchor, bbox);
-    }
-    this._popoverOpen.set(false);
   }
 
   protected popoverAnchors(
