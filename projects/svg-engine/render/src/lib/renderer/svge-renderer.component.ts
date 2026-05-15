@@ -40,9 +40,23 @@ import { ViewportService } from '../viewport/viewport.service';
       <svge-node [node]="tree()" />
     </svg>
   `,
-  host: {
-    style: 'display: block; width: 100%; height: 100%;',
-  },
+  styles: `
+    /* Inner <svg> defaults to 300x150 in browsers (HTML replaced-element
+       rule) when no width/height attribute is supplied. We make it fill
+       the host so consumers can size the renderer purely with CSS on
+       <svge-renderer>. Explicit width/height inputs still take precedence
+       at the SVG level via [attr.width]/[attr.height]. */
+    :host {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SvgeRenderer {
