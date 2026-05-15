@@ -294,18 +294,36 @@ export class RotationPivot implements OnDestroy {
    * Apply the picked anchor on **pointerdown** (not click) so the action
    * happens inside the same event handler that calls `stopPropagation`.
    *
-   * Why not `(click)`: the click event fires after pointerup, by which
-   * time pointerdown/pointerup have already bubbled to the canvas. Even
-   * with `stopPropagation` on pointerdown, click is a separately
-   * dispatched event whose timing/handling can lose the focus we need
-   * (selection cleared by upstream handlers in some scenarios). Acting
-   * on pointerdown is the same UX (button-down = commit) and avoids
-   * any race against bubbling.
+   * Defensive design:
+   *  - Capture `focusId` **first thing**, before any other code runs that
+   *    could be a victim of a race against selection state changes.
+   *  - Use `setPivotAnchorForNode(nodeId, ...)` (explicit id) instead of
+   *    `setPivotAnchor(anchor, bbox)` (which depends on
+   *    `selection.focusId()` at the time `storeLocalPivot` runs). Even if
+   *    something else races and clears the selection between the click
+   *    and the pivot store, the pivot will still land on the correct node.
+   *  - `stopImmediatePropagation` (in addition to `stopPropagation`) to
+   *    prevent **any** other listener — including ones on the same
+   *    element — from seeing this event.
+   *  - `setPointerCapture` so any subsequent move/up events route to the
+   *    popover dot rather than the canvas.
    */
   protected onPopoverPick(event: PointerEvent, anchor: BBoxAnchor, bbox: BoundingBox): void {
     event.stopPropagation();
+    event.stopImmediatePropagation();
     event.preventDefault();
-    this.transform.setPivotAnchor(anchor, bbox);
+    const focus = this.selection.focusId();
+    const target = event.target as Element & { setPointerCapture?(id: number): void };
+    if (typeof target.setPointerCapture === 'function') {
+      try {
+        target.setPointerCapture(event.pointerId);
+      } catch {
+        // ignore
+      }
+    }
+    if (focus !== null) {
+      this.transform.setPivotAnchorForNode(focus, anchor, bbox);
+    }
     this._popoverOpen.set(false);
   }
 

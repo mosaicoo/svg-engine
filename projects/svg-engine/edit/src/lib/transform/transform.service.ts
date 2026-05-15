@@ -150,6 +150,27 @@ export class TransformService {
     this.setPivot(point, bbox);
   }
 
+  /**
+   * Defensive variant of {@link setPivotAnchor} that takes an explicit
+   * `nodeId` instead of resolving it from `SelectionService.focusId()`.
+   *
+   * Useful for synchronous handlers (e.g., popover dot pointer-down)
+   * where the caller has captured the focus id at handler entry and
+   * wants to commit the pivot regardless of any later selection state
+   * changes triggered by event bubbling. Bypasses `pivotMode` checks.
+   */
+  setPivotAnchorForNode(
+    nodeId: NodeId,
+    anchor: BBoxAnchor,
+    bbox: { x: number; y: number; width: number; height: number },
+  ): void {
+    const point = allAnchors(bbox)[anchor];
+    const local = docToLocal(point, bbox);
+    const next = new Map(this._customPivots());
+    next.set(nodeId, local);
+    this._customPivots.set(next);
+  }
+
   resetPivot(): void {
     const mode = this.pivotMode();
     if (mode === 'single') {
