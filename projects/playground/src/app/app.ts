@@ -34,11 +34,15 @@ import {
   nodesInsideMarquee,
   resolveNodeIdFromEvent,
   RotationPivot,
+  SELECT_TOOL_ID,
   SelectionOverlay,
   SelectionService,
   type SnapMode,
   SnapGuides,
   SnapService,
+  type ToolPointerEvent,
+  ToolHostService,
+  ToolRegistry,
   TransformService,
 } from 'svg-engine/edit';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
@@ -85,6 +89,8 @@ export class App implements OnDestroy {
   private readonly alignment = inject(AlignmentService);
   protected readonly snap = inject(SnapService);
   protected readonly viewport = inject(ViewportService);
+  protected readonly toolHost = inject(ToolHostService);
+  protected readonly toolRegistry = inject(ToolRegistry);
 
   protected readonly title = signal('SVGEngine Playground');
 
@@ -135,6 +141,25 @@ export class App implements OnDestroy {
         event.preventDefault();
       }
     }
+    // Single-key tool shortcuts (V/P/...) — but only when no input is focused
+    // and the key isn't part of a modifier combo (Ctrl+V = paste, etc.).
+    if (
+      event.key.length === 1 &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey &&
+      !isEditableTarget(event.target)
+    ) {
+      const tool = this.toolRegistry.getByShortcut(event.key.toLowerCase());
+      if (tool !== null) {
+        this.toolHost.activate(tool.id);
+        event.preventDefault();
+        return;
+      }
+    }
+    // Forward un-consumed keydowns to the active tool (lets the active tool
+    // handle, e.g., Esc-cancel for in-progress drafts).
+    this.toolHost.routeKeyDown(event);
   };
 
   constructor() {
@@ -142,6 +167,14 @@ export class App implements OnDestroy {
     // renderer pans/zooms over the actual document bounds.
     this.viewport.setContentBox(this.state.document().viewBox);
     document.addEventListener('keydown', this.onKeyDown);
+    // Default tool: Select (passthrough — keeps native canvas behavior).
+    // Activated after construction so the tool registry has had a chance
+    // to receive the bootstrap-provided plugin entries.
+    queueMicrotask(() => {
+      if (this.toolRegistry.get(SELECT_TOOL_ID) !== null) {
+        this.toolHost.activate(SELECT_TOOL_ID);
+      }
+    });
   }
 
   ngOnDestroy(): void {
@@ -213,6 +246,41 @@ export class App implements OnDestroy {
     this.snap.setMode(mode);
   }
 
+  protected activateTool(id: string): void {
+    this.toolHost.activate(id);
+  }
+
+  /**
+   * Route a canvas pointer event to the currently active tool when it
+   * isn't the passthrough Select. Returns `true` when the tool handled
+   * the event (caller should skip the native canvas logic).
+   *
+   * The Select tool intentionally leaves canvas events to the playground's
+   * existing select/marquee/body-drag pipeline — migrating that logic
+   * into a real `SelectTool` implementation is a follow-up refactor
+   * (orthogonal to validating the Tool API itself).
+   */
+  private routeToActiveTool(event: PointerEvent, kind: 'down' | 'move' | 'up'): boolean {
+    const tool = this.toolHost.activeTool();
+    if (tool === null || tool.id === SELECT_TOOL_ID) return false;
+    const docPoint = this.screenToDoc(event.clientX, event.clientY);
+    if (docPoint === null) return true; // tool is active but coords unresolvable; still suppress native
+    const toolEvent: ToolPointerEvent = {
+      raw: event,
+      docPoint,
+      screenX: event.clientX,
+      screenY: event.clientY,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+    };
+    if (kind === 'down') this.toolHost.routePointerDown(toolEvent);
+    else if (kind === 'move') this.toolHost.routePointerMove(toolEvent);
+    else this.toolHost.routePointerUp(toolEvent);
+    return true;
+  }
+
   /** Align ≥ 2 selected nodes need; otherwise the toolbar buttons are disabled. */
   protected readonly canAlign = computed(() => this.selection.count() >= 2);
 
@@ -259,6 +327,13 @@ export class App implements OnDestroy {
    *    propagation, so this handler does not fire.
    */
   protected onCanvasPointerDown(event: PointerEvent): void {
+    // If a non-Select tool is active, route to it and skip the native
+    // selection/marquee path. Select is "passthrough" — we keep running
+    // the existing canvas logic when it (or no tool) is active.
+    if (this.routeToActiveTool(event, 'down')) {
+      capturePointer(event);
+      return;
+    }
     const id = resolveNodeIdFromEvent(event);
     if (id === null) {
       const start = this.screenToDoc(event.clientX, event.clientY);
@@ -292,6 +367,7 @@ export class App implements OnDestroy {
    *  - Otherwise (no drag at all): publish hover state for the overlay.
    */
   protected onCanvasPointerMove(event: PointerEvent): void {
+    if (this.routeToActiveTool(event, 'move')) return;
     const ds = this.transform.dragState();
     if (ds !== null && ds.kind === 'move') {
       const point = this.screenToDoc(event.clientX, event.clientY);
@@ -411,6 +487,10 @@ export class App implements OnDestroy {
    * Resize/rotate are committed by their own handlers in the overlay.
    */
   protected onCanvasPointerUp(event: PointerEvent): void {
+    if (this.routeToActiveTool(event, 'up')) {
+      releasePointer(event);
+      return;
+    }
     const ds = this.transform.dragState();
     if (ds !== null && ds.kind === 'move') {
       this.transform.endMove();
@@ -527,4 +607,16 @@ function releasePointer(event: PointerEvent): void {
 function randomPastel(): string {
   const hue = Math.floor(Math.random() * 360);
   return `hsl(${hue} 60% 75%)`;
+}
+
+/**
+ * True when the event target is a text-editing element (input, textarea,
+ * contenteditable). Used to gate single-key tool shortcuts so typing in
+ * a future inspector field doesn't accidentally swap tools.
+ */
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  return target.isContentEditable;
 }

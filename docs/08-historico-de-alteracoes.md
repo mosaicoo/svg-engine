@@ -6,6 +6,89 @@
 
 ---
 
+## 2026-05-15 — Fase 3 Bloco 5b: ToolRegistry + builtin tools (Pencil, Select)
+
+**O que foi entregue**
+
+Primeira capability registry sobre o scaffolding do 5a. `Tool` interface,
+`ToolRegistry` (registra/lista/dispose), `ToolHostService` (tool ativa
+
+- roteamento de eventos do canvas) e dois plugins builtin: `selectToolPlugin`
+  (passthrough) e `pencilToolPlugin` (freehand path drawing end-to-end).
+
+**Estrutura nova** (`svg-engine/edit/src/lib/tool/`):
+
+- `tool.ts`: `Tool` interface com hooks opcionais (onActivate/Deactivate/
+  PointerDown/Move/Up/Cancel/KeyDown), `ToolPointerEvent` (raw +
+  docPoint pré-convertido + flags), `ToolContext` (`injector` cru).
+- `tool-registry.service.ts`: `register(tool): Disposable`, `tools`
+  signal reativo, `get(id)` / `getByShortcut(key)`. Throws em id vazio
+  ou duplicado.
+- `tool-host.service.ts`: `activeId` signal + `activeTool` computed
+  (re-deriva da registry — resiliente a uninstall do tool ativo);
+  `activate(id)` dispara onDeactivate(prev)→onActivate(next);
+  `routePointerDown/Move/Up/Cancel` + `routeKeyDown` (no-op se hook
+  ausente ou tool null). Consumer roteia (host não conhece DOM do canvas).
+
+**Plugins builtin** (`builtin-tools.ts`):
+
+- `selectToolPlugin` (id `com.svge.tools.select`, shortcut V):
+  passthrough — sem hooks. Existe para o toolbar mostrar "Select" e o
+  consumer branchar `activeId === SELECT_TOOL_ID` para manter pipeline
+  nativo. Migrar select+marquee+body-drag+snap PARA a tool é follow-up.
+- `pencilToolPlugin` (id `com.svge.tools.pencil`, shortcut P):
+  Implementação completa. Classe `PencilTool` com state interno
+  (points, drawing). onActivate: clear selection. onPointerDown: inicia.
+  onPointerMove: append. onPointerUp: se ≥2 pontos, monta `d` via
+  `pointsToPathD` (M+L, 1 decimal), dispatch `InsertNodeCommand`.
+  onPointerCancel + onDeactivate: descarta draft. Sem live preview
+  (snapshot-on-up — reference simples).
+
+**Wire no playground**:
+
+- `app.config.ts`: 2 providers via `provideSvgEnginePlugin` (select
+  primeiro p/ ser default natural).
+- `app.ts` constructor: ativa Select via queueMicrotask (espera bootstrap).
+- `routeToActiveTool(event, kind)`: helper. Se tool ativa ≠ Select, monta
+  `ToolPointerEvent` e roteia ao host; retorna true para skipar nativo.
+- onCanvasPointerDown/Move/Up: chamam routeToActiveTool no topo,
+  early-return se true.
+- onKeyDown: 1) Esc handlers; 2) shortcuts via getByShortcut, gated em
+  `isEditableTarget()`; 3) `toolHost.routeKeyDown` para tools.
+- Template: novo `<fieldset>` "Tool" com `@for` reativo + `[class.active]`.
+
+**Decisões técnicas**
+
+- Tools são singletons no registry: 1 instância por id; classes com
+  state interno usam fields. Sem factory pattern.
+- PencilTool sem live preview: validar API end-to-end primeiro.
+- SelectTool passthrough: refactor proper é orthogonal — adiar evita
+  mistura de escopo.
+- Shortcuts gated por `isEditableTarget()`: digitar "p" em input não
+  deve virar pencil.
+- Default tool em queueMicrotask: bootstrap providers rodam via
+  ENVIRONMENT_INITIALIZER; constructor da App veria registry vazia
+  se chamasse activate sincronamente.
+- routeToActiveTool retorna boolean: convenção "tool consumiu →
+  consumer skip". Mesmo se docPoint for null, retorna true (não cair
+  no fallback dá UX melhor).
+
+**Cobertura**
+
+- `tool-registry.service.spec.ts`: 8 testes
+- `tool-host.service.spec.ts`: 14 testes
+- `builtin-tools.spec.ts`: 11 testes (provider install; shortcuts
+  wired; uninstall remove tool; PencilTool gesture end-to-end commits
+  InsertNodeCommand; click sem drag = no-op; pointercancel descarta;
+  switch mid-draft cancela; clear selection em onActivate; pointsToPathD
+  edge cases).
+- **Total**: +33 testes → 342 passing em 32 arquivos. Zero regressão.
+
+**Próximo (5c)**: D-020 expandido + novo D-023 (9 tipos de plugin
+mapeados) + D-024 reservando ScriptRuntimePlugin (Fase 6+).
+
+---
+
 ## 2026-05-15 — Fase 3 Bloco 5a: Plugin scaffolding (infra)
 
 **Contexto**

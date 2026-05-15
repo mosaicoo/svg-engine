@@ -8,6 +8,20 @@
 
   <section class="toolbar" aria-label="Editor commands">
     <fieldset>
+      <legend>Tool</legend>
+      @for (t of toolRegistry.tools(); track t.id) {
+        <button
+          type="button"
+          [attr.aria-pressed]="toolHost.activeId() === t.id"
+          [class.active]="toolHost.activeId() === t.id"
+          (click)="activateTool(t.id)"
+          [title]="t.label + (t.shortcut ? ' (' + t.shortcut + ')' : '')"
+        >
+          {{ t.label }}
+        </button>
+      }
+    </fieldset>
+    <fieldset>
       <legend>Add</legend>
       <button type="button" (click)="addShape('rect')">Rect</button>
       <button type="button" (click)="addShape('ellipse')">Ellipse</button>

@@ -29,8 +29,10 @@
  *   `PluginRegistry` (install/uninstall/lifecycle, semver gate, dep
  *   check, auto-cleanup of tracked `Disposable`s), `provideSvgEnginePlugin`
  *   Angular provider for bootstrap.
- * **Bloco 5b** ⏳: `ToolRegistry` (first capability registry built on
- *   the scaffolding) + reference `PencilTool` plugin.
+ * **Bloco 5b** ✅: `ToolRegistry` + `ToolHostService` (active tool +
+ *   event routing) + reference `selectToolPlugin` (passthrough) and
+ *   `pencilToolPlugin` (freehand drawing) — both built on the Bloco
+ *   5a plugin scaffolding.
  * **Bloco 5c** ⏳: D-020 expanded + new D-023 plugin-types roadmap.
  * **Bloco 5** ⏳: `ToolRegistry` (D-020 plugin point).
  */
@@ -61,3 +63,6 @@ export * from './lib/alignment';
 
 // Plugin scaffolding (Bloco 5a)
 export * from './lib/plugin';
+
+// Tool API + builtin tools (Bloco 5b)
+export * from './lib/tool';

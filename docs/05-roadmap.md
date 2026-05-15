@@ -142,11 +142,14 @@
   - `PluginRegistry`: install/uninstall/has/get/list (signals reativos), validação de id, semver gate (major check), dep check, rollback de disposables se install() throws, LIFO disposal, errors em uninstall hook não bloqueiam cleanup
   - `provideSvgEnginePlugin(plugin)` provider via `ENVIRONMENT_INITIALIZER` (multi:true) — bootstrap-time install na ordem de declaração
   - `PLUGIN_API_VERSION` constante (1.0.0) para compat check
-- [ ] **Bloco 5b**: `ToolRegistry` (primeira capability registry construída sobre o scaffolding)
-  - Tool API: `id`, `label`, `icon?`, `cursor?`, `onPointerDown/Move/Up`, `onKey`, `onActivate/Deactivate`
-  - `ToolHostService`: tool ativa + roteamento de eventos
-  - `PencilTool` plugin de referência (freehand path)
-  - `selectTool` builtin como plugin (comportamento atual virou tool explícita)
+- [x] **Bloco 5b**: `ToolRegistry` + `ToolHostService` (primeira capability registry construída sobre o scaffolding)
+  - Tool API: `id`, `label`, `icon?`, `cursor?`, `shortcut?`, `onActivate/Deactivate`, `onPointerDown/Move/Up/Cancel`, `onKeyDown`
+  - `ToolPointerEvent`: wrap do `PointerEvent` raw + `docPoint` já convertido + flags de modifier (consumer não repete boilerplate)
+  - `ToolContext`: `injector` cru (mesmo princípio de PluginContext)
+  - `ToolHostService`: signal `activeId` + computed `activeTool` (resiliente a uninstall — vira null automaticamente); routePointerDown/Move/Up/Cancel + routeKeyDown; activate dispara onDeactivate→onActivate
+  - `selectToolPlugin` builtin: tool passthrough; consumer mantém o pipeline nativo de select/marquee/snap quando `activeId === SELECT_TOOL_ID`
+  - `pencilToolPlugin` builtin: freehand path drawing; commit via `InsertNodeCommand` no pointerup; ≥2 pontos requeridos; cancela em pointercancel/onDeactivate
+  - Wire no playground: `provideSvgEnginePlugin(selectToolPlugin)` + `provideSvgEnginePlugin(pencilToolPlugin)` no app.config; toolbar reativa lê `toolRegistry.tools()`; shortcuts V/P (gated em editable target)
 - [ ] **Bloco 5c**: docs D-020 expandido + novo D-023 roadmap de tipos de plugin (9 categorias mapeadas: Tools, Optimizers, Importers, Exporters, Inspectors, Effects, Palettes, Menus, Shortcuts) + D-024 pendente (ScriptRuntimePlugin Fase 6+)
 
 ## Fase 4 — UX completa
