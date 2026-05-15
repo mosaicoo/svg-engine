@@ -116,9 +116,14 @@
 
 ### Bloco 4 — Marquee + alinhamento
 
-- [ ] `<svge-marquee>`: drag-to-select com box visual
-- [ ] Snap-to-grid e snap-to-objects opcionais (`SnapService`)
-- [ ] Alinhamento e distribuição (esquerda/centro/direita/topo/meio/base)
+- [x] **Bloco 4a**: `<svge-marquee>` (drag-to-select com box visual dashed)
+  - `MarqueeService` (signals) — start/update/end/cancel + estado normalizado (`rect` sempre com w/h ≥ 0 mesmo em drag para cima/esquerda)
+  - Hit-testing puro: `nodesInsideMarquee(rect, candidates, mode)` com modos `'intersect'` (default, padrão Illustrator/Affinity) e `'contain'` (modo AutoCAD)
+  - Modo `'add'` (Shift-drag): captura snapshot da seleção no start e reconstrói a união a cada update — pré-existentes nunca somem
+  - Esc cancela o gesto (sem alterar seleção); release sem drag em `'replace'` mode = clear (preserva o velho comportamento "click no fundo limpa")
+  - Wired no playground: pointerdown no fundo abre marquee; selectMany acompanha drag em tempo real
+- [ ] **Bloco 4b**: Snap-to-grid e snap-to-objects opcionais (`SnapService`)
+- [ ] **Bloco 4c**: Alinhamento e distribuição (esquerda/centro/direita/topo/meio/base)
 
 ### Bloco 5 — Plugin extensibility (D-020)
 

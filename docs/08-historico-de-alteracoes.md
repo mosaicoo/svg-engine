@@ -6,6 +6,81 @@
 
 ---
 
+## 2026-05-15 — Fase 3 Bloco 4a: Marquee selection (drag-to-select)
+
+**O que foi entregue**
+
+Drag-to-select multi-seleção visual via box pontilhado, padrão
+Illustrator/Affinity. Clicar no fundo agora abre marquee em vez de
+limpar imediatamente — release sem drag preserva o velho comportamento
+(clear no `'replace'` mode). Shift-drag soma à seleção corrente sem
+perder os pré-existentes.
+
+**Estrutura nova** (`svg-engine/edit/src/lib/marquee/`):
+
+- `MarqueeService` (signals): `start/update/end/cancel`. Estado expõe
+  `state` + `isActive` + `rect` (sempre normalizado: w/h ≥ 0). Captura
+  defensiva da seleção inicial em modo `'add'` (snapshot via `new Set`).
+- `nodesInsideMarquee(rect, candidates, mode)` puro:
+  - `'intersect'` (default): qualquer overlap conta — UX rápida
+    (Illustrator/Affinity/Figma/Inkscape).
+  - `'contain'`: bbox candidato totalmente dentro — modo AutoCAD.
+  - Marquee de área zero retorna `[]` (clique não é multi-seleção).
+- Helpers exportados: `rectFromPoints`, `rectsIntersect`,
+  `rectContainsRect` — preferência por funções puras testáveis sem DOM.
+
+**Componente novo** (`svg-engine/edit/src/lib/overlay/`):
+
+- `<svg:g svgeMarquee>`: visual-only, lê `MarqueeService.rect()`. Sem
+  inputs, sem outputs, sem DOM events (`pointer-events: none`). Renderiza
+  `<rect>` dashed (rgba blue + stroke-dasharray) com `vector-effect:
+non-scaling-stroke`. Pointer-handling fica no consumer — desacoplamento
+  D-022.
+
+**Wire no playground**:
+
+- `onCanvasPointerDown` no fundo: começa marquee em vez de `clear()`.
+  Shift = `'add'`, sem Shift = `'replace'`. Captura ponteiro.
+- `onCanvasPointerMove` com marquee ativo: chama `update` + recomputa
+  seleção via `applyMarqueeSelection` (enumera children do root, mede
+  bbox via `getRenderedNodeBBox`, alimenta `nodesInsideMarquee`, push em
+  `selectMany`). Modo `'add'` faz união com snapshot inicial.
+- `onCanvasPointerUp`: encerra marquee. Se zero-area + `'replace'` =
+  `selection.clear()` (compatibilidade com clique no fundo).
+- Esc cancela marquee se nenhum gesto de transform estiver ativo.
+- Template: novo `<svg:g svgeMarquee>` no slot do `<svge-renderer>`.
+
+**Decisões técnicas**
+
+- Service NÃO conhece `SelectionService` — pure state. Razões: testável
+  isolado, consumer escolhe quando comitar (futuro: throttle/debounce).
+- Hit-test default `'intersect'` (não `'contain'`): match com 100% das
+  ferramentas de design relevantes. `'contain'` fica disponível mas
+  opt-in (parâmetro do helper).
+- `rect` sempre normalizado no signal `computed` — consumer nunca vê
+  width/height negativo, mesmo com drag para cima/esquerda.
+- Modo `'add'` reconstrói união do snapshot a cada update (não acumula
+  delta) — simples e correto: usuário pode mover marquee para fora de um
+  alvo e voltar, e a seleção se ajusta sem leftovers.
+- Marquee de zero area sempre retorna `[]` no helper — clique não dispara
+  multi-seleção; o playground decide se zero-area = clear ou no-op.
+
+**Cobertura**
+
+- `marquee.service.spec.ts`: 9 testes (start/update/end/cancel, modos,
+  no-op em estado inválido, normalização de rect, snapshot defensivo).
+- `marquee-hit-testing.spec.ts`: 13 testes (intersect/contain, edge
+  touching, área-zero, ordem preservada).
+- `marquee.component.spec.ts`: 4 testes (render reativo do `<rect>`,
+  remoção em `end()`, atualização contínua via signal).
+- **Total**: +28 testes → 230 passing em 21 arquivos. Zero regressão.
+
+**Próximo**: Bloco 4b (`SnapService` grid + objetos) e 4c (alinhamento
+
+- distribuição).
+
+---
+
 ## 2026-05-15 — Fase 3 Bloco 3: Transform interativo (move/rotate/resize)
 
 **O que foi entregue**

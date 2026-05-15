@@ -18,7 +18,10 @@
  *   with Alt-bypass + 3×3 popover + Esc cancel + dbl-click reset).
  * **Bloco 3** ⏳: `TransformService` expanded (drag/resize/rotate);
  *   new commands (`RotateNodeCommand`, `ResizeNodeCommand`).
- * **Bloco 4** ⏳: `<svge-marquee>`, `SnapService`, alignment.
+ * **Bloco 4a** ✅: `<svge-marquee>` + `MarqueeService` + pure
+ *   `nodesInsideMarquee` hit-tester (drag-to-select with shift-add).
+ * **Bloco 4b** ⏳: `SnapService` (grid + objects).
+ * **Bloco 4c** ⏳: alignment + distribution commands.
  * **Bloco 5** ⏳: `ToolRegistry` (D-020 plugin point).
  */
 
@@ -34,5 +37,8 @@ export * from './lib/geometry';
 // Transform service skeleton — pivot only (Bloco 2; expanded in Bloco 3)
 export * from './lib/transform';
 
-// Visual overlays (Bloco 2)
+// Visual overlays (Bloco 2 + Bloco 4a marquee)
 export * from './lib/overlay';
+
+// Marquee selection (Bloco 4a)
+export * from './lib/marquee';

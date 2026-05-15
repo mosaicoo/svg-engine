@@ -21,6 +21,12 @@ import {
   RemoveNodeCommand,
 } from 'svg-engine/core';
 import {
+  findRenderedNode,
+  getRenderedNodeBBox,
+  Marquee,
+  type MarqueeCandidate,
+  MarqueeService,
+  nodesInsideMarquee,
   resolveNodeIdFromEvent,
   RotationPivot,
   SelectionOverlay,
@@ -56,7 +62,7 @@ const DRAG_START_THRESHOLD_PX = 3;
  */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, SvgeRenderer, SelectionOverlay, RotationPivot],
+  imports: [RouterOutlet, SvgeRenderer, SelectionOverlay, RotationPivot, Marquee],
   templateUrl: './app.html',
   styleUrl: './app.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -67,6 +73,7 @@ export class App implements OnDestroy {
   private readonly history = inject(HistoryService);
   private readonly selection = inject(SelectionService);
   private readonly transform = inject(TransformService);
+  private readonly marquee = inject(MarqueeService);
   protected readonly viewport = inject(ViewportService);
 
   protected readonly title = signal('SVGEngine Playground');
@@ -96,10 +103,17 @@ export class App implements OnDestroy {
   } | null = null;
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key === 'Escape' && this.transform.isDragging()) {
-      this.transform.cancelGesture();
-      this.potentialDrag = null;
-      event.preventDefault();
+    if (event.key === 'Escape') {
+      if (this.transform.isDragging()) {
+        this.transform.cancelGesture();
+        this.potentialDrag = null;
+        event.preventDefault();
+        return;
+      }
+      if (this.marquee.isActive()) {
+        this.marquee.cancel();
+        event.preventDefault();
+      }
     }
   };
 
@@ -174,15 +188,22 @@ export class App implements OnDestroy {
   /**
    * Pointer-down on the canvas:
    *  - Click on a node → select it (single-select), arm body-drag.
-   *  - Click on background → clear selection.
+   *  - Click on background → start a marquee gesture (drag-to-select).
+   *    Shift held = additive (preserves the current selection); plain
+   *    click = will end as `clear()` if the user never drags.
    *  - Click on overlay handle / pivot → those components stop
    *    propagation, so this handler does not fire.
    */
   protected onCanvasPointerDown(event: PointerEvent): void {
     const id = resolveNodeIdFromEvent(event);
     if (id === null) {
-      this.selection.clear();
+      const start = this.screenToDoc(event.clientX, event.clientY);
+      if (start !== null) {
+        const mode = event.shiftKey ? 'add' : 'replace';
+        this.marquee.start(start, mode, this.selection.selectedIds());
+      }
       this.potentialDrag = null;
+      capturePointer(event);
       return;
     }
     if (!this.selection.isSelected(id)) {
@@ -200,8 +221,10 @@ export class App implements OnDestroy {
    * Pointer-move on the canvas:
    *  - If a body-drag gesture is already active in `TransformService`,
    *    forward the pointer position to `updateMove`.
+   *  - If a marquee gesture is active, update its trailing edge and
+   *    recompute the selection live (so the highlight follows the box).
    *  - If a drag is potential and the pointer moved beyond threshold,
-   *    open the gesture (`startMove` + initial `updateMove`).
+   *    open the move gesture (`startMove` + initial `updateMove`).
    *  - Otherwise (no drag at all): publish hover state for the overlay.
    */
   protected onCanvasPointerMove(event: PointerEvent): void {
@@ -214,6 +237,15 @@ export class App implements OnDestroy {
     if (ds !== null) {
       // Resize/rotate gestures are owned by the overlay handles —
       // do nothing here so we don't fight pointer routing.
+      return;
+    }
+
+    if (this.marquee.isActive()) {
+      const point = this.screenToDoc(event.clientX, event.clientY);
+      if (point !== null) {
+        this.marquee.update(point);
+        this.applyMarqueeSelection();
+      }
       return;
     }
 
@@ -239,14 +271,28 @@ export class App implements OnDestroy {
   }
 
   /**
-   * Pointer-up: commit any active body-drag (single undo entry) and
-   * clear the potential-drag bookkeeping. Resize/rotate are committed
-   * by their own handlers in the overlay.
+   * Pointer-up: commit any active body-drag (single undo entry), close
+   * any active marquee gesture (the selection has already been built
+   * progressively in `onCanvasPointerMove` via `applyMarqueeSelection`;
+   * a zero-area marquee — i.e. a click without drag in `'replace'` mode
+   * — clears the selection), and clear the potential-drag bookkeeping.
+   * Resize/rotate are committed by their own handlers in the overlay.
    */
   protected onCanvasPointerUp(event: PointerEvent): void {
     const ds = this.transform.dragState();
     if (ds !== null && ds.kind === 'move') {
       this.transform.endMove();
+    }
+    if (this.marquee.isActive()) {
+      const m = this.marquee.state();
+      const r = this.marquee.rect();
+      // Zero-area marquee = click without drag. In 'replace' mode this
+      // means "click on background → clear selection"; in 'add' mode
+      // the user just shift-clicked without dragging (no-op).
+      if (m !== null && r !== null && r.width === 0 && r.height === 0 && m.mode === 'replace') {
+        this.selection.clear();
+      }
+      this.marquee.end();
     }
     this.potentialDrag = null;
     releasePointer(event);
@@ -259,6 +305,46 @@ export class App implements OnDestroy {
 
   private firstChild() {
     return this.tree().children.at(0) ?? null;
+  }
+
+  /**
+   * Compute the live marquee selection from the current rect and push
+   * it into `SelectionService`. Called every `pointermove` while the
+   * marquee is active so the highlight tracks the box without lag.
+   *
+   * Candidate set = top-level children of the document root (we do not
+   * recurse into groups for now — group selection semantics are a
+   * Bloco-4c follow-up). Each candidate's bbox is read from the rendered
+   * DOM via `getRenderedNodeBBox` (same source the overlay uses).
+   *
+   * In `'add'` mode the result is unioned with the snapshot taken at
+   * marquee-start, so pre-existing members are never lost mid-drag.
+   */
+  private applyMarqueeSelection(): void {
+    const m = this.marquee.state();
+    const r = this.marquee.rect();
+    if (m === null || r === null) return;
+    const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+    if (svg === null) return;
+
+    const candidates: MarqueeCandidate[] = [];
+    for (const child of this.tree().children) {
+      // Only enumerate children that are actually rendered; skip nodes
+      // without a measurable bbox (empty groups, unrendered text).
+      if (findRenderedNode(svg, child.id) === null) continue;
+      const bb = getRenderedNodeBBox(svg, child.id);
+      if (bb === null) continue;
+      candidates.push({ id: child.id, bbox: bb });
+    }
+    const hits = nodesInsideMarquee(r, candidates, 'intersect');
+
+    if (m.mode === 'add') {
+      const next = new Set(m.initialSelection);
+      for (const id of hits) next.add(id);
+      this.selection.selectMany(next);
+    } else {
+      this.selection.selectMany(hits);
+    }
   }
 
   /**
