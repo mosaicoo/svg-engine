@@ -21,8 +21,8 @@ embutida.
   roadmap e dos documentos 02 e 05.
 
 ## Stack alvo
-- **Front-end**: Angular (última LTS — versão a confirmar antes de `ng new`).
-- **UI**: Angular Material (LTS compatível com a versão escolhida).
+- **Front-end**: Angular **v21** (vira LTS em 2026-05-19, suporte até 2027-05-19). Decisão D-006.
+- **UI**: Angular Material **v21** (alinhado).
 - **Linguagem**: TypeScript em modo `strict`.
 - **Estilo de SVG**: DOM SVG nativo + camada de abstração própria.
   Sem dependência de `svg.js`, `snap.svg`, `fabric.js` ou similares.

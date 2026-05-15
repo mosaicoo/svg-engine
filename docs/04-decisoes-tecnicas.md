@@ -55,10 +55,28 @@
 - **Data**: 2026-05-14
 - **Status**: Aceita
 - **Decisão**: UI do editor (toolbar, painel de camadas, inspector,
-  diálogos) usa Angular Material LTS compatível com a versão Angular
-  escolhida.
-- **Consequências**: dependência peer da library no `@angular/material`;
+  diálogos) usa Angular Material **v21** (alinhado à versão Angular).
+- **Consequências**: dependência peer da library no `@angular/material@21`;
   documentar versões compatíveis no README.
+
+## D-006 — Angular v21 como versão alvo
+- **Data**: 2026-05-14
+- **Status**: Aceita
+- **Contexto**: Em 2026-05-14, o cenário é:
+  - v19 (LTS) termina em 2026-05-19 — descartada.
+  - v20 (LTS) termina em 2026-11-28 — só 6 meses de suporte.
+  - v21 (Active) vira LTS em 2026-05-19, com suporte até 2027-05-19.
+  - v22 sai em 2026-05-19 (RC no momento).
+- **Decisão**: Scaffold com **Angular v21** (`@angular/core@21`,
+  `@angular/cli@21`, `@angular/material@21`).
+- **Alternativas**:
+  - v22 estável (aguardar 5 dias) — rejeitada: usuário optou por iniciar
+    imediatamente; revisitar quando v22 e ecossistema estabilizarem.
+  - v22-rc — rejeitada: instabilidade inaceitável para projeto produtivo.
+  - v20 — rejeitada: janela de suporte curta demais.
+  - v19 — rejeitada: EOL em 5 dias.
+- **Consequências**: planejar upgrade para v22 quando esta amadurecer
+  (provável janela: 2 a 3 meses após release).
 
 ---
 
@@ -66,8 +84,9 @@
 
 | ID provis. | Tema                                         |
 |------------|----------------------------------------------|
-| D-006?     | Framework de testes (Karma / Vitest / WTR)   |
-| D-007?     | Versionamento + changelog (changesets?)      |
-| D-008?     | Registry de publicação                       |
-| D-009?     | Estratégia de i18n no editor                 |
-| D-010?     | Acessibilidade (a11y) — alvo WCAG            |
+| D-007?     | Framework de testes (Karma / Vitest / WTR)   |
+| D-008?     | Versionamento + changelog (changesets?)      |
+| D-009?     | Registry de publicação                       |
+| D-010?     | Estratégia de i18n no editor                 |
+| D-011?     | Acessibilidade (a11y) — alvo WCAG            |
+| D-012?     | Tema do Angular Material (prebuilt vs custom)|

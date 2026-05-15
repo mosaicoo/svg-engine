@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-05-14 — Confirmação da versão Angular (D-006)
+
+- Consultado o npm registry e `angular.dev/reference/releases`.
+- Cenário em 2026-05-14: v19 morre em 5 dias, v20 com 6 meses de
+  suporte restantes, v21 vira LTS em 5 dias (suporte até 2027-05-19),
+  v22 sai em 5 dias.
+- **Decisão**: scaffoldar com **Angular v21** imediatamente.
+- Roadmap, visão geral e decisões técnicas atualizados.
+- Próximo upgrade planejado: Angular v22 quando ecossistema estabilizar
+  (provável janela: 2 a 3 meses após release).
+
+---
+
 ## 2026-05-14 — Fundação do projeto
 
 **O que aconteceu**

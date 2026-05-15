@@ -5,18 +5,18 @@
 
 ---
 
-## Fase 0 — Fundação ✅ em andamento
+## Fase 0 — Fundação ✅ concluída
 - [x] Restrições do agente (`.claude/settings.local.json`)
 - [x] `.gitignore` inicial
 - [x] Documentos canônicos (`docs/01..08`)
-- [ ] `git init` + commit inicial + push para `mosaicoo/svg-engine`
-- [ ] Confirmar versão Angular LTS atual antes do scaffold
+- [x] `git init` + commit inicial + push para `mosaicoo/svg-engine`
+- [x] Confirmação da versão Angular: **v21** (D-006)
 
-## Fase 1 — Scaffold do workspace
-- [ ] `ng new SVGEngine --create-application=false --strict --style=scss --package-manager=npm`
-- [ ] `ng generate library svg-engine`
-- [ ] `ng generate application playground`
-- [ ] Adicionar Angular Material à `playground` e configurar tema base
+## Fase 1 — Scaffold do workspace (Angular v21)
+- [ ] `npx --yes -p @angular/cli@21 ng new SVGEngine --create-application=false --directory=. --skip-git --package-manager=npm --strict`
+- [ ] `ng generate library svg-engine --prefix=svge`
+- [ ] `ng generate application playground --routing=true --style=scss --prefix=app`
+- [ ] `ng add @angular/material@21 --project=playground` (tema a confirmar — D-012)
 - [ ] ESLint + Prettier + EditorConfig
 - [ ] Husky + lint-staged (commit hooks)
 - [ ] CI mínimo: lint + build da library + build da app
