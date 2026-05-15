@@ -200,51 +200,72 @@ export class RotationPivot implements OnDestroy {
   };
 
   /**
-   * Imperative pointer-down delegation on the host `<svg:g svgeRotationPivot>`.
+   * Window-level capture-phase delegation for popover-dot pointerdowns.
    *
-   * Why imperative (not Angular template binding): in this setup,
-   * Angular `(pointerdown)` bindings on `<svg:circle>` elements inside
-   * `@for` and on `<svg:g>` wrappers inside `@if` did **not** attach
-   * working DOM listeners (confirmed via diagnostic logs — handlers
-   * never fired even though the canvas listener saw the popover-dot
-   * as `event.target`). Attaching the listener directly on the host
-   * via `addEventListener` bypasses any template-binding quirk and
-   * guarantees the handler runs.
+   * Why **window** + **capture**: the popover dots live inside the same
+   * `<svg>` as the canvas. The playground's canvas binds `(pointerdown)`
+   * via Angular templating, which uses **bubble** phase. By listening on
+   * `window` in **capture** phase we run *first* — before the canvas
+   * handler ever sees the event. We then `stopImmediatePropagation()`
+   * so the canvas never runs `selection.clear()` (which would kill the
+   * `_bbox` and unmount the entire pivot+popover overlay, masking the
+   * pivot move with a "everything disappeared" symptom).
    *
-   * The handler delegates by inspecting `event.target.classList` /
-   * `data-svge-anchor`:
-   *   - `popover-dot`: read its anchor and commit the pivot.
-   *   - anything else inside the host: ignore (let other handlers run).
+   * Why imperative (not Angular `(pointerdown)` on the circle): prior
+   * attempts with template bindings on `<svg:circle>` inside nested
+   * `@for`/`@if` blocks did not attach working DOM listeners in this
+   * setup (handler never fired). Imperative `addEventListener` on a
+   * stable host (window) is the most defensible approach.
+   *
+   * The handler ignores any pointerdown whose target is **not** one of
+   * our popover dots living inside this directive's host `<g>`, so
+   * other interactions (resize handles, body-drag, other components)
+   * are unaffected.
    */
-  private readonly onHostPointerDown = (event: PointerEvent): void => {
+  private readonly onWindowPointerDownCapture = (event: Event): void => {
+    if (!(event instanceof PointerEvent)) return;
     const target = event.target as Element | null;
     if (target === null) return;
-    if (!target.classList || !target.classList.contains('popover-dot')) return;
-    const anchor = target.getAttribute('data-svge-anchor') as BBoxAnchor | null;
+    // 1) Must be a popover-dot
+    if (!target.classList.contains('popover-dot')) return;
+    // 2) Must belong to *this* RotationPivot instance (not another one
+    //    in a different renderer on the same page).
+    const host = this.elRef.nativeElement;
+    if (!host.contains(target)) return;
+    // 3) Anchor must be valid and we must have a bbox + focused node.
+    const anchorAttr = target.getAttribute('data-svge-anchor');
     const bbox = this._bbox();
-    if (anchor === null || !BBOX_ANCHORS.includes(anchor) || bbox === null) return;
-    event.stopPropagation();
+    const focus = this.selection.focusId();
+    if (
+      anchorAttr === null ||
+      !BBOX_ANCHORS.includes(anchorAttr as BBoxAnchor) ||
+      bbox === null ||
+      focus === null
+    ) {
+      // Even if we can't process it, we still need to suppress canvas
+      // selection-clear — the user's intent was clearly a pivot pick.
+      event.stopImmediatePropagation();
+      event.preventDefault();
+      this._popoverOpen.set(false);
+      return;
+    }
     event.stopImmediatePropagation();
     event.preventDefault();
-    const focus = this.selection.focusId();
-    if (focus !== null) {
-      this.transform.setPivotAnchorForNode(focus, anchor, bbox);
-    }
+    this.transform.setPivotAnchorForNode(focus, anchorAttr as BBoxAnchor, bbox);
     this._popoverOpen.set(false);
   };
 
   constructor() {
     afterEveryRender({ read: () => this.recomputeBBox() });
     document.addEventListener('keydown', this.onKeyDown);
-    // Use `capture: true` so we run BEFORE bubble-phase listeners on
-    // ancestors (like the playground's canvas pointerdown). This is the
-    // most reliable way to ensure our delegation runs first.
-    this.elRef.nativeElement.addEventListener('pointerdown', this.onHostPointerDown, true);
+    // capture: true → fires BEFORE any bubble-phase listener on ancestors
+    // (like the playground's <section class="canvas"> pointerdown).
+    window.addEventListener('pointerdown', this.onWindowPointerDownCapture, true);
   }
 
   ngOnDestroy(): void {
     document.removeEventListener('keydown', this.onKeyDown);
-    this.elRef.nativeElement.removeEventListener('pointerdown', this.onHostPointerDown, true);
+    window.removeEventListener('pointerdown', this.onWindowPointerDownCapture, true);
   }
 
   protected onPointerDown(event: PointerEvent): void {
