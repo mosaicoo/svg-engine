@@ -6,6 +6,111 @@
 
 ---
 
+## 2026-05-15 — Fase 3 Bloco 5a: Plugin scaffolding (infra)
+
+**Contexto**
+
+Antes de começar o `ToolRegistry` (Bloco 5 original), pausa estratégica
+para validar se a estrutura suportaria plugins de outros tipos no
+futuro (otimização, IO, scripts). Conclusão: **suporta, mas só se
+construirmos a infra de plugin AGORA** — não pode ser reativo.
+
+Decisão do usuário (com base em opções apresentadas):
+
+1. Scaffolding completo agora (Bloco 5a) ANTES de `ToolRegistry`.
+2. Scripts entram no roadmap como D-024 (Fase 6+, via
+   `ScriptRuntimePlugin` que se instala como qualquer outro plugin).
+
+**O que foi entregue (Bloco 5a)**
+
+Estrutura unificada para plugins de qualquer categoria. `ToolRegistry`
+(Bloco 5b) e futuros `OptimizerRegistry`/`ImporterRegistry`/
+`ExporterRegistry` (Fase 5) plugam SEM mudar a infra.
+
+**Estrutura nova** (`svg-engine/edit/src/lib/plugin/`):
+
+- `plugin.ts`:
+  - `EditorPlugin` interface: `id`, `name`, `version`, `apiVersion`,
+    `dependencies?`, `install(ctx)`, `uninstall?(ctx)`.
+  - `PluginContext`: `pluginId`, `injector`, `track<T extends Disposable>(d)`.
+    Injector é exposto cru — capability registries (Tool, Optimizer,
+    etc.) são pegas via `ctx.injector.get(...)`. Sem façade método-por-
+    método (cresceria a cada nova categoria); sandboxes/scripts vão
+    construir suas próprias APIs curated por cima.
+  - `Disposable { dispose() }`: contrato uniforme de cleanup.
+  - `PLUGIN_API_VERSION = '1.0.0'` constante.
+  - `InstalledPlugin`: snapshot read-only (plugin + installedAt).
+- `plugin-registry.service.ts`:
+  - `install(plugin)`: valida id (não vazio + único), semver major
+    contra `PLUGIN_API_VERSION`, deps presentes. Cria `PluginContext`
+    com `track` que coleta disposables. Chama `install(ctx)`. Erros
+    em install() rollbackam (dispõe os já trackeados).
+  - `uninstall(id)`: idempotent (false se id não existe). Sequência:
+    1. hook `uninstall(ctx)` se existir (errors caught + log; não
+       abortam cleanup); 2) dispose LIFO (errors per-disposable caught +
+       log); 3) remove entry. Errors em qualquer ponto NÃO impedem o
+       resto do cleanup.
+  - `installed` signal reativo (UI panel pode subscribe).
+  - `has`/`get`/`list` para introspection.
+- `provide-plugin.ts`:
+  - `provideSvgEnginePlugin(plugin): EnvironmentProviders` via
+    `ENVIRONMENT_INITIALIZER` (multi:true). Múltiplos providers
+    instalam na ordem de declaração — natural p/ deps.
+
+**Decisões técnicas**
+
+- **Errors em install = throw, não Result**: install é configuration
+  error (deveria detectar em build/boot), não user action. Compare com
+  `CommandBus.dispatch` que retorna `Result` porque user actions
+  falham recuperavelmente.
+- **PluginContext.injector cru**: capability registries crescem (Tool,
+  Optimizer, Importer, Exporter, Inspector, Effect, Palette, Menu,
+  Shortcut, ScriptRuntime, ...). Façade método-por-método obrigaria
+  editar core a cada nova categoria. Sandbox de scripts será camada
+  por cima (não substitui a infra).
+- **`track()` opt-in**: plugin pode optar por gerenciar disposables
+  manualmente (caso raro). Helper retorna o próprio `d` para
+  chainability: `ctx.track(reg.register(x))`.
+- **LIFO disposal**: simétrico a teardown de DI; convenção universal
+  para resource cleanup.
+- **Semver major-only check**: minor/patch são compat por contrato
+  semver. Major mismatch = breakage real.
+- **Sem auto-uninstall em DI teardown**: aplicações Angular criam um
+  injector e mantém pela vida da SPA. Hot-reload de plugins é o caso
+  raro; uso comum é install no bootstrap, viver até o app fechar.
+- **Sem priority/order de execução** (por enquanto): contributions
+  rodam em ordem de install (que = ordem de declaração no providers).
+  Quando precisarem de ordering explícito (ex.: optimizer pipelines),
+  adiciona-se `priority?: number` na contribution-side, não no plugin.
+
+**Cobertura**
+
+- `plugin-registry.service.spec.ts`: 16 testes
+  - install: empty id rejeitado; duplicate id throws; semver mismatch
+    throws; minor/patch OK; missing dep throws; ordem deps respeitada;
+    rollback LIFO em install() throw.
+  - uninstall: idempotent (false em id inexistente); hook + LIFO
+    disposal; hook throwing não bloqueia disposable cleanup;
+    disposable throwing não bloqueia outros disposables.
+  - signal reativo: install/uninstall atualiza `installed()`.
+  - PluginContext: passa pluginId/injector/track corretos; track
+    chainable (retorna o próprio d).
+- `provide-plugin.spec.ts`: 2 testes
+  - install via ENVIRONMENT_INITIALIZER no TestBed.
+  - múltiplos providers respeitam ordem de declaração (deps OK).
+- **Total**: +18 testes → 309 passando em 29 arquivos. Zero regressão.
+
+**Próximo (5b)**: `Tool` interface, `ToolRegistry` (built ON the
+scaffolding — registra como plugin, não service global solto),
+`ToolHostService` (tool ativa + roteamento), `PencilTool` plugin de
+referência, `selectTool` builtin (comportamento atual = tool explícita).
+
+**Próximo (5c)**: D-020 expandido + novo D-023 (roadmap de 9 tipos de
+plugin) + D-024 pendente (`ScriptRuntimePlugin` Fase 6+, com sandbox
+WebWorker isolado e API curated).
+
+---
+
 ## 2026-05-15 — Fase 3 Bloco 4c: Alinhamento + distribuição
 
 **O que foi entregue**

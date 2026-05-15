@@ -137,9 +137,17 @@
 
 ### Bloco 5 — Plugin extensibility (D-020)
 
-- [ ] `ToolRegistry`: plugins registram ferramentas customizadas
-- [ ] Tool API: `id`, `label`, `icon?`, `cursor?`, `onPointerDown/Move/Up`, `onKey`
-- [ ] Pelo menos 1 ferramenta de referência (ex.: pencil/freehand)
+- [x] **Bloco 5a**: scaffolding completo de plugins
+  - `EditorPlugin` interface + `PluginContext` (pluginId, injector, track) + `Disposable`
+  - `PluginRegistry`: install/uninstall/has/get/list (signals reativos), validação de id, semver gate (major check), dep check, rollback de disposables se install() throws, LIFO disposal, errors em uninstall hook não bloqueiam cleanup
+  - `provideSvgEnginePlugin(plugin)` provider via `ENVIRONMENT_INITIALIZER` (multi:true) — bootstrap-time install na ordem de declaração
+  - `PLUGIN_API_VERSION` constante (1.0.0) para compat check
+- [ ] **Bloco 5b**: `ToolRegistry` (primeira capability registry construída sobre o scaffolding)
+  - Tool API: `id`, `label`, `icon?`, `cursor?`, `onPointerDown/Move/Up`, `onKey`, `onActivate/Deactivate`
+  - `ToolHostService`: tool ativa + roteamento de eventos
+  - `PencilTool` plugin de referência (freehand path)
+  - `selectTool` builtin como plugin (comportamento atual virou tool explícita)
+- [ ] **Bloco 5c**: docs D-020 expandido + novo D-023 roadmap de tipos de plugin (9 categorias mapeadas: Tools, Optimizers, Importers, Exporters, Inspectors, Effects, Palettes, Menus, Shortcuts) + D-024 pendente (ScriptRuntimePlugin Fase 6+)
 
 ## Fase 4 — UX completa
 

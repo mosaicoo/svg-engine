@@ -25,6 +25,13 @@
  * **Bloco 4c** ✅: `AlignmentService` (6 align ops + 2 distribute ops),
  *   pure `computeAlignDeltas`/`computeDistributeDeltas`, dispatched as
  *   a single `TranslateManyCommand` (one undo entry per UI action).
+ * **Bloco 5a** ✅: plugin scaffolding — `EditorPlugin` interface,
+ *   `PluginRegistry` (install/uninstall/lifecycle, semver gate, dep
+ *   check, auto-cleanup of tracked `Disposable`s), `provideSvgEnginePlugin`
+ *   Angular provider for bootstrap.
+ * **Bloco 5b** ⏳: `ToolRegistry` (first capability registry built on
+ *   the scaffolding) + reference `PencilTool` plugin.
+ * **Bloco 5c** ⏳: D-020 expanded + new D-023 plugin-types roadmap.
  * **Bloco 5** ⏳: `ToolRegistry` (D-020 plugin point).
  */
 
@@ -51,3 +58,6 @@ export * from './lib/snap';
 
 // Alignment + distribution (Bloco 4c)
 export * from './lib/alignment';
+
+// Plugin scaffolding (Bloco 5a)
+export * from './lib/plugin';
