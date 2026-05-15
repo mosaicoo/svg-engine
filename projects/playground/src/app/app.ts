@@ -136,6 +136,23 @@ export class App {
     }
   }
 
+  /**
+   * Track which node is under the cursor and publish it via
+   * `SelectionService.setHover()`. The selection overlay reads this
+   * signal to draw the dashed hover outline. Walking up the SVG event
+   * chain naturally yields `null` when the cursor is over the canvas
+   * background or over an overlay element with no `data-node-id`.
+   */
+  protected onCanvasPointerMove(event: PointerEvent): void {
+    const id = resolveNodeIdFromEvent(event);
+    this.selection.setHover(id);
+  }
+
+  /** Clear hover when the cursor leaves the canvas region entirely. */
+  protected onCanvasPointerLeave(): void {
+    this.selection.setHover(null);
+  }
+
   private firstChild() {
     return this.tree().children.at(0) ?? null;
   }

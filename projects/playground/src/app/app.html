@@ -29,7 +29,13 @@
     </fieldset>
   </section>
 
-  <section class="canvas" aria-label="SVG canvas" (pointerdown)="onCanvasPointerDown($event)">
+  <section
+    class="canvas"
+    aria-label="SVG canvas"
+    (pointerdown)="onCanvasPointerDown($event)"
+    (pointermove)="onCanvasPointerMove($event)"
+    (pointerleave)="onCanvasPointerLeave()"
+  >
     <svge-renderer
       [tree]="tree()"
       [viewBox]="viewBox()"
