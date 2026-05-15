@@ -31,23 +31,31 @@
 
 ## Fase 2 — Núcleo: `core` + `render` (entry points D-018)
 
-### Bloco 1 — `svg-engine/core` (headless puro)
+### Bloco 1 — `svg-engine/core` (headless puro) ✅ concluído
 
-- [ ] Estrutura multi-entry-point: criar `projects/svg-engine/core/`
-      com `ng-package.json` e `public-api.ts`
-- [ ] Modelo `SvgNode` (union discriminated): `RectNode`, `EllipseNode`,
-      `LineNode`, `PolygonNode`, `PolylineNode`, `PathNode`, `TextNode`,
-      `ImageNode`, `GroupNode`. Imutável.
-- [ ] Tipos compartilhados: `Transform`, `BoundingBox`, `Style`, `Metadata`, `NodeId`
-- [ ] `Command` interface + `CommandResult`; comandos concretos:
-      `InsertNodeCommand`, `RemoveNodeCommand`, `MoveNodeCommand`,
-      `SetPropertyCommand`
-- [ ] `EditorStateService` (signals): `document`, `nodes`, `dirty`, `selection (placeholder)`
-- [ ] `HistoryService`: undo/redo via pilhas, limite configurável
-- [ ] `CommandBus`: `dispatch()` despacha + empilha
-- [ ] Testes Vitest cobrindo: criação de nó, dispatch de comando, undo/redo
-      consistência após N operações
-- [ ] `ng build svg-engine` verde + `ng lint` verde
+- [x] Estrutura multi-entry-point: `projects/svg-engine/core/` com
+      `ng-package.json` próprio e `public-api.ts`
+- [x] tsconfig path mapping `svg-engine/core` → `dist/svg-engine/core`
+- [x] Refatoração da library: placeholder removido; primary entry point
+      vazio (apenas `SVG_ENGINE_VERSION`) — alinhado a `@angular/material`
+- [x] Modelo `SvgNode` (union discriminated): 9 tipos concretos imutáveis
+- [x] Tipos: `NodeId` (branded), `Transform` (matriz 6-elementos + ops),
+      `BoundingBox`, `SvgStyle`, `SvgMetadata`, `Point`
+- [x] Tree ops imutáveis com structural sharing: `findNodeById`,
+      `findParent`, `insertNode`, `removeNode`, `updateNode`, `walk`,
+      `collectNodes`, `countNodes`
+- [x] `SvgDocument` + `createEmptyDocument`
+- [x] `Command` interface + `CommandContext` + `CommandResult`
+- [x] 4 comandos: `InsertNodeCommand`, `RemoveNodeCommand`,
+      `MoveNodeCommand`, `SetPropertyCommand<T, K>`
+- [x] `EditorStateService` (signals: `document`, `dirty`, `nodeCount`, `allNodes`)
+- [x] `HistoryService` (undo/redo + maxSize configurável + signals)
+- [x] `CommandBus` (dispatch + undo/redo, único ponto autorizado de mutação)
+- [x] Testes Vitest: **66 tests verdes em 5 arquivos**
+- [x] `ng build svg-engine` verde, `ng lint` verde
+- [x] **Dogfooding**: `playground` consumindo
+      `import { ... } from 'svg-engine/core'` valida tree-shaking real
+      (bundle separado em `dist/svg-engine/fesm2022/svg-engine-core.mjs`)
 
 ### Bloco 2 — `svg-engine/render` (read-only viewer)
 

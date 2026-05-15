@@ -6,6 +6,73 @@
 
 ---
 
+## 2026-05-14 — Fase 2 Bloco 1: `svg-engine/core` entregue
+
+**O que foi entregue**
+
+Library `svg-engine` refatorada para o padrão **secondary-only multi-entry-point**:
+
+- Placeholder do schematic removido (`svg-engine.ts` + spec).
+- Primary `svg-engine/src/public-api.ts` reduzido a `SVG_ENGINE_VERSION`
+  com docstring explicando o padrão (alinhado a `@angular/material`).
+- Tsconfigs ajustados para incluir `core/src/**` (lib + spec).
+- `angular.json` com `sourceRoot: "projects/svg-engine"` para
+  test discovery encontrar specs em todos os entry points.
+
+Novo entry point `svg-engine/core` (zero deps de UI):
+
+- **Tipos primitivos**: `NodeId` branded, `Transform` (matriz afim
+  6-elementos com ops), `Point`, `BoundingBox`, `SvgStyle`, `SvgMetadata`.
+- **Modelo**: `SvgNodeBase` + 9 tipos concretos imutáveis (`RectNode`,
+  `EllipseNode`, `LineNode`, `PolygonNode`, `PolylineNode`, `PathNode`,
+  `TextNode`, `ImageNode`, `GroupNode`) + union discriminated `SvgNode`.
+- **Factories**: `createRect`, `createEllipse`, `createLine`,
+  `createPolygon`, `createPolyline`, `createPath`, `createText`,
+  `createImage`, `createGroup`.
+- **Tree ops imutáveis com structural sharing**: `findNodeById`,
+  `findParent`, `insertNode`, `removeNode`, `updateNode<T>`, `walk`,
+  `collectNodes`, `countNodes`.
+- **Document**: `SvgDocument` + `createEmptyDocument`.
+- **Command pattern**: `Command` interface + `CommandResult`/`ok`/`fail` +
+  4 comandos concretos (`InsertNodeCommand`, `RemoveNodeCommand`,
+  `MoveNodeCommand`, `SetPropertyCommand<T, K>`).
+- **Services Angular** (signal-based, `providedIn: 'root'`):
+  `EditorStateService`, `HistoryService`, `CommandBus`.
+
+**Validação**
+
+- `ng build svg-engine`: **OK** — gera bundles separados:
+  - `dist/svg-engine/fesm2022/svg-engine.mjs` (primary, simbólico)
+  - `dist/svg-engine/fesm2022/svg-engine-core.mjs` (secondary, real)
+- `ng lint`: **OK** em ambos projetos.
+- `ng test svg-engine`: **66 testes verdes em 5 arquivos**
+  (transform math, tree-ops, 4 comandos com round-trip undo/redo,
+  HistoryService stack invariants, CommandBus integration).
+- **Dogfooding**: `playground/src/app/app.ts` consome
+  `import { CommandBus, createRect, EditorStateService, HistoryService,
+InsertNodeCommand, MoveNodeCommand, RemoveNodeCommand } from 'svg-engine/core'`
+  e expõe botões para validar a API end-to-end. Build e lint verdes.
+
+**Decisão revisada**
+
+- D-018: **secondary-only sem primary útil** (alinhado a `@angular/material`).
+  Após análise do mercado, decidido que libs com camadas funcionais
+  distintas não expõem primary entry point — força tree-shaking e enforça
+  D-017 (headless boundary) pelo TypeScript.
+
+**Componentização** (cumpre D-016 / produto de mercado):
+
+- Cada conceito em seu próprio arquivo (uma classe/interface/função pública
+  por arquivo).
+- Barrels (`index.ts`) por subdiretório re-exportam apenas o necessário.
+- Imports `type-only` para forward references (sem ciclos em runtime).
+- Zero `any`. Tipos branded para identificadores. Discriminated union.
+
+**Próximo**: Bloco 2 — `svg-engine/render` (`<svge-renderer>` read-only +
+`ViewportService` pan/zoom).
+
+---
+
 ## 2026-05-14 — Reposicionamento: produto de mercado + headless-first
 
 **O que aconteceu**

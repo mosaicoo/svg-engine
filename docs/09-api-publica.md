@@ -24,20 +24,85 @@
 Cada entry point tem sua própria seção. A seção é populada conforme
 a fase do roadmap implementa o conteúdo.
 
-### `svg-engine/core` (Fase 2)
+### `svg-engine/core` (Fase 2 Bloco 1) ✅
 
-> Modelo de dados, comandos, histórico e estado. Sem dependência de UI.
+> Modelo de dados, comandos, histórico e estado. **Zero deps de UI.**
 
-_(populado quando Fase 2 entregar)_
+#### Tipos primitivos (`./lib/types/`)
 
-#### Tipos planejados
+| Símbolo                                                               | Descrição                                       |
+| --------------------------------------------------------------------- | ----------------------------------------------- |
+| `NodeId`                                                              | branded `string` para IDs de nó                 |
+| `toNodeId(value: string): NodeId`                                     | coerção segura a partir de uma string externa   |
+| `generateNodeId(): NodeId`                                            | gera UUID via `crypto.randomUUID` (ou fallback) |
+| `Transform`                                                           | matriz afim 6-elementos `[a,b,c,d,e,f]`         |
+| `IDENTITY_TRANSFORM`                                                  | constante para identidade                       |
+| `translate / scale / rotate / multiply / applyTransform / isIdentity` | ops de matriz                                   |
+| `Point`, `ORIGIN`                                                     | ponto 2D imutável                               |
+| `BoundingBox`, `bbox`, `unionBBox`, `containsPoint`                   | caixa axis-aligned + helpers                    |
+| `SvgStyle`, `EMPTY_STYLE`, `DEFAULT_STYLE`                            | atributos de apresentação                       |
+| `SvgMetadata`, `EMPTY_METADATA`                                       | metadados do editor (nome, lock, visibilidade)  |
 
-- `SvgNode` (union discriminated): `RectNode | EllipseNode | LineNode | PolygonNode | PolylineNode | PathNode | TextNode | ImageNode | GroupNode`
-- `Transform`, `BoundingBox`, `Style`, `Metadata`
-- `Command<T = void>`, `CommandResult`
-- `EditorStateService`
-- `HistoryService`
-- `CommandBus`
+#### Modelo (`./lib/model/`)
+
+| Símbolo                                                                                                                          | Descrição                                       |
+| -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `SvgNodeBase`                                                                                                                    | interface base (id, transform, style, metadata) |
+| `RectNode`, `EllipseNode`, `LineNode`, `PolygonNode`, `PolylineNode`, `PathNode`, `TextNode`, `ImageNode`, `GroupNode`           | os 9 tipos concretos                            |
+| `SvgNode` (union)                                                                                                                | discriminated union dos 9                       |
+| `SvgNodeType`, `SVG_NODE_TYPES`                                                                                                  | discriminadores literais                        |
+| `isGroupNode(node): node is GroupNode`                                                                                           | type guard                                      |
+| `createRect / createEllipse / createLine / createPolygon / createPolyline / createPath / createText / createImage / createGroup` | factories que retornam nós válidos              |
+| `NodeFactoryOptions`                                                                                                             | opções comuns das factories                     |
+
+#### Tree (`./lib/tree/`) — operações imutáveis
+
+| Símbolo                                                    | Descrição                                     |
+| ---------------------------------------------------------- | --------------------------------------------- |
+| `findNodeById(root, id): SvgNode \| null`                  | busca recursiva                               |
+| `findParent(root, childId): GroupNode \| null`             | localiza grupo pai                            |
+| `insertNode(root, parentId, node, index?): GroupNode`      | insere com structural sharing                 |
+| `removeNode(root, id): GroupNode`                          | remove + reallocação do path                  |
+| `updateNode<T>(root, id, updater: (n: T) => T): GroupNode` | atualiza imutável; rejeita mudança de id/type |
+| `walk(root, visitor)`                                      | traversal pre-order                           |
+| `collectNodes(root): readonly SvgNode[]`                   | array flat                                    |
+| `countNodes(root, { includeRoot? })`                       | contagem                                      |
+
+#### Document (`./lib/document/`)
+
+| Símbolo                      | Descrição                                     |
+| ---------------------------- | --------------------------------------------- |
+| `SvgDocument`                | container top-level (id, viewBox, root, defs) |
+| `createEmptyDocument(opts?)` | factory                                       |
+| `DEFAULT_VIEW_BOX`           | `bbox(0, 0, 800, 600)`                        |
+| `CreateDocumentOptions`      | opções da factory                             |
+
+#### Commands (`./lib/commands/`)
+
+| Símbolo                                                              | Descrição                                         |
+| -------------------------------------------------------------------- | ------------------------------------------------- |
+| `Command` (interface)                                                | `id`, `label`, `execute(ctx)`, `undo(ctx)`        |
+| `CommandResult`, `ok()`, `fail(error)`                               | resultado padronizado                             |
+| `CommandContext`                                                     | `{ state: EditorStateService }`                   |
+| `InsertNodeCommand(parentId, node, index?)`                          | inserção reversível                               |
+| `RemoveNodeCommand(nodeId)`                                          | remoção reversível (captura posição original)     |
+| `MoveNodeCommand(nodeId, dx, dy)`                                    | translação composta sobre transform existente     |
+| `SetPropertyCommand<T extends SvgNode, K extends keyof T>(id, K, V)` | set/unset de uma propriedade qualquer (≠ id/type) |
+
+#### Services (`./lib/state/`, `./lib/history/`, `./lib/command-bus/`)
+
+| Serviço (`@Injectable({ providedIn: 'root' })`) | Descrição                                                                                                                                                   |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EditorStateService`                            | signals: `document`, `dirty`, `nodeCount`, `allNodes`. APIs: `setDocument`, `resetDocument`, `markClean`                                                    |
+| `HistoryService`                                | signals: `undoStack`, `redoStack`, `maxSize`, `canUndo`, `canRedo`. APIs: `push`, `peekUndo`, `peekRedo`, `commitUndo`, `commitRedo`, `clear`, `setMaxSize` |
+| `CommandBus`                                    | `dispatch(cmd)`, `undo()`, `redo()` — ÚNICO ponto autorizado de mutação                                                                                     |
+
+#### Cobertura de testes (Vitest)
+
+- 5 arquivos de spec, 66 testes, todos verdes.
+- Cobre: matrix transforms, tree-ops (find/insert/remove/update), 4
+  comandos (execute + undo + edge cases), HistoryService (stack
+  invariants), CommandBus (round-trip dispatch/undo/redo, integration).
 
 ### `svg-engine/render` (Fase 2 final)
 

@@ -231,26 +231,51 @@
   `import { SvgRenderer } from 'svg-engine/render';` sem trazer Material
   para o bundle.
 
-## D-018 — Multi-entry-point para a library
+## D-018 — Multi-entry-point secondary-only (sem primary útil)
 
-- **Data**: 2026-05-14
-- **Status**: Aceita (impl. nas Fases 2..5)
+- **Data**: 2026-05-14 (revisada na conclusão da Fase 2 Bloco 1)
+- **Status**: Aceita
 - **Contexto**: Para suportar D-017 (headless) e tree-shaking real,
-  a library `svg-engine` será dividida em **secondary entry points**
-  via `ng-packagr`.
-- **Estrutura proposta**:
-  | Entry point | Conteúdo | Depende de |
-  | -------------------------- | --------------------------------------------------- | ----------------------- |
-  | `svg-engine` | re-export agregador (opcional, conveniência) | todos abaixo |
-  | `svg-engine/core` | `SvgNode`, modelo, comandos, history, state, types | apenas `@angular/core` |
-  | `svg-engine/render` | `<svge-renderer>`, viewport, viewer read-only | `core` |
-  | `svg-engine/io` | parse, sanitização, serialização | `core` |
-  | `svg-engine/optimize` | passes de otimização (path, dedup, minify) | `core`, `io` |
-  | `svg-engine/edit` | seleção, transformação, manipulação programática | `core`, `render` |
-  | `svg-engine/ui` | toolbar, layers panel, inspector, dialogs Material | tudo + `@angular/material` |
-- **Consequências**: cada entry point tem `ng-package.json` próprio;
-  consumo `import { X } from 'svg-engine/<entry>';`. Bundle só carrega
-  o que é usado.
+  a library `svg-engine` é dividida em **secondary entry points** via
+  `ng-packagr`. O entry point primário (`svg-engine`) fica vazio/símbolico
+  (apenas `SVG_ENGINE_VERSION`) — alinhado a `@angular/material` e
+  `@angular/cdk` que adotam o mesmo padrão. Decidido após análise do
+  ecossistema: libs com camadas funcionais distintas (Material, CDK,
+  PrimeNG) não expõem primary; libs com API coesa e poucos pontos
+  (RxJS) expõem.
+- **Decisão**: **secondary-only**. Importar de `'svg-engine'` direto
+  não traz nada útil. Isso **força** os consumidores a usar
+  `'svg-engine/<entry>'`, garantindo:
+  - tree-shaking: ninguém arrasta acidentalmente `@angular/material`;
+  - clareza de intenção: o import revela qual camada o código usa;
+  - enforcement do D-017 pelo TypeScript, não só por convenção.
+- **Estrutura**:
+
+  | Entry point            | Conteúdo                                           | Depende de                 | Fase |
+  | ---------------------- | -------------------------------------------------- | -------------------------- | ---- |
+  | `svg-engine` (primary) | apenas `SVG_ENGINE_VERSION` (placeholder)          | —                          | 1    |
+  | `svg-engine/core`      | `SvgNode`, modelo, comandos, history, state, types | `@angular/core`            | 2 ✅ |
+  | `svg-engine/render`    | `<svge-renderer>`, viewport, viewer read-only      | `core`                     | 2    |
+  | `svg-engine/io`        | parse, sanitização, serialização                   | `core`                     | 5    |
+  | `svg-engine/optimize`  | passes de otimização (path, dedup, minify)         | `core`, `io`               | 5    |
+  | `svg-engine/edit`      | seleção, transformação, manipulação programática   | `core`, `render`           | 3    |
+  | `svg-engine/ui`        | toolbar, layers panel, inspector, dialogs Material | tudo + `@angular/material` | 4    |
+
+- **Implementação técnica** (validada com `core`):
+  - Cada entry point é uma pasta `projects/svg-engine/<entry>/` com seu
+    próprio `ng-package.json` apontando para `src/public-api.ts`.
+  - `tsconfig.json` raiz adiciona path mapping
+    `"svg-engine/<entry>": ["./dist/svg-engine/<entry>"]`.
+  - `tsconfig.lib.json` e `tsconfig.spec.json` da library precisam
+    incluir `<entry>/src/**/*.ts` e `<entry>/src/**/*.spec.ts`
+    respectivamente.
+  - `angular.json` com `sourceRoot: "projects/svg-engine"` (não `src/`)
+    para test discovery encontrar specs em todos os entry points.
+- **Consequências**: arquitetura mais disciplinada; consumidores escolhem
+  exatamente a camada que querem; bundle final inclui só o usado.
+- **Validado em produção**: `core` consumido com sucesso pela `playground`
+  via `import { ... } from 'svg-engine/core'`; bundle gerado em
+  `dist/svg-engine/fesm2022/svg-engine-core.mjs` (separado do primary).
 
 ## D-019 — Acessibilidade WCAG AA como alvo mínimo
 

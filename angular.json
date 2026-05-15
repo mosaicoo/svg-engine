@@ -9,7 +9,7 @@
     "svg-engine": {
       "projectType": "library",
       "root": "projects/svg-engine",
-      "sourceRoot": "projects/svg-engine/src",
+      "sourceRoot": "projects/svg-engine",
       "prefix": "svge",
       "architect": {
         "build": {
@@ -27,7 +27,8 @@
         "test": {
           "builder": "@angular/build:unit-test",
           "options": {
-            "tsConfig": "projects/svg-engine/tsconfig.spec.json"
+            "tsConfig": "projects/svg-engine/tsconfig.spec.json",
+            "include": ["**/*.spec.ts"]
           }
         },
         "lint": {
