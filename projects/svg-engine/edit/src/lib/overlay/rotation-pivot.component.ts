@@ -115,8 +115,7 @@ interface DragState {
               [attr.cx]="a.x"
               [attr.cy]="a.y"
               [attr.r]="popoverDotRadius()"
-              (pointerdown)="onPopoverDotPointerDown($event)"
-              (click)="onPopoverPick($event, a.anchor, b)"
+              (pointerdown)="onPopoverPick($event, a.anchor, b)"
               [attr.aria-label]="'Snap pivot to ' + a.anchor"
             ></svg:circle>
           }
@@ -292,20 +291,22 @@ export class RotationPivot implements OnDestroy {
   }
 
   /**
-   * Stop the pointerdown from bubbling to the canvas; otherwise the
-   * playground's `onCanvasPointerDown` runs hit-testing, finds no
-   * `data-node-id` (popover dots are not document nodes) and clears the
-   * selection — which also unmounts the popover before the click event
-   * has a chance to fire.
+   * Apply the picked anchor on **pointerdown** (not click) so the action
+   * happens inside the same event handler that calls `stopPropagation`.
+   *
+   * Why not `(click)`: the click event fires after pointerup, by which
+   * time pointerdown/pointerup have already bubbled to the canvas. Even
+   * with `stopPropagation` on pointerdown, click is a separately
+   * dispatched event whose timing/handling can lose the focus we need
+   * (selection cleared by upstream handlers in some scenarios). Acting
+   * on pointerdown is the same UX (button-down = commit) and avoids
+   * any race against bubbling.
    */
-  protected onPopoverDotPointerDown(event: PointerEvent): void {
+  protected onPopoverPick(event: PointerEvent, anchor: BBoxAnchor, bbox: BoundingBox): void {
     event.stopPropagation();
-  }
-
-  protected onPopoverPick(event: MouseEvent, anchor: BBoxAnchor, bbox: BoundingBox): void {
+    event.preventDefault();
     this.transform.setPivotAnchor(anchor, bbox);
     this._popoverOpen.set(false);
-    event.stopPropagation();
   }
 
   protected popoverAnchors(
