@@ -2,42 +2,81 @@
 
 ## 1. Visão macro
 
-O **SVGEngine** será desenvolvido como um **workspace Angular** contendo:
+O **SVGEngine** é um **workspace Angular v21** contendo:
 
 - Uma **library** publicável: `svg-engine` (núcleo + UI do editor).
-- Uma **aplicação demo** consumidora: `playground`.
+- Uma **aplicação demo** consumidora: `playground` (Angular Material).
+
+## 2. Estrutura real após Fase 1 (2026-05-14)
 
 ```
 SVGEngine/
+├── .claude/
+│   ├── CLAUDE.md                  # guia de boas práticas Angular (auto-gerado)
+│   ├── launch.json                # config do dev server para preview tools
+│   └── settings.json              # restrições do agente (deny rules)
+├── .vscode/
+│   ├── extensions.json
+│   ├── launch.json
+│   ├── mcp.json                   # MCP server do Angular CLI
+│   └── tasks.json
+├── docs/                          # documentação canônica (01..08)
 ├── projects/
-│   ├── svg-engine/                   # library (publicável em npm/registry interno)
-│   │   ├── src/lib/
-│   │   │   ├── core/                 # modelo de dados, comandos, histórico, serviços
-│   │   │   ├── canvas/               # componente Canvas SVG (pan/zoom/render)
-│   │   │   ├── selection/            # serviço + handles + seleção múltipla
-│   │   │   ├── transform/            # drag/resize/rotate/scale + snap/align
-│   │   │   ├── layers/               # painel de camadas, agrupamento
-│   │   │   ├── inspector/            # propriedades do elemento selecionado
-│   │   │   ├── toolbar/              # barra de ferramentas extensível
-│   │   │   ├── palette/              # cores, gradientes, paleta de elementos
-│   │   │   ├── io/                   # import/export SVG, sanitização
-│   │   │   ├── plugins/              # API de plugins/ferramentas extensíveis
-│   │   │   └── public-api.ts         # superfície pública da library
+│   ├── svg-engine/                # library (--prefix=svge)
+│   │   ├── src/
+│   │   │   ├── lib/
+│   │   │   │   ├── svg-engine.ts        # placeholder gerado pelo schematic
+│   │   │   │   └── svg-engine.spec.ts
+│   │   │   └── public-api.ts            # superfície pública da library
 │   │   ├── ng-package.json
 │   │   ├── package.json
-│   │   └── README.md
-│   └── playground/                   # app demo (Angular + Angular Material)
-│       └── src/app/                  # consome a library svg-engine
-├── angular.json
-├── tsconfig.json (strict)
-├── package.json
-├── docs/
-└── .claude/
+│   │   ├── tsconfig.lib.json
+│   │   ├── tsconfig.lib.prod.json
+│   │   └── tsconfig.spec.json
+│   └── playground/                # app demo (--prefix=app, --routing, --style=scss)
+│       ├── public/                # assets estáticos (favicon, etc.)
+│       ├── src/
+│       │   ├── app/
+│       │   │   ├── app.config.ts        # provedores raiz
+│       │   │   ├── app.routes.ts
+│       │   │   ├── app.ts
+│       │   │   ├── app.html
+│       │   │   ├── app.scss
+│       │   │   └── app.spec.ts
+│       │   ├── index.html               # links Roboto + Material Icons
+│       │   ├── main.ts                  # bootstrapApplication
+│       │   └── styles.scss              # tema M3 azure-blue + light dark
+│       ├── tsconfig.app.json
+│       └── tsconfig.spec.json
+├── .editorconfig
+├── .gitignore
+├── .prettierrc
+├── angular.json                   # 2 projetos: svg-engine, playground
+├── package.json                   # @angular/* @21.2.0, @angular/material @21.x
+└── tsconfig.json                  # strict + strictTemplates + flags fortes
 ```
 
-> Estrutura final pode ajustar nomes/camadas; o que NÃO muda é o
-> princípio: **toda feature nasce na library**, a `playground` apenas
-> consome.
+## 3. Estrutura-alvo da library (a construir)
+
+À medida que as features forem implementadas, `projects/svg-engine/src/lib/`
+crescerá segundo a divisão de responsabilidades:
+
+```
+src/lib/
+├── core/             # modelo de dados, comandos, histórico, serviços
+├── canvas/           # componente Canvas SVG (pan/zoom/render)
+├── selection/        # serviço + handles + seleção múltipla
+├── transform/        # drag/resize/rotate/scale + snap/align
+├── layers/           # painel de camadas, agrupamento
+├── inspector/        # propriedades do elemento selecionado
+├── toolbar/          # barra de ferramentas extensível
+├── palette/          # cores, gradientes, paleta de elementos
+├── io/               # import/export SVG, sanitização
+└── plugins/          # API de plugins/ferramentas extensíveis
+```
+
+> Princípio inviolável: **toda feature nasce na library**; a `playground`
+> apenas consome via `import { ... } from 'svg-engine'`.
 
 ## 2. Camadas internas da library
 

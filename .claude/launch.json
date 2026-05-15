@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "playground",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["ng", "serve", "playground", "--port", "4200"],
+      "port": 4200
+    }
+  ]
+}

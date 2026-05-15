@@ -12,15 +12,20 @@
 - [x] `git init` + commit inicial + push para `mosaicoo/svg-engine`
 - [x] Confirmação da versão Angular: **v21** (D-006)
 
-## Fase 1 — Scaffold do workspace (Angular v21)
-- [ ] `npx --yes -p @angular/cli@21 ng new SVGEngine --create-application=false --directory=. --skip-git --package-manager=npm --strict`
-- [ ] `ng generate library svg-engine --prefix=svge`
-- [ ] `ng generate application playground --routing=true --style=scss --prefix=app`
-- [ ] `ng add @angular/material@21 --project=playground` (tema a confirmar — D-012)
-- [ ] ESLint + Prettier + EditorConfig
+## Fase 1 — Scaffold do workspace (Angular v21) ✅ parcial
+- [x] `ng new` (com `--ai-config=claude --skip-install --create-application=false`)
+- [x] Merge do `.gitignore` (Angular + .NET + secrets + assets)
+- [x] `ng generate library svg-engine --prefix=svge`
+- [x] `ng generate application playground --prefix=app --routing --style=scss`
+- [x] `ng add @angular/material@21 --theme=azure-blue --typography=true --animations=enabled`
+- [x] `color-scheme: light dark` no body (D-012 mínimo)
+- [x] Build verde da library e da app
+- [x] Verificação runtime: `ng serve` → HTTP 200, styles.css com color-scheme correto
+- [x] `02-arquitetura.md` atualizado com estrutura real
+- [ ] Prettier já instalado pelo `ng new`; configurar **ESLint** explicitamente
 - [ ] Husky + lint-staged (commit hooks)
 - [ ] CI mínimo: lint + build da library + build da app
-- [ ] Atualizar `02-arquitetura.md` com a estrutura real gerada
+- [ ] Toggle de tema light/dark explícito (D-012 — segunda parte, Fase 4)
 
 ## Fase 2 — Núcleo do editor (sem UI rica ainda)
 - [ ] Modelo `SvgNode` (Rect, Ellipse, Path, Group, Text, Image)

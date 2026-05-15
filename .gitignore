@@ -1,40 +1,66 @@
-# Dependencies
-node_modules/
-jspm_packages/
+# See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
-# Angular build output
-dist/
-tmp/
-out-tsc/
-.angular/
-.nx/
-
-# Generic build / artifacts
+# ---------- Compiled output / build artifacts ----------
+/dist
+/tmp
+/out-tsc
+/bazel-out
 build/
 out/
-coverage/
+
+# ---------- Dependencies ----------
+/node_modules
+jspm_packages/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
 *.log
 logs/
 
-# IDE / editor
-.vscode/*
-!.vscode/extensions.json
-!.vscode/launch.json
-!.vscode/settings.json
+# ---------- Angular cache & coverage ----------
+/.angular
+/.angular/cache
+.nx/
+.sass-cache/
+/connect.lock
+/coverage
+/libpeerconnection.log
+testem.log
+/typings
+__screenshots__/
+
+# ---------- IDEs and editors ----------
 .idea/
-.vs/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
 *.swp
 *.swo
-.DS_Store
-Thumbs.db
+.history/*
 
-# Cache
+# ---------- Visual Studio Code ----------
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/mcp.json
+
+# ---------- Visual Studio (.NET) ----------
+.vs/
+*.user
+*.suo
+
+# ---------- Cache ----------
 .cache/
 .parcel-cache/
 .eslintcache
 .stylelintcache
 
-# Environment / secrets
+# ---------- Environment / secrets ----------
 .env
 .env.*
 !.env.example
@@ -46,15 +72,20 @@ secrets.json
 *.cer
 *.token
 
-# .NET
+# ---------- .NET (futuro/condicional) ----------
 bin/
 obj/
-*.user
-*.suo
 appsettings.Development.json
 appsettings.Production.json
 appsettings.Staging.json
 appsettings.*.Local.json
 
-# Claude Code (mantém política base, ignora overrides locais)
-.claude/settings.json.local
+# ---------- System files ----------
+.DS_Store
+Thumbs.db
+
+# ---------- Claude Code ----------
+# .claude/settings.json e .claude/CLAUDE.md sao versionados (politica de restricoes
+# e guia de boas praticas compartilhados do projeto). Overrides individuais ficam
+# em .claude/settings.local.json (convencao oficial Claude Code, gitignored).
+.claude/settings.local.json
