@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import {
+  type BoundingBox,
   CommandBus,
   createEllipse,
   createPath,
@@ -31,6 +32,9 @@ import {
   RotationPivot,
   SelectionOverlay,
   SelectionService,
+  type SnapMode,
+  SnapGuides,
+  SnapService,
   TransformService,
 } from 'svg-engine/edit';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
@@ -62,7 +66,7 @@ const DRAG_START_THRESHOLD_PX = 3;
  */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, SvgeRenderer, SelectionOverlay, RotationPivot, Marquee],
+  imports: [RouterOutlet, SvgeRenderer, SelectionOverlay, RotationPivot, Marquee, SnapGuides],
   templateUrl: './app.html',
   styleUrl: './app.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -74,6 +78,7 @@ export class App implements OnDestroy {
   private readonly selection = inject(SelectionService);
   private readonly transform = inject(TransformService);
   private readonly marquee = inject(MarqueeService);
+  protected readonly snap = inject(SnapService);
   protected readonly viewport = inject(ViewportService);
 
   protected readonly title = signal('SVGEngine Playground');
@@ -102,10 +107,20 @@ export class App implements OnDestroy {
     startScreenY: number;
   } | null = null;
 
+  /**
+   * Bbox of the dragged node captured at the moment {@link TransformService.startMove}
+   * fired. Used by snap-on-move to compute the **proposed** bbox at the
+   * current pointer position without re-querying the (already-previewed)
+   * rendered DOM. Cleared on `endMove`/`cancelGesture`.
+   */
+  private moveStartBBox: BoundingBox | null = null;
+
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') {
       if (this.transform.isDragging()) {
         this.transform.cancelGesture();
+        this.snap.clearActiveGuides();
+        this.moveStartBBox = null;
         this.potentialDrag = null;
         event.preventDefault();
         return;
@@ -185,6 +200,14 @@ export class App implements OnDestroy {
     this.viewport.reset();
   }
 
+  protected toggleSnap(): void {
+    this.snap.setEnabled(!this.snap.enabled());
+  }
+
+  protected setSnapMode(mode: SnapMode): void {
+    this.snap.setMode(mode);
+  }
+
   /**
    * Pointer-down on the canvas:
    *  - Click on a node → select it (single-select), arm body-drag.
@@ -231,7 +254,7 @@ export class App implements OnDestroy {
     const ds = this.transform.dragState();
     if (ds !== null && ds.kind === 'move') {
       const point = this.screenToDoc(event.clientX, event.clientY);
-      if (point !== null) this.transform.updateMove(point);
+      if (point !== null) this.applySnappedMove(ds, point);
       return;
     }
     if (ds !== null) {
@@ -258,9 +281,20 @@ export class App implements OnDestroy {
           this.potentialDrag.startScreenY,
         );
         if (start !== null) {
+          // Capture the moving node's bbox BEFORE the gesture starts —
+          // snap-on-move needs a stable reference (the rendered bbox
+          // becomes the previewed one once startMove runs).
+          const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+          this.moveStartBBox =
+            svg === null ? null : getRenderedNodeBBox(svg, this.potentialDrag.nodeId);
           this.transform.startMove(this.potentialDrag.nodeId, start);
           const point = this.screenToDoc(event.clientX, event.clientY);
-          if (point !== null) this.transform.updateMove(point);
+          if (point !== null) {
+            const newDs = this.transform.dragState();
+            if (newDs !== null && newDs.kind === 'move') {
+              this.applySnappedMove(newDs, point);
+            }
+          }
         }
       }
       return;
@@ -268,6 +302,63 @@ export class App implements OnDestroy {
 
     // No drag at all → hover handling
     this.selection.setHover(resolveNodeIdFromEvent(event));
+  }
+
+  /**
+   * Apply snap to a body-drag move: predict where the rect would land
+   * at `point` (using `moveStartBBox + delta`), ask the {@link SnapService}
+   * for an adjustment, then call `updateMove` with the **snapped** point
+   * so the gesture preview lands aligned. Publishes the active guides
+   * to the overlay.
+   *
+   * Falls back to plain `updateMove(point)` (no snap) when no start
+   * bbox is available (e.g., the node's bbox couldn't be measured at
+   * gesture start).
+   */
+  private applySnappedMove(
+    ds: { readonly kind: 'move'; readonly nodeId: NodeId; readonly startPoint: Point },
+    point: Point,
+  ): void {
+    if (!this.snap.enabled() || this.moveStartBBox === null) {
+      this.transform.updateMove(point);
+      return;
+    }
+    const dx = point.x - ds.startPoint.x;
+    const dy = point.y - ds.startPoint.y;
+    const proposed: BoundingBox = {
+      x: this.moveStartBBox.x + dx,
+      y: this.moveStartBBox.y + dy,
+      width: this.moveStartBBox.width,
+      height: this.moveStartBBox.height,
+    };
+    const others = this.collectStaticBBoxes(ds.nodeId);
+    const result = this.snap.resolveForMove(proposed, others, this.viewport.zoom());
+    const snapped: Point = {
+      x: point.x + result.delta.x,
+      y: point.y + result.delta.y,
+    };
+    this.transform.updateMove(snapped);
+    this.snap.setActiveGuides(result.guides);
+  }
+
+  /**
+   * Collect rendered bboxes of every top-level child **except** `excludeId`
+   * — the snap candidate set. We exclude the moving node so it does not
+   * snap to itself (which would make the gesture lock in place).
+   */
+  private collectStaticBBoxes(
+    excludeId: NodeId,
+  ): readonly { readonly id: NodeId; readonly bbox: BoundingBox }[] {
+    const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+    if (svg === null) return [];
+    const out: { id: NodeId; bbox: BoundingBox }[] = [];
+    for (const child of this.tree().children) {
+      if (child.id === excludeId) continue;
+      const bb = getRenderedNodeBBox(svg, child.id);
+      if (bb === null) continue;
+      out.push({ id: child.id, bbox: bb });
+    }
+    return out;
   }
 
   /**
@@ -282,6 +373,8 @@ export class App implements OnDestroy {
     const ds = this.transform.dragState();
     if (ds !== null && ds.kind === 'move') {
       this.transform.endMove();
+      this.snap.clearActiveGuides();
+      this.moveStartBBox = null;
     }
     if (this.marquee.isActive()) {
       const m = this.marquee.state();

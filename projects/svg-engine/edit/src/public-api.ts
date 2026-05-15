@@ -20,7 +20,8 @@
  *   new commands (`RotateNodeCommand`, `ResizeNodeCommand`).
  * **Bloco 4a** ✅: `<svge-marquee>` + `MarqueeService` + pure
  *   `nodesInsideMarquee` hit-tester (drag-to-select with shift-add).
- * **Bloco 4b** ⏳: `SnapService` (grid + objects).
+ * **Bloco 4b** ✅: `SnapService` (grid + objects) + pure `resolveSnap`
+ *   + `<svge-snap-guides>` overlay (magenta dashed lines).
  * **Bloco 4c** ⏳: alignment + distribution commands.
  * **Bloco 5** ⏳: `ToolRegistry` (D-020 plugin point).
  */
@@ -42,3 +43,6 @@ export * from './lib/overlay';
 
 // Marquee selection (Bloco 4a)
 export * from './lib/marquee';
+
+// Snap to grid + objects (Bloco 4b)
+export * from './lib/snap';

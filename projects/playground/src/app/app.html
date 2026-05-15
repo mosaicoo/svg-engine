@@ -27,6 +27,23 @@
       <button type="button" (click)="zoomIn()" aria-label="Zoom in">+</button>
       <button type="button" (click)="resetView()">Reset</button>
     </fieldset>
+    <fieldset>
+      <legend>Snap</legend>
+      <label>
+        <input type="checkbox" [checked]="snap.enabled()" (change)="toggleSnap()" />
+        Enabled
+      </label>
+      <select
+        [value]="snap.mode()"
+        (change)="setSnapMode($any($event.target).value)"
+        [disabled]="!snap.enabled()"
+        aria-label="Snap mode"
+      >
+        <option value="grid">Grid only</option>
+        <option value="objects">Objects only</option>
+        <option value="both">Both</option>
+      </select>
+    </fieldset>
   </section>
 
   <section
@@ -46,6 +63,7 @@
       <svg:g svgeSelectionOverlay></svg:g>
       <svg:g svgeRotationPivot></svg:g>
       <svg:g svgeMarquee></svg:g>
+      <svg:g svgeSnapGuides></svg:g>
     </svge-renderer>
   </section>
 

@@ -6,6 +6,97 @@
 
 ---
 
+## 2026-05-15 — Fase 3 Bloco 4b: Snap (grid + objetos)
+
+**O que foi entregue**
+
+Snap durante move-drag, com guides visuais magenta. Configurável em
+runtime: enabled toggle, modo (`grid` | `objects` | `both`), gridSize,
+threshold em CSS pixels (range visual constante independente de zoom).
+
+**Estrutura nova** (`svg-engine/edit/src/lib/snap/`):
+
+- `resolveSnap(moving, targets, threshold)` puro:
+  - Pega 3 features por axis (low/center/high) do moving rect.
+  - Para cada target, escolhe a feature mais próxima na mesma axis.
+  - Por axis, pick do par (feature, target) com menor distância
+    ≤ threshold; ties resolvem por ordem de inserção.
+  - Retorna `{delta, guides}` — delta a aplicar para alinhar, ≤ 2 guides
+    (1 por axis snapado).
+- Geradores puros:
+  - `rectsToSnapTargets(rects)`: 6 targets por rect (low/center/high × XY).
+  - `gridTargetsNear(moving, gridSize, axis)`: bounded — só emite linhas
+    a ±1 grid cell do moving (essencial em docs grandes com grid fino;
+    seria 10001 targets em 10000×10000 com grid 1 sem isso).
+- `SnapService` (Angular, signals):
+  - Config: `enabled`, `mode`, `gridSize`, `thresholdPx` — todos
+    expostos como readonly signals + setters validados.
+  - `activeGuides` signal + `setActiveGuides`/`clearActiveGuides` —
+    consumer empurra os guides após resolver, overlay lê para renderizar.
+  - `resolveForMove(moving, staticRects, zoom)`: thin wrapper que monta
+    targets conforme `mode` e converte threshold pixel→doc via `1/zoom`.
+
+**Componente novo** (`svg-engine/edit/src/lib/overlay/`):
+
+- `<svg:g svgeSnapGuides>`: lê `SnapService.activeGuides()`, renderiza
+  uma `<line>` por guide (vertical p/ axis x, horizontal p/ axis y).
+  Span = union(viewport.viewBox, document.viewBox) — guide nunca corta
+  na borda visível mesmo se usuário panou pra fora do doc.
+- Cores: magenta `#d81b60`. Grid = dashed `2 2`, objects = sólido. CSS
+  `vector-effect: non-scaling-stroke`. `pointer-events: none`.
+
+**Wire no playground**:
+
+- Captura `moveStartBBox = getRenderedNodeBBox(...)` no exato momento em
+  que o body-drag cruza o threshold (3px) — antes do `startMove`. A
+  bbox renderizada DURANTE o gesto é a previewed (já transladada), então
+  não dá pra ler durante.
+- `applySnappedMove(ds, point)`:
+  1. Calcula `proposedBBox = moveStartBBox + delta(startPoint→point)`.
+  2. Coleta `staticRects` = todos os filhos do root **exceto** o que
+     está em movimento (`collectStaticBBoxes(excludeId)`).
+  3. `snap.resolveForMove(proposed, statics, zoom)` retorna `{delta, guides}`.
+  4. `transform.updateMove(point + delta)` — gesto preview vai pra posição
+     snapada.
+  5. `snap.setActiveGuides(guides)` — overlay desenha as linhas.
+- `endMove` / `cancelGesture`: `snap.clearActiveGuides()` + reset
+  `moveStartBBox = null`.
+- Toolbar: checkbox "Enabled" + `<select>` com Grid/Objects/Both.
+- Template: novo `<svg:g svgeSnapGuides>` no slot do `<svge-renderer>`
+  (depois de selection/pivot/marquee — guides em cima).
+
+**Decisões técnicas**
+
+- Resolver puro, sem signals/DOM. Permite testar isolado e usar fora do
+  Angular se necessário.
+- `SnapService` NÃO conhece `TransformService` nem `EditorStateService` —
+  evita dep circular e mantém o serviço focado em "qual snap acontece
+  com este rect contra estes outros rects". O consumer orquestra.
+- Threshold sempre em CSS pixels (interface humana) e convertido por zoom
+  no momento de uso — Affinity/Figma fazem assim.
+- `gridTargetsNear` evita explosão combinatória em docs grandes — emite
+  só ~3 linhas por axis em vez de O(docSize/gridSize).
+- `collectStaticBBoxes` exclui o nó em movimento (caso contrário ele
+  snaparia em si mesmo e travaria o drag).
+- Tie-breaker em `resolveSnap` é **ordem de inserção** — em modo `'both'`
+  grid vem primeiro, então grid vence empates. Razoável (grid é mais
+  "absoluto" que objeto vizinho).
+
+**Cobertura**
+
+- `snap-resolver.spec.ts`: 16 testes (rectsToSnapTargets, gridTargetsNear
+  com negativos + edge cases, resolveSnap em todas as combinações de
+  axis/feature, threshold ≤ 0, target list vazia, source preserved).
+- `snap.service.spec.ts`: 12 testes (config defaults, setters validados,
+  activeGuides round-trip, resolveForMove em cada mode, scaling por zoom).
+- `snap-guides.component.spec.ts`: 4 testes (renderiza nada sem guides,
+  vertical p/ x guide, horizontal p/ y guide, clear reativo).
+- **Total**: +32 testes → 262 passing em 24 arquivos. Zero regressão.
+
+**Próximo**: Bloco 4c (alinhamento + distribuição).
+
+---
+
 ## 2026-05-15 — Fase 3 Bloco 4a: Marquee selection (drag-to-select)
 
 **O que foi entregue**

@@ -122,7 +122,13 @@
   - Modo `'add'` (Shift-drag): captura snapshot da seleção no start e reconstrói a união a cada update — pré-existentes nunca somem
   - Esc cancela o gesto (sem alterar seleção); release sem drag em `'replace'` mode = clear (preserva o velho comportamento "click no fundo limpa")
   - Wired no playground: pointerdown no fundo abre marquee; selectMany acompanha drag em tempo real
-- [ ] **Bloco 4b**: Snap-to-grid e snap-to-objects opcionais (`SnapService`)
+- [x] **Bloco 4b**: Snap-to-grid e snap-to-objects (`SnapService`)
+  - Resolver puro `resolveSnap(moving, targets, threshold)` — pega features (low/center/high) por axis, escolhe o par (feature ↔ target) com menor distância dentro do threshold
+  - Geradores puros: `rectsToSnapTargets` (6 targets/rect: low/center/high × 2 axes), `gridTargetsNear` (limita à área do moving — bounded mesmo em docs gigantes)
+  - `SnapService` (signals): config (`enabled`, `mode: 'grid'|'objects'|'both'`, `gridSize`, `thresholdPx`); guides ativos (`activeGuides` lido pelo overlay)
+  - Threshold em CSS pixels — divisão por `zoom` mantém range visual constante (Illustrator/Affinity)
+  - `<svge-snap-guides>` overlay magenta (dashed para grid, sólido para objetos), span via union(viewport, document)
+  - Wired no playground: snap durante body-drag (move). Toolbar com toggle + mode picker
 - [ ] **Bloco 4c**: Alinhamento e distribuição (esquerda/centro/direita/topo/meio/base)
 
 ### Bloco 5 — Plugin extensibility (D-020)
