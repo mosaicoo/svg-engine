@@ -27,28 +27,35 @@
 
 ## Entry point `svg-engine/render` (Fase 2 Bloco 2) ✅
 
-### Componentes top-level + dispatcher
+> **Arquitetura SVG-pura**: per-tipo são **diretivas** aplicadas a elementos
+> SVG nativos (não componentes com selectors customizados). Custom HTML
+> elements dentro de `<svg>` quebram o render tree do SVG (o painter não
+> atravessa elementos não-SVG). Diretivas em `<svg:rect>`/`<svg:ellipse>`
+> mantêm todo o DOM no namespace SVG.
 
-| Selector          | Responsabilidade                                                                    |
-| ----------------- | ----------------------------------------------------------------------------------- |
-| `<svge-renderer>` | Render read-only top-level. `<svg>` raiz com viewBox/aria                           |
-| `<svge-node>`     | Dispatcher: `@switch` por `node.type`; recursivo para `group`; fallback no registry |
+### Componente top-level + dispatcher
 
-### Componentes per-tipo (built-in)
+| Uso                              | Tipo                      | Responsabilidade                                                                                                                     |
+| -------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `<svge-renderer>`                | Component                 | Top-level: `<svg>` raiz com viewBox/aria + sizing 100%                                                                               |
+| `<svg:g svgeNode [node]="..."/>` | Component (`g[svgeNode]`) | Dispatcher: host = `<svg:g>` com `data-node-id`+`transform`; `@switch` por `node.type`; recursivo para `group`; fallback no registry |
 
-| Selector          | SVG renderizado  |
-| ----------------- | ---------------- |
-| `<svge-rect>`     | `<svg:rect>`     |
-| `<svge-ellipse>`  | `<svg:ellipse>`  |
-| `<svge-line>`     | `<svg:line>`     |
-| `<svge-polygon>`  | `<svg:polygon>`  |
-| `<svge-polyline>` | `<svg:polyline>` |
-| `<svge-path>`     | `<svg:path>`     |
-| `<svge-text>`     | `<svg:text>`     |
-| `<svge-image>`    | `<svg:image>`    |
+### Diretivas per-tipo (built-in)
 
-> Cada per-tipo é envolto em `<svg:g data-node-id transform>` para suportar
-> futura camada de seleção/handles sem reestruturação.
+| Uso                                     | SVG host         | Diretiva                |
+| --------------------------------------- | ---------------- | ----------------------- |
+| `<svg:rect [svgeRect]="rectNode" />`    | `<svg:rect>`     | `SvgeRectDirective`     |
+| `<svg:ellipse [svgeEllipse]="..." />`   | `<svg:ellipse>`  | `SvgeEllipseDirective`  |
+| `<svg:line [svgeLine]="..." />`         | `<svg:line>`     | `SvgeLineDirective`     |
+| `<svg:polygon [svgePolygon]="..." />`   | `<svg:polygon>`  | `SvgePolygonDirective`  |
+| `<svg:polyline [svgePolyline]="..." />` | `<svg:polyline>` | `SvgePolylineDirective` |
+| `<svg:path [svgePath]="..." />`         | `<svg:path>`     | `SvgePathDirective`     |
+| `<svg:text [svgeText]="..." />`         | `<svg:text>`     | `SvgeTextDirective`     |
+| `<svg:image [svgeImage]="..." />`       | `<svg:image>`    | `SvgeImageDirective`    |
+
+> Cada diretiva popula apenas atributos do próprio elemento via host config.
+> O wrapper `<svg:g data-node-id transform>` é fornecido pela host do
+> dispatcher (single source of truth para data-node-id e transform).
 
 ### Serviços
 

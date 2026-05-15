@@ -6,6 +6,80 @@
 
 ---
 
+## 2026-05-15 — Fix bug visual + refactor renderers para SVG-puro
+
+**Sintoma reportado pelo usuário**: ao adicionar formas via playground,
+nada aparecia visualmente apesar dos elementos `<rect>` etc. estarem
+corretamente no DOM (com x, y, width, height, fill, stroke aplicados).
+Screenshot do DevTools mostrou estrutura `<svge-rect><g><rect/></g></svge-rect>`.
+
+**Causa raiz**: dois problemas em sequência.
+
+1. **Sizing do `<svg>` interno** (commit `1770422`): o `<svg>`
+   sem `width`/`height` attrs defaulta para 300×150 px (replaced element
+   HTML). CSS no `host` dimensionava o custom element `<svge-renderer>`
+   mas não cascateava para o `<svg>` interno. Fix: component styles
+   `:host { 100% } svg { 100% }`.
+2. **Custom HTML elements dentro de SVG** (este commit): mesmo após o
+   sizing, as formas continuavam não renderizando. Razão: as componentes
+   `<svge-node>` e `<svge-rect>` etc. são custom HTML elements (Angular
+   cria via `document.createElement`, não `createElementNS`). Por
+   limitação da spec SVG, o painter **não atravessa elementos não-SVG**
+   para renderizar conteúdo embaixo deles. Os `<rect>` etc. estavam
+   no DOM mas dentro de wrappers HTML que cortam a cadeia de render.
+
+**Refactor**:
+
+- **8 per-type components → 8 diretivas**: `SvgeRectDirective`,
+  `SvgeEllipseDirective`, `SvgeLineDirective`, `SvgePolygonDirective`,
+  `SvgePolylineDirective`, `SvgePathDirective`, `SvgeTextDirective`,
+  `SvgeImageDirective`. Cada uma com selector attribute (`[svgeRect]`
+  etc.) aplicado ao elemento SVG nativo correspondente. Atributos via
+  `host: { '[attr.x]': 'node().x', ... }`. Input aliasado ao nome da
+  diretiva: `[svgeRect]="rectNode"`.
+- **`SvgeNodeRenderer` (dispatcher)**: selector mudou de `svge-node`
+  para `g[svgeNode]` (atributo num `<svg:g>`). Host = `<svg:g>` com
+  `data-node-id` e `transform`. Template `@switch` cria os elementos
+  SVG diretamente (`<svg:rect [svgeRect]="rectNode()" />` etc.). Caso
+  `group` itera children com `<svg:g svgeNode [node]="child">` (recursivo).
+- **`SvgeRenderer` top-level**: `<svge-node>` no template virou
+  `<svg:g svgeNode [node]="tree()"></svg:g>`.
+- **8 arquivos `*-renderer.component.ts` deletados**, substituídos por
+  `*-renderer.directive.ts`.
+- **Tests atualizados** + lint disable inline no selector híbrido.
+
+**DOM resultante** (puro SVG):
+
+```
+<svg viewBox="0 0 800 600">
+  <g data-node-id="root">
+    <g data-node-id="rect-id" transform="...">
+      <rect x="..." y="..." width="..." height="..." fill="..." stroke="..." />
+    </g>
+  </g>
+</svg>
+```
+
+**Validação**:
+
+- `ng build svg-engine`: OK
+- `ng lint`: OK
+- `ng test svg-engine`: **110 testes verdes em 10 arquivos** (asserts
+  iguais — estrutura final equivalente em jsdom)
+- HTTP fetch `/main.js`: `svgeRect`/`svgeNode` (novos) 17/44 matches,
+  `svge-rect`/`svge-node` (antigos) **0 matches**.
+
+**Lições**:
+
+- Componentes que renderizam conteúdo SVG devem ter selector compatível
+  com SVG (atributo em elemento SVG real ou `svg:tag` no selector).
+- Custom HTML elements como wrappers em SVG são **anti-padrão silencioso**:
+  o DOM "parece certo" mas o render falha sem erro de console.
+- Tests em jsdom validam estrutura DOM mas não chamam o painter SVG real;
+  validação visual exige browser real.
+
+---
+
 ## 2026-05-14 — Plugin extensibilidade (D-020) + Workspace pendente (D-021)
 
 **O que aconteceu**

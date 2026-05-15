@@ -1,9 +1,9 @@
-export { SvgeEllipseRenderer } from './ellipse-renderer.component';
-export { SvgeImageRenderer } from './image-renderer.component';
-export { SvgeLineRenderer } from './line-renderer.component';
+export { SvgeEllipseDirective } from './ellipse-renderer.directive';
+export { SvgeImageDirective } from './image-renderer.directive';
+export { SvgeLineDirective } from './line-renderer.directive';
 export { SvgeNodeRenderer } from './node-renderer.component';
-export { SvgePathRenderer } from './path-renderer.component';
-export { SvgePolygonRenderer } from './polygon-renderer.component';
-export { SvgePolylineRenderer } from './polyline-renderer.component';
-export { SvgeRectRenderer } from './rect-renderer.component';
-export { SvgeTextRenderer } from './text-renderer.component';
+export { SvgePathDirective } from './path-renderer.directive';
+export { SvgePolygonDirective } from './polygon-renderer.directive';
+export { SvgePolylineDirective } from './polyline-renderer.directive';
+export { SvgeRectDirective } from './rect-renderer.directive';
+export { SvgeTextDirective } from './text-renderer.directive';

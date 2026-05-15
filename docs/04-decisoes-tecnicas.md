@@ -271,6 +271,14 @@
     respectivamente.
   - `angular.json` com `sourceRoot: "projects/svg-engine"` (não `src/`)
     para test discovery encontrar specs em todos os entry points.
+- **Nota arquitetural — SVG content e custom elements** (lição 2026-05-15):
+  para entry points que renderizam SVG (`render`, `edit`), **não usar
+  custom-element selectors** (ex.: `<svge-rect>`) como wrappers de
+  conteúdo SVG. Custom HTML elements dentro de `<svg>` cortam a cadeia
+  do painter SVG (limitação de spec, sem erro). Padrão correto:
+  diretivas em elementos SVG nativos (`[svgeRect]` em `<svg:rect>`) ou
+  selectors híbridos (`g[svgeNode]` em `<svg:g>`). Detalhado em
+  `08-historico-de-alteracoes.md` (entrada 2026-05-15).
 - **Consequências**: arquitetura mais disciplinada; consumidores escolhem
   exatamente a camada que querem; bundle final inclui só o usado.
 - **Validado em produção**: `core` consumido com sucesso pela `playground`

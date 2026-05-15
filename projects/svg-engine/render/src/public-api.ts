@@ -7,8 +7,15 @@
  * viewer in third-party Angular apps.
  *
  * Plugin extensibility (D-020): unknown node types are dispatched through
- * `NodeRendererRegistry`; plugins register their renderer component there
- * and `<svge-node>` mounts it via `*ngComponentOutlet`.
+ * `NodeRendererRegistry`; plugins register their renderer there and the
+ * dispatcher mounts it via `*ngComponentOutlet`.
+ *
+ * Architecture note: per-type renderers are **directives** applied to the
+ * native SVG element (e.g. `[svgeRect]` on `<svg:rect>`), not components
+ * with custom-element selectors. Custom HTML elements inside an SVG break
+ * the SVG render tree (the painter does not traverse non-SVG elements),
+ * so directives are the only safe way to keep the entire DOM in the SVG
+ * namespace.
  *
  * Pan / zoom: `ViewportService` exposes signal-based viewport state;
  * `<svge-renderer>` reads `viewport.viewBox()` when no explicit `viewBox`
@@ -18,9 +25,10 @@
 // Top-level renderer
 export * from './lib/renderer';
 
-// Per-type renderer components + dispatcher (exported for advanced reuse
-// — e.g., consumers that want to embed a single shape outside of the
-// dispatch flow, or mount renderers in custom layouts).
+// Dispatcher component + 8 per-type directives (exported for advanced reuse
+// — e.g., consumers that want to apply a single directive on their own
+// `<svg:rect>` outside the dispatch flow, or mount renderers in custom
+// layouts).
 export * from './lib/renderers';
 
 // Viewport (pan/zoom)

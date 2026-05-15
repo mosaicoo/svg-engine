@@ -19,7 +19,7 @@ import { SvgeNodeRenderer } from './node-renderer.component';
   selector: 'svge-test-host-svg',
   standalone: true,
   imports: [SvgeNodeRenderer],
-  template: `<svg><svge-node [node]="node()" /></svg>`,
+  template: `<svg><svg:g svgeNode [node]="node()"></svg:g></svg>`,
 })
 class HostSvgComponent {
   readonly node = signal<SvgNode>(createRect({ x: 0, y: 0, width: 1, height: 1 }));

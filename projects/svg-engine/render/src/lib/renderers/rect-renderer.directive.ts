@@ -1,0 +1,40 @@
+import { Directive, input } from '@angular/core';
+import type { RectNode } from 'svg-engine/core';
+
+/**
+ * Apply to a `<svg:rect>` element to bind its attributes from a
+ * {@link RectNode}. Use the directive as both selector and value binding:
+ *
+ * ```html
+ * <svg:rect [svgeRect]="rectNode" />
+ * ```
+ *
+ * Why a directive (not a component): components inject a host element
+ * created by `document.createElement(selector)` which lives in the HTML
+ * namespace. Inside an `<svg>`, an HTML wrapper element breaks the SVG
+ * render tree — the SVG painter does not traverse non-SVG elements. A
+ * directive applied to an actual `<svg:rect>` element keeps the host in
+ * the SVG namespace so geometry attributes paint correctly.
+ */
+@Directive({
+  selector: '[svgeRect]',
+  standalone: true,
+  host: {
+    '[attr.x]': 'node().x',
+    '[attr.y]': 'node().y',
+    '[attr.width]': 'node().width',
+    '[attr.height]': 'node().height',
+    '[attr.rx]': 'node().rx ?? null',
+    '[attr.ry]': 'node().ry ?? null',
+    '[attr.fill]': 'node().style.fill ?? null',
+    '[attr.stroke]': 'node().style.stroke ?? null',
+    '[attr.stroke-width]': 'node().style.strokeWidth ?? null',
+    '[attr.opacity]': 'node().style.opacity ?? null',
+    '[attr.fill-opacity]': 'node().style.fillOpacity ?? null',
+    '[attr.stroke-opacity]': 'node().style.strokeOpacity ?? null',
+    '[attr.visibility]': 'node().style.visibility ?? null',
+  },
+})
+export class SvgeRectDirective {
+  readonly node = input.required<RectNode>({ alias: 'svgeRect' });
+}

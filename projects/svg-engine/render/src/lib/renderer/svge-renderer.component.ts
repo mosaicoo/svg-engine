@@ -37,7 +37,7 @@ import { ViewportService } from '../viewport/viewport.service';
       [attr.role]="'img'"
       [attr.aria-label]="ariaLabel() ?? null"
     >
-      <svge-node [node]="tree()" />
+      <svg:g svgeNode [node]="tree()"></svg:g>
     </svg>
   `,
   styles: `

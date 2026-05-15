@@ -1,0 +1,28 @@
+import { computed, Directive, input } from '@angular/core';
+import type { PolygonNode } from 'svg-engine/core';
+
+/** Apply to `<svg:polygon>` to bind attributes from a {@link PolygonNode}. */
+@Directive({
+  selector: '[svgePolygon]',
+  standalone: true,
+  host: {
+    '[attr.points]': 'pointsAttr()',
+    '[attr.fill]': 'node().style.fill ?? null',
+    '[attr.stroke]': 'node().style.stroke ?? null',
+    '[attr.stroke-width]': 'node().style.strokeWidth ?? null',
+    '[attr.stroke-linejoin]': 'node().style.strokeLinejoin ?? null',
+    '[attr.opacity]': 'node().style.opacity ?? null',
+    '[attr.fill-opacity]': 'node().style.fillOpacity ?? null',
+    '[attr.stroke-opacity]': 'node().style.strokeOpacity ?? null',
+    '[attr.visibility]': 'node().style.visibility ?? null',
+  },
+})
+export class SvgePolygonDirective {
+  readonly node = input.required<PolygonNode>({ alias: 'svgePolygon' });
+
+  protected readonly pointsAttr = computed(() =>
+    this.node()
+      .points.map((p) => `${p.x},${p.y}`)
+      .join(' '),
+  );
+}

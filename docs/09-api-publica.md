@@ -122,12 +122,24 @@ a fase do roadmap implementa o conteúdo.
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `ViewportService` (`@Injectable({ root })`) | signals: `contentBox`, `zoom`, `panX`, `panY`, `viewBox` (computed), `minZoom`, `maxZoom`. APIs: `setContentBox`, `setZoom`, `multiplyZoom`, `zoomIn`, `zoomOut`, `setPan`, `pan`, `reset`, `fit`, `setZoomLimits` |
 
-#### Renderers per-tipo + dispatcher (`./lib/renderers/`)
+#### Renderers per-tipo (diretivas) + dispatcher (`./lib/renderers/`)
 
-| Componente                                                                                                                        | Renderiza                                                                     |
-| --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `<svge-node>` (`SvgeNodeRenderer`)                                                                                                | Dispatcher: `@switch` dos 8 built-ins + `group` recursivo + fallback registry |
-| `<svge-rect>`, `<svge-ellipse>`, `<svge-line>`, `<svge-polygon>`, `<svge-polyline>`, `<svge-path>`, `<svge-text>`, `<svge-image>` | renderiza o tipo correspondente envolto em `<g data-node-id transform>`       |
+> **Arquitetura SVG-pura**: per-tipo são diretivas aplicadas a elementos
+> SVG nativos. Custom HTML elements dentro de `<svg>` não renderizam o
+> conteúdo SVG embaixo deles (limitação da spec) — daí a escolha por
+> diretivas em vez de componentes.
+
+| Símbolo (selector)                         | Uso                                                                                                                                                                                     |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SvgeNodeRenderer` (`g[svgeNode]`)         | Dispatcher Component. Host = `<svg:g>` com `data-node-id`+`transform`. `@switch` dos 8 built-ins + `group` recursivo + fallback registry. Uso: `<svg:g svgeNode [node]="root"></svg:g>` |
+| `SvgeRectDirective` (`[svgeRect]`)         | Aplicada a `<svg:rect>`. Input alias `svgeRect: RectNode`                                                                                                                               |
+| `SvgeEllipseDirective` (`[svgeEllipse]`)   | Aplicada a `<svg:ellipse>`. Input alias `svgeEllipse: EllipseNode`                                                                                                                      |
+| `SvgeLineDirective` (`[svgeLine]`)         | Aplicada a `<svg:line>`. Input alias `svgeLine: LineNode`                                                                                                                               |
+| `SvgePolygonDirective` (`[svgePolygon]`)   | Aplicada a `<svg:polygon>`. Input alias `svgePolygon: PolygonNode`                                                                                                                      |
+| `SvgePolylineDirective` (`[svgePolyline]`) | Aplicada a `<svg:polyline>`. Input alias `svgePolyline: PolylineNode`                                                                                                                   |
+| `SvgePathDirective` (`[svgePath]`)         | Aplicada a `<svg:path>`. Input alias `svgePath: PathNode`                                                                                                                               |
+| `SvgeTextDirective` (`[svgeText]`)         | Aplicada a `<svg:text>`. Input alias `svgeText: TextNode`. Texto via interpolação `{{ node.content }}` no template                                                                      |
+| `SvgeImageDirective` (`[svgeImage]`)       | Aplicada a `<svg:image>`. Input alias `svgeImage: ImageNode`                                                                                                                            |
 
 #### Plugin extensibility (`./lib/registry/`) — **D-020**
 
