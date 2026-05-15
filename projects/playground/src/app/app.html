@@ -44,6 +44,77 @@
         <option value="both">Both</option>
       </select>
     </fieldset>
+    <fieldset>
+      <legend>Align ({{ selectedCount() }} sel)</legend>
+      <button
+        type="button"
+        [disabled]="!canAlign()"
+        (click)="alignSelection('left')"
+        title="Align left"
+      >
+        ⫷
+      </button>
+      <button
+        type="button"
+        [disabled]="!canAlign()"
+        (click)="alignSelection('center-x')"
+        title="Align center horizontal"
+      >
+        ⫶
+      </button>
+      <button
+        type="button"
+        [disabled]="!canAlign()"
+        (click)="alignSelection('right')"
+        title="Align right"
+      >
+        ⫸
+      </button>
+      <span aria-hidden="true">·</span>
+      <button
+        type="button"
+        [disabled]="!canAlign()"
+        (click)="alignSelection('top')"
+        title="Align top"
+      >
+        ⊤
+      </button>
+      <button
+        type="button"
+        [disabled]="!canAlign()"
+        (click)="alignSelection('center-y')"
+        title="Align center vertical"
+      >
+        ─
+      </button>
+      <button
+        type="button"
+        [disabled]="!canAlign()"
+        (click)="alignSelection('bottom')"
+        title="Align bottom"
+      >
+        ⊥
+      </button>
+    </fieldset>
+    <fieldset>
+      <legend>Distribute</legend>
+      <button
+        type="button"
+        [disabled]="!canDistribute()"
+        (click)="distributeSelection('horizontal')"
+        title="Distribute horizontally"
+      >
+        ↔
+      </button>
+      <button
+        type="button"
+        [disabled]="!canDistribute()"
+        (click)="distributeSelection('vertical')"
+        title="Distribute vertically"
+      >
+        ↕
+      </button>
+    </fieldset>
   </section>
 
   <section

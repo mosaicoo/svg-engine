@@ -22,11 +22,15 @@ import {
   RemoveNodeCommand,
 } from 'svg-engine/core';
 import {
+  type AlignAxis,
+  AlignmentService,
+  type DistributeAxis,
   findRenderedNode,
   getRenderedNodeBBox,
   Marquee,
   type MarqueeCandidate,
   MarqueeService,
+  type NodeBBox,
   nodesInsideMarquee,
   resolveNodeIdFromEvent,
   RotationPivot,
@@ -78,6 +82,7 @@ export class App implements OnDestroy {
   private readonly selection = inject(SelectionService);
   private readonly transform = inject(TransformService);
   private readonly marquee = inject(MarqueeService);
+  private readonly alignment = inject(AlignmentService);
   protected readonly snap = inject(SnapService);
   protected readonly viewport = inject(ViewportService);
 
@@ -206,6 +211,42 @@ export class App implements OnDestroy {
 
   protected setSnapMode(mode: SnapMode): void {
     this.snap.setMode(mode);
+  }
+
+  /** Align ≥ 2 selected nodes need; otherwise the toolbar buttons are disabled. */
+  protected readonly canAlign = computed(() => this.selection.count() >= 2);
+
+  /** Distribute ≥ 3 selected nodes (with a center spread). */
+  protected readonly canDistribute = computed(() => this.selection.count() >= 3);
+
+  protected alignSelection(axis: AlignAxis): void {
+    const items = this.collectSelectionBBoxes();
+    if (items.length < 2) return;
+    this.alignment.align(items, axis);
+  }
+
+  protected distributeSelection(axis: DistributeAxis): void {
+    const items = this.collectSelectionBBoxes();
+    if (items.length < 3) return;
+    this.alignment.distribute(items, axis);
+  }
+
+  /**
+   * Read the rendered bbox of every currently-selected node. Skips ids
+   * that don't resolve to a measurable bbox (e.g., empty groups). Used
+   * by `alignSelection` / `distributeSelection` to feed the
+   * {@link AlignmentService}.
+   */
+  private collectSelectionBBoxes(): readonly NodeBBox[] {
+    const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+    if (svg === null) return [];
+    const out: NodeBBox[] = [];
+    for (const id of this.selection.selectedIds()) {
+      const bb = getRenderedNodeBBox(svg, id);
+      if (bb === null) continue;
+      out.push({ id, bbox: bb });
+    }
+    return out;
   }
 
   /**

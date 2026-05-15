@@ -6,6 +6,92 @@
 
 ---
 
+## 2026-05-15 — Fase 3 Bloco 4c: Alinhamento + distribuição
+
+**O que foi entregue**
+
+6 alinhamentos (left/center-x/right/top/center-y/bottom) + 2
+distribuições (horizontal/vertical centers) operando em multi-seleção.
+Cada operação dispara **um único** `TranslateManyCommand` — undo
+limpo (1 entrada por clique de toolbar, restaura todos os nós).
+
+**Estrutura nova no core** (`svg-engine/core/src/lib/commands/`):
+
+- `TranslateManyCommand(translations: Map<NodeId, Point>, label?)`:
+  - Translada N nós por deltas individuais em uma transação.
+  - Construtor valida: throw `RangeError` se algum delta é não-finito.
+  - Execute em 2 passes: 1) valida que todos os ids existem (atomicidade
+    — falha sem aplicar nada se 1 sumir); 2) aplica + captura
+    `previousTransforms` para undo.
+  - Empty map = no-op success (caller pode construir command otimista).
+  - Undo restaura todos; nó deletado entre execute/undo é silenciosamente
+    pulado (best-effort).
+  - 8 testes Vitest cobrindo execute/undo round-trip + atomicidade +
+    rejeição de NaN/Infinity + label custom.
+
+**Estrutura nova no edit** (`svg-engine/edit/src/lib/alignment/`):
+
+- `alignment-math.ts` (puro):
+  - `computeAlignDeltas(items, axis)`: anchor = union bbox (Affinity/
+    Figma default). Omite zero-deltas (já alinhados) — undo limpo
+    de verdade, sem entries no-op no histórico.
+  - `computeDistributeDeltas(items, axis)`: sort por center na axis,
+    espaça inner items entre leftmost-center e rightmost-center.
+    Edge items mantêm posição. Requer ≥3 nós; degenerado
+    (leftmost == rightmost) retorna empty map.
+  - `unionBBox(items)` exportado para overlays futuros (ex.: anchor
+    visual durante hover do botão).
+  - 12 testes (alinhamento em cada axis + zero-deltas + distribute
+    com 3/4 itens + degenerados + sem mutação do array de input).
+- `alignment.service.ts`:
+  - `AlignmentService.align(items, axis)` / `.distribute(items, axis)`:
+    chama o math puro, dispara `TranslateManyCommand` se `deltas.size > 0`.
+    Retorna `boolean` (true = dispatched, false = no-op).
+  - 9 testes (align/distribute com state real + undo via CommandBus).
+
+**Wire no playground**:
+
+- 2 fieldsets novos na toolbar:
+  - **Align (X sel)** com 6 botões (⫷ ⫶ ⫸ · ⊤ ─ ⊥), disabled quando
+    seleção <2.
+  - **Distribute** com 2 botões (↔ ↕), disabled quando seleção <3.
+- `collectSelectionBBoxes()` lê via `getRenderedNodeBBox` cada nó
+  selecionado e monta `NodeBBox[]` para o service.
+- Computeds `canAlign`/`canDistribute` reagem ao `selection.count()`
+  para ativar/desativar botões automaticamente.
+
+**Decisões técnicas**
+
+- `TranslateManyCommand` no core (não no edit): é uma op pura sobre o
+  modelo, reusável por qualquer feature futura ("nudge selection",
+  "duplicate offset", paste-with-position-shift, etc.). O fato de ser
+  usada por alinhamento agora é circunstancial.
+- Atomicidade no execute (validar antes de aplicar) > apply-as-far-as-
+  possible. Undo de uma op parcial seria confuso.
+- Math puro separado do service: o service é Angular (DI, dispatch),
+  o math é zero-deps. Permite testar lógica isolada e reusar
+  fora do contexto Angular se necessário.
+- Anchor de center alignment = union bbox (Affinity/Figma). Illustrator's
+  "Align to Key Object" mode é uma extensão futura simples (parâmetro
+  opcional no `computeAlignDeltas`).
+- Distribute = "centers" (não "equal gaps"). Affinity expõe ambos;
+  ship o mais usado primeiro.
+- Service retorna boolean para consumers atualizarem UI ("nada mudou,
+  toast de feedback?"). No playground por ora não é usado — toolbar
+  desabilitada já cobre 99% dos casos.
+
+**Cobertura**
+
+- `translate-many.spec.ts`: 8 testes
+- `alignment-math.spec.ts`: 12 testes
+- `alignment.service.spec.ts`: 9 testes
+- **Total**: +29 testes → 291 passando em 27 arquivos. Zero regressão.
+
+**Bloco 4 completo** (4a marquee + 4b snap + 4c align/distribute).
+Próximo: Bloco 5 (`ToolRegistry` D-020 plugin extensibility).
+
+---
+
 ## 2026-05-15 — Fase 3 Bloco 4b: Snap (grid + objetos)
 
 **O que foi entregue**

@@ -5,3 +5,4 @@ export { RemoveNodeCommand } from './remove-node.command';
 export { composeAnchoredScale, ResizeNodeCommand } from './resize-node.command';
 export { composePivotRotation, RotateNodeCommand } from './rotate-node.command';
 export { SetPropertyCommand } from './set-property.command';
+export { TranslateManyCommand } from './translate-many.command';

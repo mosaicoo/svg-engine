@@ -129,7 +129,11 @@
   - Threshold em CSS pixels — divisão por `zoom` mantém range visual constante (Illustrator/Affinity)
   - `<svge-snap-guides>` overlay magenta (dashed para grid, sólido para objetos), span via union(viewport, document)
   - Wired no playground: snap durante body-drag (move). Toolbar com toggle + mode picker
-- [ ] **Bloco 4c**: Alinhamento e distribuição (esquerda/centro/direita/topo/meio/base)
+- [x] **Bloco 4c**: Alinhamento e distribuição
+  - `TranslateManyCommand` no core (1 entrada de undo p/ N nós; falha atomicamente se algum id for inválido)
+  - Math puro: `computeAlignDeltas` (6 axes: left/center-x/right/top/center-y/bottom anchorados na union bbox) + `computeDistributeDeltas` (centers, ≥3 nós, edge items mantêm posição)
+  - `AlignmentService.align(items, axis)` / `.distribute(items, axis)` — retorna boolean (true = dispatched), false em no-ops
+  - Toolbar no playground: 6 botões align (disabled <2 sel) + 2 distribute (disabled <3 sel)
 
 ### Bloco 5 — Plugin extensibility (D-020)
 

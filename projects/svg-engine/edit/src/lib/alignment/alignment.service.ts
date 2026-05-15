@@ -1,0 +1,67 @@
+import { inject, Injectable } from '@angular/core';
+import { CommandBus, type NodeId, type Point, TranslateManyCommand } from 'svg-engine/core';
+import {
+  type AlignAxis,
+  computeAlignDeltas,
+  computeDistributeDeltas,
+  type DistributeAxis,
+  type NodeBBox,
+} from './alignment-math';
+
+/**
+ * Editor-side façade for alignment + distribution operations. Delegates
+ * the math to the pure helpers in {@link computeAlignDeltas} /
+ * {@link computeDistributeDeltas} and dispatches a single
+ * {@link TranslateManyCommand} per call so the whole operation lands
+ * as **one** undo entry.
+ *
+ * **Why bboxes flow in (not pulled by the service)**: the service has
+ * no access to the rendered DOM by design (D-017 headless boundary
+ * alignment + testability). The caller (typically the playground or a
+ * UI toolbar component) reads bboxes via
+ * `getRenderedNodeBBox(svgRoot, id)` and passes them in. This keeps the
+ * service trivially testable in jsdom and reusable in non-DOM contexts
+ * (server-side rendering, headless tooling).
+ *
+ * **Behaviour on edge cases**:
+ * - `align` with fewer than 2 items → no-op (returns `false`, nothing
+ *   dispatched).
+ * - `distribute` with fewer than 3 items → no-op (returns `false`).
+ * - All items already aligned/distributed → no-op (the math helper
+ *   omits zero-deltas, the resulting empty map produces a no-op
+ *   command which is suppressed here).
+ *
+ * Returns `true` when a command was dispatched (caller can update UI),
+ * `false` when the operation was a no-op.
+ */
+@Injectable({ providedIn: 'root' })
+export class AlignmentService {
+  private readonly bus = inject(CommandBus);
+
+  /**
+   * Align `items` on the given axis. See {@link AlignAxis} for the 6
+   * standard operations. Anchored on the union bbox of the selection
+   * (Affinity / Figma default).
+   */
+  align(items: readonly NodeBBox[], axis: AlignAxis): boolean {
+    const deltas = computeAlignDeltas(items, axis);
+    return this.dispatch(deltas, `Align ${axis}`);
+  }
+
+  /**
+   * Distribute `items` evenly along the given axis. See
+   * {@link DistributeAxis} — we use "distribute centers" semantics
+   * (sort by center, evenly partition between leftmost and rightmost
+   * centers; edges keep their position).
+   */
+  distribute(items: readonly NodeBBox[], axis: DistributeAxis): boolean {
+    const deltas = computeDistributeDeltas(items, axis);
+    return this.dispatch(deltas, `Distribute ${axis}`);
+  }
+
+  private dispatch(deltas: ReadonlyMap<NodeId, Point>, label: string): boolean {
+    if (deltas.size === 0) return false;
+    this.bus.dispatch(new TranslateManyCommand(deltas, label));
+    return true;
+  }
+}

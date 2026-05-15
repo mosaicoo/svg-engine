@@ -1,0 +1,168 @@
+import type { BoundingBox, NodeId, Point } from 'svg-engine/core';
+
+/**
+ * Alignment axis. Six standard operations matching Illustrator,
+ * Affinity Designer, Figma, Inkscape:
+ *
+ * - `'left'`     — every bbox's `x` becomes the leftmost `x` of the set.
+ * - `'center-x'` — every bbox's center-X aligns with the union bbox's center-X.
+ * - `'right'`    — every bbox's `x + width` becomes the rightmost edge of the set.
+ * - `'top'`      — every bbox's `y` becomes the topmost `y`.
+ * - `'center-y'` — every bbox's center-Y aligns with the union bbox's center-Y.
+ * - `'bottom'`   — every bbox's `y + height` becomes the bottommost edge.
+ *
+ * The "anchor" for center alignments is the **union bbox** of the
+ * selection (matches Affinity / Figma defaults). Some tools use "key
+ * object" anchoring (Illustrator's "Align to Key Object") — that's a
+ * straightforward extension to add later.
+ */
+export type AlignAxis = 'left' | 'center-x' | 'right' | 'top' | 'center-y' | 'bottom';
+
+/**
+ * Distribution axis. Standard "distribute centers" semantics:
+ *
+ * - `'horizontal'` — sort by center-X, evenly space the inner items'
+ *   centers between the leftmost-center and rightmost-center.
+ * - `'vertical'`   — same, but on the Y axis.
+ *
+ * The two extremes (leftmost / rightmost on the chosen axis) keep their
+ * positions and define the bounds. Requires at least **3 nodes** —
+ * fewer than 3 yields an empty deltas map (no-op).
+ *
+ * "Distribute equal spacing" (gap-based, not center-based) is a
+ * potential follow-up — Affinity exposes both modes; we ship centers
+ * first because it's the most-used in practice.
+ */
+export type DistributeAxis = 'horizontal' | 'vertical';
+
+/** Pair of `(id, bbox)` consumed by the alignment helpers. */
+export interface NodeBBox {
+  readonly id: NodeId;
+  readonly bbox: BoundingBox;
+}
+
+/**
+ * Compute the per-node `(dx, dy)` translation needed to align every
+ * item to the chosen axis. Returns an empty map when:
+ * - `items.length < 2` (alignment of one is a no-op).
+ * - any computed delta is exactly `(0, 0)` for every item (already
+ *   aligned) — those entries are *omitted* (cleaner undo: "translate
+ *   many" of size 0 is a true no-op rather than a bunch of zero-deltas).
+ *
+ * Non-affected axis is always `0` — alignment never moves on the
+ * orthogonal axis.
+ *
+ * **Pure**: no DOM, no signals. Caller passes bboxes (typically read
+ * from rendered DOM via `getRenderedNodeBBox`).
+ */
+export function computeAlignDeltas(
+  items: readonly NodeBBox[],
+  axis: AlignAxis,
+): ReadonlyMap<NodeId, Point> {
+  if (items.length < 2) return new Map();
+  const target = computeAlignTarget(items, axis);
+  const out = new Map<NodeId, Point>();
+  for (const { id, bbox } of items) {
+    const delta = deltaForAlign(bbox, axis, target);
+    if (delta.x !== 0 || delta.y !== 0) out.set(id, delta);
+  }
+  return out;
+}
+
+/**
+ * Compute the per-node `(dx, dy)` to evenly distribute centers along
+ * the chosen axis. Returns an empty map when:
+ * - `items.length < 3` (distribute needs an "inner" item to space).
+ * - the leftmost and rightmost items are already coincident on the
+ *   axis (degenerate — no spacing to enforce).
+ *
+ * Edge items keep their position (delta `(0, 0)` and are omitted from
+ * the result map). Inner items move to evenly partition the span.
+ *
+ * **Pure**: no DOM, no signals.
+ */
+export function computeDistributeDeltas(
+  items: readonly NodeBBox[],
+  axis: DistributeAxis,
+): ReadonlyMap<NodeId, Point> {
+  if (items.length < 3) return new Map();
+  const isHorizontal = axis === 'horizontal';
+  // Sort by center on the axis. Use a stable copy to avoid mutating caller's array.
+  const sorted = [...items].sort(
+    (a, b) => centerOn(a.bbox, isHorizontal) - centerOn(b.bbox, isHorizontal),
+  );
+  const first = centerOn(sorted[0]!.bbox, isHorizontal);
+  const last = centerOn(sorted[sorted.length - 1]!.bbox, isHorizontal);
+  if (last === first) return new Map();
+  const step = (last - first) / (sorted.length - 1);
+  const out = new Map<NodeId, Point>();
+  for (let i = 1; i < sorted.length - 1; i++) {
+    const item = sorted[i]!;
+    const targetCenter = first + i * step;
+    const currentCenter = centerOn(item.bbox, isHorizontal);
+    const delta = targetCenter - currentCenter;
+    if (delta === 0) continue;
+    out.set(item.id, isHorizontal ? { x: delta, y: 0 } : { x: 0, y: delta });
+  }
+  return out;
+}
+
+/**
+ * Union bbox of a non-empty set of items. Exported for tests + for
+ * consumers that want to draw the alignment anchor visually.
+ */
+export function unionBBox(items: readonly NodeBBox[]): BoundingBox {
+  if (items.length === 0) {
+    throw new RangeError('unionBBox: items must be non-empty');
+  }
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const { bbox } of items) {
+    if (bbox.x < minX) minX = bbox.x;
+    if (bbox.y < minY) minY = bbox.y;
+    if (bbox.x + bbox.width > maxX) maxX = bbox.x + bbox.width;
+    if (bbox.y + bbox.height > maxY) maxY = bbox.y + bbox.height;
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+function computeAlignTarget(items: readonly NodeBBox[], axis: AlignAxis): number {
+  const u = unionBBox(items);
+  switch (axis) {
+    case 'left':
+      return u.x;
+    case 'right':
+      return u.x + u.width;
+    case 'center-x':
+      return u.x + u.width / 2;
+    case 'top':
+      return u.y;
+    case 'bottom':
+      return u.y + u.height;
+    case 'center-y':
+      return u.y + u.height / 2;
+  }
+}
+
+function deltaForAlign(bbox: BoundingBox, axis: AlignAxis, target: number): Point {
+  switch (axis) {
+    case 'left':
+      return { x: target - bbox.x, y: 0 };
+    case 'right':
+      return { x: target - (bbox.x + bbox.width), y: 0 };
+    case 'center-x':
+      return { x: target - (bbox.x + bbox.width / 2), y: 0 };
+    case 'top':
+      return { x: 0, y: target - bbox.y };
+    case 'bottom':
+      return { x: 0, y: target - (bbox.y + bbox.height) };
+    case 'center-y':
+      return { x: 0, y: target - (bbox.y + bbox.height / 2) };
+  }
+}
+
+function centerOn(bbox: BoundingBox, horizontal: boolean): number {
+  return horizontal ? bbox.x + bbox.width / 2 : bbox.y + bbox.height / 2;
+}

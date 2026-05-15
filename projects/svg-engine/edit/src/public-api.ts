@@ -22,7 +22,9 @@
  *   `nodesInsideMarquee` hit-tester (drag-to-select with shift-add).
  * **Bloco 4b** ✅: `SnapService` (grid + objects) + pure `resolveSnap`
  *   + `<svge-snap-guides>` overlay (magenta dashed lines).
- * **Bloco 4c** ⏳: alignment + distribution commands.
+ * **Bloco 4c** ✅: `AlignmentService` (6 align ops + 2 distribute ops),
+ *   pure `computeAlignDeltas`/`computeDistributeDeltas`, dispatched as
+ *   a single `TranslateManyCommand` (one undo entry per UI action).
  * **Bloco 5** ⏳: `ToolRegistry` (D-020 plugin point).
  */
 
@@ -46,3 +48,6 @@ export * from './lib/marquee';
 
 // Snap to grid + objects (Bloco 4b)
 export * from './lib/snap';
+
+// Alignment + distribution (Bloco 4c)
+export * from './lib/alignment';
