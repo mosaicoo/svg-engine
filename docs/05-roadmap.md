@@ -101,17 +101,18 @@
 - [x] **175 tests verdes em 15 arquivos** (+39 do Bloco 2)
 - [x] Playground integrado: overlay + pivot ativos dentro do `<svge-renderer>`
 
-### Bloco 3 — Transform interativo + pivot persistente
+### Bloco 3 — Transform interativo + pivot persistente ✅ concluído
 
-- [ ] `TransformService`: signals `dragState`, `customPivots` (`Map<NodeId, Point>` em node-local)
-- [ ] APIs: `setPivot`, `setPivotAnchor(9-point)`, `resetPivot`, `clearAllPivots`
-- [ ] **Persistência por nó (D-022.persist)**: pivot custom é restaurado ao reselecionar.
-      Para multi-selection, pivot relativo à bbox composta e reseta na mudança de composição.
-- [ ] Métodos: `startDrag/drag/endDrag`, `startRotate/rotate/endRotate`, `startResize/resize/endResize`
-- [ ] `RotateNodeCommand` (no `core`): recebe `angleRad` + `pivot` para undo correto
-      (matriz `T(p) ⋅ R(θ) ⋅ T(-p) ⋅ existente`)
-- [ ] `ResizeNodeCommand` (handle oposto = âncora; pivot **não** afeta scale na Fase 3 — D-022b futura)
-- [ ] Integração com `MoveNodeCommand` existente
+- [x] **Core**: `RotateNodeCommand(nodeId, angleRad, pivot)` aplica `T(p)·R(θ)·T(-p)·prev`; undo restaura
+- [x] **Core**: `ResizeNodeCommand(nodeId, anchor, sx, sy)` aplica `T(a)·S(sx,sy)·T(-a)·prev`; undo restaura. Helpers exportados: `composePivotRotation`, `composeAnchoredScale`
+- [x] **TransformService** expandido: `dragState` signal + `isDragging` computed
+- [x] APIs por gesto: `startMove/updateMove/endMove`, `startRotate/updateRotate/endRotate`, `startResize/updateResize/endResize`, `cancelGesture`
+- [x] **Padrão revert+commit**: durante drag mutação direta no document (preview); `endDrag` faz revert ao snapshot inicial, depois dispatcha **um único comando** via `CommandBus` — undo limpo (1 entrada por gesto)
+- [x] Edge handles (TC/BC/ML/MR) constrangem 1 axis; corner handles escalam ambos
+- [x] Persistência per-node (D-022.persist) mantida do Bloco 2
+- [x] **SelectionOverlay**: pointer handlers nos 8 resize handles + rotation handle + pointer capture + `screenToDoc` via `getScreenCTM().inverse()`
+- [x] **Playground**: body-drag com threshold 3px (potential drag → `startMove` no overflow); **Esc** cancela gesto via `cancelGesture()`
+- [x] **196 tests verdes em 17 arquivos** (+21 novos: 12 Rotate/Resize commands + 9 TransformService gestures)
 
 ### Bloco 4 — Marquee + alinhamento
 

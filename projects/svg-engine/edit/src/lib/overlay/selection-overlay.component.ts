@@ -7,11 +7,12 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { type BoundingBox, EditorStateService } from 'svg-engine/core';
+import { type BoundingBox, EditorStateService, type Point } from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
-import { allAnchors } from '../geometry/bbox-anchors';
+import { allAnchors, type BBoxAnchor } from '../geometry/bbox-anchors';
 import { getCombinedBBox, getRenderedNodeBBox } from '../geometry/node-bbox';
 import { SelectionService } from '../selection/selection.service';
+import { TransformService } from '../transform/transform.service';
 
 /** Pixel size of resize/rotation handles (CSS pixels, kept constant via 1/zoom factor). */
 const HANDLE_PX = 8;
@@ -20,26 +21,34 @@ const ROTATION_HANDLE_GAP_PX = 24;
 /** Inner data attribute used by the future TransformService to identify which handle was grabbed. */
 const HANDLE_DATA_ATTR = 'data-svge-handle';
 
+type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
+
 /**
  * Visual selection overlay. Renders, **inside the same `<svg>`** as the
  * content (via the renderer's `<ng-content />` slot — D-022 architecture):
  *
  * - Bounding box outline of the focused node (or composite bbox of a
  *   multi-selection).
- * - 8 resize handles (TL/TC/TR/ML/MC/MR/BL/BC/BR) **only for single
- *   selection** in Bloco 2. Multi-selection resize is deferred to Bloco 3.
+ * - 8 resize handles (TL/TC/TR/ML/MR/BL/BC/BR) **only for single
+ *   selection** in Bloco 2/3. Multi-selection resize is deferred to a
+ *   future block that decides handle semantics for composites.
  * - 1 rotation handle above the top-center anchor.
  * - Light outline of the currently hovered node (when not selected).
  *
- * Bbox computation is **DOM-based** via `SVGGraphicsElement.getBBox()`.
- * This is correct for every node type (including paths and text) without
- * us parsing path data or measuring fonts. We re-measure with
- * `afterEveryRender({ read })` so DOM updates from the renderer are picked up
- * on the next frame.
+ * **Bloco 3 — interactive handles**: pointer events on each resize/
+ * rotation handle drive {@link TransformService} (`startResize`/
+ * `startRotate` + `update*` + `end*`). Pointer capture keeps the gesture
+ * alive when the cursor leaves the handle. The bbox/handles re-render
+ * reactively from the previewed `state.document()` mutation in
+ * `TransformService`, so the overlay tracks the gesture in real time.
+ *
+ * Bbox computation is **DOM-based** via `SVGGraphicsElement.getBBox()`
+ * (correct for every node type including paths/text). We re-measure
+ * with `afterEveryRender({ read })` so DOM updates from the renderer
+ * are picked up on the next frame.
  *
  * Handle size stays pixel-constant by scaling with `1/viewport.zoom()`.
- * The bbox outline uses `vector-effect="non-scaling-stroke"` for the
- * same reason on stroke width.
+ * The bbox outline uses `vector-effect="non-scaling-stroke"`.
  *
  * Usage (inside a `<svge-renderer>`):
  * ```html
@@ -86,6 +95,9 @@ const HANDLE_DATA_ATTR = 'data-svge-handle';
             [attr.height]="handleSize()"
             [attr.data-svge-handle]="h.anchor"
             [attr.aria-label]="'Resize ' + h.anchor"
+            (pointerdown)="onResizeHandlePointerDown($event, h.anchor)"
+            (pointermove)="onHandlePointerMove($event)"
+            (pointerup)="onHandlePointerUp($event)"
           ></svg:rect>
         }
 
@@ -104,6 +116,9 @@ const HANDLE_DATA_ATTR = 'data-svge-handle';
             [attr.r]="handleHalf()"
             [attr.data-svge-handle]="'rotation'"
             aria-label="Rotation"
+            (pointerdown)="onRotationHandlePointerDown($event)"
+            (pointermove)="onHandlePointerMove($event)"
+            (pointerup)="onHandlePointerUp($event)"
           ></svg:circle>
         }
       }
@@ -128,12 +143,19 @@ const HANDLE_DATA_ATTR = 'data-svge-handle';
       stroke-width: 1;
       vector-effect: non-scaling-stroke;
       cursor: pointer;
+      touch-action: none;
     }
     .handle.resize {
       cursor: grab;
     }
+    .handle.resize:active {
+      cursor: grabbing;
+    }
     .handle.rotation {
       cursor: grab;
+    }
+    .handle.rotation:active {
+      cursor: grabbing;
     }
     .rotation-stem {
       stroke: #1976d2;
@@ -149,6 +171,7 @@ export class SelectionOverlay {
   private readonly selection = inject(SelectionService);
   private readonly state = inject(EditorStateService);
   private readonly viewport = inject(ViewportService);
+  private readonly transform = inject(TransformService);
 
   private readonly _focusBBox = signal<BoundingBox | null>(null);
   private readonly _hoverBBox = signal<BoundingBox | null>(null);
@@ -169,17 +192,16 @@ export class SelectionOverlay {
     const b = this._focusBBox();
     if (b === null) return [];
     const a = allAnchors(b);
-    // 8 of the 9 anchors — center is for pivot, not a resize handle
     return [
-      { anchor: 'tl', ...a.tl },
-      { anchor: 'tc', ...a.tc },
-      { anchor: 'tr', ...a.tr },
-      { anchor: 'ml', ...a.ml },
-      { anchor: 'mr', ...a.mr },
-      { anchor: 'bl', ...a.bl },
-      { anchor: 'bc', ...a.bc },
-      { anchor: 'br', ...a.br },
-    ] as const;
+      { anchor: 'tl' as ResizeAnchor, ...a.tl },
+      { anchor: 'tc' as ResizeAnchor, ...a.tc },
+      { anchor: 'tr' as ResizeAnchor, ...a.tr },
+      { anchor: 'ml' as ResizeAnchor, ...a.ml },
+      { anchor: 'mr' as ResizeAnchor, ...a.mr },
+      { anchor: 'bl' as ResizeAnchor, ...a.bl },
+      { anchor: 'bc' as ResizeAnchor, ...a.bc },
+      { anchor: 'br' as ResizeAnchor, ...a.br },
+    ];
   });
 
   protected readonly rotationHandle = computed(() => {
@@ -196,13 +218,58 @@ export class SelectionOverlay {
   });
 
   constructor() {
-    // After every render, query the DOM for fresh bboxes. We deliberately
-    // depend on selection + state.document signals here so any of those
-    // changes triggers a re-render that, in turn, re-runs this read.
     afterEveryRender({
       read: () => this.recomputeBBoxes(),
     });
   }
+
+  // ── Resize handle interactions ───────────────────────────────────
+
+  protected onResizeHandlePointerDown(event: PointerEvent, anchor: ResizeAnchor): void {
+    const focus = this.selection.focusId();
+    const b = this._focusBBox();
+    if (focus === null || b === null) return;
+
+    this.transform.startResize(focus, anchor, b);
+    capturePointer(event);
+    event.stopPropagation();
+  }
+
+  // ── Rotation handle interactions ─────────────────────────────────
+
+  protected onRotationHandlePointerDown(event: PointerEvent): void {
+    const focus = this.selection.focusId();
+    const b = this._focusBBox();
+    if (focus === null || b === null) return;
+    const start = this.screenToDoc(event.clientX, event.clientY);
+    if (start === null) return;
+
+    const pivot = this.transform.resolvePivot(b);
+    this.transform.startRotate(focus, pivot, start);
+    capturePointer(event);
+    event.stopPropagation();
+  }
+
+  // ── Shared move/up handlers (active for any drag started above) ─
+
+  protected onHandlePointerMove(event: PointerEvent): void {
+    const ds = this.transform.dragState();
+    if (ds === null) return;
+    const point = this.screenToDoc(event.clientX, event.clientY);
+    if (point === null) return;
+    if (ds.kind === 'resize') this.transform.updateResize(point);
+    else if (ds.kind === 'rotate') this.transform.updateRotate(point);
+  }
+
+  protected onHandlePointerUp(event: PointerEvent): void {
+    const ds = this.transform.dragState();
+    if (ds === null) return;
+    if (ds.kind === 'resize') this.transform.endResize();
+    else if (ds.kind === 'rotate') this.transform.endRotate();
+    releasePointer(event);
+  }
+
+  // ── Bbox recomputation ──────────────────────────────────────────
 
   private recomputeBBoxes(): void {
     const svg = this.elRef.nativeElement.ownerSVGElement;
@@ -211,7 +278,6 @@ export class SelectionOverlay {
       this.maybeSet(this._hoverBBox, null);
       return;
     }
-    // Establish signal dependencies so a change re-triggers render.
     const ids = this.selection.selectedIds();
     const focus = this.selection.focusId();
     const hover = this.selection.hoverId();
@@ -227,6 +293,21 @@ export class SelectionOverlay {
 
     const hoverBBox = hover !== null && !ids.has(hover) ? getRenderedNodeBBox(svg, hover) : null;
     this.maybeSet(this._hoverBBox, hoverBBox);
+  }
+
+  // ── Internal helpers ─────────────────────────────────────────────
+
+  private screenToDoc(clientX: number, clientY: number): Point | null {
+    const svg = this.elRef.nativeElement.ownerSVGElement;
+    if (svg === null) return null;
+    const ctm = svg.getScreenCTM();
+    if (ctm === null) return null;
+    const inverse = ctm.inverse();
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const userSpace = pt.matrixTransform(inverse);
+    return { x: userSpace.x, y: userSpace.y };
   }
 
   /**
@@ -246,6 +327,28 @@ export class SelectionOverlay {
 
 function bboxesEqual(a: BoundingBox, b: BoundingBox): boolean {
   return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
+function capturePointer(event: PointerEvent): void {
+  const target = event.target as Element & { setPointerCapture?(id: number): void };
+  if (typeof target.setPointerCapture === 'function') {
+    try {
+      target.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore (some browsers/elements reject capture)
+    }
+  }
+}
+
+function releasePointer(event: PointerEvent): void {
+  const target = event.target as Element & { releasePointerCapture?(id: number): void };
+  if (typeof target.releasePointerCapture === 'function') {
+    try {
+      target.releasePointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 /** Re-export for convenience: caller may want to reference the data attribute name. */

@@ -34,6 +34,8 @@
     aria-label="SVG canvas"
     (pointerdown)="onCanvasPointerDown($event)"
     (pointermove)="onCanvasPointerMove($event)"
+    (pointerup)="onCanvasPointerUp($event)"
+    (pointercancel)="onCanvasPointerUp($event)"
     (pointerleave)="onCanvasPointerLeave()"
   >
     <svge-renderer

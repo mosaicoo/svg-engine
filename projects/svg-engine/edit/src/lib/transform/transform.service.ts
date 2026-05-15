@@ -1,65 +1,110 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { type NodeId, type Point } from 'svg-engine/core';
-import { SelectionService } from '../selection/selection.service';
+import {
+  CommandBus,
+  composeAnchoredScale,
+  composePivotRotation,
+  EditorStateService,
+  findNodeById,
+  multiply,
+  MoveNodeCommand,
+  type NodeId,
+  type Point,
+  ResizeNodeCommand,
+  RotateNodeCommand,
+  type SvgNode,
+  type Transform,
+  translate,
+  updateNode,
+} from 'svg-engine/core';
 import { allAnchors, type BBoxAnchor } from '../geometry/bbox-anchors';
+import { SelectionService } from '../selection/selection.service';
+
+/** Threshold under which a pointer release is treated as a click, not a drag. */
+const CLICK_THRESHOLD_DOC_UNITS = 0.5;
 
 /**
- * Editor-side transformation state. **Bloco 2 scope**: only the rotation
- * pivot management (D-022 Affinity-grade). Drag/resize/rotate command
- * dispatch will be added in Bloco 3.
+ * Snapshot of the active interactive gesture. Discriminated by `kind`.
+ * Created by `start*`, mutated by `update*`, cleared by `end*` /
+ * `cancelGesture`. The presence of a non-null `dragState` is the signal
+ * that tells the playground (and other consumers) "we're inside a drag —
+ * do not run hit-testing for hover, do not start another gesture".
+ */
+export type DragState =
+  | {
+      readonly kind: 'move';
+      readonly nodeId: NodeId;
+      readonly startTransform: Transform;
+      readonly startPoint: Point;
+      currentDelta: Point;
+    }
+  | {
+      readonly kind: 'rotate';
+      readonly nodeId: NodeId;
+      readonly startTransform: Transform;
+      readonly pivot: Point;
+      readonly startPoint: Point;
+      currentAngleRad: number;
+    }
+  | {
+      readonly kind: 'resize';
+      readonly nodeId: NodeId;
+      readonly startTransform: Transform;
+      /** The fixed point (= the bbox anchor opposite to the dragged handle). */
+      readonly anchor: Point;
+      /** The initial position of the dragged handle in document coords. */
+      readonly handleStart: Point;
+      /** Which axes can scale (corners both; edges one only). */
+      readonly scaleAxes: { readonly x: boolean; readonly y: boolean };
+      currentScale: { readonly sx: number; readonly sy: number };
+    };
+
+/**
+ * Editor-side transformation state. **Bloco 3** adds interactive gesture
+ * management (drag/resize/rotate) on top of the Bloco-2 pivot skeleton.
  *
- * **Pivot model (D-022)**:
+ * **Pivot model (D-022 Affinity-grade)**:
  * - Default pivot for any selection = center of its bounding box.
- * - Per-node custom pivots are stored in `customPivots` keyed by
- *   `NodeId`, in **node-local** coordinates relative to the node's
- *   bounding box. This way a custom pivot follows the node when it is
- *   moved/scaled/rotated later (Affinity behaviour).
- * - For multi-selection, pivot is **transient** (relative to the
- *   composite bbox); changing the selection composition resets it.
- *   Tracked in `multiPivotLocal` keyed by a stable signature.
+ * - Per-node custom pivots in `customPivots` (keyed by `NodeId`),
+ *   stored in **node-local** coords so the pivot follows the node.
+ * - Multi-selection pivot is transient and resets on composition change.
  *
- * **Persistence semantics**:
- * - `setPivot(point, bbox)` / `setPivotAnchor(anchor)` store the pivot
- *   in **local coordinates** so it survives subsequent transforms.
- * - `resetPivot()` removes the entry (default = center).
- * - `clearAllPivots()` clears the whole map (e.g., when loading a new
- *   document).
+ * **Gesture model (Bloco 3)**:
+ * - `start{Move,Rotate,Resize}`: capture the node's transform snapshot
+ *   and seed `dragState`.
+ * - `update{Move,Rotate,Resize}`: mutate `EditorStateService.document`
+ *   directly for **interactive preview** (no command bus dispatch — that
+ *   would pollute the undo stack with one entry per pointer event).
+ * - `end{Move,Rotate,Resize}`: revert the document to the pre-gesture
+ *   transform, then dispatch a single command via {@link CommandBus} so
+ *   the gesture is represented by exactly one undoable step.
+ * - `cancelGesture`: revert without dispatching (Esc handler).
  *
- * **What the service does NOT do (yet)**:
- * - Compute the bounding box of the current selection — that's the
- *   overlay's job (DOM-based via `getRenderedNodeBBox`). The service
- *   takes a `bbox` argument when the caller has it.
- * - Dispatch any commands. Bloco 3 adds `startRotate`/`rotate`/`endRotate`
- *   and a `RotateNodeCommand` that consumes `pivot()`.
+ * **Why revert-then-dispatch**: the command's `execute()` captures
+ * `previousTransform` at execute time. To make undo restore the
+ * pre-gesture state (not the previewed end state), we revert first so
+ * the captured "previous" matches what the user expects.
  */
 @Injectable({ providedIn: 'root' })
 export class TransformService {
   private readonly selection = inject(SelectionService);
+  private readonly state = inject(EditorStateService);
+  private readonly bus = inject(CommandBus);
 
-  /**
-   * Pivot custom por nó, em coordenadas LOCAIS do bbox do nó (`{x, y}`
-   * onde `(0,0)` = canto superior-esquerdo do bbox local, `(1,1)` =
-   * canto inferior-direito). Permite que o pivot "siga" o nó sob
-   * transformações.
-   */
+  // ── Pivot persistence (D-022.persist) ────────────────────────────
+
   private readonly _customPivots = signal<ReadonlyMap<NodeId, Point>>(new Map());
-
-  /**
-   * Pivot transient para multi-seleção, em coordenadas locais relativas
-   * à bbox composta. Reset automático quando a composição da seleção
-   * muda — ver {@link onSelectionMaybeChanged}.
-   */
   private readonly _multiPivotLocal = signal<Point | null>(null);
-
-  /** Última assinatura de seleção observada para detectar mudança de composição. */
   private readonly _lastMultiSignature = signal<string>('');
 
-  readonly customPivots = this._customPivots.asReadonly();
+  // ── Gesture state (Bloco 3) ──────────────────────────────────────
 
-  /**
-   * Computed: a chave do "modo pivot" atual. `'single'` para uma seleção
-   * única, `'multi'` para seleção múltipla, `'none'` quando vazia.
-   */
+  private readonly _dragState = signal<DragState | null>(null);
+
+  readonly customPivots = this._customPivots.asReadonly();
+  readonly dragState = this._dragState.asReadonly();
+  readonly isDragging = computed(() => this._dragState() !== null);
+
+  /** `'single'` for one-node selection, `'multi'` for many, `'none'` if empty. */
   readonly pivotMode = computed<'none' | 'single' | 'multi'>(() => {
     const n = this.selection.count();
     if (n === 0) return 'none';
@@ -69,9 +114,7 @@ export class TransformService {
 
   /**
    * Apaga o pivot transient de multi-seleção quando a **composição** da
-   * seleção muda (cardinalidade ou conjunto de IDs). Chamada interna do
-   * componente quando ele observa a seleção; também pode ser invocada
-   * por consumidores avançados.
+   * seleção muda (cardinalidade ou conjunto de IDs).
    */
   syncPivotForSelection(): void {
     const ids = this.selection.selectedIds();
@@ -82,14 +125,7 @@ export class TransformService {
     }
   }
 
-  /**
-   * Resolve o pivot atual em coordenadas DO DOCUMENTO, dado o `bbox`
-   * atual da seleção (que o overlay computa via DOM). Quando não há
-   * pivot custom registrado, devolve o **centro** do `bbox`.
-   *
-   * @param bbox bounding box atual da seleção em coords do documento
-   *             (passado pelo chamador para evitar coupling DOM aqui).
-   */
+  /** Resolve o pivot atual em coordenadas DO DOCUMENTO. */
   resolvePivot(bbox: { x: number; y: number; width: number; height: number }): Point {
     const mode = this.pivotMode();
     if (mode === 'none') return { x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height / 2 };
@@ -101,19 +137,11 @@ export class TransformService {
     return localToDoc(local, bbox);
   }
 
-  /**
-   * Define o pivot a partir de um ponto em coords do documento (free-drag).
-   * O `bbox` é necessário para converter para coords locais e armazenar.
-   */
   setPivot(point: Point, bbox: { x: number; y: number; width: number; height: number }): void {
     const local = docToLocal(point, bbox);
     this.storeLocalPivot(local);
   }
 
-  /**
-   * Define o pivot snapando em um dos 9 anchors do bbox (D-022.picker /
-   * D-022.snap). Internamente armazena como ponto local — sem ambiguidade.
-   */
   setPivotAnchor(
     anchor: BBoxAnchor,
     bbox: { x: number; y: number; width: number; height: number },
@@ -122,11 +150,6 @@ export class TransformService {
     this.setPivot(point, bbox);
   }
 
-  /**
-   * Reseta o pivot para o default (centro do bbox). Para single
-   * selection, remove a entrada de `customPivots`. Para multi, limpa o
-   * `_multiPivotLocal`.
-   */
   resetPivot(): void {
     const mode = this.pivotMode();
     if (mode === 'single') {
@@ -140,11 +163,187 @@ export class TransformService {
     }
   }
 
-  /** Limpa **todos** os pivots custom. Use ao carregar novo documento. */
   clearAllPivots(): void {
     this._customPivots.set(new Map());
     this._multiPivotLocal.set(null);
     this._lastMultiSignature.set('');
+  }
+
+  // ── Move gesture ─────────────────────────────────────────────────
+
+  /**
+   * Begin a move gesture for `nodeId`. Captures the node's current
+   * transform as the snapshot to revert to on cancel/commit. `startPoint`
+   * is the pointer position in **document coords** at gesture start.
+   */
+  startMove(nodeId: NodeId, startPoint: Point): void {
+    if (this._dragState() !== null) return;
+    const node = findNodeById(this.state.document().root, nodeId);
+    if (node === null) return;
+    this._dragState.set({
+      kind: 'move',
+      nodeId,
+      startTransform: node.transform,
+      startPoint,
+      currentDelta: { x: 0, y: 0 },
+    });
+  }
+
+  /**
+   * Update an in-progress move gesture. `currentPoint` is the current
+   * pointer position in **document coords**. Mutates state directly
+   * (preview); no command dispatched.
+   */
+  updateMove(currentPoint: Point): void {
+    const ds = this._dragState();
+    if (ds === null || ds.kind !== 'move') return;
+    const dx = currentPoint.x - ds.startPoint.x;
+    const dy = currentPoint.y - ds.startPoint.y;
+    const newTransform = multiply(translate(dx, dy), ds.startTransform);
+    this.applyPreviewTransform(ds.nodeId, newTransform);
+    ds.currentDelta = { x: dx, y: dy };
+  }
+
+  /**
+   * Finish a move gesture. Reverts the preview, then dispatches a
+   * {@link MoveNodeCommand} for the final delta — single undo entry.
+   * A negligible delta (below {@link CLICK_THRESHOLD_DOC_UNITS}) is
+   * treated as a no-op (click without drag).
+   */
+  endMove(): void {
+    const ds = this._dragState();
+    if (ds === null || ds.kind !== 'move') return;
+    const { nodeId, startTransform, currentDelta } = ds;
+    this._dragState.set(null);
+    this.applyPreviewTransform(nodeId, startTransform);
+    if (
+      Math.abs(currentDelta.x) < CLICK_THRESHOLD_DOC_UNITS &&
+      Math.abs(currentDelta.y) < CLICK_THRESHOLD_DOC_UNITS
+    ) {
+      return;
+    }
+    this.bus.dispatch(new MoveNodeCommand(nodeId, currentDelta.x, currentDelta.y));
+  }
+
+  // ── Rotate gesture ───────────────────────────────────────────────
+
+  /**
+   * Begin a rotation gesture. `pivot` is the rotation pivot in document
+   * coords (typically the user-edited pivot from the
+   * `<svge-rotation-pivot>` overlay). `startPoint` is the pointer
+   * position at gesture start.
+   */
+  startRotate(nodeId: NodeId, pivot: Point, startPoint: Point): void {
+    if (this._dragState() !== null) return;
+    const node = findNodeById(this.state.document().root, nodeId);
+    if (node === null) return;
+    this._dragState.set({
+      kind: 'rotate',
+      nodeId,
+      startTransform: node.transform,
+      pivot,
+      startPoint,
+      currentAngleRad: 0,
+    });
+  }
+
+  /** Update an in-progress rotation gesture using the current pointer position. */
+  updateRotate(currentPoint: Point): void {
+    const ds = this._dragState();
+    if (ds === null || ds.kind !== 'rotate') return;
+    const startAngle = Math.atan2(ds.startPoint.y - ds.pivot.y, ds.startPoint.x - ds.pivot.x);
+    const currentAngle = Math.atan2(currentPoint.y - ds.pivot.y, currentPoint.x - ds.pivot.x);
+    const angleRad = currentAngle - startAngle;
+    const newTransform = composePivotRotation(ds.startTransform, angleRad, ds.pivot);
+    this.applyPreviewTransform(ds.nodeId, newTransform);
+    ds.currentAngleRad = angleRad;
+  }
+
+  endRotate(): void {
+    const ds = this._dragState();
+    if (ds === null || ds.kind !== 'rotate') return;
+    const { nodeId, startTransform, pivot, currentAngleRad } = ds;
+    this._dragState.set(null);
+    this.applyPreviewTransform(nodeId, startTransform);
+    if (Math.abs(currentAngleRad) < 1e-4) return;
+    this.bus.dispatch(new RotateNodeCommand(nodeId, currentAngleRad, pivot));
+  }
+
+  // ── Resize gesture ───────────────────────────────────────────────
+
+  /**
+   * Begin a resize gesture. `bbox` is the bounding box of the node
+   * **before** the gesture, in document coords. `handle` identifies
+   * which of the 8 resize anchors the user grabbed; the **opposite**
+   * anchor becomes the fixed scaling pivot.
+   *
+   * Edge handles (TC, BC, ML, MR) constrain scaling to a single axis;
+   * corner handles (TL, TR, BL, BR) scale both axes independently.
+   */
+  startResize(
+    nodeId: NodeId,
+    handle: Exclude<BBoxAnchor, 'mc'>,
+    bbox: { x: number; y: number; width: number; height: number },
+  ): void {
+    if (this._dragState() !== null) return;
+    const node = findNodeById(this.state.document().root, nodeId);
+    if (node === null) return;
+    const anchors = allAnchors(bbox);
+    const opposite = OPPOSITE_ANCHOR[handle];
+    this._dragState.set({
+      kind: 'resize',
+      nodeId,
+      startTransform: node.transform,
+      anchor: anchors[opposite],
+      handleStart: anchors[handle],
+      scaleAxes: SCALE_AXES_FOR_HANDLE[handle],
+      currentScale: { sx: 1, sy: 1 },
+    });
+  }
+
+  /** Update an in-progress resize gesture. */
+  updateResize(currentPoint: Point): void {
+    const ds = this._dragState();
+    if (ds === null || ds.kind !== 'resize') return;
+    const { anchor, handleStart, scaleAxes } = ds;
+    const denomX = handleStart.x - anchor.x;
+    const denomY = handleStart.y - anchor.y;
+    const sx = scaleAxes.x && denomX !== 0 ? (currentPoint.x - anchor.x) / denomX : 1;
+    const sy = scaleAxes.y && denomY !== 0 ? (currentPoint.y - anchor.y) / denomY : 1;
+    if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
+    const newTransform = composeAnchoredScale(ds.startTransform, sx, sy, anchor);
+    this.applyPreviewTransform(ds.nodeId, newTransform);
+    ds.currentScale = { sx, sy };
+  }
+
+  endResize(): void {
+    const ds = this._dragState();
+    if (ds === null || ds.kind !== 'resize') return;
+    const { nodeId, startTransform, anchor, currentScale } = ds;
+    this._dragState.set(null);
+    this.applyPreviewTransform(nodeId, startTransform);
+    if (Math.abs(currentScale.sx - 1) < 1e-4 && Math.abs(currentScale.sy - 1) < 1e-4) return;
+    this.bus.dispatch(new ResizeNodeCommand(nodeId, anchor, currentScale.sx, currentScale.sy));
+  }
+
+  // ── Cancel + helpers ─────────────────────────────────────────────
+
+  /**
+   * Abort any in-progress gesture, restoring the pre-gesture transform
+   * without dispatching a command. Wired to Esc in the playground.
+   */
+  cancelGesture(): void {
+    const ds = this._dragState();
+    if (ds === null) return;
+    this.applyPreviewTransform(ds.nodeId, ds.startTransform);
+    this._dragState.set(null);
+  }
+
+  private applyPreviewTransform(nodeId: NodeId, transform: Transform): void {
+    const doc = this.state.document();
+    const nextRoot = updateNode<SvgNode>(doc.root, nodeId, (n) => ({ ...n, transform }));
+    if (nextRoot === doc.root) return;
+    this.state.setDocument({ ...doc, root: nextRoot });
   }
 
   private storeLocalPivot(local: Point): void {
@@ -167,20 +366,37 @@ export class TransformService {
   }
 }
 
-/**
- * Stable string signature of a selection set, independent of insertion
- * order. Two selections with the same members produce the same signature.
- */
+/** Map of each non-center anchor to its opposite (scaling pivot). */
+const OPPOSITE_ANCHOR: Readonly<Record<Exclude<BBoxAnchor, 'mc'>, BBoxAnchor>> = {
+  tl: 'br',
+  tc: 'bc',
+  tr: 'bl',
+  ml: 'mr',
+  mr: 'ml',
+  bl: 'tr',
+  bc: 'tc',
+  br: 'tl',
+} as const;
+
+/** Which axes are free to scale per handle: corners scale both, edges one only. */
+const SCALE_AXES_FOR_HANDLE: Readonly<
+  Record<Exclude<BBoxAnchor, 'mc'>, { readonly x: boolean; readonly y: boolean }>
+> = {
+  tl: { x: true, y: true },
+  tr: { x: true, y: true },
+  bl: { x: true, y: true },
+  br: { x: true, y: true },
+  tc: { x: false, y: true },
+  bc: { x: false, y: true },
+  ml: { x: true, y: false },
+  mr: { x: true, y: false },
+} as const;
+
 function computeSelectionSignature(ids: ReadonlySet<NodeId>): string {
   if (ids.size === 0) return '';
   return Array.from(ids).sort().join('|');
 }
 
-/**
- * Convert a point from document coordinates into local bbox coordinates
- * `(0,0) = top-left`, `(1,1) = bottom-right`. Survives later transforms
- * because the local coords are stable.
- */
 function docToLocal(
   point: Point,
   bbox: { x: number; y: number; width: number; height: number },
@@ -192,7 +408,6 @@ function docToLocal(
   };
 }
 
-/** Inverse of {@link docToLocal}. */
 function localToDoc(
   local: Point,
   bbox: { x: number; y: number; width: number; height: number },

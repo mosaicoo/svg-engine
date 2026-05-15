@@ -6,6 +6,92 @@
 
 ---
 
+## 2026-05-15 — Fase 3 Bloco 3: Transform interativo (move/rotate/resize)
+
+**O que foi entregue**
+
+Os handles do overlay agora são **funcionais**: arrastar uma forma a
+move, arrastar a rotation handle a gira em torno do pivot atual,
+arrastar qualquer dos 8 resize handles a redimensiona com o handle
+oposto como âncora. Tudo undoável (1 entrada por gesto).
+
+**Core** (`svg-engine/core/src/lib/commands/`):
+
+- `RotateNodeCommand(nodeId, angleRad, pivot)`: aplica
+  `T(pivot) ⋅ R(θ) ⋅ T(-pivot) ⋅ existing`. Captura `previousTransform`
+  no execute, restaura no undo. Helper puro `composePivotRotation`
+  exportado para previews.
+- `ResizeNodeCommand(nodeId, anchor, sx, sy)`: aplica
+  `T(anchor) ⋅ S(sx, sy) ⋅ T(-anchor) ⋅ existing`. Anchor = handle
+  oposto (Figma/Illustrator-Tool style). Rejeita scale factors não-
+  finitos no construtor. Helper puro `composeAnchoredScale` exportado.
+- 12 testes Vitest cobrindo math + execute/undo round-trip + edge cases.
+
+**TransformService expandido** (`svg-engine/edit/src/lib/transform/`):
+
+- Signals: `dragState` (discriminated union por kind: move/rotate/
+  resize), `isDragging` computed.
+- APIs por gesto: `start{Move,Rotate,Resize}`, `update{Move,Rotate,Resize}`,
+  `end{Move,Rotate,Resize}`, `cancelGesture`.
+- **Padrão revert+commit**: cada `update*` mutua `state.document` para
+  preview imediato (sem command bus). `end*` faz revert ao snapshot
+  inicial e dispatcha **um único** comando via `CommandBus`. Resultado:
+  1 entrada de undo por gesto inteiro.
+- Tabela `OPPOSITE_ANCHOR` mapeia handles a anchors (`tl↔br`, `tc↔bc`, etc.).
+- `SCALE_AXES_FOR_HANDLE`: corner handles escalam ambos; edge handles
+  (TC/BC/ML/MR) constrangem 1 axis.
+- 9 testes Vitest cobrindo move/rotate/resize gestures + cancelGesture
+  - concurrent gesture rejection.
+
+**SelectionOverlay**:
+
+- Pointer handlers nos 8 resize handles + rotation handle.
+- Pointer capture em pointerdown; release em pointerup. Eventos
+  durante drag continuam roteados ao handle inicial mesmo se o
+  cursor sair.
+- `screenToDoc()` via `svg.getScreenCTM().inverse()` + `createSVGPoint`.
+- `event.stopPropagation()` previne canvas handler do playground.
+
+**Playground**:
+
+- Body-drag com threshold de **3 CSS px**:
+  - Pointer-down sobre nó → arma `potentialDrag` + select se necessário
+    - pointer capture.
+  - Pointer-move durante potential drag: se delta ≥ 3px → `startMove`
+    - `updateMove`. Se já em drag → `updateMove`.
+  - Pointer-up: `endMove` (commit ou no-op se delta < threshold).
+- **Esc** keydown global → `transform.cancelGesture()` quando `isDragging`.
+- Hover handling intacto (só roda quando não há drag ativo).
+
+**Validação**:
+
+- `ng build svg-engine`: OK (4 entry points).
+- `ng lint`: OK ambos projetos.
+- `ng test svg-engine`: **196 testes verdes em 17 arquivos** (+21 novos).
+- `ng build playground`: OK ~1.4MB dev.
+
+**Comportamento esperado no preview**:
+
+1. Selecione uma forma → overlay aparece.
+2. **Arraste a forma** (clique no corpo + arraste) → move; ao soltar
+   grava (1 undo entry).
+3. **Arraste qualquer handle de canto/lado** → redimensiona com handle
+   oposto fixo; soltar grava.
+4. **Arraste a rotation handle** → gira em torno do pivot atual
+   (centro por default; arraste o crosshair antes para mudar);
+   soltar grava.
+5. **Esc** durante qualquer drag → cancela e restaura sem gravar.
+6. **Undo** desfaz o gesto inteiro, não passos intermediários.
+
+**D-022 completo até Fase 3**: pivot Affinity-grade (free-drag, snap-
+to-anchors, 9-point picker, persistência per-node) + rotação em torno
+do pivot funcional. Pivot **não afeta** scale (D-022b futura).
+
+**Próximo (Bloco 4)**: `<svge-marquee>` (drag-to-select retangular),
+`SnapService` (snap durante move/resize), alinhamento/distribuição.
+
+---
+
 ## 2026-05-15 — Fase 3 Bloco 2: Selection overlay + Pivot Affinity-grade
 
 **O que foi entregue**

@@ -79,15 +79,19 @@ a fase do roadmap implementa o conteúdo.
 
 #### Commands (`./lib/commands/`)
 
-| Símbolo                                                              | Descrição                                         |
-| -------------------------------------------------------------------- | ------------------------------------------------- |
-| `Command` (interface)                                                | `id`, `label`, `execute(ctx)`, `undo(ctx)`        |
-| `CommandResult`, `ok()`, `fail(error)`                               | resultado padronizado                             |
-| `CommandContext`                                                     | `{ state: EditorStateService }`                   |
-| `InsertNodeCommand(parentId, node, index?)`                          | inserção reversível                               |
-| `RemoveNodeCommand(nodeId)`                                          | remoção reversível (captura posição original)     |
-| `MoveNodeCommand(nodeId, dx, dy)`                                    | translação composta sobre transform existente     |
-| `SetPropertyCommand<T extends SvgNode, K extends keyof T>(id, K, V)` | set/unset de uma propriedade qualquer (≠ id/type) |
+| Símbolo                                                              | Descrição                                                                                    |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `Command` (interface)                                                | `id`, `label`, `execute(ctx)`, `undo(ctx)`                                                   |
+| `CommandResult`, `ok()`, `fail(error)`                               | resultado padronizado                                                                        |
+| `CommandContext`                                                     | `{ state: EditorStateService }`                                                              |
+| `InsertNodeCommand(parentId, node, index?)`                          | inserção reversível                                                                          |
+| `RemoveNodeCommand(nodeId)`                                          | remoção reversível (captura posição original)                                                |
+| `MoveNodeCommand(nodeId, dx, dy)`                                    | translação composta sobre transform existente                                                |
+| `SetPropertyCommand<T extends SvgNode, K extends keyof T>(id, K, V)` | set/unset de uma propriedade qualquer (≠ id/type)                                            |
+| `RotateNodeCommand(nodeId, angleRad, pivot)`                         | rotação em torno de pivot arbitrário (matriz `T(p)·R(θ)·T(-p)·prev`); undo restaura snapshot |
+| `ResizeNodeCommand(nodeId, anchor, sx, sy)`                          | scale em torno de anchor fixo (handle oposto = âncora); rejeita scale factors não-finitos    |
+| `composePivotRotation(existing, angleRad, pivot)` (helper puro)      | retorna a matriz pós-rotação sem dispatchar; útil para preview durante drag                  |
+| `composeAnchoredScale(existing, sx, sy, anchor)` (helper puro)       | retorna a matriz pós-scale sem dispatchar; útil para preview durante drag                    |
 
 #### Services (`./lib/state/`, `./lib/history/`, `./lib/command-bus/`)
 
@@ -181,14 +185,14 @@ _(populado quando Fase 5 entregar)_
 
 _(populado quando Fase 5 entregar)_
 
-### `svg-engine/edit` (Fase 3 Blocos 1+2) ⏳ em progresso
+### `svg-engine/edit` (Fase 3 Blocos 1+2+3) ⏳ em progresso
 
 > Seleção, transformação, canvas interativo, plugins. **Zero deps de UI Material** (D-017).
 >
 > **Bloco 1** ✅ entregue: `SelectionService` + hit-testing helpers.
 > **Bloco 2** ✅ entregue: geometry utils + `TransformService` skeleton + overlay visual + pivot Affinity-grade interativo.
-> **Bloco 3** ⏳ próximo: `TransformService` expandido (drag/resize/rotate); `RotateNodeCommand`, `ResizeNodeCommand`.
-> **Bloco 4** ⏳: `<svge-marquee>`, `SnapService`, alignment.
+> **Bloco 3** ✅ entregue: `TransformService` expandido com gestos move/rotate/resize; comandos `RotateNodeCommand` e `ResizeNodeCommand` no core; handles do overlay funcionais; body-drag no consumidor (playground).
+> **Bloco 4** ⏳ próximo: `<svge-marquee>`, `SnapService`, alignment.
 > **Bloco 5** ⏳: `ToolRegistry` (D-020 plugin point).
 
 #### Selection (`./lib/selection/`)
@@ -227,11 +231,12 @@ _(populado quando Fase 5 entregar)_
 | `getRenderedNodeBBox(svgRoot, nodeId): BoundingBox \| null`           | Bbox em coords do documento (aplica transforms ancestrais via `parseTransformAttr` + core matrix) |
 | `getCombinedBBox(svgRoot, nodeIds): BoundingBox \| null`              | União AABB de várias bboxes (multi-seleção)                                                       |
 
-#### Transform (Bloco 2 — pivot only; Bloco 3 expande)
+#### Transform (Bloco 2 pivot + Bloco 3 gestos)
 
-| Símbolo                                      | Descrição                                                                                                                                                                                                              |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TransformService` (`@Injectable({ root })`) | Pivot Affinity-grade (D-022). Signals: `customPivots`, `pivotMode`. APIs: `resolvePivot(bbox)`, `setPivot(point, bbox)`, `setPivotAnchor(anchor, bbox)`, `resetPivot()`, `clearAllPivots()`, `syncPivotForSelection()` |
+| Símbolo                                      | Descrição                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TransformService` (`@Injectable({ root })`) | **Pivot** (D-022): signals `customPivots`, `pivotMode`. APIs `resolvePivot(bbox)`, `setPivot(point, bbox)`, `setPivotAnchor(anchor, bbox)`, `resetPivot()`, `clearAllPivots()`, `syncPivotForSelection()`. **Gestos** (Bloco 3): signal `dragState` (move/rotate/resize), computed `isDragging`. APIs: `startMove`/`updateMove`/`endMove`, `startRotate`/`updateRotate`/`endRotate`, `startResize`/`updateResize`/`endResize`, `cancelGesture()`. Padrão revert+commit: preview imediato durante drag; single command dispatch no end. |
+| `DragState` (type)                           | Discriminated union por `kind`: `'move'`, `'rotate'` ou `'resize'`. Cada variante carrega `nodeId`, `startTransform` e dados específicos.                                                                                                                                                                                                                                                                                                                                                                                              |
 
 **Persistência per-node**: pivot custom armazenado em coordenadas
 **node-local** `(0,0)..(1,1)` para sobreviver a movimentação/scale do
