@@ -13,16 +13,22 @@ import { ViewportService } from '../viewport/viewport.service';
  * - `tree` (required): the {@link SvgNode} to render. Typically a
  *   {@link SvgDocument} `root`, but any node is valid (single-node
  *   preview, etc.).
- * - `viewBox` (optional): explicit viewBox to display. When omitted, the
- *   shared {@link ViewportService} drives the viewBox (allowing pan/zoom
- *   from outside this component).
+ * - `viewBox` (optional): **seed** for {@link ViewportService.contentBox}.
+ *   The value is mirrored into the viewport on every change. The actual
+ *   viewBox attribute on the `<svg>` element is **always** derived from
+ *   `viewport.viewBox()`, so pan/zoom calls on `ViewportService` always
+ *   take effect regardless of whether this input is provided.
  * - `width` / `height` (optional): CSS pixel dimensions of the rendered
  *   `<svg>` element. When both are omitted the SVG is sized by its CSS
- *   container.
+ *   container (the component sets `:host` and `svg` to `100%/100%` by
+ *   default).
+ * - `ariaLabel` (optional): accessibility label for the `<svg role="img">`.
  *
- * **Side effects**: when `viewBox` is provided, the renderer mirrors it
- * into the {@link ViewportService}'s `contentBox` so external pan/zoom
- * controls stay in sync if the consumer enables them later.
+ * **Pan/zoom semantics**: at the default viewport state (`zoom=1`,
+ * `pan=0`), `viewport.viewBox()` equals `viewport.contentBox()`, so the
+ * rendered SVG matches the seed exactly. After a `viewport.zoomIn()`
+ * (etc.) call, the rendered viewBox reflects the new state — the
+ * displayed content scales/pans accordingly.
  */
 @Component({
   selector: 'svge-renderer',
@@ -69,18 +75,26 @@ export class SvgeRenderer {
   readonly ariaLabel = input<string | null>(null);
 
   /**
-   * Resolved viewBox: `viewBox` input takes precedence; otherwise the
-   * computed `viewport.viewBox()` (which reflects pan/zoom).
+   * Rendered viewBox attribute. **Always** derived from
+   * `viewport.viewBox()` — which itself is `contentBox` transformed by
+   * current zoom and pan. The optional `viewBox` input feeds the
+   * viewport's `contentBox` (via the constructor effect), making it the
+   * starting point that pan/zoom act upon.
+   *
+   * This single-source-of-truth approach guarantees that any caller of
+   * `ViewportService.zoomIn()`/`pan()`/etc. produces a visible change
+   * regardless of whether `viewBox` was supplied as an input.
    */
   protected readonly viewBoxAttr = computed(() => {
-    const explicit = this.viewBox();
-    const box = explicit ?? this.viewport.viewBox();
+    const box = this.viewport.viewBox();
     return `${box.x} ${box.y} ${box.width} ${box.height}`;
   });
 
   constructor() {
-    // Mirror an explicit viewBox into the viewport so external pan/zoom
-    // stays consistent if the consumer wires it up.
+    // Mirror the explicit viewBox input into the viewport's contentBox.
+    // This keeps the viewport's coordinate space aligned with whatever
+    // document the consumer is showing, so pan/zoom operate over the
+    // intended bounds.
     effect(() => {
       const explicit = this.viewBox();
       if (explicit) this.viewport.setContentBox(explicit);

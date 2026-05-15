@@ -6,6 +6,64 @@
 
 ---
 
+## 2026-05-15 — Fix: zoom/pan agora aplicam mesmo com input viewBox
+
+**Sintoma reportado**: pan/zoom controls no playground não tinham
+efeito visual. Console limpo, sem erro; estado interno do
+`ViewportService` mudava (signal `zoom` atualizava), mas o atributo
+`viewBox` do `<svg>` renderizado nunca refletia a mudança.
+
+**Causa raiz**: o `SvgeRenderer.viewBoxAttr` priorizava o input
+`viewBox` sobre `viewport.viewBox()`:
+
+```typescript
+// ANTES (bugado):
+const box = explicit ?? this.viewport.viewBox(); // explicit ganha
+```
+
+Como o playground passa `[viewBox]="docViewBox"`, o renderer ignorava
+qualquer mudança em `viewport.zoom()` ou `viewport.pan()`.
+
+**Fix**: single source of truth = `ViewportService`. O input `viewBox`
+torna-se um **seed** para `viewport.contentBox` (via effect que já
+existia); o atributo do `<svg>` é **sempre** derivado de
+`viewport.viewBox()`, que aplica zoom + pan sobre o contentBox:
+
+```typescript
+// DEPOIS:
+protected readonly viewBoxAttr = computed(() => {
+  const box = this.viewport.viewBox(); // sempre via viewport
+  return `${box.x} ${box.y} ${box.width} ${box.height}`;
+});
+```
+
+Comportamento resultante:
+
+- `zoom = 1`, `pan = 0` (default): `viewBoxAttr` = `contentBox` (=
+  input `viewBox`). Sem mudança visível, compatível com o
+  comportamento esperado.
+- `zoom = 2`: `viewBoxAttr` mostra metade da `contentBox` (centrada),
+  conteúdo aparece 2× maior na tela.
+- `pan(50, 30)`: `viewBoxAttr` translada o window em 50,30 unidades
+  do conteúdo.
+
+**Tests**:
+
+- 2 novos casos no `svge-renderer.component.spec.ts`:
+  - "zoom on ViewportService updates the rendered viewBox even when
+    input is set"
+  - "pan on ViewportService updates the rendered viewBox even when
+    input is set"
+- Test antigo "uses explicit viewBox when provided" renomeado para
+  "uses explicit viewBox as seed (zoom=1, pan=0 → matches input
+  exactly)" — semântica mais precisa, asserção idêntica.
+- Total: **112 testes verdes em 10 arquivos** (eram 110).
+
+**Docs atualizadas**: `09-api-publica.md` documenta a semântica nova
+do input `viewBox` ("seed para viewport.contentBox").
+
+---
+
 ## 2026-05-15 — Fix bug visual + refactor renderers para SVG-puro
 
 **Sintoma reportado pelo usuário**: ao adicionar formas via playground,

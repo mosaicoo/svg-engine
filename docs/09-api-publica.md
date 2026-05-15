@@ -111,10 +111,10 @@ a fase do roadmap implementa o conteúdo.
 
 #### Top-level (`./lib/renderer/`)
 
-| Símbolo                                             | Descrição                                                              |
-| --------------------------------------------------- | ---------------------------------------------------------------------- |
-| `<svge-renderer>` (`SvgeRenderer`)                  | Renderer raiz: input `tree`, opcional `viewBox/width/height/ariaLabel` |
-| `projectDocumentToRenderer(doc): { tree, viewBox }` | helper para extrair os dois inputs de um `SvgDocument`                 |
+| Símbolo                                             | Descrição                                                                                                                                                                                                                                                      |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<svge-renderer>` (`SvgeRenderer`)                  | Renderer raiz. Inputs: `tree` (req), `viewBox?`, `width?`, `height?`, `ariaLabel?`. Input `viewBox` é **seed** para `viewport.contentBox`; o atributo `viewBox` do `<svg>` é sempre derivado de `viewport.viewBox()` (zoom/pan funcionam mesmo com input set). |
+| `projectDocumentToRenderer(doc): { tree, viewBox }` | helper para extrair os dois inputs de um `SvgDocument`                                                                                                                                                                                                         |
 
 #### Viewport (`./lib/viewport/`)
 

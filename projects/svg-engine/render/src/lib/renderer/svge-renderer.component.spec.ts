@@ -48,14 +48,14 @@ describe('SvgeRenderer', () => {
     expect(svg.getAttribute('aria-label')).toBe('My drawing');
   });
 
-  it('uses explicit viewBox when provided', () => {
+  it('uses explicit viewBox as seed (zoom=1, pan=0 → matches input exactly)', () => {
     const { svg, fixture } = mount();
     fixture.componentInstance.viewBox.set(bbox(10, 20, 100, 50));
     fixture.detectChanges();
     expect(svg.getAttribute('viewBox')).toBe('10 20 100 50');
   });
 
-  it('falls back to ViewportService viewBox when input is null', () => {
+  it('uses ViewportService viewBox when input is null', () => {
     const { svg, viewport, fixture } = mount();
     viewport.setContentBox(bbox(0, 0, 200, 200));
     viewport.reset();
@@ -69,6 +69,35 @@ describe('SvgeRenderer', () => {
     fixture.componentInstance.viewBox.set(bbox(5, 5, 50, 50));
     fixture.detectChanges();
     expect(viewport.contentBox()).toEqual({ x: 5, y: 5, width: 50, height: 50 });
+  });
+
+  it('zoom on ViewportService updates the rendered viewBox even when input is set', () => {
+    const { svg, viewport, fixture } = mount();
+    fixture.componentInstance.viewBox.set(bbox(0, 0, 800, 600));
+    fixture.detectChanges();
+    // Sanity: zoom=1 → viewBox attribute matches the seed
+    expect(svg.getAttribute('viewBox')).toBe('0 0 800 600');
+
+    // Zoom in 2× → window halves to 400×300, centered
+    viewport.setZoom(2);
+    fixture.detectChanges();
+    expect(svg.getAttribute('viewBox')).toBe('200 150 400 300');
+
+    // Zoom back out → original
+    viewport.reset();
+    fixture.detectChanges();
+    expect(svg.getAttribute('viewBox')).toBe('0 0 800 600');
+  });
+
+  it('pan on ViewportService updates the rendered viewBox even when input is set', () => {
+    const { svg, viewport, fixture } = mount();
+    fixture.componentInstance.viewBox.set(bbox(0, 0, 800, 600));
+    fixture.detectChanges();
+    expect(svg.getAttribute('viewBox')).toBe('0 0 800 600');
+
+    viewport.setPan(50, 30);
+    fixture.detectChanges();
+    expect(svg.getAttribute('viewBox')).toBe('50 30 800 600');
   });
 
   it('renders the children of the input tree', () => {
