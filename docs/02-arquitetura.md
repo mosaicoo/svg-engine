@@ -56,27 +56,108 @@ SVGEngine/
 └── tsconfig.json                  # strict + strictTemplates + flags fortes
 ```
 
-## 3. Estrutura-alvo da library (a construir)
+## 3. Estrutura-alvo: multi-entry-point (D-018)
 
-À medida que as features forem implementadas, `projects/svg-engine/src/lib/`
-crescerá segundo a divisão de responsabilidades:
+Library dividida em **secondary entry points** via `ng-packagr` para
+permitir consumo headless (D-017) e tree-shaking real:
 
 ```
-src/lib/
-├── core/             # modelo de dados, comandos, histórico, serviços
-├── canvas/           # componente Canvas SVG (pan/zoom/render)
-├── selection/        # serviço + handles + seleção múltipla
-├── transform/        # drag/resize/rotate/scale + snap/align
-├── layers/           # painel de camadas, agrupamento
-├── inspector/        # propriedades do elemento selecionado
-├── toolbar/          # barra de ferramentas extensível
-├── palette/          # cores, gradientes, paleta de elementos
-├── io/               # import/export SVG, sanitização
-└── plugins/          # API de plugins/ferramentas extensíveis
+projects/svg-engine/
+├── ng-package.json                 # primary entry (agregador)
+├── package.json
+├── src/public-api.ts               # re-exporta de */public-api.ts
+├── core/
+│   ├── ng-package.json
+│   └── src/
+│       ├── public-api.ts           # surface de svg-engine/core
+│       └── lib/
+│           ├── model/              # SvgNode, RectNode, GroupNode, ...
+│           ├── commands/           # Command pattern + concrete commands
+│           ├── history/            # HistoryService (undo/redo)
+│           ├── state/              # EditorStateService (signals)
+│           └── types/              # tipos compartilhados (Transform, BBox, ...)
+├── render/
+│   ├── ng-package.json
+│   └── src/
+│       ├── public-api.ts           # surface de svg-engine/render
+│       └── lib/
+│           ├── renderer/           # <svge-renderer> (viewer read-only)
+│           └── viewport/           # ViewportService (pan/zoom)
+├── io/
+│   ├── ng-package.json
+│   └── src/
+│       ├── public-api.ts
+│       └── lib/
+│           ├── parser/             # string SVG -> SvgNode tree
+│           ├── serializer/         # SvgNode tree -> string SVG
+│           └── sanitizer/          # remove scripts/eventos, valida hrefs
+├── optimize/
+│   ├── ng-package.json
+│   └── src/
+│       ├── public-api.ts
+│       └── lib/
+│           ├── passes/             # PathOptimizer, Deduper, Minifier, ...
+│           └── pipeline/           # composição de passes configurável
+├── edit/
+│   ├── ng-package.json
+│   └── src/
+│       ├── public-api.ts
+│       └── lib/
+│           ├── selection/          # SelectionService + handles
+│           ├── transform/          # drag/resize/rotate/scale + snap/align
+│           ├── canvas/             # <svge-canvas> (renderer + interações)
+│           └── plugins/            # API de plugins
+└── ui/
+    ├── ng-package.json
+    └── src/
+        ├── public-api.ts
+        └── lib/
+            ├── toolbar/            # <svge-toolbar>
+            ├── layers-panel/       # <svge-layers-panel>
+            ├── inspector/          # <svge-inspector>
+            ├── palette/            # <svge-color-palette>
+            └── theme/              # tokens, light/dark toggle (D-012)
 ```
 
-> Princípio inviolável: **toda feature nasce na library**; a `playground`
-> apenas consome via `import { ... } from 'svg-engine'`.
+### Dependências entre entry points (regra inviolável — D-017)
+
+```
+ui      → edit, render, io, optimize, core   (+ @angular/material)
+edit    → render, core
+render  → core
+io      → core
+optimize→ core, io
+core    → (nenhum entry interno; apenas @angular/core)
+```
+
+`core/`, `render/`, `io/`, `optimize/`, `edit/` **não importam** de
+`@angular/material` nem de `@angular/cdk`. Apenas `ui/` e a
+`playground` podem.
+
+### Consumo por terceiros — exemplos
+
+```ts
+// Caso 1 — render-only (viewer leve)
+import { SvgRenderer } from 'svg-engine/render';
+
+// Caso 2 — manipulação programática (headless, sem UI)
+import { EditorStateService, MoveNodeCommand } from 'svg-engine/core';
+import { SvgParser } from 'svg-engine/io';
+
+// Caso 3 — otimização standalone (CLI/server-side futuro)
+import { OptimizationPipeline, PathOptimizer } from 'svg-engine/optimize';
+
+// Caso 4 — editor completo (consumo Mosaicoo / playground)
+import { SvgEditorComponent } from 'svg-engine/ui';
+```
+
+### Princípios inegociáveis
+
+- **Toda feature nasce na library**; a `playground` apenas consome.
+- **Headless-first**: nada do core/render/io/optimize/edit pode forçar
+  a inclusão de Material no bundle do consumidor.
+- `public-api.ts` é a **única** superfície exportada por entry point.
+  Internos não vazam.
 
 ## 2. Camadas internas da library
 

@@ -6,6 +6,41 @@
 
 ---
 
+## 2026-05-14 — Reposicionamento: produto de mercado + headless-first
+
+**O que aconteceu**
+
+Esclarecimento explícito do usuário: SVGEngine é tratado como **produto
+de mercado**, não MVP. Library deve ser **embutível em sistemas terceiros**
+para 3 casos de uso: render, manipulação, otimização — possivelmente
+sem qualquer UI Material.
+
+**Decisões registradas**
+
+- D-016: produto de mercado (não MVP) — rigor em componentização e cobertura.
+- D-017: **headless-first** — núcleo (`core`/`render`/`io`/`optimize`/`edit`)
+  proibido de importar `@angular/material` ou `@angular/cdk`.
+- D-018: **multi-entry-point** via `ng-packagr` — library dividida em
+  `core`, `render`, `io`, `optimize`, `edit`, `ui`. Tree-shaking real.
+- D-019: acessibilidade WCAG 2.2 AA mínimo em qualquer UI.
+
+**Docs afetados**
+
+- `01-visao-geral.md`: positioning + 3 casos de uso + 11 princípios condutores.
+- `02-arquitetura.md`: estrutura multi-entry-point + dependências.
+- `04-decisoes-tecnicas.md`: D-016 a D-019; pendentes renumeradas.
+- `06-componentes-editor-svg.md`: reagrupado por entry point; selectors `svge-*`.
+- `05-roadmap.md`: Fase 2 redividida em Bloco 1 (core) e Bloco 2 (render).
+- `09-api-publica.md`: **novo doc** para track da surface pública versionada.
+
+**Impacto no código**
+
+Nenhum código foi escrito ainda — esta mudança chega antes de qualquer linha
+de produção, evitando refatoração futura. Próximo passo: Bloco 1 da Fase 2
+(criar `svg-engine/core` como secondary entry point).
+
+---
+
 ## 2026-05-14 — Fase 1: Fechamento (ESLint + Husky + CI)
 
 **O que aconteceu**

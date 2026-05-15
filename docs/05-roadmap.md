@@ -29,14 +29,35 @@
 - [x] **CI** mínimo em GitHub Actions: lint + build dev + build prod (D-015)
 - [ ] Toggle de tema light/dark explícito → **adiado para Fase 4** (faz parte da toolbar)
 
-## Fase 2 — Núcleo do editor (sem UI rica ainda)
+## Fase 2 — Núcleo: `core` + `render` (entry points D-018)
 
-- [ ] Modelo `SvgNode` (Rect, Ellipse, Path, Group, Text, Image)
-- [ ] `EditorStateService` com signals
-- [ ] `HistoryService` (undo/redo via Command pattern)
-- [ ] `<svg-canvas>` MVP: render da árvore + viewBox controlado
-- [ ] Pan/zoom (mouse + trackpad + atalhos)
-- [ ] `playground` exibindo um documento de exemplo
+### Bloco 1 — `svg-engine/core` (headless puro)
+
+- [ ] Estrutura multi-entry-point: criar `projects/svg-engine/core/`
+      com `ng-package.json` e `public-api.ts`
+- [ ] Modelo `SvgNode` (union discriminated): `RectNode`, `EllipseNode`,
+      `LineNode`, `PolygonNode`, `PolylineNode`, `PathNode`, `TextNode`,
+      `ImageNode`, `GroupNode`. Imutável.
+- [ ] Tipos compartilhados: `Transform`, `BoundingBox`, `Style`, `Metadata`, `NodeId`
+- [ ] `Command` interface + `CommandResult`; comandos concretos:
+      `InsertNodeCommand`, `RemoveNodeCommand`, `MoveNodeCommand`,
+      `SetPropertyCommand`
+- [ ] `EditorStateService` (signals): `document`, `nodes`, `dirty`, `selection (placeholder)`
+- [ ] `HistoryService`: undo/redo via pilhas, limite configurável
+- [ ] `CommandBus`: `dispatch()` despacha + empilha
+- [ ] Testes Vitest cobrindo: criação de nó, dispatch de comando, undo/redo
+      consistência após N operações
+- [ ] `ng build svg-engine` verde + `ng lint` verde
+
+### Bloco 2 — `svg-engine/render` (read-only viewer)
+
+- [ ] Estrutura `projects/svg-engine/render/`
+- [ ] `<svge-renderer>` standalone: input `tree: SvgNode`, renderiza `<svg>`
+- [ ] `ViewportService`: pan, zoom, transformação de coordenadas
+- [ ] Suporte a `viewBox`, `preserveAspectRatio`
+- [ ] Testes: renderiza cada tipo de nó, viewport responde a comandos
+- [ ] `playground` exibe um documento de exemplo via `<svge-renderer>`
+      (consumo via secondary entry point — valida tree-shaking)
 
 ## Fase 3 — Seleção e transformação
 

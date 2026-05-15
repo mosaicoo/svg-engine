@@ -196,14 +196,82 @@
 - **A adicionar (Fase 2+)**: `npx ng test` quando houver testes reais.
 - **Consequências**: PR não merge se qualquer step falhar.
 
+## D-016 — Posicionamento: produto de mercado, não MVP
+
+- **Data**: 2026-05-14
+- **Status**: Aceita
+- **Contexto**: Esclarecimento explícito do usuário em 2026-05-14:
+  o SVGEngine é tratado como produto de mercado, não MVP. Implica
+  rigor em componentização, boas práticas e qualidade desde o início.
+- **Decisão**: Toda decisão de design subordina-se a:
+  - **Single Responsibility** por componente/serviço.
+  - **Composição** > monolitos.
+  - **Cobertura de testes** desde o primeiro código de produção.
+  - **Documentação de API pública** sincronizada (zero "TODO depois").
+  - **Acessibilidade WCAG AA** mínimo em qualquer UI (D-019).
+- **Consequências**: feature delivery será mais lento que MVP por
+  natureza, mas refatorações de larga escala serão evitadas.
+
+## D-017 — Headless-first: núcleo independente de UI
+
+- **Data**: 2026-05-14
+- **Status**: Aceita
+- **Contexto**: Library deve ser embutível em sistemas terceiros que
+  podem **não** usar Angular Material (podem ter PrimeNG, Tailwind UI,
+  componentes próprios, ou nem ter UI no consumo — só usar o engine para
+  renderizar/otimizar SVG headless).
+- **Decisão**: O **núcleo** (`core`, `render`, `optimize`, `io`) **não pode**
+  importar nada de `@angular/material` ou `@angular/cdk`. Apenas a camada
+  `ui` (e a `playground`) pode depender de Material.
+- **Mecanismo**:
+  - Lint rule customizada (a definir) ou estrutura de imports
+    organizada por entry point (D-018).
+  - PR review checa esse princípio.
+- **Consequências**: terceiros podem fazer
+  `import { SvgRenderer } from 'svg-engine/render';` sem trazer Material
+  para o bundle.
+
+## D-018 — Multi-entry-point para a library
+
+- **Data**: 2026-05-14
+- **Status**: Aceita (impl. nas Fases 2..5)
+- **Contexto**: Para suportar D-017 (headless) e tree-shaking real,
+  a library `svg-engine` será dividida em **secondary entry points**
+  via `ng-packagr`.
+- **Estrutura proposta**:
+  | Entry point | Conteúdo | Depende de |
+  | -------------------------- | --------------------------------------------------- | ----------------------- |
+  | `svg-engine` | re-export agregador (opcional, conveniência) | todos abaixo |
+  | `svg-engine/core` | `SvgNode`, modelo, comandos, history, state, types | apenas `@angular/core` |
+  | `svg-engine/render` | `<svge-renderer>`, viewport, viewer read-only | `core` |
+  | `svg-engine/io` | parse, sanitização, serialização | `core` |
+  | `svg-engine/optimize` | passes de otimização (path, dedup, minify) | `core`, `io` |
+  | `svg-engine/edit` | seleção, transformação, manipulação programática | `core`, `render` |
+  | `svg-engine/ui` | toolbar, layers panel, inspector, dialogs Material | tudo + `@angular/material` |
+- **Consequências**: cada entry point tem `ng-package.json` próprio;
+  consumo `import { X } from 'svg-engine/<entry>';`. Bundle só carrega
+  o que é usado.
+
+## D-019 — Acessibilidade WCAG AA como alvo mínimo
+
+- **Data**: 2026-05-14
+- **Status**: Aceita
+- **Decisão**: Toda UI (entry point `ui` + playground) atinge **WCAG 2.2 AA**
+  no mínimo. Auditorias rotineiras com `axe-core` (a integrar em CI
+  na Fase 4).
+- **Consequências**: ARIA roles, foco visível, navegação por teclado
+  completa, contraste mínimo 4.5:1 (texto normal) e 3:1 (texto grande/UI),
+  sem armadilhas de foco.
+
 ---
 
 ## Decisões pendentes (em aberto)
 
-| ID provis. | Tema                                    |
-| ---------- | --------------------------------------- |
-| D-016?     | Versionamento + changelog (changesets?) |
-| D-017?     | Registry de publicação                  |
-| D-018?     | Estratégia de i18n no editor            |
-| D-019?     | Acessibilidade (a11y) — alvo WCAG       |
-| D-020?     | Migração para zoneless (revisar D-010)  |
+| ID provis. | Tema                                                              |
+| ---------- | ----------------------------------------------------------------- |
+| D-020?     | Versionamento + changelog (changesets / standard-version)         |
+| D-021?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo) |
+| D-022?     | Estratégia de i18n no editor                                      |
+| D-023?     | Migração para zoneless (revisar D-010)                            |
+| D-024?     | Lint rule customizada para enforcer headless boundary             |
+| D-025?     | Estratégia de testes E2E (Playwright?)                            |
