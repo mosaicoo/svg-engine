@@ -163,10 +163,13 @@
 >
 > - [x] **Bloco 4-pre**: `WorkspaceService` + `<svge-workspace-background>` (background transparente xadrez / sólido / imagem). Headless (HTML+CSS, sem Material). Toolbar de presets no playground
 
-- [ ] **Bloco 4a**: `svg-engine/ui` entry point + `<svge-editor>` shell
-  - ng-packagr secondary entry com Angular Material (D-005, D-012)
-  - `<svge-editor>` compõe workspace-background + renderer + overlays + toolbar shell
-  - Headless boundary mantida: `core/render/io/optimize/edit` continuam sem deps de Material
+- [x] **Bloco 4a**: `svg-engine/ui` entry point + `<svge-editor>` shell
+  - Quarto secondary entry point criado (`projects/svg-engine/ui/`); ng-packagr auto-discover; tsconfig paths + lib/spec includes atualizados
+  - `@angular/material` + `@angular/cdk` adicionados como peerDeps **opcionais** (consumer só puxa se importar `svg-engine/ui`)
+  - `<svge-editor>` compõe `<svge-workspace-background>` + `<svge-renderer>` + `<ng-content>` + Material toolbar (undo/redo/zoom/reset reativos a `HistoryService`+`ViewportService`)
+  - Inputs `tree`/`viewBox` opcionais com fallback para `EditorStateService.document()`
+  - Outputs `undoTriggered`/`redoTriggered` para telemetria/analytics
+  - Headless boundary verificada por Grep: zero imports de `@angular/material|cdk` em `core/render/edit`
 - [ ] **Bloco 4b**: Painel de camadas (`<svge-layers-panel>`)
   - Lista da árvore (group expansion), drag-drop de reordenação, visibilidade, lock
   - Multi-select sincronizado com `SelectionService`

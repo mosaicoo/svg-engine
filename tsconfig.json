@@ -17,7 +17,8 @@
       "svg-engine": ["./dist/svg-engine"],
       "svg-engine/core": ["./dist/svg-engine/core"],
       "svg-engine/render": ["./dist/svg-engine/render"],
-      "svg-engine/edit": ["./dist/svg-engine/edit"]
+      "svg-engine/edit": ["./dist/svg-engine/edit"],
+      "svg-engine/ui": ["./dist/svg-engine/ui"]
     },
     "module": "preserve"
   },

@@ -14,6 +14,8 @@
     "render/src/**/*.d.ts",
     "render/src/**/*.spec.ts",
     "edit/src/**/*.d.ts",
-    "edit/src/**/*.spec.ts"
+    "edit/src/**/*.spec.ts",
+    "ui/src/**/*.d.ts",
+    "ui/src/**/*.spec.ts"
   ]
 }

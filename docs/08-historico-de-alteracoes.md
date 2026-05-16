@@ -6,6 +6,69 @@
 
 ---
 
+## 2026-05-15 — Fase 4 Bloco 4a: svg-engine/ui + <svge-editor> shell
+
+**O que foi entregue**
+
+Quarto entry point da library — `svg-engine/ui` — com Angular Material
+(D-005). Primeiro componente: `<svge-editor>` shell que colapsa
+~200 linhas de boilerplate em um único tag para o consumer 80%-case.
+
+**Estrutura nova** (`projects/svg-engine/ui/`):
+
+- `ng-package.json` (auto-discover) + `src/public-api.ts` exporta
+  `SvgeEditor` + `src/lib/editor/editor.component.ts` + spec
+- `tsconfig.lib.json` e `tsconfig.spec.json` raiz incluem `ui/src/**/*`
+- `tsconfig.json` raiz: novo path map `svg-engine/ui` → `dist/svg-engine/ui`
+- `package.json` da lib: `@angular/material` + `@angular/cdk` como
+  peerDependencies **opcionais** (`peerDependenciesMeta.optional: true`)
+  — consumer só paga o custo se importar de `svg-engine/ui`
+
+**`<svge-editor>` shell**:
+
+- Composição: `mat-toolbar` (undo/redo/zoom-out/%/zoom-in/reset com
+  `mat-icon-button` + `mat-tooltip`) + área de canvas com
+  `<svge-workspace-background>` envolvendo `<svge-renderer>`
+- `<ng-content/>` projetado dentro do renderer — slots para selection-
+  overlay/rotation-pivot/marquee/snap-guides
+- Inputs opcionais `tree`/`viewBox` com fallback para
+  `EditorStateService.document()` (consumers bus-driven não precisam
+  thread tree manualmente)
+- Inputs `title` e `ariaLabel` opcionais
+- Outputs `undoTriggered`/`redoTriggered`
+- Computeds reativos: `canUndo`, `canRedo`, `zoomPct`
+- Sizing: host fills container; toolbar fixed; canvas flex grow
+
+**Headless boundary verificada**:
+
+- `Grep "@angular/(material|cdk)"` em `projects/svg-engine`: 1 hit
+  apenas, em `ui/src/lib/editor/editor.component.ts`. Confirma D-017.
+
+**Decisões técnicas**
+
+- **peerDependencies opcionais**: npm/yarn v7+ honram `optional: true`.
+  Consumer só recebe warning se importar `svg-engine/ui` sem ter
+  Material instalado. Não-consumers de `ui` não precisam de Material.
+- **Inputs com fallback para EditorStateService**: dois estilos de uso:
+  estado-driven (`<svge-editor></svge-editor>` — DI compartilhado) ou
+  props-driven (`<svge-editor [tree]="..."/>` — controle explícito).
+- **Sem refator do playground**: continua usando primitives diretamente
+  (D-018 dogfooding honest). Shell é para consumers diferentes; specs
+  cobrem comportamento. Sample em route futura se demanda surgir.
+- **`mat-icon-button` + Material Icons**: consumer precisa importar
+  Material Icons CSS (Google Fonts ou local). README de uso futuro.
+
+**Cobertura**
+
+- `editor.component.spec.ts`: 11 testes (composição, input fallbacks,
+  toolbar buttons reativos, output emission)
+- **Total**: +11 testes → 367 passing em 35 arquivos. Zero regressão.
+
+**Próximo (4b)**: `<svge-layers-panel>` — árvore SVG hierárquica com
+drag-drop (CDK), visibilidade, lock, multi-select sincronizado.
+
+---
+
 ## 2026-05-15 — Fase 4 Bloco prévio: WorkspaceService + background (D-021 resolvido)
 
 **Contexto**
