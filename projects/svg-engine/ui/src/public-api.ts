@@ -27,3 +27,6 @@ export * from './lib/editor';
 
 // Layers panel (Bloco 4b)
 export * from './lib/layers-panel';
+
+// Property inspector (Bloco 4c)
+export * from './lib/inspector';

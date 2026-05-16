@@ -175,9 +175,14 @@
   - `[svgeLayersFilter]` directive (em `edit`): aplica `display: none` em `[data-node-id]` matching `hiddenIds` via `effect()`; preserva pre-existing inline display ao restaurar; opt-in (consumer attach na renderer)
   - `<svge-layers-panel>` (em `ui`): recursive Material UI; expand/collapse de groups; ícone por tipo; visibility/lock buttons; click-to-select com Ctrl/Shift modifiers; classes `.selected`/`.hidden`/`.locked` p/ styling
   - **Drag-drop reorder ADIADO** para sub-bloco 4b-DnD (precisa de `MoveNodeInTreeCommand` novo no core; mantém 4b focado)
-- [ ] **Bloco 4c**: Inspector de propriedades (`<svge-inspector>`)
-  - Reativo a `selection.focusId()`: geometria, fill, stroke, opacity, transform decomposto (translate/rotate/scale/skew)
-  - Refinamento do D-022 (pivot picker integrado)
+- [x] **Bloco 4c**: Inspector de propriedades (`<svge-inspector>`)
+  - Reativo a `selection.focusId()` via computed; estados: empty / multi (placeholder com count) / single (header + sections)
+  - Geometry per type: rect (x/y/w/h), ellipse (cx/cy/rx/ry), line (x1/y1/x2/y2). polygon/polyline/path/text/image mostram placeholder "edit via canvas tools"; group sem geometry
+  - Style: fill + stroke (`<input type="color">`), strokeWidth + opacity (number inputs)
+  - Pipes type-narrowed (`rectField`/`ellipseField`/`lineField`) evitam `$any()` no template
+  - Cada `(change)` dispara `SetPropertyCommand` (1 undo entry por edit; sem per-keystroke pollution)
+  - `parseNumericInput()` helper rejeita strings vazias (evita commit de `0` quando `Number('')` retorna 0)
+  - **Pivot picker integrado e transform decomposto adiados** para sub-bloco 4c-Polish (precisa matrix decomposition + integração com TransformService)
 - [ ] **Bloco 4d**: Paleta de cores + `PaletteRegistry` (categoria 8 do D-023)
   - `PaletteService` consome `PaletteRegistry`; built-in palettes (Material colors, Tailwind, custom HSL); plugins podem contribuir
   - `<svge-color-palette>` UI + integração com inspector (fill/stroke pickers)

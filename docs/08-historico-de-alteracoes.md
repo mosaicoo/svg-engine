@@ -6,6 +6,94 @@
 
 ---
 
+## 2026-05-15 — Fase 4 Bloco 4c: Inspector de propriedades
+
+**O que foi entregue**
+
+Painel de propriedades (`<svge-inspector>`) reativo a `selection.focusId()`.
+Edita geometria por tipo + estilos comuns (fill/stroke/strokeWidth/
+opacity). Cada edit dispara `SetPropertyCommand` — undo limpo
+(1 entrada por field).
+
+**Estrutura nova** (`projects/svg-engine/ui/src/lib/inspector/`):
+
+- `inspector.component.ts` — `<svge-inspector>` standalone Material:
+  - **Estados**: empty (placeholder "No selection") / multi
+    (placeholder "Multiple selection (N)") / single (header + sections).
+    Multi-edit (apply same value across N nodes) é polish futuro.
+  - **Header**: type icon + type label + id slice (8 chars).
+  - **Geometry section** via `@switch (node.type)`:
+    - `rect`: x/y/w/h
+    - `ellipse`: cx/cy/rx/ry
+    - `line`: x1/y1/x2/y2
+    - `polygon|polyline|path|text|image`: placeholder "edit via canvas
+      tools" (editores específicos vão em sub-blocos quando demandados)
+    - `group`: section omitida (sem geometry inerente)
+  - **Style section**: fill + stroke (`<input type="color">`),
+    strokeWidth + opacity (number inputs)
+  - Material 3 design tokens via `var(--mat-sys-*)` herdam tema
+- `inspector-pipes.ts` — `RectFieldPipe` + `EllipseFieldPipe` +
+  `LineFieldPipe`: type-narrowed accessors (evitam `$any()` no template
+  para os campos numéricos mais comuns).
+
+**Commits via SetPropertyCommand**:
+
+- `setNumber(field, raw)`: parse via `parseNumericInput()` helper
+  (rejeita strings vazias — `Number('')` returns 0, sem o helper
+  digitar e apagar acidentalmente commitaria 0).
+- `setStyle(field, value)`: spread + `SetPropertyCommand(id, 'style',
+newStyle)` (style é nested; SetPropertyCommand opera em top-level keys).
+- `setStyleNumber(field, raw)`: idem com parse.
+- Cada chamada faz dedup: se valor idêntico ao atual, no-op (sem
+  poluir undo stack com no-ops).
+
+**Decisões técnicas**
+
+- **`(change)` em vez de `(input)`**: input dispara per-keystroke —
+  digitar "1500" criaria 4 entradas de undo. `(change)` dispara
+  on-blur ou Enter, um edit = uma entrada.
+- **`<input type="color">` em vez de Material color picker**: Material
+  21 não tem color picker built-in; usar `<input type="color">` é
+  trivial e cross-browser. Color picker richer (com paletas) chega
+  no Bloco 4d via `PaletteRegistry`.
+- **Sem sliders**: number inputs cobrem opacity/strokeWidth com menos
+  imports; sliders são polish (4c-Polish).
+- **Sem animations provider em testes**: `@angular/animations` não
+  está instalado; Material funciona em modo no-anim por default em
+  testes (componentes form-field não dependem de animations runtime).
+- **Pipes em arquivo separado**: tinha colado os pipes no fim do
+  inspector.component.ts; Angular precisa imports no `@Component.imports`
+  array — mover para `inspector-pipes.ts` resolve circular reference
+  e mantém arquivo principal focado.
+- **`parseNumericInput()` standalone**: pequeno utility no fim do
+  arquivo. Bug pego nos testes: `Number('')` retorna 0, então input
+  vazio acidentalmente commitaria 0. Helper rejeita whitespace-only.
+- **Pivot picker integrado e transform decomposto ADIADOS**: 4c-Polish.
+  Transform decomposition (translate/rotate/scale/skew) precisa
+  matrix → angle/factors algorithm (não trivial); pivot integration
+  precisa coordenar com TransformService.
+
+**Cobertura** (`inspector.component.spec.ts`): 14 testes
+
+- Empty / multi placeholders.
+- Header type + id slice.
+- Geometry per type (rect/ellipse/line) + path placeholder + group sem geometry.
+- Command dispatch: rect.x via input commits node mutation;
+  fill via color input commits style mutation;
+  empty input dropped silently;
+  same value = no-op (no spurious command).
+- Reactive: header refresh on focus change; inputs refresh on
+  external command.
+
+**Total**: +14 testes → 411 passing em 39 arquivos. Zero regressão.
+
+**Próximo (4d)**: `<svge-color-palette>` + `PaletteService` consumindo
+`PaletteRegistry` (categoria 8 do D-023). Built-in palettes (Material
+colors, Tailwind, custom HSL) via plugins. Integração com inspector
+fill/stroke pickers.
+
+---
+
 ## 2026-05-15 — Fase 4 Bloco 4b: Layers panel + visibility/lock
 
 **O que foi entregue**
