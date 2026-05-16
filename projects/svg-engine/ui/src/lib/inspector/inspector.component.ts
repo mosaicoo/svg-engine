@@ -10,7 +10,7 @@ import {
   type SvgNode,
   type SvgStyle,
 } from 'svg-engine/core';
-import { SelectionService } from 'svg-engine/edit';
+import { LayersService, SelectionService } from 'svg-engine/edit';
 import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipes';
 
 /**
@@ -62,9 +62,18 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
   ],
   template: `
     @if (focusNode(); as node) {
-      <header class="inspector-header">
+      <header class="inspector-header" [class.locked]="isLocked()">
         <mat-icon class="type-icon" aria-hidden="true">{{ typeIcon(node) }}</mat-icon>
         <span class="type-label">{{ node.type }}</span>
+        @if (isLocked()) {
+          <span
+            class="lock-badge"
+            title="This node is locked. Unlock from the layers panel to edit."
+          >
+            <mat-icon aria-hidden="true">lock</mat-icon>
+            Locked
+          </span>
+        }
         <span class="id-label" [title]="node.id">{{ node.id.slice(0, 8) }}</span>
       </header>
 
@@ -78,6 +87,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
                 <input
                   matInput
                   type="number"
+                  [disabled]="isLocked()"
                   [value]="node | rectField: 'x'"
                   (change)="setNumber('x', $any($event.target).value)"
                 />
@@ -87,6 +97,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
                 <input
                   matInput
                   type="number"
+                  [disabled]="isLocked()"
                   [value]="node | rectField: 'y'"
                   (change)="setNumber('y', $any($event.target).value)"
                 />
@@ -97,6 +108,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
                   matInput
                   type="number"
                   min="0"
+                  [disabled]="isLocked()"
                   [value]="node | rectField: 'width'"
                   (change)="setNumber('width', $any($event.target).value)"
                 />
@@ -107,6 +119,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
                   matInput
                   type="number"
                   min="0"
+                  [disabled]="isLocked()"
                   [value]="node | rectField: 'height'"
                   (change)="setNumber('height', $any($event.target).value)"
                 />
@@ -123,6 +136,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
                 <input
                   matInput
                   type="number"
+                  [disabled]="isLocked()"
                   [value]="node | ellipseField: 'cx'"
                   (change)="setNumber('cx', $any($event.target).value)"
                 />
@@ -132,6 +146,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
                 <input
                   matInput
                   type="number"
+                  [disabled]="isLocked()"
                   [value]="node | ellipseField: 'cy'"
                   (change)="setNumber('cy', $any($event.target).value)"
                 />
@@ -142,6 +157,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
                   matInput
                   type="number"
                   min="0"
+                  [disabled]="isLocked()"
                   [value]="node | ellipseField: 'rx'"
                   (change)="setNumber('rx', $any($event.target).value)"
                 />
@@ -152,6 +168,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
                   matInput
                   type="number"
                   min="0"
+                  [disabled]="isLocked()"
                   [value]="node | ellipseField: 'ry'"
                   (change)="setNumber('ry', $any($event.target).value)"
                 />
@@ -168,6 +185,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
                 <input
                   matInput
                   type="number"
+                  [disabled]="isLocked()"
                   [value]="node | lineField: 'x1'"
                   (change)="setNumber('x1', $any($event.target).value)"
                 />
@@ -177,6 +195,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
                 <input
                   matInput
                   type="number"
+                  [disabled]="isLocked()"
                   [value]="node | lineField: 'y1'"
                   (change)="setNumber('y1', $any($event.target).value)"
                 />
@@ -186,6 +205,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
                 <input
                   matInput
                   type="number"
+                  [disabled]="isLocked()"
                   [value]="node | lineField: 'x2'"
                   (change)="setNumber('x2', $any($event.target).value)"
                 />
@@ -195,6 +215,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
                 <input
                   matInput
                   type="number"
+                  [disabled]="isLocked()"
                   [value]="node | lineField: 'y2'"
                   (change)="setNumber('y2', $any($event.target).value)"
                 />
@@ -222,6 +243,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
             <span class="lbl">fill</span>
             <input
               type="color"
+              [disabled]="isLocked()"
               [value]="styleColor('fill')"
               (change)="setStyle('fill', $any($event.target).value)"
             />
@@ -230,6 +252,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
             <span class="lbl">stroke</span>
             <input
               type="color"
+              [disabled]="isLocked()"
               [value]="styleColor('stroke')"
               (change)="setStyle('stroke', $any($event.target).value)"
             />
@@ -243,6 +266,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
               type="number"
               min="0"
               step="0.5"
+              [disabled]="isLocked()"
               [value]="styleNumber('strokeWidth')"
               (change)="setStyleNumber('strokeWidth', $any($event.target).value)"
             />
@@ -255,6 +279,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
               min="0"
               max="1"
               step="0.05"
+              [disabled]="isLocked()"
               [value]="styleNumber('opacity')"
               (change)="setStyleNumber('opacity', $any($event.target).value)"
             />
@@ -309,6 +334,28 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
       font-family: monospace;
       font-size: 11px;
       opacity: 0.6;
+    }
+    .inspector-header.locked {
+      background: var(--mat-sys-error-container, #ffeaea);
+    }
+    .inspector-header .lock-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      background: var(--mat-sys-error, #b00020);
+      color: var(--mat-sys-on-error, #ffffff);
+      border-radius: 999px;
+    }
+    .inspector-header .lock-badge mat-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+      line-height: 14px;
     }
     .section {
       padding: 8px 16px 4px;
@@ -370,6 +417,7 @@ export class SvgeInspector {
   private readonly state = inject(EditorStateService);
   private readonly selection = inject(SelectionService);
   private readonly bus = inject(CommandBus);
+  private readonly layers = inject(LayersService);
 
   /** Currently focused node, or `null` (no/multi selection or stale id). */
   protected readonly focusNode: Signal<SvgNode | null> = computed(() => {
@@ -380,6 +428,18 @@ export class SvgeInspector {
   });
 
   protected readonly selectionCount = this.selection.count;
+
+  /**
+   * Whether the focused node is locked. Drives `[disabled]` on every
+   * input + visual badge in the header. Setters also short-circuit on
+   * locked (defense in depth — even if Material doesn't fully respect
+   * `[disabled]` on color pickers in some browsers, the dispatch path
+   * is still blocked).
+   */
+  protected readonly isLocked = computed(() => {
+    const node = this.focusNode();
+    return node !== null && this.layers.isLocked(node.id);
+  });
 
   /**
    * Material icon name for the node's type. Mirrors the layers panel
@@ -433,6 +493,7 @@ export class SvgeInspector {
   protected setNumber(field: string, raw: string): void {
     const node = this.focusNode();
     if (node === null) return;
+    if (this.layers.isLocked(node.id)) return; // lock enforcement
     const value = parseNumericInput(raw);
     if (value === null) return;
     if ((node as unknown as Record<string, number>)[field] === value) return;
@@ -449,6 +510,7 @@ export class SvgeInspector {
   protected setStyle(field: keyof SvgStyle, value: string): void {
     const node = this.focusNode();
     if (node === null) return;
+    if (this.layers.isLocked(node.id)) return; // lock enforcement
     if (node.style[field] === value) return;
     const nextStyle: SvgStyle = { ...node.style, [field]: value };
     this.bus.dispatch(new SetPropertyCommand(node.id, 'style', nextStyle));
@@ -458,6 +520,7 @@ export class SvgeInspector {
   protected setStyleNumber(field: keyof SvgStyle, raw: string): void {
     const node = this.focusNode();
     if (node === null) return;
+    if (this.layers.isLocked(node.id)) return; // lock enforcement
     const value = parseNumericInput(raw);
     if (value === null) return;
     if (node.style[field] === value) return;

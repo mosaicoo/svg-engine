@@ -175,6 +175,11 @@
   - `[svgeLayersFilter]` directive (em `edit`): aplica `display: none` em `[data-node-id]` matching `hiddenIds` via `effect()`; preserva pre-existing inline display ao restaurar; opt-in (consumer attach na renderer)
   - `<svge-layers-panel>` (em `ui`): recursive Material UI; expand/collapse de groups; ícone por tipo; visibility/lock buttons; click-to-select com Ctrl/Shift modifiers; classes `.selected`/`.hidden`/`.locked` p/ styling
   - **Drag-drop reorder ADIADO** para sub-bloco 4b-DnD (precisa de `MoveNodeInTreeCommand` novo no core; mantém 4b focado)
+- [x] **Bloco 4b-Lock**: enforcement real do cadeado
+  - `TransformService.startMove/startRotate/startResize` injeta `LayersService` e refusam (no-op) em locked nodes — cobre body-drag + handles do overlay
+  - `<svge-inspector>`: badge "Locked" no header (vermelho), `[disabled]` em todos os inputs, setters short-circuit (defense in depth)
+  - Playground `onCanvasPointerDown`: locked nodes ainda selecionáveis (padrão Illustrator/Affinity/Figma) mas não armam `potentialDrag`
+  - Padrão: lock previne **edição**, NÃO seleção (o usuário vê propriedades sem poder mudar)
 - [x] **Bloco 4c**: Inspector de propriedades (`<svge-inspector>`)
   - Reativo a `selection.focusId()` via computed; estados: empty / multi (placeholder com count) / single (header + sections)
   - Geometry per type: rect (x/y/w/h), ellipse (cx/cy/rx/ry), line (x1/y1/x2/y2). polygon/polyline/path/text/image mostram placeholder "edit via canvas tools"; group sem geometry

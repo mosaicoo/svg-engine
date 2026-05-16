@@ -6,6 +6,73 @@
 
 ---
 
+## 2026-05-15 — Fase 4 Bloco 4b-Lock: enforcement real do cadeado
+
+**Contexto**
+
+Usuário levantou (corretamente) que o cadeado do `<svge-layers-panel>` só
+trocava ícone/classe CSS — **nenhum consumer consultava `LayersService.isLocked()`**.
+Locked nodes continuavam sendo arrastáveis/redimensionáveis/editáveis pelo
+inspector. Falha minha que ficou documentada como "follow-up" sem visibilidade.
+
+Padrão de mercado aplicado: **lock previne EDIÇÃO, não SELEÇÃO** (idêntico a
+Illustrator / Affinity / Figma). Usuário ainda pode selecionar e ver
+propriedades de um locked node; só não pode modificá-lo.
+
+**Pontos de enforcement**
+
+- `TransformService.startMove/startRotate/startResize`: injeta `LayersService`
+  e refusam (no-op, sem setar `dragState`) quando `isLocked(nodeId)`.
+  Cobertura automática: body-drag, handles de resize/rotate no overlay,
+  qualquer gesture programático.
+- `<svge-inspector>`:
+  - Computed `isLocked()` consulta `LayersService` baseado no `focusNode`.
+  - Badge "Locked" no header com `mat-icon lock` + background vermelho
+    (`var(--mat-sys-error)`).
+  - `[disabled]="isLocked()"` em todos os inputs (14 ao total: 4 geometry
+    rect + 4 ellipse + 4 line + 2 color pickers + strokeWidth + opacity).
+  - Setters (`setNumber`, `setStyle`, `setStyleNumber`) também short-circuit
+    em locked — defense in depth. Mesmo se o consumer remover `[disabled]`
+    via DevTools, o dispatch é bloqueado.
+- Playground `onCanvasPointerDown`: locked nodes ainda selecionam ao click,
+  mas `potentialDrag` não é armado (UX: cursor não fica em "grabbing"
+  enganoso).
+
+**Decisões técnicas**
+
+- **Acoplamento controlado**: `TransformService` agora depende de
+  `LayersService`. Ambos em `svg-engine/edit`, mesmo entry point.
+  Consumers que não usam o layers panel ainda pagam o cost de injetar
+  `LayersService`, mas como o default é `hiddenIds`/`lockedIds` vazios,
+  o comportamento é idêntico ao anterior. Sem opt-out por enquanto
+  (premature optimization).
+- **Lock NÃO afeta seleção**: marquee continua selecionando locked;
+  click direto seleciona; layers panel click seleciona. Você precisa
+  destravar pra editar. Padrão Illustrator/Affinity/Figma.
+- **Badge no header, não toast/snackbar**: feedback persistente é mais
+  honesto que notificação efêmera. Usuário sempre vê "isso está locked"
+  enquanto a seleção estiver locked.
+
+**Cobertura**
+
+- `transform-gestures.spec.ts`: +4 testes
+  (startMove/startRotate/startResize refusam locked; unlock restaura)
+- `inspector.component.spec.ts`: +5 testes
+  (badge aparece/some; .locked class no header; todos inputs disabled;
+  setter short-circuit mesmo com input force-enabled)
+- **Total**: +9 testes → 420 passing em 39 arquivos. Zero regressão.
+
+**Sobre undo/redo (questão paralela do usuário)**
+
+Confirmado: **todas as mutações de documento já passam pelo `CommandBus`
+e são undoable**: add shape, drag, resize, rotate, align (6 axes),
+distribute (2 axes), inspector edits (geometry + style), nudge, remove.
+Coisas não undoable são editor session state (pivot move, visibility/lock
+toggle, background config, snap config, tool ativo, pan/zoom) — padrão
+de mercado consistente.
+
+---
+
 ## 2026-05-15 — Fase 4 Bloco 4c: Inspector de propriedades
 
 **O que foi entregue**

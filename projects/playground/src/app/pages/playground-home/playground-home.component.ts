@@ -27,6 +27,7 @@ import {
   findRenderedNode,
   getRenderedNodeBBox,
   LayersFilter,
+  LayersService,
   Marquee,
   type MarqueeCandidate,
   MarqueeService,
@@ -103,6 +104,7 @@ export class PlaygroundHome implements OnDestroy {
   private readonly transform = inject(TransformService);
   private readonly marquee = inject(MarqueeService);
   private readonly alignment = inject(AlignmentService);
+  private readonly layers = inject(LayersService);
   protected readonly snap = inject(SnapService);
   protected readonly viewport = inject(ViewportService);
   protected readonly toolHost = inject(ToolHostService);
@@ -380,11 +382,20 @@ export class PlaygroundHome implements OnDestroy {
     if (!this.selection.isSelected(id)) {
       this.selection.select(id);
     }
-    this.potentialDrag = {
-      nodeId: id,
-      startScreenX: event.clientX,
-      startScreenY: event.clientY,
-    };
+    // Locked nodes are still selectable (consistent with Illustrator/
+    // Affinity/Figma) but the body-drag is suppressed — the cursor
+    // stays in default mode and TransformService.startMove would
+    // refuse anyway. Not arming `potentialDrag` keeps the playground
+    // consistent (no fake "grabbing" cursor on a node that won't move).
+    if (!this.layers.isLocked(id)) {
+      this.potentialDrag = {
+        nodeId: id,
+        startScreenX: event.clientX,
+        startScreenY: event.clientY,
+      };
+    } else {
+      this.potentialDrag = null;
+    }
     capturePointer(event);
   }
 

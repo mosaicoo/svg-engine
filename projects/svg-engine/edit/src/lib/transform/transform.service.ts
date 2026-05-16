@@ -17,6 +17,7 @@ import {
   updateNode,
 } from 'svg-engine/core';
 import { allAnchors, type BBoxAnchor } from '../geometry/bbox-anchors';
+import { LayersService } from '../layers/layers.service';
 import { SelectionService } from '../selection/selection.service';
 
 /** Threshold under which a pointer release is treated as a click, not a drag. */
@@ -89,6 +90,7 @@ export class TransformService {
   private readonly selection = inject(SelectionService);
   private readonly state = inject(EditorStateService);
   private readonly bus = inject(CommandBus);
+  private readonly layers = inject(LayersService);
 
   // ── Pivot persistence (D-022.persist) ────────────────────────────
 
@@ -199,6 +201,7 @@ export class TransformService {
    */
   startMove(nodeId: NodeId, startPoint: Point): void {
     if (this._dragState() !== null) return;
+    if (this.layers.isLocked(nodeId)) return; // D-022 lock enforcement (Bloco 4b-Lock)
     const node = findNodeById(this.state.document().root, nodeId);
     if (node === null) return;
     this._dragState.set({
@@ -256,6 +259,7 @@ export class TransformService {
    */
   startRotate(nodeId: NodeId, pivot: Point, startPoint: Point): void {
     if (this._dragState() !== null) return;
+    if (this.layers.isLocked(nodeId)) return; // D-022 lock enforcement (Bloco 4b-Lock)
     const node = findNodeById(this.state.document().root, nodeId);
     if (node === null) return;
     this._dragState.set({
@@ -307,6 +311,7 @@ export class TransformService {
     bbox: { x: number; y: number; width: number; height: number },
   ): void {
     if (this._dragState() !== null) return;
+    if (this.layers.isLocked(nodeId)) return; // D-022 lock enforcement (Bloco 4b-Lock)
     const node = findNodeById(this.state.document().root, nodeId);
     if (node === null) return;
     const anchors = allAnchors(bbox);

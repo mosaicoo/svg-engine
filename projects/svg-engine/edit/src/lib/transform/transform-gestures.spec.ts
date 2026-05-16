@@ -11,6 +11,7 @@ import {
   HistoryService,
   IDENTITY_TRANSFORM,
 } from 'svg-engine/core';
+import { LayersService } from '../layers/layers.service';
 import { TransformService } from './transform.service';
 
 function setup() {
@@ -19,11 +20,13 @@ function setup() {
   const state = TestBed.inject(EditorStateService);
   const history = TestBed.inject(HistoryService);
   const bus = TestBed.inject(CommandBus);
+  const layers = TestBed.inject(LayersService);
   state.resetDocument(createEmptyDocument());
   history.clear();
   transform.clearAllPivots();
   transform.cancelGesture(); // ensure clean
-  return { transform, state, history, bus };
+  layers.unlockAll();
+  return { transform, state, history, bus, layers };
 }
 
 describe('TransformService — move gesture', () => {
@@ -214,5 +217,63 @@ describe('TransformService — resize gesture', () => {
 
     expect(history.canUndo()).toBe(false);
     expect(findNodeById(state.document().root, rect.id)?.transform).toEqual(IDENTITY_TRANSFORM);
+  });
+});
+
+describe('TransformService — lock enforcement (Bloco 4b-Lock)', () => {
+  it('startMove refuses a locked node (no drag state set)', () => {
+    const { transform, state, layers } = setup();
+    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([rect], { id: state.document().root.id }),
+    });
+    layers.setLocked(rect.id, true);
+
+    transform.startMove(rect.id, { x: 0, y: 0 });
+    expect(transform.dragState()).toBeNull();
+    expect(transform.isDragging()).toBe(false);
+  });
+
+  it('startRotate refuses a locked node', () => {
+    const { transform, state, layers } = setup();
+    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([rect], { id: state.document().root.id }),
+    });
+    layers.setLocked(rect.id, true);
+
+    transform.startRotate(rect.id, { x: 5, y: 5 }, { x: 10, y: 5 });
+    expect(transform.dragState()).toBeNull();
+  });
+
+  it('startResize refuses a locked node', () => {
+    const { transform, state, layers } = setup();
+    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([rect], { id: state.document().root.id }),
+    });
+    layers.setLocked(rect.id, true);
+
+    transform.startResize(rect.id, 'br', bbox(0, 0, 10, 10));
+    expect(transform.dragState()).toBeNull();
+  });
+
+  it('unlocking restores normal gesture behavior', () => {
+    const { transform, state, layers } = setup();
+    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([rect], { id: state.document().root.id }),
+    });
+    layers.setLocked(rect.id, true);
+    transform.startMove(rect.id, { x: 0, y: 0 });
+    expect(transform.dragState()).toBeNull();
+
+    layers.setLocked(rect.id, false);
+    transform.startMove(rect.id, { x: 0, y: 0 });
+    expect(transform.dragState()).not.toBeNull();
   });
 });
