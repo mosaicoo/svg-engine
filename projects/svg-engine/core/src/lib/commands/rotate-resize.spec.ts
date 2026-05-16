@@ -4,7 +4,7 @@ import { createGroup, createRect } from '../model/node-factory';
 import { EditorStateService } from '../state/editor-state.service';
 import { findNodeById } from '../tree/tree-ops';
 import { generateNodeId } from '../types/node-id';
-import { applyTransform, IDENTITY_TRANSFORM } from '../types/transform';
+import { applyTransform, IDENTITY_TRANSFORM, rotate } from '../types/transform';
 import { composeAnchoredScale, ResizeNodeCommand } from './resize-node.command';
 import { composePivotRotation, RotateNodeCommand } from './rotate-node.command';
 
@@ -116,7 +116,7 @@ describe('composeAnchoredScale (pure)', () => {
 });
 
 describe('ResizeNodeCommand', () => {
-  it('execute scales the node around the anchor', () => {
+  it('execute on identity-transform rect bakes geometry (Bloco 4-R3)', () => {
     const { state, ctx } = setup();
     const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
     state.setDocument({
@@ -128,12 +128,39 @@ describe('ResizeNodeCommand', () => {
     const cmd = new ResizeNodeCommand(rect.id, { x: 0, y: 0 }, 2, 1);
     expect(cmd.execute(ctx).ok).toBe(true);
 
-    const moved = findNodeById(state.document().root, rect.id);
-    expect(moved).not.toBeNull();
-    // (10, 5) should move to (20, 5); anchor stays
-    const stretched = applyTransform(moved!.transform, 10, 5);
-    expect(stretched.x).toBeCloseTo(20);
-    expect(stretched.y).toBeCloseTo(5);
+    const updated = findNodeById(state.document().root, rect.id) as typeof rect;
+    expect(updated).not.toBeNull();
+    // Bake path: geometry mutated, transform stays identity
+    expect(updated.x).toBe(0);
+    expect(updated.y).toBe(0);
+    expect(updated.width).toBe(20);
+    expect(updated.height).toBe(10);
+    expect(updated.transform).toEqual(IDENTITY_TRANSFORM);
+  });
+
+  it('execute on rotated node falls back to scale-transform composition (Bloco 4-R3)', () => {
+    const { state, ctx } = setup();
+    // Pre-rotated rect: identity-or-translate check fails, fallback path kicks in
+    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const rotated = { ...rect, transform: rotate(Math.PI / 4) };
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([rotated], { id: state.document().root.id }),
+    });
+
+    const cmd = new ResizeNodeCommand(rotated.id, { x: 0, y: 0 }, 2, 1);
+    expect(cmd.execute(ctx).ok).toBe(true);
+
+    const updated = findNodeById(state.document().root, rotated.id) as typeof rect;
+    // Fallback path: geometry unchanged, transform composed with scale
+    expect(updated.width).toBe(10);
+    expect(updated.transform).not.toEqual(rotated.transform);
+    // Still works visually: apply transform to (10, 0) and confirm 2× scale was composed
+    const corner = applyTransform(updated.transform, 10, 0);
+    // Pre-rotation: (10, 0); after rotate 45°: (~7.07, ~7.07);
+    // after scale 2× on x around anchor (0,0): (~14.14, ~7.07).
+    expect(corner.x).toBeCloseTo(10 * Math.cos(Math.PI / 4) * 2);
+    expect(corner.y).toBeCloseTo(10 * Math.sin(Math.PI / 4));
   });
 
   it('undo restores the original transform', () => {

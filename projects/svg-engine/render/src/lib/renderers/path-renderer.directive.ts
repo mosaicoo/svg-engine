@@ -16,6 +16,8 @@ import type { PathNode } from 'svg-engine/core';
     '[attr.fill-opacity]': 'node().style.fillOpacity ?? null',
     '[attr.stroke-opacity]': 'node().style.strokeOpacity ?? null',
     '[attr.visibility]': 'node().style.visibility ?? null',
+    // Bloco 4-R4: avoid stroke distortion when scale lives in transform
+    '[attr.vector-effect]': '"non-scaling-stroke"',
   },
 })
 export class SvgePathDirective {

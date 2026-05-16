@@ -17,6 +17,8 @@ import type { PolylineNode } from 'svg-engine/core';
     '[attr.opacity]': 'node().style.opacity ?? null',
     '[attr.stroke-opacity]': 'node().style.strokeOpacity ?? null',
     '[attr.visibility]': 'node().style.visibility ?? null',
+    // Bloco 4-R4: avoid stroke distortion when scale lives in transform
+    '[attr.vector-effect]': '"non-scaling-stroke"',
   },
 })
 export class SvgePolylineDirective {

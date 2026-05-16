@@ -6,6 +6,150 @@
 
 ---
 
+## 2026-05-16 — Fase 4 Bloco 4-Resize-Proper: bake de geometria no resize
+
+**Contexto**
+
+Usuário identificou que ao redimensionar formas pelos handles ("quadradinhos"),
+o **stroke ficava visualmente alterado** — parecia que escala estava sendo
+aplicada em vez de mudar `width`/`height`. Auditoria honesta confirmou:
+não era percepção, era **erro arquitetural real**.
+
+`ResizeNodeCommand` (Bloco 3) compunha `S(sx, sy)` no `transform` do nó.
+Consequências:
+
+1. **Stroke distorcia** — matrix de scale multiplica TUDO inclusive o
+   `stroke-width`. Affinity/Illustrator/Figma nunca fazem isso.
+2. **Inspector mismatch** — modelo dizia `width=100`, visualmente era 200.
+3. **Cantos arredondados (`rx`/`ry`) deformavam** em scale assimétrico —
+   round 5px virava oval.
+4. **Acumulativo** — cada resize compunha outro scale; matrizes empilhavam.
+
+Usuário escolheu **Caminho B completo**: bake de geometria pra TODOS os
+tipos SVG (rect/ellipse/line/polygon/polyline/text/image/path/group).
+
+**Sub-blocos entregues** (4-R1 a 4-R5)
+
+### 4-R1: pure bake helpers para primitivas
+
+`core/lib/geometry/scale-bake.ts`:
+
+- **Primitives**:
+  - `scaleAxisInterval(start, length, anchor, scale)` — 1-D interval scale
+    com normalização para length≥0 (handle de flip negativo)
+  - `scalePoint(p, anchor, sx, sy)` — point scale signed
+  - `isIdentityOrTranslate(transform)` — predicate p/ saber se bake é
+    aplicável (tolerância 1e-9 p/ floats noise)
+- **Per-type bake** (8 funções): rect (x/y/w/h/rx/ry), ellipse (cx/cy/rx/ry),
+  line (x1/y1/x2/y2), polygon/polyline (cada point), text (x/y + fontSize
+  só se uniforme), image (como rect), group (recursivo via callback)
+- **Negative scale handling**: rect flip-position com width positivo;
+  ellipse cx/cy mirror com radii sempre positivos; text fontSize via |sx|
+
+35 testes cobrindo: scale positivo/negativo/zero; preservação de id/style/
+transform/metadata; flip de sinal; uniforme/não-uniforme p/ text;
+recursão de group; isIdentityOrTranslate em 6 casos.
+
+### 4-R2: path d parser/scaler
+
+`core/lib/geometry/path-d-scaler.ts`:
+
+- **Tokenizer regex**: comando-letras OU números (com float/negativo/
+  exponencial); aceita tightly-packed (`M10 10-5-5`)
+- **`parsePathD(d)`**: agrupa em segments `{cmd, args: number[]}`
+- **`scalePathSegments(segs, sx, sy, anchor)`**: per-command scale (abs
+  vs rel; H/V/h/v single-axis; A/a com radii absolute + endpoint scaled
+  - sweep flip em scale-negativo-XOR)
+- **`serializePathD(segs)`**: round 6 decimais p/ noise float; -0 → 0
+- **`bakePathD(d, ...)`**: convenience parse+scale+serialize
+- **First-`m` quirk** (SVG 1.1 §9.3.3): primeira `m` reinterpretada
+  como `M` (preprocessFirstM split em M absoluto + l relativo se >2 args)
+
+36 testes cobrindo parser (incluindo tight-packed, scientific, .5, Z);
+scale per-command (abs + rel); first-m quirk; arcs (sweep flip,
+radii positive em negativo); end-to-end roundtrip.
+
+### 4-R3: bakeScaleIntoNode unificado + smart ResizeNodeCommand
+
+- `bakeScaleIntoNode(node, sx, sy, anchor): SvgNode | null` — switch
+  per-type; retorna null se transform não é identity-or-translate
+  (caller fallback para legacy)
+- `ResizeNodeCommand` **refatorado** (`core/commands/resize-node.command.ts`):
+  - Tenta bake primeiro; se null, fallback para `composeAnchoredScale`
+    (legacy mantido)
+  - Captura **node inteiro** previamente (não só transform) para undo
+    funcionar em ambos os paths
+  - `composeAnchoredScale` continua exportado (usado por
+    `TransformService.updateResize` para preview rápido)
+- `TransformService` **inalterado** — gesture flow já fazia revert+commit;
+  agora o command no commit faz bake automaticamente
+
+2 testes novos no rotate-resize.spec.ts: bake em identity-transform,
+fallback em rotated. 2 testes existentes em transform-gestures.spec.ts
+atualizados para verificar geometry mutada (não transform composto).
+
+### 4-R4: vector-effect="non-scaling-stroke" nos 7 renderers
+
+Aplicado em rect/ellipse/line/polygon/polyline/path/text directives
+(image não tem stroke). Cobre o caso fallback (nós rotacionados onde
+o bake não roda) — stroke fica visualmente constante mesmo com scale
+matrix no transform. Para nós identity-or-translate (caminho bake)
+é no-op harmless (sem scale matrix a combater).
+
+### 4-R5: docs + commit
+
+Esta entrada + checkbox no roadmap.
+
+**Decisões técnicas**
+
+- **Bake só no commit, não no preview**: preview durante drag continua
+  usando scale-transform (cheap, sem parse per-frame). Path scaler
+  parseando 1000-vertex paths a cada move event seria desperdício.
+- **Fallback para rotacionados via scale-transform + non-scaling-stroke**:
+  alternativa seria converter rotacionados para path on-bake — não trivial,
+  destrói o tipo original (rect deixa de ser rect). Fica como capability
+  futura ("convert to path"). Por enquanto: fallback elegante.
+- **Undo captura node inteiro**: bake mutates geometry, fallback mutates
+  transform — snapshot do node funciona para os dois sem branching.
+- **Arc rotation aproximada**: arcs com `x-axis-rotation != 0` sob scale
+  não-uniforme têm fórmula complexa (rotacionar basis vectors). Para v1
+  preservamos rotation e escalamos rx/ry por axis — exato quando
+  rotation=0 (caso comum em editores), aproximado fora disso. Documentado.
+- **First-`m` absolute quirk**: pega cega comum em path scalers. Tratado
+  via `preprocessFirstM` que reescreve a primeira `m` como `M` antes
+  do scale; resto fica relativo.
+- **Float noise mitigation**: `Math.round(n * 1e6) / 1e6` no serializer
+  (6 casas) preserva precisão útil sem inflar d-string.
+
+**Cobertura**
+
+- `scale-bake.spec.ts`: 35 testes
+- `path-d-scaler.spec.ts`: 37 testes
+- `rotate-resize.spec.ts`: +2 testes (bake + fallback)
+- `transform-gestures.spec.ts`: 2 testes atualizados
+- **Total**: +74 testes líquido → **504 passing em 41 arquivos**.
+  Zero regressão.
+
+**O que muda visualmente na app**
+
+- Resize de retângulo: `width`/`height` mudam (inspector reflete), stroke
+  fica em 1px (não distorce), cantos arredondados não viram oval
+- Resize de ellipse: `rx`/`ry` mudam, stroke constante
+- Resize de linha: endpoints reposicionam, stroke constante
+- Resize de path: `d` reescrito com coordenadas escaladas, stroke constante
+- Resize de polígono/polilinha: pontos reposicionam, stroke constante
+- Resize de texto: `x`/`y` movem; em scale uniforme `fontSize` também
+  escala; em não-uniforme `fontSize` preservado
+- Resize de imagem: `x`/`y`/`width`/`height` mudam
+- Resize de grupo: bake recursivo nos filhos não-rotacionados
+- Resize de qualquer shape **rotacionado**: scale-transform composto
+  (fallback), mas stroke continua sem distorção via non-scaling-stroke
+
+**Sobre Bloco 4d (palettes)**: adia 1 dia. Próximo agora é a infra
+real de paletas de cores.
+
+---
+
 ## 2026-05-15 — Fase 4 Bloco 4b-Lock v2: lock = totalmente off-limits
 
 **Contexto da correção**

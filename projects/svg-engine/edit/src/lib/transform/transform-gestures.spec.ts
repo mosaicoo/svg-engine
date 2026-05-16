@@ -152,7 +152,7 @@ describe('TransformService — rotate gesture', () => {
 });
 
 describe('TransformService — resize gesture', () => {
-  it('dragging the BR handle of a 100×100 box to (200,200) doubles the size with TL fixed', () => {
+  it('dragging the BR handle of a 100×100 box to (200,200) doubles the geometry with TL fixed (Bloco 4-R3 bake)', () => {
     const { transform, state, history } = setup();
     const rect = createRect({ x: 0, y: 0, width: 100, height: 100 });
     state.setDocument({
@@ -167,18 +167,17 @@ describe('TransformService — resize gesture', () => {
 
     expect(history.canUndo()).toBe(true);
 
-    const moved = findNodeById(state.document().root, rect.id);
-    // TL (0,0) should remain fixed
-    const tl = applyTransform(moved!.transform, 0, 0);
-    expect(tl.x).toBeCloseTo(0);
-    expect(tl.y).toBeCloseTo(0);
-    // BR should now be at (200, 200)
-    const br = applyTransform(moved!.transform, 100, 100);
-    expect(br.x).toBeCloseTo(200);
-    expect(br.y).toBeCloseTo(200);
+    const updated = findNodeById(state.document().root, rect.id) as typeof rect;
+    // Bake path: geometry mutated, transform stays identity.
+    // TL fixed at (0,0); BR now at (200,200) means width=200, height=200.
+    expect(updated.x).toBe(0);
+    expect(updated.y).toBe(0);
+    expect(updated.width).toBe(200);
+    expect(updated.height).toBe(200);
+    expect(updated.transform).toEqual(IDENTITY_TRANSFORM);
   });
 
-  it('edge handle TC scales only Y; X stays at 1', () => {
+  it('edge handle TC scales only Y; X stays unchanged (Bloco 4-R3 bake)', () => {
     const { transform, state, history } = setup();
     const rect = createRect({ x: 0, y: 0, width: 100, height: 100 });
     state.setDocument({
@@ -193,13 +192,14 @@ describe('TransformService — resize gesture', () => {
     transform.endResize();
 
     expect(history.canUndo()).toBe(true);
-    const moved = findNodeById(state.document().root, rect.id);
-    // X should be unchanged
-    const tr = applyTransform(moved!.transform, 100, 100);
-    expect(tr.x).toBeCloseTo(100);
-    // Top-Y should now be at -50 (height 150, BC fixed at 100)
-    const top = applyTransform(moved!.transform, 0, 0);
-    expect(top.y).toBeCloseTo(-50);
+    const updated = findNodeById(state.document().root, rect.id) as typeof rect;
+    // X unchanged, width unchanged
+    expect(updated.x).toBe(0);
+    expect(updated.width).toBe(100);
+    // Top-Y now at -50 (height 150, BC fixed at 100)
+    expect(updated.y).toBe(-50);
+    expect(updated.height).toBe(150);
+    expect(updated.transform).toEqual(IDENTITY_TRANSFORM);
   });
 
   it('cancelGesture during resize reverts', () => {

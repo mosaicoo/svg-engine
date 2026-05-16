@@ -20,6 +20,9 @@ export * from './lib/types';
 // Model (interfaces + factories)
 export * from './lib/model';
 
+// Geometry helpers (scale-bake — Bloco 4-Resize-Proper)
+export * from './lib/geometry';
+
 // Immutable tree operations
 export * from './lib/tree';
 

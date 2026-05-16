@@ -163,6 +163,18 @@
 >
 > - [x] **Bloco 4-pre**: `WorkspaceService` + `<svge-workspace-background>` (background transparente xadrez / sólido / imagem). Headless (HTML+CSS, sem Material). Toolbar de presets no playground
 
+- [x] **Bloco 4-Resize-Proper**: resize via handles agora baka geometria (não compõe scale matrix)
+  - **Problema corrigido**: era reportado que ao arrastar o "quadradinho" (handle) o contorno (stroke) ficava visivelmente alterado — confirmado como erro real (scale matrix aplicada via transform afeta stroke + gera mismatch inspector-vs-visual)
+  - **Solução** (Caminho B completo, como solicitado pelo usuário):
+    - `core/geometry/scale-bake.ts`: pure helpers `bakeRect/bakeEllipse/bakeLine/bakePolygon/bakePolyline/bakeText/bakeImage/bakeGroup/bakePath` + primitives `scaleAxisInterval`/`scalePoint`/`isIdentityOrTranslate` + entry unificado `bakeScaleIntoNode`
+    - `core/geometry/path-d-scaler.ts`: parser/scaler/serializer do `d` attribute (M/L/H/V/C/S/Q/T/Z + arcos com limitação documentada de rotação)
+    - `ResizeNodeCommand` agora tenta bake primeiro; fallback para `composeAnchoredScale` quando nó é rotacionado
+    - `vector-effect="non-scaling-stroke"` nos 7 renderers que têm stroke (rect/ellipse/line/polygon/polyline/path/text); cobre o caso fallback rotacionado
+    - Preview durante drag continua usando scale-transform (rápido, sem parse per-frame); bake só no commit (endResize)
+    - Undo restaura node inteiro (geometria + transform) com snapshot pré-execute
+  - **Padrão de mercado atingido**: inspector reflete geometria real, stroke nunca distorce, cantos arredondados preservados, paths editados corretamente
+  - Limitação documentada: nós rotacionados não bakeam (fallback usa scale-transform composition; visual correto via non-scaling-stroke; inspector mostra geometria pre-scale)
+
 - [x] **Bloco 4a**: `svg-engine/ui` entry point + `<svge-editor>` shell
   - Quarto secondary entry point criado (`projects/svg-engine/ui/`); ng-packagr auto-discover; tsconfig paths + lib/spec includes atualizados
   - `@angular/material` + `@angular/cdk` adicionados como peerDeps **opcionais** (consumer só puxa se importar `svg-engine/ui`)
