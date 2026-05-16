@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { generateNodeId } from 'svg-engine/core';
+import { LayersService } from '../layers/layers.service';
 import { SelectionService } from './selection.service';
 
 describe('SelectionService', () => {
@@ -153,5 +154,125 @@ describe('SelectionService', () => {
       svc.setHover(null);
       expect(svc.hoverId()).toBeNull();
     });
+  });
+});
+
+describe('SelectionService — lock enforcement (Bloco 4b-Lock v2)', () => {
+  let svc: SelectionService;
+  let layers: LayersService;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    svc = TestBed.inject(SelectionService);
+    layers = TestBed.inject(LayersService);
+    layers.unlockAll();
+  });
+
+  it('select on a locked id is a silent no-op', () => {
+    const a = generateNodeId();
+    layers.setLocked(a, true);
+    svc.select(a);
+    expect(svc.selectedIds().size).toBe(0);
+    expect(svc.focusId()).toBeNull();
+  });
+
+  it('selectMany filters locked ids out of the result', () => {
+    const a = generateNodeId();
+    const b = generateNodeId();
+    const c = generateNodeId();
+    layers.setLocked(b, true);
+    svc.selectMany([a, b, c]);
+    expect(svc.selectedIds().size).toBe(2);
+    expect(svc.isSelected(a)).toBe(true);
+    expect(svc.isSelected(b)).toBe(false);
+    expect(svc.isSelected(c)).toBe(true);
+  });
+
+  it('addToSelection on a locked id is a silent no-op', () => {
+    const a = generateNodeId();
+    const b = generateNodeId();
+    svc.select(a);
+    layers.setLocked(b, true);
+    svc.addToSelection(b);
+    expect(svc.selectedIds().size).toBe(1);
+    expect(svc.isSelected(b)).toBe(false);
+  });
+
+  it('toggle on a locked id never adds it', () => {
+    const a = generateNodeId();
+    layers.setLocked(a, true);
+    svc.toggle(a);
+    expect(svc.isSelected(a)).toBe(false);
+    expect(svc.selectedIds().size).toBe(0);
+  });
+
+  it('setHover on a locked id clears hover (does not highlight)', () => {
+    const a = generateNodeId();
+    layers.setLocked(a, true);
+    svc.setHover(a);
+    expect(svc.hoverId()).toBeNull();
+  });
+
+  it('locking a currently-selected node auto-deselects (effect)', () => {
+    const a = generateNodeId();
+    svc.select(a);
+    expect(svc.isSelected(a)).toBe(true);
+    layers.setLocked(a, true);
+    // The effect runs on the next microtask flush
+    TestBed.flushEffects();
+    expect(svc.isSelected(a)).toBe(false);
+    expect(svc.focusId()).toBeNull();
+  });
+
+  it('locking one id from a multi-selection prunes only that id', () => {
+    const a = generateNodeId();
+    const b = generateNodeId();
+    const c = generateNodeId();
+    svc.selectMany([a, b, c]);
+    layers.setLocked(b, true);
+    TestBed.flushEffects();
+    expect(svc.selectedIds().size).toBe(2);
+    expect(svc.isSelected(a)).toBe(true);
+    expect(svc.isSelected(b)).toBe(false);
+    expect(svc.isSelected(c)).toBe(true);
+  });
+
+  it('locking the focused node moves focus to another selected member', () => {
+    const a = generateNodeId();
+    const b = generateNodeId();
+    svc.selectMany([a, b]);
+    expect(svc.focusId()).toBe(b); // last in iteration
+    layers.setLocked(b, true);
+    TestBed.flushEffects();
+    expect(svc.focusId()).toBe(a);
+  });
+
+  it('locking the only selected node clears focus to null', () => {
+    const a = generateNodeId();
+    svc.select(a);
+    layers.setLocked(a, true);
+    TestBed.flushEffects();
+    expect(svc.focusId()).toBeNull();
+    expect(svc.selectedIds().size).toBe(0);
+  });
+
+  it('locking the hovered node clears hover', () => {
+    const a = generateNodeId();
+    svc.setHover(a);
+    expect(svc.hoverId()).toBe(a);
+    layers.setLocked(a, true);
+    TestBed.flushEffects();
+    expect(svc.hoverId()).toBeNull();
+  });
+
+  it('unlocking a previously-locked id does NOT auto-restore selection', () => {
+    const a = generateNodeId();
+    svc.select(a);
+    layers.setLocked(a, true);
+    TestBed.flushEffects();
+    layers.setLocked(a, false);
+    TestBed.flushEffects();
+    // Still deselected — user must reselect manually (Affinity/Figma convention)
+    expect(svc.isSelected(a)).toBe(false);
   });
 });

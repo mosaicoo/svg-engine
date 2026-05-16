@@ -6,6 +6,116 @@
 
 ---
 
+## 2026-05-15 — Fase 4 Bloco 4b-Lock v2: lock = totalmente off-limits
+
+**Contexto da correção**
+
+Usuário esclareceu (corretamente) que o conceito que apliquei no v1
+estava errado. v1 seguia Affinity/Figma "lock = sem edição mas pode
+selecionar"; usuário queria "lock = invisível para qualquer interação,
+incluindo seleção". Razões:
+
+- Locked node não pode ser selecionado (canvas, marquee, layers panel).
+- Inspector nunca mostra propriedades de locked.
+- Única interação permitida é via botões eye/lock no layers panel
+  (continuam funcionando para destravar / mostrar-esconder).
+
+Correção aplicada com **enforcement centralizado no `SelectionService`**.
+
+**Mudanças**
+
+`SelectionService` (em `edit`):
+
+- Injeta `LayersService` (mesmo entry point — coupling justificado).
+- `select(id)`, `addToSelection(id)`, `toggle(id)`: silent no-op se
+  `isLocked(id)`.
+- `selectMany(ids)`: filtra locked antes de aplicar; `selectedIds`
+  resultante nunca contém locked.
+- `setHover(id)`: silent no-op + clear se locked (sem highlight de
+  hover em locked).
+- **Effect reativo** no constructor: lê `LayersService.lockedIds()`,
+  usa `untracked()` para mutar `_selectedIds`/`_focusId`/`_hoverId`
+  removendo qualquer id que tenha virado locked. Garante consistência
+  mesmo se `setLocked` for chamado externamente.
+- `clear()` e `deselect()` NÃO foram alterados — operam sobre o que
+  está selecionado independente de lock. O que não pode é ADICIONAR
+  locked à seleção.
+
+Layers panel (em `ui`):
+
+- Locked rows: `cursor: not-allowed`, `aria-disabled="true"`,
+  `tabindex="-1"`, hover bg neutralizado.
+- `onRowClick`/`onRowKey` early-return se locked (defesa explícita
+  no consumer; SelectionService já é no-op de qualquer forma).
+- Botões eye/lock continuam funcionando (stop propagation já existia).
+
+Inspector (em `ui`):
+
+- Badge "Locked" + CSS `.inspector-header.locked` + lock-badge
+  **REMOVIDOS** — eram dead code agora (locked nunca chega ao inspector
+  porque selection nunca o foca).
+- `[disabled]="isLocked()"` e setter short-circuits **MANTIDOS** como
+  defesa em profundidade — barato e protege se algum consumer futuro
+  set focus diretamente sem passar por `SelectionService`.
+- Doc comment de `isLocked` atualizado refletindo que é defesa, não
+  UI primária.
+
+`TransformService` (em `edit`):
+
+- `startMove/startRotate/startResize` continuam refusando locked.
+  Tecnicamente redundante agora (locked nunca está selecionado, então
+  o consumer não chama startMove com id locked). Mantido como defesa
+  em profundidade (custo zero).
+
+Playground:
+
+- Check `if (!this.layers.isLocked(id))` em `onCanvasPointerDown`
+  mantido — evita armar `potentialDrag` com id que nem foi selecionado
+  (cleaner UX, sem cursor "grabbing" enganoso).
+
+**Decisões técnicas**
+
+- **Filter no write + effect para sync**: write-time evita ids locked
+  entrarem (o caminho normal). Effect cuida do "lockou depois de
+  selecionar" (raro mas possível). Combinação cobre todos os caminhos.
+- **`untracked()` no effect**: signal updates dentro do effect criariam
+  loops se as deps fossem registradas. `untracked` quebra o ciclo;
+  effect só re-roda quando `lockedIds` muda.
+- **Unlock NÃO restaura seleção**: Affinity/Figma convention. State
+  é prune-and-forget; usuário reseleciona manualmente. Caso contrário
+  teríamos que guardar "ghost selection" — complexidade desnecessária.
+- **Coupling Selection→Layers**: já tinha Transform→Layers (4b-v1).
+  Agora Selection também. Ambos em `edit`; lock é cross-cutting
+  fundamental. Aceitável.
+- **`TestBed.flushEffects()` nos specs**: effects não rodam em
+  `Promise.resolve()` em testes (rodam no scheduler do Angular CD).
+  `flushEffects` força o flush síncrono.
+
+**Cobertura**
+
+- `selection.service.spec.ts`: +9 testes
+  (no-op em select/selectMany/addToSelection/toggle/setHover; effect
+  auto-deselect single + multi; focus reassign; hover clear; unlock
+  não restaura)
+- `layers-panel.component.spec.ts`: +2 testes
+  (click em locked row no-op; aria-disabled true)
+- `inspector.component.spec.ts`: -5 testes do v1 + 1 novo
+  (locking deseleciona → inspector vai pra "No selection")
+- **Total**: +9 testes líquidos → 429 passing em 39 arquivos. Zero regressão.
+
+**O que vai parecer diferente no app**:
+
+- Click em forma com cadeado fechado: nada acontece. Cursor `not-allowed`
+  no layers panel; cursor default no canvas (sem grabbing).
+- Marquee passando por locked: locked NÃO entra na seleção. Seleção
+  contém só os unlocked dentro da box.
+- Selecionar forma → cadear no layers: forma deseleciona automaticamente,
+  inspector vira "No selection".
+- Destravar: forma não volta automaticamente para a seleção. Usuário
+  precisa clicar de novo.
+
+---
+
 ## 2026-05-15 — Fase 4 Bloco 4b-Lock: enforcement real do cadeado
 
 **Contexto**

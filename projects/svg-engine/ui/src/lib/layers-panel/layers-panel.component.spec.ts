@@ -165,6 +165,25 @@ describe('LayersPanel — visibility / lock toggles', () => {
     expect(rows(fixture.nativeElement)[0]?.classList.contains('locked')).toBe(true);
   });
 
+  it('clicking on a locked row is a no-op (does not select)', () => {
+    const { fixture, layers, rectId } = setupWithRect();
+    const sel = TestBed.inject(SelectionService);
+    sel.clear();
+    layers.setLocked(rectId, true);
+    fixture.detectChanges();
+    rows(fixture.nativeElement)[0]?.click();
+    fixture.detectChanges();
+    expect(sel.count()).toBe(0);
+    expect(sel.focusId()).toBeNull();
+  });
+
+  it('locked row has aria-disabled="true" for screen readers', () => {
+    const { fixture, layers, rectId } = setupWithRect();
+    layers.setLocked(rectId, true);
+    fixture.detectChanges();
+    expect(rows(fixture.nativeElement)[0]?.getAttribute('aria-disabled')).toBe('true');
+  });
+
   it('toggle clicks do not trigger row select (stopPropagation)', () => {
     const { fixture, rectId, layers } = setupWithRect();
     const sel = TestBed.inject(SelectionService);

@@ -175,11 +175,14 @@
   - `[svgeLayersFilter]` directive (em `edit`): aplica `display: none` em `[data-node-id]` matching `hiddenIds` via `effect()`; preserva pre-existing inline display ao restaurar; opt-in (consumer attach na renderer)
   - `<svge-layers-panel>` (em `ui`): recursive Material UI; expand/collapse de groups; ícone por tipo; visibility/lock buttons; click-to-select com Ctrl/Shift modifiers; classes `.selected`/`.hidden`/`.locked` p/ styling
   - **Drag-drop reorder ADIADO** para sub-bloco 4b-DnD (precisa de `MoveNodeInTreeCommand` novo no core; mantém 4b focado)
-- [x] **Bloco 4b-Lock**: enforcement real do cadeado
-  - `TransformService.startMove/startRotate/startResize` injeta `LayersService` e refusam (no-op) em locked nodes — cobre body-drag + handles do overlay
-  - `<svge-inspector>`: badge "Locked" no header (vermelho), `[disabled]` em todos os inputs, setters short-circuit (defense in depth)
-  - Playground `onCanvasPointerDown`: locked nodes ainda selecionáveis (padrão Illustrator/Affinity/Figma) mas não armam `potentialDrag`
-  - Padrão: lock previne **edição**, NÃO seleção (o usuário vê propriedades sem poder mudar)
+- [x] **Bloco 4b-Lock v2**: enforcement do cadeado — locked = totalmente off-limits
+  - **Correção do v1**: usuário esclareceu que locked NÃO pode ser selecionado nem ter propriedades exibidas; única interação permitida é via botões eye/lock do próprio layers panel
+  - `SelectionService`: injeta `LayersService`. Filter no write em `select`/`selectMany`/`addToSelection`/`toggle`/`setHover`. Effect com `untracked()` auto-deseleciona quando `lockedIds` cresce (pruning + focus reassignment + hover clear)
+  - `TransformService.startMove/startRotate/startResize` continuam refusando locked (defense in depth — agora redundante mas barato)
+  - Layers panel: `cursor: not-allowed` em rows locked, `aria-disabled="true"`, `tabindex="-1"`, hover bg neutro; click/keyboard handlers fazem early-return em locked
+  - Inspector: badge "Locked" e CSS `.inspector-header.locked` REMOVIDOS (locked nunca chega aqui agora); `[disabled]="isLocked()"` e setter short-circuits MANTIDOS como defesa em profundidade
+  - Lock NÃO afeta `clear()` ou `deselect()` (usuário pode programaticamente remover; o que não pode é ADICIONAR locked à seleção)
+  - Unlock NÃO restaura seleção (Affinity/Figma convention — usuário precisa reselecionar manualmente)
 - [x] **Bloco 4c**: Inspector de propriedades (`<svge-inspector>`)
   - Reativo a `selection.focusId()` via computed; estados: empty / multi (placeholder com count) / single (header + sections)
   - Geometry per type: rect (x/y/w/h), ellipse (cx/cy/rx/ry), line (x1/y1/x2/y2). polygon/polyline/path/text/image mostram placeholder "edit via canvas tools"; group sem geometry

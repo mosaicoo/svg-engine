@@ -62,18 +62,9 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
   ],
   template: `
     @if (focusNode(); as node) {
-      <header class="inspector-header" [class.locked]="isLocked()">
+      <header class="inspector-header">
         <mat-icon class="type-icon" aria-hidden="true">{{ typeIcon(node) }}</mat-icon>
         <span class="type-label">{{ node.type }}</span>
-        @if (isLocked()) {
-          <span
-            class="lock-badge"
-            title="This node is locked. Unlock from the layers panel to edit."
-          >
-            <mat-icon aria-hidden="true">lock</mat-icon>
-            Locked
-          </span>
-        }
         <span class="id-label" [title]="node.id">{{ node.id.slice(0, 8) }}</span>
       </header>
 
@@ -335,28 +326,6 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
       font-size: 11px;
       opacity: 0.6;
     }
-    .inspector-header.locked {
-      background: var(--mat-sys-error-container, #ffeaea);
-    }
-    .inspector-header .lock-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 2px;
-      padding: 2px 8px;
-      font-size: 11px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      background: var(--mat-sys-error, #b00020);
-      color: var(--mat-sys-on-error, #ffffff);
-      border-radius: 999px;
-    }
-    .inspector-header .lock-badge mat-icon {
-      font-size: 14px;
-      width: 14px;
-      height: 14px;
-      line-height: 14px;
-    }
     .section {
       padding: 8px 16px 4px;
     }
@@ -430,11 +399,12 @@ export class SvgeInspector {
   protected readonly selectionCount = this.selection.count;
 
   /**
-   * Whether the focused node is locked. Drives `[disabled]` on every
-   * input + visual badge in the header. Setters also short-circuit on
-   * locked (defense in depth — even if Material doesn't fully respect
-   * `[disabled]` on color pickers in some browsers, the dispatch path
-   * is still blocked).
+   * Defense-in-depth: under normal operation `SelectionService` filters
+   * locked ids, so a locked node should never become focused (and the
+   * inspector renders the "No selection" placeholder instead). This
+   * computed exists so that if some future consumer manually sets
+   * focus on a locked id (bypassing `SelectionService`), the inputs
+   * still disable and the setters short-circuit. Cheap insurance.
    */
   protected readonly isLocked = computed(() => {
     const node = this.focusNode();

@@ -72,12 +72,13 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
       <div
         class="row"
         role="treeitem"
-        tabindex="0"
+        [tabindex]="isLocked()(node.id) ? -1 : 0"
         [class.selected]="isSelected()(node.id)"
         [class.locked]="isLocked()(node.id)"
         [class.hidden]="!isVisible()(node.id)"
         [style.padding-left.px]="8 + depth * 16"
         [attr.aria-selected]="isSelected()(node.id)"
+        [attr.aria-disabled]="isLocked()(node.id)"
         (click)="onRowClick($event, node.id)"
         (keydown.enter)="onRowKey($any($event), node.id)"
         (keydown.space)="onRowKey($any($event), node.id)"
@@ -174,6 +175,13 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
     .row.hidden .type-icon {
       opacity: 0.45;
       font-style: italic;
+    }
+    .row.locked {
+      cursor: not-allowed;
+    }
+    .row.locked:hover {
+      /* Override the default hover bg — locked rows shouldn't appear interactive */
+      background: transparent;
     }
     .row.locked .label {
       color: var(--mat-sys-on-surface-variant, #777);
@@ -285,6 +293,12 @@ export class LayersPanel {
   }
 
   protected onRowClick(event: MouseEvent, id: NodeId): void {
+    // Locked rows are completely off-limits to selection. Only the
+    // eye/lock buttons (which stop propagation) remain interactive.
+    // Defense in depth — `SelectionService.select/toggle/addToSelection`
+    // already skip locked ids; this short-circuit just avoids
+    // unnecessary signal reads + makes intent explicit.
+    if (this.layers.isLocked(id)) return;
     if (event.shiftKey) {
       this.selection.addToSelection(id);
       return;
@@ -298,10 +312,12 @@ export class LayersPanel {
 
   /**
    * Keyboard equivalent of `onRowClick` (Enter / Space). Same modifier
-   * semantics. `preventDefault` so Space doesn't scroll the panel.
+   * semantics + same lock skip. `preventDefault` so Space doesn't
+   * scroll the panel.
    */
   protected onRowKey(event: KeyboardEvent, id: NodeId): void {
     event.preventDefault();
+    if (this.layers.isLocked(id)) return;
     if (event.shiftKey) {
       this.selection.addToSelection(id);
       return;

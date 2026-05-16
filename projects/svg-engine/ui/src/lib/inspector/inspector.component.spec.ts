@@ -283,8 +283,8 @@ describe('SvgeInspector — reactive updates', () => {
   });
 });
 
-describe('SvgeInspector — lock enforcement', () => {
-  function setupWithLockedRect() {
+describe('SvgeInspector — lock interaction (Bloco 4b-Lock v2)', () => {
+  it('locking a focused node auto-deselects → inspector shows "No selection"', () => {
     const ctx = setup();
     const layers = TestBed.inject(LayersService);
     layers.unlockAll();
@@ -294,61 +294,16 @@ describe('SvgeInspector — lock enforcement', () => {
       root: createGroup([r], { id: ctx.state.document().root.id }),
     });
     ctx.selection.select(r.id);
-    layers.setLocked(r.id, true);
     ctx.fixture.detectChanges();
-    return { ...ctx, layers, rectId: r.id };
-  }
+    expect(ctx.fixture.nativeElement.querySelector('.inspector-header')).not.toBeNull();
 
-  it('shows the Locked badge in the header when focused node is locked', () => {
-    const { fixture } = setupWithLockedRect();
-    const badge = fixture.nativeElement.querySelector('.inspector-header .lock-badge');
-    expect(badge).not.toBeNull();
-    expect(badge?.textContent).toContain('Locked');
-  });
-
-  it('adds .locked class to the header when focused node is locked', () => {
-    const { fixture } = setupWithLockedRect();
-    const header = fixture.nativeElement.querySelector('.inspector-header');
-    expect(header?.classList.contains('locked')).toBe(true);
-  });
-
-  it('disables every input when the focused node is locked', () => {
-    const { fixture } = setupWithLockedRect();
-    const numberInputs = Array.from(
-      fixture.nativeElement.querySelectorAll('mat-form-field input[type="number"]'),
-    ) as HTMLInputElement[];
-    const colorInputs = Array.from(
-      fixture.nativeElement.querySelectorAll('input[type="color"]'),
-    ) as HTMLInputElement[];
-    expect(numberInputs.length).toBeGreaterThan(0);
-    expect(colorInputs.length).toBe(2);
-    for (const i of [...numberInputs, ...colorInputs]) {
-      expect(i.disabled).toBe(true);
-    }
-  });
-
-  it('setNumber is a no-op when focused node is locked (defense in depth)', () => {
-    const { fixture, state, rectId } = setupWithLockedRect();
-    const beforeDoc = state.document();
-    // Programmatically dispatch a change event (bypasses the [disabled]
-    // gate to confirm the setter itself short-circuits).
-    const xInput = fixture.nativeElement.querySelector(
-      'mat-form-field input[type="number"]',
-    ) as HTMLInputElement | null;
-    if (xInput === null) throw new Error('input not found');
-    xInput.disabled = false; // force re-enable for this test
-    xInput.value = '999';
-    xInput.dispatchEvent(new Event('change', { bubbles: true }));
-    fixture.detectChanges();
-    expect(state.document()).toBe(beforeDoc);
-    expect(rectId).toBeDefined();
-  });
-
-  it('removes the Locked badge after unlocking', () => {
-    const { fixture, layers, rectId } = setupWithLockedRect();
-    expect(fixture.nativeElement.querySelector('.lock-badge')).not.toBeNull();
-    layers.setLocked(rectId, false);
-    fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.lock-badge')).toBeNull();
+    // Lock → SelectionService effect prunes selection
+    layers.setLocked(r.id, true);
+    TestBed.flushEffects();
+    ctx.fixture.detectChanges();
+    expect(ctx.fixture.nativeElement.querySelector('.inspector-header')).toBeNull();
+    expect(ctx.fixture.nativeElement.querySelector('.placeholder')?.textContent).toContain(
+      'No selection',
+    );
   });
 });
