@@ -403,29 +403,69 @@ Mapeadas em D-023 (9 categorias, qual fase abre cada registry). Runtime de scrip
 - **Testabilidade preservada**: registries são services Angular standalone — testáveis isolados via TestBed; plugins são testáveis via `provideSvgEnginePlugin(plugin)` em TestBed.
 - **Versionamento**: semver major-only é o gate inicial. Quando `PLUGIN_API_VERSION` saltar para `2.0.0`, plugins targeting `1.x.x` falham loud no install — sem ambiguidade.
 
-## D-021 — Conceito de Workspace / Prancheta / Página (pendente)
+## D-021 — Conceito de Workspace / Prancheta / Página
 
-- **Data**: 2026-05-14 (registro)
-- **Status**: **PENDENTE** — definir antes da Fase 4
-- **Contexto**: Editores profissionais (Figma, Sketch, Affinity, Inkscape)
-  têm um conceito de "página" / "frame" / "artboard" / "prancheta" que
-  envolve:
+- **Data**: 2026-05-14 (registro); 2026-05-15 (resolvida — Option C híbrida)
+- **Status**: **Resolvida (Option C)** — implementação iniciada no bloco prévio à Fase 4 (`WorkspaceService` + `<svge-workspace-background>`); demais aspectos (page/grid/guides) chegam em blocos subsequentes da Fase 4
+- **Contexto**: Editores profissionais (Figma, Sketch, Affinity, Inkscape) têm um conceito de "página" / "frame" / "artboard" que envolve:
   - Tamanho e orientação de página.
   - Background (cor sólida, padrão, imagem, checkerboard de transparência).
   - Margens, grid, guides (linhas-guia).
   - Eventual suporte a múltiplas páginas / artboards.
-- **Opções a avaliar**:
-  - **A. Estender `SvgDocument`**: adicionar
-    `presentation: PresentationSettings` opcional. Simples, mas mistura
-    modelo SVG-spec com configuração de UI.
-  - **B. Novo conceito `Workspace`**: contém um ou mais `SvgDocument`
-    mais metadata de apresentação por documento. Mais flexível, suporta
-    multi-page natural.
-- **Quando decidir**: até o início da Fase 4 (UI), pois o painel de
-  configuração de página vive em `svg-engine/ui`.
-- **Quando renderizar background/grid**: o `<svge-renderer>` (Bloco 2)
-  intencionalmente **não** desenha background — fica como camada de UI
-  por cima ou abaixo do canvas. Plugin / consumidor controla.
+- **Diretriz adicional do usuário (2026-05-15)**: o background precisa suportar transparente (xadrez), cores sólidas, **paletas de cores**, e demais "configurações de mercado" (page size, grid, guides, rulers).
+
+### Opções avaliadas
+
+- **A. Estender `SvgDocument`** com `presentation: PresentationSettings` — _rejeitada_: mistura modelo SVG-spec com configuração de editor (viola D-002 spirit) e bloqueia o caminho de multi-page natural.
+- **B. Novo conceito `Workspace`** que contém um ou mais `SvgDocument`s com metadata de apresentação — _parcialmente aceita_: bom direcionamento, mas implementar full multi-page de cara é overengineering antes da real demanda.
+- **C. (Escolhida) Híbrida**: `WorkspaceService` separado de `SvgDocument`, single-document inicialmente, multi-page como extensão futura sem refatoração.
+
+### Decisão
+
+`SvgDocument` permanece **puro SVG-spec**. Estado de apresentação do editor mora em um service novo, independente.
+
+```typescript
+// Em svg-engine/edit/src/lib/workspace/
+@Injectable({ providedIn: 'root' })
+export class WorkspaceService {
+  // Bloco 4-pre (entregue 2026-05-15):
+  readonly background = signal<BackgroundConfig>(DEFAULT_BACKGROUND);
+  // Blocos seguintes da Fase 4 (planejados):
+  // readonly page = signal<PageSettings>(DEFAULT_PAGE);
+  // readonly grid = signal<GridConfig>(DEFAULT_GRID);
+  // readonly guides = signal<readonly Guide[]>([]);
+  // readonly rulers = signal<RulerConfig>(DEFAULT_RULERS);
+}
+
+export type BackgroundConfig =
+  | { kind: 'transparent' } // CSS xadrez
+  | { kind: 'solid'; color: string }
+  | { kind: 'image'; href: string };
+// Futuro: 'gradient', 'pattern' (do PaletteRegistry/PluginRegistry)
+```
+
+Background é renderizado por `<svge-workspace-background>` — wrapper HTML+CSS atrás do `<svge-renderer>`, **não** polui o SVG content tree (xadrez via `linear-gradient` CSS, não via SVG `<pattern>`).
+
+### Color palettes (cobertas pela infra de plugins)
+
+Paletas de cores entram via **`PaletteRegistry`** (categoria 8 do D-023, abertura na Fase 4). Plugins/builtins/projeto contribuem paletas; UI consome via `PaletteService`. Não precisa decisão arquitetural nova — o sistema de plugins já entrega o que é preciso.
+
+### Multi-page como extensão futura
+
+O caminho está aberto sem refatoração: quando demanda surgir, `WorkspaceService` vira instância de `WorkspacesRegistry` (lista de N workspaces, cada um = `SvgDocument` + presentation state). Routing de "qual workspace está ativo" é responsabilidade do consumer (similar a tabs no Figma).
+
+### Por que não polui SVG (background fora do `<svg>`)
+
+- **Export limpo**: usuário exporta SVG e o arquivo vem sem background (que é editor-only). Se quiser background no exportado, **adiciona `<rect>` explícito** ao documento — controle consciente.
+- **Performance**: xadrez via CSS gradients é renderizado pela GPU, sem markup repetido em cada frame.
+- **Z-order trivial**: HTML naturalmente fica atrás do SVG transparente posicionado em cima.
+
+### Consequências
+
+- Toda Fase 4 lê de `WorkspaceService` para configurações de canvas (page/grid/guides quando chegarem).
+- `<svge-editor>` shell (Fase 4) vai compor `<svge-workspace-background>` + `<svge-renderer>` + futuros `<svge-rulers>` / `<svge-grid-overlay>` automaticamente.
+- Consumer pode persistir o estado de `WorkspaceService` no formato de projeto (snapshot dos signals).
+- D-021 **fechada**; multi-page entra em decisão futura quando demandado.
 
 ---
 
@@ -664,8 +704,8 @@ O script **monta uma sequência de `CommandRequest`s e devolve via postMessage**
 | D-027?     | Migração para zoneless (revisar D-010)                                 |
 | D-028?     | Lint rule customizada para enforcer headless boundary                  |
 | D-029?     | Estratégia de testes E2E (Playwright?)                                 |
-| D-030?     | **Workspace/Página: A vs B** (resolver D-021)                          |
 | D-031?     | Versionamento + changelog (changesets / standard-version)              |
+| D-032?     | Multi-page (`WorkspacesRegistry`) — extensão futura de D-021           |
 | D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3 |
 
-> **Nota**: D-023 era "API formal de plugins" (cumprida pelo D-020 expandido em 2026-05-15). D-024 era "Versionamento + changelog" (renumerada para D-031 porque o número D-024 foi reusado para `ScriptRuntimePlugin`). Sequência de IDs cumpridas: D-020, D-023, D-024.
+> **Nota**: D-023 era "API formal de plugins" (cumprida pelo D-020 expandido em 2026-05-15). D-024 era "Versionamento + changelog" (renumerada para D-031 porque o número D-024 foi reusado para `ScriptRuntimePlugin`). D-030 era "Workspace/Página: A vs B" (cumprida pelo D-021 resolvido como Option C). D-032 entra como pendente para multi-page futuro. Sequência de IDs cumpridas em 2026-05-15: D-020, D-021, D-023, D-024.

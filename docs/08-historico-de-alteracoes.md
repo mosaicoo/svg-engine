@@ -6,6 +6,64 @@
 
 ---
 
+## 2026-05-15 — Fase 4 Bloco prévio: WorkspaceService + background (D-021 resolvido)
+
+**Contexto**
+
+Antes de abrir `svg-engine/ui` (Fase 4), o usuário levantou requisitos
+explícitos: (1) background **transparente** (xadrez), (2) **paletas de
+cores**, (3) "outras configurações de mercado" (page/grid/guides/rulers).
+Forçou resolução do D-021 (estava pendente).
+
+3 opções avaliadas — A (estender SvgDocument, rejeitada por ferir
+D-002), B (Workspace multi-page de cara, overengineering antes da
+demanda), **C híbrida (escolhida)**: WorkspaceService separado, single-doc
+agora, multi-page como extensão futura sem refator.
+
+**O que foi entregue**
+
+Foundation pré-Fase 4 em `svg-engine/edit/src/lib/workspace/`. Headless
+(HTML+CSS, sem Material — fica em `edit`).
+
+- `WorkspaceService` (signals): `BackgroundConfig` discriminated union
+  (transparent/solid/image; gradient/pattern adiados); `setBackground`
+  valida silenciosamente + dedup; `resetBackground` → default
+  transparent. NÃO mutates SvgDocument.
+- `<svge-workspace-background>` HTML wrapper: `<ng-content/>` projetado
+  com background via classe (transparent → CSS xadrez 4 linear-gradients
+  16×16, idêntico Photoshop/Illustrator/Affinity/Figma) ou inline style
+  (solid color / image url). pointer-events: none.
+
+**Wire no playground**:
+
+- Renderer envolto em `<svge-workspace-background>`.
+- Toolbar nova "Background": 4 presets (Transparent/White/LightGray/Dark)
+  - `<input type="color">` custom.
+
+**Decisões técnicas**
+
+- HTML wrapper, não SVG `<rect>`: xadrez via CSS gradient é trivial e
+  GPU-compositado; via SVG pattern seria pesado e teria sub-pixel snap
+  issues. Bonus: não polui SVG export.
+- WorkspaceService em edit (não render): vai abrigar grid/guides/rulers
+  edit-only; bundling coerente.
+- Paletas usam PaletteRegistry (categoria 8 do D-023) — sem service novo
+  específico.
+
+**Cobertura**
+
+- workspace.service.spec.ts: 9 testes
+- workspace-background.component.spec.ts: 5 testes
+- **Total**: +14 testes → 356 passing em 34 arquivos. Zero regressão.
+
+**Próximo: Fase 4 com 9 blocos planejados** (`05-roadmap.md`):
+ui entry + editor shell (4a), layers (4b), inspector (4c), color
+palettes via PaletteRegistry (4d), toolbar extensível +
+MenuContributionRegistry (4e), workspace settings completos (4f),
+shortcuts ShortcutRegistry (4g), grouping (4h), theme toggle (4i).
+
+---
+
 ## 2026-05-15 — Fase 3 Bloco 5c: Documentação canônica de plugins (D-020/D-023/D-024)
 
 **O que foi entregue**

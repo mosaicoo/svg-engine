@@ -129,6 +129,25 @@
         ↕
       </button>
     </fieldset>
+    <fieldset>
+      <legend>Background</legend>
+      @for (preset of bgPresets; track preset.value) {
+        <button
+          type="button"
+          [class.active]="isBgActive(preset.value)"
+          (click)="setBackgroundPreset(preset.value)"
+          [title]="preset.label"
+        >
+          {{ preset.label }}
+        </button>
+      }
+      <input
+        type="color"
+        aria-label="Custom background color"
+        title="Pick custom color"
+        (input)="setCustomBackground($any($event.target).value)"
+      />
+    </fieldset>
   </section>
 
   <section
@@ -140,16 +159,18 @@
     (pointercancel)="onCanvasPointerUp($event)"
     (pointerleave)="onCanvasPointerLeave()"
   >
-    <svge-renderer
-      [tree]="tree()"
-      [viewBox]="viewBox()"
-      [ariaLabel]="'Editable SVG document with ' + nodeCount() + ' nodes'"
-    >
-      <svg:g svgeSelectionOverlay></svg:g>
-      <svg:g svgeRotationPivot></svg:g>
-      <svg:g svgeMarquee></svg:g>
-      <svg:g svgeSnapGuides></svg:g>
-    </svge-renderer>
+    <svge-workspace-background>
+      <svge-renderer
+        [tree]="tree()"
+        [viewBox]="viewBox()"
+        [ariaLabel]="'Editable SVG document with ' + nodeCount() + ' nodes'"
+      >
+        <svg:g svgeSelectionOverlay></svg:g>
+        <svg:g svgeRotationPivot></svg:g>
+        <svg:g svgeMarquee></svg:g>
+        <svg:g svgeSnapGuides></svg:g>
+      </svge-renderer>
+    </svge-workspace-background>
   </section>
 
   <footer class="status" aria-label="Document status">

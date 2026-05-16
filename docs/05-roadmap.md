@@ -159,19 +159,49 @@
 
 ## Fase 4 — UX completa
 
-- [ ] Painel de camadas (drag-drop de ordem, visibilidade, lock)
-- [ ] Agrupamento / desagrupamento
-- [ ] Inspector de propriedades (geometria, fill, stroke, opacity, transform)
-- [ ] Toolbar extensível (slot por categoria de ferramenta)
-- [ ] Paleta de cores e gradientes (com swatches salvos)
-- [ ] Atalhos de teclado configuráveis
+> **Foundation pré-Fase 4** (D-021 resolvido):
+>
+> - [x] **Bloco 4-pre**: `WorkspaceService` + `<svge-workspace-background>` (background transparente xadrez / sólido / imagem). Headless (HTML+CSS, sem Material). Toolbar de presets no playground
+
+- [ ] **Bloco 4a**: `svg-engine/ui` entry point + `<svge-editor>` shell
+  - ng-packagr secondary entry com Angular Material (D-005, D-012)
+  - `<svge-editor>` compõe workspace-background + renderer + overlays + toolbar shell
+  - Headless boundary mantida: `core/render/io/optimize/edit` continuam sem deps de Material
+- [ ] **Bloco 4b**: Painel de camadas (`<svge-layers-panel>`)
+  - Lista da árvore (group expansion), drag-drop de reordenação, visibilidade, lock
+  - Multi-select sincronizado com `SelectionService`
+- [ ] **Bloco 4c**: Inspector de propriedades (`<svge-inspector>`)
+  - Reativo a `selection.focusId()`: geometria, fill, stroke, opacity, transform decomposto (translate/rotate/scale/skew)
+  - Refinamento do D-022 (pivot picker integrado)
+- [ ] **Bloco 4d**: Paleta de cores + `PaletteRegistry` (categoria 8 do D-023)
+  - `PaletteService` consome `PaletteRegistry`; built-in palettes (Material colors, Tailwind, custom HSL); plugins podem contribuir
+  - `<svge-color-palette>` UI + integração com inspector (fill/stroke pickers)
+- [ ] **Bloco 4e**: Toolbar extensível + `MenuContributionRegistry` (categoria 9 parte 1 do D-023)
+  - `<svge-toolbar>` com slots por categoria; contribuições via plugin
+  - Migração das ferramentas builtin para usar este sistema
+- [ ] **Bloco 4f**: Workspace settings — page + grid + guides + rulers
+  - Expansão do `WorkspaceService`: `page`, `grid`, `guides`, `rulers` signals
+  - `<svge-workspace-settings>` painel (Material dialog) — page size/orientation/margins
+  - `<svge-grid-overlay>` + `<svge-rulers>` + `<svge-guides>` (overlays SVG/HTML conforme apropriado)
+- [ ] **Bloco 4g**: Atalhos configuráveis + `ShortcutRegistry` (categoria 9 parte 2 do D-023)
+  - `ShortcutService` resolve combinations → command id
+  - UI de configuração (capture combo, conflict detection)
+- [ ] **Bloco 4h**: Agrupamento / desagrupamento
+  - `GroupSelectionCommand` (cria `GroupNode` envolvendo seleção)
+  - `UngroupCommand` (dissolve `GroupNode`, promovendo children)
+- [ ] **Bloco 4i**: Theme toggle explícito (D-012 part 2)
+  - `<svge-theme-toggle>` Material; persiste em `localStorage`; sobrepõe `prefers-color-scheme`
 
 ## Fase 5 — IO + extensibilidade
 
-- [ ] Import SVG sanitizado (remoção de scripts/eventos, validação de hrefs)
-- [ ] Export SVG determinístico
-- [ ] API de plugins (`EditorPlugin` + `provideSvgEngine`)
-- [ ] Pelo menos 1 plugin de referência (ex.: ferramenta de desenho livre)
+- [ ] **Bloco 5-IO**: Import + Export SVG via novas categorias do D-023
+  - `ImporterRegistry` + builtin `SvgImporter` (sanitizado: remove scripts/eventos, valida `xlink:href`)
+  - `ExporterRegistry` + builtin `SvgExporter` (determinístico: ordem fixa de atributos, valores formatados)
+  - Pelo menos 1 importer/exporter extra de referência (PNG via `<canvas>`?)
+- [ ] **Bloco 5-Optimize**: `OptimizerRegistry` + pipeline básico
+  - `OptimizationPipeline` encadeável (passes ordenáveis)
+  - Builtin passes: `PathOptimizer`, `Deduper`, `Minifier`
+  - Pelo menos 1 plugin de otimização externo de referência
 
 ## Fase 6 — Performance e refinamento
 

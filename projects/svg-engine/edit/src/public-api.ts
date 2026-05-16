@@ -33,7 +33,11 @@
  *   event routing) + reference `selectToolPlugin` (passthrough) and
  *   `pencilToolPlugin` (freehand drawing) — both built on the Bloco
  *   5a plugin scaffolding.
- * **Bloco 5c** ⏳: D-020 expanded + new D-023 plugin-types roadmap.
+ * **Bloco 5c** ✅: D-020 expanded + D-023 plugin-types roadmap +
+ *   D-024 ScriptRuntimePlugin (Fase 6+ deferred).
+ * **Fase 4 foundation** ✅: `WorkspaceService` + `<svge-workspace-background>`
+ *   (D-021 resolution: editor presentation state separate from
+ *   `SvgDocument`; transparent/solid/image background variants).
  * **Bloco 5** ⏳: `ToolRegistry` (D-020 plugin point).
  */
 
@@ -66,3 +70,6 @@ export * from './lib/plugin';
 
 // Tool API + builtin tools (Bloco 5b)
 export * from './lib/tool';
+
+// Workspace presentation (D-021 — Fase 4 foundation)
+export * from './lib/workspace';

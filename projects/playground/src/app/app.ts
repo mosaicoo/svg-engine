@@ -44,6 +44,8 @@ import {
   ToolHostService,
   ToolRegistry,
   TransformService,
+  WorkspaceBackground,
+  WorkspaceService,
 } from 'svg-engine/edit';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
 
@@ -74,7 +76,15 @@ const DRAG_START_THRESHOLD_PX = 3;
  */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, SvgeRenderer, SelectionOverlay, RotationPivot, Marquee, SnapGuides],
+  imports: [
+    RouterOutlet,
+    SvgeRenderer,
+    SelectionOverlay,
+    RotationPivot,
+    Marquee,
+    SnapGuides,
+    WorkspaceBackground,
+  ],
   templateUrl: './app.html',
   styleUrl: './app.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -91,6 +101,7 @@ export class App implements OnDestroy {
   protected readonly viewport = inject(ViewportService);
   protected readonly toolHost = inject(ToolHostService);
   protected readonly toolRegistry = inject(ToolRegistry);
+  protected readonly workspace = inject(WorkspaceService);
 
   protected readonly title = signal('SVGEngine Playground');
 
@@ -248,6 +259,44 @@ export class App implements OnDestroy {
 
   protected activateTool(id: string): void {
     this.toolHost.activate(id);
+  }
+
+  /** Quick presets for the workspace background fieldset. */
+  protected readonly bgPresets: readonly {
+    label: string;
+    value: 'transparent' | 'white' | 'lightgray' | 'darkslate';
+  }[] = [
+    { label: 'Transparent', value: 'transparent' },
+    { label: 'White', value: 'white' },
+    { label: 'Light Gray', value: 'lightgray' },
+    { label: 'Dark', value: 'darkslate' },
+  ];
+
+  protected setBackgroundPreset(value: 'transparent' | 'white' | 'lightgray' | 'darkslate'): void {
+    if (value === 'transparent') {
+      this.workspace.resetBackground();
+    } else if (value === 'white') {
+      this.workspace.setBackground({ kind: 'solid', color: '#ffffff' });
+    } else if (value === 'lightgray') {
+      this.workspace.setBackground({ kind: 'solid', color: '#eeeeee' });
+    } else {
+      this.workspace.setBackground({ kind: 'solid', color: '#2c3e50' });
+    }
+  }
+
+  /** Active preset id (matches the active background variant) — drives [class.active]. */
+  protected isBgActive(value: 'transparent' | 'white' | 'lightgray' | 'darkslate'): boolean {
+    const bg = this.workspace.background();
+    if (value === 'transparent') return bg.kind === 'transparent';
+    if (bg.kind !== 'solid') return false;
+    if (value === 'white') return bg.color.toLowerCase() === '#ffffff';
+    if (value === 'lightgray') return bg.color.toLowerCase() === '#eeeeee';
+    return bg.color.toLowerCase() === '#2c3e50';
+  }
+
+  protected setCustomBackground(color: string): void {
+    if (color.length === 0) return;
+    this.workspace.setBackground({ kind: 'solid', color });
   }
 
   /**
