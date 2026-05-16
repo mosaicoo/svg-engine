@@ -6,6 +6,99 @@
 
 ---
 
+## 2026-05-15 — Fase 4 Bloco 4b: Layers panel + visibility/lock
+
+**O que foi entregue**
+
+Painel hierárquico de camadas (`<svge-layers-panel>`) com expand/collapse,
+visibility toggle, lock toggle, e selection sync. Visibility de fato
+esconde nós do canvas via uma directive opt-in (`[svgeLayersFilter]`).
+
+**Estrutura nova em `svg-engine/edit/src/lib/layers/`** (headless):
+
+- `layers.service.ts`:
+  - `LayersService`: signals `hiddenIds` + `lockedIds` (Set<NodeId>),
+    computeds `hasHidden`/`hasLocked`.
+  - APIs: `setVisible/toggleVisible/isVisible`, `setLocked/toggleLocked/isLocked`,
+    `showAll/unlockAll`. Setters idempotent (no-op + signal não dispara
+    se valor não mudou).
+  - **Editor presentation only** — não serializado no SVG export
+    (mesma separação do D-021/WorkspaceService).
+  - Visibility e lock são **independentes** (testado).
+- `layers-filter.directive.ts`:
+  - `[svgeLayersFilter]`: opt-in. Consumer attach na renderer ou wrapper.
+  - Usa `effect()` (não `afterEveryRender`): re-roda quando `hiddenIds`
+    muda — fires na microtask, sem dependência de CD cycle (fix do
+    problema visto no rotation-pivot).
+  - Walk dos `[data-node-id]` descendants do host; aplica
+    `style.display = 'none'` em hidden ids; restaura inline display
+    pre-existente via sentinela `data-svge-prev-display` (não clobra
+    `display: block` setado pelo consumer).
+  - Cleanup em `ngOnDestroy` desfaz todos os hidden.
+  - Edge case documentado: re-criação de DOM por tree mutation com
+    mesmo id pode escapar até próximo signal change.
+
+**Estrutura nova em `svg-engine/ui/src/lib/layers-panel/`** (Material):
+
+- `layers-panel.component.ts`:
+  - `<svge-layers-panel>` standalone. Imports: `MatIcon`, `MatIconButton`,
+    `NgTemplateOutlet`.
+  - Recursive via `<ng-template #rowTpl>` + `<ng-container *ngTemplateOutlet>`
+    (CDK Tree é overkill para v1 — swap futuro sem mudar API).
+  - Sources: `EditorStateService.document().root` (ou `[root]` input
+    explícito); skips a row do root, mostra os children.
+  - Cada row: chevron (se group), type icon (folder/rectangle/circle/
+    show_chart/pentagon/timeline/gesture/text_fields/image), label
+    (`{type} {idSlice}`), botões eye/lock à direita.
+  - **Selection sync**: click → `selection.select(id)`; Ctrl/Cmd-click
+    → `toggle`; Shift-click → `addToSelection` (range fill = futuro).
+  - **Classes condicionais**: `.selected`, `.hidden` (italic + opacity),
+    `.locked` (gray label).
+  - Buttons stop propagation — toggle não seleciona o row.
+  - **`expanded` signal**: Set<NodeId> dos groups abertos; default vazio.
+  - Material 3 design tokens via `var(--mat-sys-*)` — herdam tema.
+
+**Headless boundary verificada** — Grep confirma só `ui/` importa Material.
+
+**Decisões técnicas**
+
+- **Visibility = state, application = directive**: service é pure data;
+  applier (DOM mutation) é separado e opt-in. Permite outras estratégias
+  no futuro (CSS-in-JS global, render-side filtering).
+- **`effect()` em vez de `afterEveryRender`**: o segundo não fira
+  confiavelmente em jsdom (já visto no rotation-pivot). `effect` reage
+  a signal change diretamente — mais correto semanticamente para "aplica
+  visibility quando state muda".
+- **Recursive em vez de CDK Tree**: trade-off conhecido. CDK dá
+  keyboard nav + virtualização; recursive é metade do código. Para v1
+  vale; refator é orthogonal e não muda a API pública.
+- **Drag-drop reorder ADIADO**: precisa de `MoveNodeInTreeCommand` no
+  core (atomic remove-from-old + insert-at-new + undo restaura ambos).
+  Vai como sub-bloco 4b-DnD ou parte do 4h (grouping).
+- **Row label = `{type} {idSlice}`**: nó SVG não tem nome user-friendly
+  no modelo atual. `metadata.name` opcional pode entrar em refinamento
+  do inspector (4c).
+
+**Cobertura**
+
+- `layers.service.spec.ts`: 11 testes
+  (visibility/lock independentes; idempotência; toggle; showAll/unlockAll;
+  hasHidden/hasLocked computeds)
+- `layers-filter.directive.spec.ts`: 6 testes
+  (no-op default; hide on signal change; restore; multiple ids;
+  preserva pre-existing inline display; escopo limitado ao host)
+- `layers-panel.component.spec.ts`: 13 testes
+  (empty state; rows per child; type icon + label; selection click/
+  ctrl-click/.selected class; visibility/lock buttons toggle service +
+  classes; stopPropagation no toggle; group expand/collapse)
+- **Total**: +30 testes → 397 passing em 38 arquivos. Zero regressão.
+
+**Próximo (4c)**: `<svge-inspector>` — propriedades do focado (geometria,
+fill, stroke, opacity, transform decomposto). Refinamento do D-022
+(pivot picker integrado).
+
+---
+
 ## 2026-05-15 — Fase 4 Bloco 4a: svg-engine/ui + <svge-editor> shell
 
 **O que foi entregue**

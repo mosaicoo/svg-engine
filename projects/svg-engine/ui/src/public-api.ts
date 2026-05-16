@@ -24,3 +24,6 @@
 
 // Editor shell (Bloco 4a)
 export * from './lib/editor';
+
+// Layers panel (Bloco 4b)
+export * from './lib/layers-panel';

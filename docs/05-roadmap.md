@@ -170,9 +170,11 @@
   - Inputs `tree`/`viewBox` opcionais com fallback para `EditorStateService.document()`
   - Outputs `undoTriggered`/`redoTriggered` para telemetria/analytics
   - Headless boundary verificada por Grep: zero imports de `@angular/material|cdk` em `core/render/edit`
-- [ ] **Bloco 4b**: Painel de camadas (`<svge-layers-panel>`)
-  - Lista da árvore (group expansion), drag-drop de reordenação, visibilidade, lock
-  - Multi-select sincronizado com `SelectionService`
+- [x] **Bloco 4b**: Painel de camadas (`<svge-layers-panel>`)
+  - `LayersService` (em `edit`): `hiddenIds`/`lockedIds` Set signals + togglers (idempotent, dedup); `showAll`/`unlockAll`
+  - `[svgeLayersFilter]` directive (em `edit`): aplica `display: none` em `[data-node-id]` matching `hiddenIds` via `effect()`; preserva pre-existing inline display ao restaurar; opt-in (consumer attach na renderer)
+  - `<svge-layers-panel>` (em `ui`): recursive Material UI; expand/collapse de groups; ícone por tipo; visibility/lock buttons; click-to-select com Ctrl/Shift modifiers; classes `.selected`/`.hidden`/`.locked` p/ styling
+  - **Drag-drop reorder ADIADO** para sub-bloco 4b-DnD (precisa de `MoveNodeInTreeCommand` novo no core; mantém 4b focado)
 - [ ] **Bloco 4c**: Inspector de propriedades (`<svge-inspector>`)
   - Reativo a `selection.focusId()`: geometria, fill, stroke, opacity, transform decomposto (translate/rotate/scale/skew)
   - Refinamento do D-022 (pivot picker integrado)

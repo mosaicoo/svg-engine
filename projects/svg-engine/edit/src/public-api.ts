@@ -73,3 +73,6 @@ export * from './lib/tool';
 
 // Workspace presentation (D-021 — Fase 4 foundation)
 export * from './lib/workspace';
+
+// Per-node visibility + lock (Fase 4 Bloco 4b)
+export * from './lib/layers';
