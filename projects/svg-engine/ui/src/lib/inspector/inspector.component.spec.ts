@@ -307,3 +307,123 @@ describe('SvgeInspector — lock interaction (Bloco 4b-Lock v2)', () => {
     );
   });
 });
+
+describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
+  it('geometry values are rounded to integers in the inputs', () => {
+    const r = createRect({ x: 12.7, y: 34.123, width: 55.99, height: 78.5001 });
+    const { fixture, state, selection } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([r], { id: state.document().root.id }),
+    });
+    selection.select(r.id);
+    fixture.detectChanges();
+
+    const inputs = Array.from(
+      fixture.nativeElement.querySelectorAll('mat-form-field input[type="number"]'),
+    ) as HTMLInputElement[];
+    // First 4 = rect geometry (x, y, w, h) — should show rounded integers
+    expect(inputs.slice(0, 4).map((i) => i.value)).toEqual(['13', '34', '56', '79']);
+  });
+
+  it('model preserves precision even when display rounds', () => {
+    const r = createRect({ x: 12.7, y: 0, width: 10, height: 10 });
+    const { fixture, state, selection } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([r], { id: state.document().root.id }),
+    });
+    selection.select(r.id);
+    fixture.detectChanges();
+    // The MODEL still has 12.7 — display just shows 13
+    const root = state.document().root as unknown as { children: readonly { x: number }[] };
+    expect(root.children[0]?.x).toBe(12.7);
+  });
+
+  it('opacity input defaults to "1" when undefined in model', () => {
+    const r = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const { fixture, state, selection } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([r], { id: state.document().root.id }),
+    });
+    selection.select(r.id);
+    fixture.detectChanges();
+    const allNumberInputs = Array.from(
+      fixture.nativeElement.querySelectorAll('mat-form-field input[type="number"]'),
+    ) as HTMLInputElement[];
+    // Last number input = opacity (after geometry x/y/w/h + strokeWidth)
+    const opacityInput = allNumberInputs[allNumberInputs.length - 1]!;
+    expect(opacityInput.value).toBe('1');
+  });
+
+  it('opacity input shows model value with 2 decimals when set', () => {
+    const r = createRect({ x: 0, y: 0, width: 10, height: 10 }, { style: { opacity: 0.5 } });
+    const { fixture, state, selection } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([r], { id: state.document().root.id }),
+    });
+    selection.select(r.id);
+    fixture.detectChanges();
+    const allNumberInputs = Array.from(
+      fixture.nativeElement.querySelectorAll('mat-form-field input[type="number"]'),
+    ) as HTMLInputElement[];
+    const opacityInput = allNumberInputs[allNumberInputs.length - 1]!;
+    expect(opacityInput.value).toBe('0.50');
+  });
+
+  it('renders a swatch element next to each color picker', () => {
+    const r = createRect(
+      { x: 0, y: 0, width: 10, height: 10 },
+      { style: { fill: '#ff0000', stroke: '#00ff00' } },
+    );
+    const { fixture, state, selection } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([r], { id: state.document().root.id }),
+    });
+    selection.select(r.id);
+    fixture.detectChanges();
+    const swatches = Array.from(fixture.nativeElement.querySelectorAll('.swatch')) as HTMLElement[];
+    expect(swatches.length).toBe(2); // fill + stroke
+  });
+
+  it('swatch reflects HSL or other non-hex CSS color from model', () => {
+    const r = createRect(
+      { x: 0, y: 0, width: 10, height: 10 },
+      { style: { fill: 'hsl(200 60% 75%)', stroke: 'rgb(255, 0, 0)' } },
+    );
+    const { fixture, state, selection } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([r], { id: state.document().root.id }),
+    });
+    selection.select(r.id);
+    fixture.detectChanges();
+    const swatches = Array.from(fixture.nativeElement.querySelectorAll('.swatch')) as HTMLElement[];
+    // Browsers normalize CSS colors when parsed — just confirm they're
+    // not 'transparent' (default fallback)
+    expect(swatches[0]?.style.backgroundColor).not.toBe('');
+    expect(swatches[0]?.style.backgroundColor).not.toBe('transparent');
+    expect(swatches[1]?.style.backgroundColor).toBe('rgb(255, 0, 0)');
+  });
+
+  it('swatch shows "transparent" when style field is undefined', () => {
+    const r = createRect(
+      { x: 0, y: 0, width: 10, height: 10 },
+      { style: { fill: undefined, stroke: undefined } },
+    );
+    const { fixture, state, selection } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([r], { id: state.document().root.id }),
+    });
+    selection.select(r.id);
+    fixture.detectChanges();
+    const swatches = Array.from(fixture.nativeElement.querySelectorAll('.swatch')) as HTMLElement[];
+    // Browsers represent 'transparent' as 'rgba(0, 0, 0, 0)' in computed style;
+    // we set it directly via inline style binding so it stays as the literal.
+    expect(['transparent', 'rgba(0, 0, 0, 0)']).toContain(swatches[0]?.style.backgroundColor);
+  });
+});

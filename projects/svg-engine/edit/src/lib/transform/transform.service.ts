@@ -1,5 +1,6 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import {
+  bakeScaleIntoNode,
   CommandBus,
   composeAnchoredScale,
   composePivotRotation,
@@ -50,6 +51,15 @@ export type DragState =
       readonly kind: 'resize';
       readonly nodeId: NodeId;
       readonly startTransform: Transform;
+      /**
+       * Full snapshot of the node at gesture start. Required by Bloco
+       * 4-Inspector-Polish so `updateResize` can **bake** geometry
+       * during the drag (not just compose a scale matrix). On commit
+       * or cancel, this snapshot is restored before dispatching the
+       * final command — guaranteeing identical end-state semantics
+       * regardless of which preview strategy ran per frame.
+       */
+      readonly startNode: SvgNode;
       /** The fixed point (= the bbox anchor opposite to the dragged handle). */
       readonly anchor: Point;
       /** The initial position of the dragged handle in document coords. */
@@ -320,6 +330,7 @@ export class TransformService {
       kind: 'resize',
       nodeId,
       startTransform: node.transform,
+      startNode: node, // full snapshot — enables real-time bake during drag
       anchor: anchors[opposite],
       handleStart: anchors[handle],
       scaleAxes: SCALE_AXES_FOR_HANDLE[handle],
@@ -327,27 +338,53 @@ export class TransformService {
     });
   }
 
-  /** Update an in-progress resize gesture. */
+  /**
+   * Update an in-progress resize gesture.
+   *
+   * **Bloco 4-Inspector-Polish**: previews via **geometry bake** (when
+   * the node's start-transform is identity-or-translate), so the
+   * inspector's `width`/`height`/`x`/`y` fields update **in real time**
+   * during the drag. For rotated/skewed nodes the bake returns `null`
+   * and we fall back to composing a scale matrix into the transform
+   * (the previous behavior — `<svge-renderer>` directives have
+   * `vector-effect="non-scaling-stroke"` so stroke still won't distort).
+   *
+   * The bake is always computed from `startNode` (not from the previous
+   * frame's preview), so the result is the same as if the user had
+   * dragged directly to `currentPoint` — no accumulation drift.
+   */
   updateResize(currentPoint: Point): void {
     const ds = this._dragState();
     if (ds === null || ds.kind !== 'resize') return;
-    const { anchor, handleStart, scaleAxes } = ds;
+    const { anchor, handleStart, scaleAxes, startNode } = ds;
     const denomX = handleStart.x - anchor.x;
     const denomY = handleStart.y - anchor.y;
     const sx = scaleAxes.x && denomX !== 0 ? (currentPoint.x - anchor.x) / denomX : 1;
     const sy = scaleAxes.y && denomY !== 0 ? (currentPoint.y - anchor.y) / denomY : 1;
     if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
-    const newTransform = composeAnchoredScale(ds.startTransform, sx, sy, anchor);
-    this.applyPreviewTransform(ds.nodeId, newTransform);
+
+    const baked = bakeScaleIntoNode(startNode, sx, sy, anchor);
+    if (baked !== null) {
+      this.applyPreviewNode(ds.nodeId, baked);
+    } else {
+      // Fallback (rotated/skewed): legacy scale-transform composition;
+      // stroke distortion mitigated by `vector-effect="non-scaling-stroke"`.
+      const newTransform = composeAnchoredScale(startNode.transform, sx, sy, anchor);
+      this.applyPreviewTransform(ds.nodeId, newTransform);
+    }
     ds.currentScale = { sx, sy };
   }
 
   endResize(): void {
     const ds = this._dragState();
     if (ds === null || ds.kind !== 'resize') return;
-    const { nodeId, startTransform, anchor, currentScale } = ds;
+    const { nodeId, startNode, anchor, currentScale } = ds;
     this._dragState.set(null);
-    this.applyPreviewTransform(nodeId, startTransform);
+    // Full revert to startNode (geometry + transform) — necessary because
+    // `updateResize` may have baked geometry in addition to (or instead
+    // of) mutating the transform. The dispatched command re-applies the
+    // final scale from this clean baseline.
+    this.applyPreviewNode(nodeId, startNode);
     if (Math.abs(currentScale.sx - 1) < 1e-4 && Math.abs(currentScale.sy - 1) < 1e-4) return;
     this.bus.dispatch(new ResizeNodeCommand(nodeId, anchor, currentScale.sx, currentScale.sy));
   }
@@ -355,14 +392,37 @@ export class TransformService {
   // ── Cancel + helpers ─────────────────────────────────────────────
 
   /**
-   * Abort any in-progress gesture, restoring the pre-gesture transform
+   * Abort any in-progress gesture, restoring the pre-gesture state
    * without dispatching a command. Wired to Esc in the playground.
+   *
+   * For `resize` we restore the full `startNode` (Bloco 4-Inspector-Polish
+   * may have baked geometry mid-drag); for `move` / `rotate` only the
+   * transform changed, so restoring `startTransform` is sufficient.
    */
   cancelGesture(): void {
     const ds = this._dragState();
     if (ds === null) return;
-    this.applyPreviewTransform(ds.nodeId, ds.startTransform);
+    if (ds.kind === 'resize') {
+      this.applyPreviewNode(ds.nodeId, ds.startNode);
+    } else {
+      this.applyPreviewTransform(ds.nodeId, ds.startTransform);
+    }
     this._dragState.set(null);
+  }
+
+  /**
+   * Replace the entire node in state with `node` (same id). Used by
+   * `updateResize` for live bake during drag, and by `endResize` /
+   * `cancelGesture` to revert the resize preview to its start snapshot.
+   * Like `applyPreviewTransform`, this bypasses the command bus — it's
+   * a transient preview that the resize gesture's commit step replays
+   * via a proper `ResizeNodeCommand` dispatch.
+   */
+  private applyPreviewNode(nodeId: NodeId, node: SvgNode): void {
+    const doc = this.state.document();
+    const nextRoot = updateNode<SvgNode>(doc.root, nodeId, () => node);
+    if (nextRoot === doc.root) return;
+    this.state.setDocument({ ...doc, root: nextRoot });
   }
 
   private applyPreviewTransform(nodeId: NodeId, transform: Transform): void {

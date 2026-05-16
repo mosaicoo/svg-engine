@@ -6,6 +6,123 @@
 
 ---
 
+## 2026-05-16 — Fase 4 Bloco 4-Inspector-Polish: polimentos solicitados
+
+**Contexto**
+
+Após o 4-Resize-Proper, usuário identificou 3 detalhes via screenshots:
+
+1. **Valores não-inteiros no inspector**: drag produz `496.1125`, `237.6085`
+   etc. — visualmente ruidoso. Mercado (Figma/Affinity) mostra inteiros
+   por padrão; precisão fica no model.
+2. **Controles de STYLE vazios**: color pickers mostram cinza
+   `#cccccc` quando o model tem `hsl(...)`, `rgb(...)` ou hex de 3 chars
+   (que o `<input type="color">` não renderiza). Opacity mostra texto
+   placeholder "opacity" em vez de valor.
+3. **Inspector não atualiza durante drag**: bake só roda no commit
+   (`endResize`). Usuário espera ver `w`/`h`/`x`/`y` mudando ao vivo.
+
+Confirmação prévia do usuário antes de codar: "padrão de mercado" e
+"se aplicar bake, não teremos o problema anterior?" — respondida com
+análise arquitetural mostrando que bake-during-drag mantém todas as
+invariantes do Resize-Proper (1 undo entry, estado final idêntico,
+sem regressão de geometria), apenas tornando o preview fiel.
+
+**Mudanças**
+
+### Item 3 — bake durante drag (arquitetural, mais importante)
+
+`projects/svg-engine/edit/src/lib/transform/transform.service.ts`:
+
+- `DragState` resize variant: novo campo `startNode: SvgNode` (snapshot
+  completo do node no início do gesto)
+- `startResize`: captura `startNode = node` (não só `startTransform`)
+- `updateResize`: chama `bakeScaleIntoNode(startNode, sx, sy, anchor)`
+  a cada frame; se não-bakeável (rotacionado), fallback para
+  `composeAnchoredScale` (legacy + `vector-effect: non-scaling-stroke`)
+- `endResize`: `applyPreviewNode(nodeId, startNode)` (full revert) +
+  dispatch `ResizeNodeCommand` (que aplica bake limpo no execute)
+- `cancelGesture`: discriminação por kind — `resize` usa
+  `applyPreviewNode` (revert geometria + transform); `move`/`rotate`
+  continuam com `applyPreviewTransform` (só transform muda)
+- Novo helper `applyPreviewNode(nodeId, node)`: replace completo do nó
+
+**Resultado visível**: inspector mostra `width: 100 → 150 → 200`
+durante o drag em tempo real (em vez de estagnar em 100 até commit).
+
+### Item 1 — display de inteiros + opacity formatada
+
+`projects/svg-engine/ui/src/lib/inspector/inspector-pipes.ts`:
+
+- Pipes `rectField`/`ellipseField`/`lineField` arredondam para inteiro
+  via novo helper `roundForDisplay(value)`
+- Display-only — model preserva precisão. Edit user-side aceita decimais
+  (`100.5` é gravado como `100.5`)
+- Magnitude ≥ 1e15: skip rounding (preserve astronomical edge cases)
+
+`projects/svg-engine/ui/src/lib/inspector/inspector.component.ts`:
+
+- `styleNumber`: usa `roundForDisplay` para `strokeWidth`; usa
+  `v.toFixed(2)` para `opacity`; default `'1'` para ambos quando
+  undefined (SVG implicit defaults — opacity=1, stroke-width=1)
+
+### Item 2 — swatch visual de cor real
+
+`inspector.component.ts`:
+
+- Novo método `rawStyleColor(field)`: retorna a CSS color string raw do
+  model (hex/hsl/rgb/named/url) ou `'transparent'` quando undefined
+- Template: `<span class="swatch" [style.background-color]="rawStyleColor(field)" [title]="rawStyleColor(field)">`
+  adicionado ao lado de cada `<input type="color">` (fill + stroke)
+- CSS: swatch 18×18 com border + checkerboard backdrop (mostra através
+  de `transparent` / semi-transparentes)
+- `<input type="color">` mantido para edição (sempre escreve `#RRGGBB`);
+  swatch é só leitura visual
+
+**Decisões técnicas**
+
+- **Bake-during-drag NÃO regride o Resize-Proper**: preview agora é
+  fiel ao commit. `endResize` reverte ao startNode + dispatch — estado
+  pós-commit idêntico ao Resize-Proper. 1 undo entry preservada (drag
+  não dispatcha por frame; só preview muta direto).
+- **Rounding display-only**: model nunca perde precisão (princípio
+  fundamental). User pode digitar `12.5` e ver `13` no display após
+  blur (model = 12.5, display = 13). Aceita-se trade-off de "vejo
+  diferente do que digitei" pelo benefício de eliminar ruído visual.
+- **Opacity default `'1'`**: SVG implicit é 1 (opaco); mostrar valor
+  explícito é mais honesto que placeholder. Usuário sempre vê um
+  número concreto para editar.
+- **Swatch backdrop checkerboard**: padrão universal (Photoshop/
+  Affinity/Figma) para indicar transparência. `background-image` CSS
+  paint-order garante que `background-color` (a cor real) sobrepõe;
+  `transparent` ou alpha < 1 deixa o pattern aparecer.
+- **`<input type="color">` mantido vs custom picker**: 4d (Bloco
+  Color Palettes) substituirá por picker richer com paletas. Por
+  agora o native input + swatch dá ergonomia mínima decente.
+
+**Cobertura**
+
+- `transform-gestures.spec.ts`: +3 testes
+  (`updateResize` bake real-time em rect; `cancelGesture` reverte
+  geometria + transform; rotated usa fallback scale-transform)
+- `inspector.component.spec.ts`: +7 testes
+  (geometria arredondada no display; model preserva precisão; opacity
+  default `'1'` quando undefined; opacity 2 decimais quando setado;
+  swatch element renderizado; swatch reflete HSL/RGB; swatch
+  `transparent` para undefined)
+- **Total**: +10 testes → 513 passing em 41 arquivos. Zero regressão.
+
+**Comportamento visível na app**
+
+- Resize: inspector mostra `w`/`h`/`x`/`y` mudando frame-a-frame
+- Inspector: valores inteiros nos inputs de geometria; opacity sempre
+  com um número (1 default, ou 0.50 etc.)
+- Swatches: quadradinhos coloridos lado a lado de cada color picker
+  mostram a cor REAL aplicada (mesmo HSL/RGB); checkerboard aparece
+  através de `transparent` ou cores semi-translúcidas
+
+---
+
 ## 2026-05-16 — Fase 4 Bloco 4-Resize-Proper: bake de geometria no resize
 
 **Contexto**

@@ -163,6 +163,11 @@
 >
 > - [x] **Bloco 4-pre**: `WorkspaceService` + `<svge-workspace-background>` (background transparente xadrez / sólido / imagem). Headless (HTML+CSS, sem Material). Toolbar de presets no playground
 
+- [x] **Bloco 4-Inspector-Polish**: 3 fixes solicitados pelo usuário após Resize-Proper
+  - **Item 3 (mais importante)**: bake **durante o drag** — `TransformService.updateResize` agora chama `bakeScaleIntoNode` a cada frame em vez de só compor scale-transform; `DragState` resize ganha `startNode` snapshot; `endResize`/`cancelGesture` revertem ao node inteiro antes de dispatch. Inspector mostra `w`/`h`/`x`/`y` atualizando em tempo real durante o resize.
+  - **Item 1**: pipes `rectField`/`ellipseField`/`lineField` arredondam para inteiro (display-only; model preserva precisão). `styleNumber('opacity')` mostra 2 decimais; `styleNumber` default `'1'` (SVG implicit) quando undefined.
+  - **Item 2**: swatch visual com `[style.background-color]="rawStyleColor(field)"` ao lado de cada color picker — mostra a cor **REAL** do modelo (hsl/rgb/named/url/hex). `<input type="color">` continua só pra editar.
+  - Garantias preservadas: 1 undo entry por gesto; estado final pós-commit idêntico; fallback rotacionado mantido para shapes que não bakeiam
 - [x] **Bloco 4-Resize-Proper**: resize via handles agora baka geometria (não compõe scale matrix)
   - **Problema corrigido**: era reportado que ao arrastar o "quadradinho" (handle) o contorno (stroke) ficava visivelmente alterado — confirmado como erro real (scale matrix aplicada via transform afeta stroke + gera mismatch inspector-vs-visual)
   - **Solução** (Caminho B completo, como solicitado pelo usuário):

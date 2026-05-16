@@ -11,7 +11,7 @@ import {
   type SvgStyle,
 } from 'svg-engine/core';
 import { LayersService, SelectionService } from 'svg-engine/edit';
-import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipes';
+import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from './inspector-pipes';
 
 /**
  * Property inspector (Fase 4 Bloco 4c). Reactive panel showing the
@@ -232,6 +232,12 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
         <div class="grid color-grid">
           <label class="field-row">
             <span class="lbl">fill</span>
+            <span
+              class="swatch"
+              [style.background-color]="rawStyleColor('fill')"
+              [title]="rawStyleColor('fill')"
+              aria-hidden="true"
+            ></span>
             <input
               type="color"
               [disabled]="isLocked()"
@@ -241,6 +247,12 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
           </label>
           <label class="field-row">
             <span class="lbl">stroke</span>
+            <span
+              class="swatch"
+              [style.background-color]="rawStyleColor('stroke')"
+              [title]="rawStyleColor('stroke')"
+              aria-hidden="true"
+            ></span>
             <input
               type="color"
               [disabled]="isLocked()"
@@ -367,6 +379,29 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe } from './inspector-pipe
       cursor: pointer;
       background: transparent;
     }
+    /* Bloco 4-Inspector-Polish: real-color swatch (any CSS color string,
+       including hsl/rgb/named/url) shown next to the native input
+       type="color" which can only render #RRGGBB. The style binding
+       fills the swatch with the actual model value. A checkerboard
+       backdrop renders behind transparent/semi-transparent fills. */
+    .field-row .swatch {
+      flex: 0 0 18px;
+      width: 18px;
+      height: 18px;
+      border-radius: 3px;
+      border: 1px solid var(--mat-sys-outline-variant, #ccc);
+      background-image:
+        linear-gradient(45deg, #ccc 25%, transparent 25%),
+        linear-gradient(-45deg, #ccc 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #ccc 75%),
+        linear-gradient(-45deg, transparent 75%, #ccc 75%);
+      background-size: 6px 6px;
+      background-position:
+        0 0,
+        0 3px,
+        3px -3px,
+        -3px 0;
+    }
     .placeholder {
       display: flex;
       align-items: center;
@@ -438,21 +473,51 @@ export class SvgeInspector {
     }
   }
 
+  /**
+   * Value bound to the `<input type="color">` picker. Color inputs
+   * require `#RRGGBB` — non-hex values (e.g., `'rgb(...)'`, `'hsl(...)'`,
+   * `'none'`, `'url(#grad)'`) get a neutral fallback. The **real** current
+   * color is shown in the swatch element next to the picker via
+   * {@link rawStyleColor} (any CSS color string).
+   */
   protected styleColor(field: 'fill' | 'stroke'): string {
     const node = this.focusNode();
     if (node === null) return '#000000';
     const v = node.style[field];
-    // Color inputs require `#RRGGBB` — non-hex values (e.g., 'none',
-    // 'rgb(...)', 'url(#grad)') get a placeholder. Setting via the
-    // picker still works and overwrites the original value.
     return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : '#cccccc';
   }
 
+  /**
+   * Raw CSS color value from the model (any format the user/plugin set
+   * — hex, rgb, hsl, named, url). Drives the visual swatch next to the
+   * picker so the user always sees the **actual** current color even
+   * when it's not a 6-char hex (which the native `<input type="color">`
+   * can't render). `'transparent'` when the field is undefined.
+   */
+  protected rawStyleColor(field: 'fill' | 'stroke'): string {
+    const node = this.focusNode();
+    if (node === null) return 'transparent';
+    const v = node.style[field];
+    return typeof v === 'string' && v.length > 0 ? v : 'transparent';
+  }
+
+  /**
+   * String value bound to the numeric style inputs. Rounded to integer
+   * for `strokeWidth` (display-only — model preserves precision when
+   * user edits). `opacity` shows 2 decimals and defaults to `'1'` when
+   * the model has no explicit value (the SVG implicit default), so the
+   * input always shows a concrete number instead of Material's floating
+   * label placeholder.
+   */
   protected styleNumber(field: 'strokeWidth' | 'opacity'): string {
     const node = this.focusNode();
     if (node === null) return '';
     const v = node.style[field];
-    return typeof v === 'number' && Number.isFinite(v) ? String(v) : '';
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      return field === 'opacity' ? v.toFixed(2) : String(roundForDisplay(v));
+    }
+    // SVG defaults: opacity = 1 (full opaque), stroke-width = 1
+    return field === 'opacity' ? '1' : '1';
   }
 
   /**

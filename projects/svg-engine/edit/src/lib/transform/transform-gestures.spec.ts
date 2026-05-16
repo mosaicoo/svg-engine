@@ -10,6 +10,7 @@ import {
   findNodeById,
   HistoryService,
   IDENTITY_TRANSFORM,
+  rotate,
 } from 'svg-engine/core';
 import { LayersService } from '../layers/layers.service';
 import { TransformService } from './transform.service';
@@ -202,7 +203,7 @@ describe('TransformService — resize gesture', () => {
     expect(updated.transform).toEqual(IDENTITY_TRANSFORM);
   });
 
-  it('cancelGesture during resize reverts', () => {
+  it('cancelGesture during resize reverts geometry AND transform (Bloco 4-IP)', () => {
     const { transform, state, history } = setup();
     const rect = createRect({ x: 0, y: 0, width: 100, height: 100 });
     state.setDocument({
@@ -216,7 +217,67 @@ describe('TransformService — resize gesture', () => {
     transform.cancelGesture();
 
     expect(history.canUndo()).toBe(false);
-    expect(findNodeById(state.document().root, rect.id)?.transform).toEqual(IDENTITY_TRANSFORM);
+    const reverted = findNodeById(state.document().root, rect.id) as typeof rect;
+    expect(reverted.transform).toEqual(IDENTITY_TRANSFORM);
+    // Bloco 4-Inspector-Polish: geometry must be restored too (preview
+    // may have baked width/height during drag)
+    expect(reverted.width).toBe(100);
+    expect(reverted.height).toBe(100);
+    expect(reverted.x).toBe(0);
+    expect(reverted.y).toBe(0);
+  });
+
+  it('updateResize bakes geometry IN REAL TIME for bakeable nodes (Bloco 4-IP)', () => {
+    const { transform, state } = setup();
+    const rect = createRect({ x: 0, y: 0, width: 100, height: 100 });
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([rect], { id: state.document().root.id }),
+    });
+
+    const b = bbox(0, 0, 100, 100);
+    transform.startResize(rect.id, 'br', b);
+
+    // Halfway through drag: pointer at (150, 150), should produce
+    // width=150, height=150 in the LIVE state (not just at commit)
+    transform.updateResize({ x: 150, y: 150 });
+    const midDrag = findNodeById(state.document().root, rect.id) as typeof rect;
+    expect(midDrag.width).toBe(150);
+    expect(midDrag.height).toBe(150);
+    expect(midDrag.transform).toEqual(IDENTITY_TRANSFORM); // no scale matrix
+
+    // Move further: pointer at (200, 200), width should now be 200
+    transform.updateResize({ x: 200, y: 200 });
+    const final = findNodeById(state.document().root, rect.id) as typeof rect;
+    expect(final.width).toBe(200);
+    expect(final.height).toBe(200);
+
+    // Commit — same end state, but now via dispatch
+    transform.endResize();
+    const after = findNodeById(state.document().root, rect.id) as typeof rect;
+    expect(after.width).toBe(200);
+    expect(after.height).toBe(200);
+    expect(after.transform).toEqual(IDENTITY_TRANSFORM);
+  });
+
+  it('updateResize on rotated node falls back to scale-transform (Bloco 4-IP)', () => {
+    const { transform, state } = setup();
+    const rect = createRect({ x: 0, y: 0, width: 100, height: 100 });
+    const rotated = { ...rect, transform: rotate(Math.PI / 4) };
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([rotated], { id: state.document().root.id }),
+    });
+
+    const b = bbox(0, 0, 100, 100);
+    transform.startResize(rotated.id, 'br', b);
+    transform.updateResize({ x: 200, y: 200 });
+
+    const midDrag = findNodeById(state.document().root, rotated.id) as typeof rect;
+    // Rotated node can't be baked → geometry unchanged, transform composed
+    expect(midDrag.width).toBe(100);
+    expect(midDrag.height).toBe(100);
+    expect(midDrag.transform).not.toEqual(rotated.transform);
   });
 });
 
