@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import {
   CommandBus,
   createEllipse,
@@ -31,7 +32,7 @@ import { SvgeEditor } from 'svg-engine/ui';
 @Component({
   selector: 'app-pg-shell-demo',
   standalone: true,
-  imports: [SvgeEditor, SelectionOverlay, RotationPivot, Marquee, SnapGuides],
+  imports: [SvgeEditor, SelectionOverlay, RotationPivot, Marquee, SnapGuides, RouterLink],
   template: `
     <div class="hint">
       <p>
