@@ -30,3 +30,6 @@ export * from './lib/layers-panel';
 
 // Property inspector (Bloco 4c)
 export * from './lib/inspector';
+
+// Color palette UI (Bloco 4d)
+export * from './lib/color-palette';

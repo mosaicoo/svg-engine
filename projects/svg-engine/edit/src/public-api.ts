@@ -76,3 +76,6 @@ export * from './lib/workspace';
 
 // Per-node visibility + lock (Fase 4 Bloco 4b)
 export * from './lib/layers';
+
+// Color palettes + built-in palette plugin (Fase 4 Bloco 4d)
+export * from './lib/palette';

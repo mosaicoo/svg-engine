@@ -6,6 +6,99 @@
 
 ---
 
+## 2026-05-17 — Fase 4 Bloco 4d: paletas de cores (categoria 8 do D-023)
+
+**Contexto**
+
+Continuação do trabalho de cor após os blocos IP-Fix/FixBugs/FixBugs2.
+Inspector ganhou um sistema de **paletas de cores plugáveis** —
+categoria 8 do D-023, padrão de mercado (Photoshop swatches, Figma
+brand libraries, Affinity studio palettes).
+
+**Mudanças**
+
+`projects/svg-engine/edit/src/lib/palette/`:
+
+- `palette.ts`: tipo `Palette` (id, name, category?, swatches[]).
+  Swatches são strings CSS opacas — qualquer formato (hex/rgb/hsl/
+  named/transparent), interpretadas pela UI via `cssColorToHex6`
+- `palette-registry.service.ts`: `PaletteRegistry` injetable
+  `providedIn: 'root'`. Signal-backed (`palettes` readonly). API:
+  `register(palette): Disposable`, `get(id)`, `byCategory(cat)`.
+  Throw em id vazio, id duplicado, swatches array vazio
+  (configuração errada, sem recuperação silenciosa)
+- `builtin-palettes.plugin.ts`: `builtinPalettesPlugin` (categoria 8
+  do D-023). Em `install(ctx)` registra 3 paletas via `ctx.track`:
+  - `default-greys` (utility): `transparent` + 7 greys + black.
+    Inclui `transparent` como 1ª swatch para que "limpar a cor" seja
+    1 click
+  - `material-primary` (brand): 10 cores Material Design 500 line
+  - `tailwind-pastels` (brand): 9 cores Tailwind 200 line
+    Provisionado em `app.config.ts` do playground
+
+`projects/svg-engine/ui/src/lib/color-palette/`:
+
+- `color-palette.component.ts`: `<svge-color-palette>` standalone.
+  Inputs: `palettes` (fallback automático para
+  `PaletteRegistry.palettes()`), `transparentLabel` (default `'Clear'`).
+  Output: `colorPicked` emite a string CSS raw da swatch clicada.
+  Swatch 24×16, checkerboard backdrop, hover scale 1.12 + outline
+  primary, focus ring. Swatch `transparent` ganha ícone Material
+  `block` em vermelho (padrão universal Figma/Affinity/Inkscape)
+
+`projects/svg-engine/ui/src/lib/inspector/inspector.component.ts`:
+
+- Importa `SvgeColorPalette`. Template renderiza
+  `<svge-color-palette>` abaixo das color rows
+- Cada `<label class="field-row">` ganha `(pointerdown)="setActiveColorTarget(...)"`
+  - `[class.active-target]="activeColorTarget() === ...".`. Default
+    alvo = `'fill'` (mais editado per telemetria Figma/Affinity)
+- `onPalettePick(color)` rota para `setStyle(activeColorTarget(),
+color)` — usa o caminho existente que já tem lock check e dedup
+- CSS `.active-target`: box-shadow inset 3px primary (subtle accent,
+  zero shift de layout)
+
+**Decisões técnicas**
+
+- **Strings CSS opacas vs RGB tuples**: palette carrega `'transparent'`,
+  `'hsl(...)'`, no futuro CSS vars/named — sem perder informação
+  pelo parsing antecipado. A UI usa `cssColorToHex6` (do IP-FixBugs2)
+  quando precisa de hex
+- **Built-in plugin, não hard-coded**: 3 paletas vêm via plugin que
+  pode ser desinstalado. Consumer pode trocar por suas próprias
+  marcando que quer remover o built-in. Padrão D-023
+- **active-target em vez de aplicar a ambos**: clicar 1 swatch
+  aplica APENAS ao campo ativo. Padrão Photoshop (active swatch
+  changes foreground vs background color)
+- **`transparent` como 1ª swatch da `default-greys`**: "limpar fill"
+  é a 2ª ação mais comum no inspector depois de "escolher cor real"
+- **swatch 24×16 vs inspector swatch 28×22**: paleta é grade, então
+  swatch menor cabe mais; inspector swatch é singleton, pode crescer
+
+**Cobertura**
+
+- `palette-registry.service.spec.ts`: 11 testes (basics 5 + validation
+  3 + builtin install/uninstall/transparent-first 3)
+- `color-palette.component.spec.ts`: 9 testes (palettes input/empty/
+  multi/swatch count + fallback registry + emit + transparent
+  treatment + tooltip)
+- `inspector.component.spec.ts`: +5 testes em
+  `describe('palette integration')` (palette renderiza; default fill
+  active; pointerdown stroke ativa stroke; pick aplica fill por
+  default; pick aplica stroke após ativar)
+- **Total**: +22 testes → **550 passing** em 43 arquivos. Zero regressão
+
+**Comportamento visível na app**
+
+- Inspector ganha tira de swatches abaixo dos color fields
+- Click em swatch aplica cor ao campo ativo (fill ou stroke)
+- Click no label "fill" ou "stroke" troca o campo ativo (accent
+  vertical primary à esquerda da row indica qual está ativo)
+- Swatch `transparent` mostrada com ícone bloqueio vermelho —
+  click "limpa" o fill/stroke
+
+---
+
 ## 2026-05-16 — Fase 4 Bloco 4-IP-FixBugs2: color picker valor (#cccccc → real)
 
 **Contexto**

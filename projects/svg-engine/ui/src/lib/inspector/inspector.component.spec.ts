@@ -13,7 +13,7 @@ import {
   HistoryService,
   InsertNodeCommand,
 } from 'svg-engine/core';
-import { LayersService, SelectionService } from 'svg-engine/edit';
+import { LayersService, PaletteRegistry, SelectionService } from 'svg-engine/edit';
 import { cssColorToHex6, SvgeInspector } from './inspector.component';
 
 @Component({
@@ -499,6 +499,96 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
     if (fillInput === null) throw new Error('fill input not found');
     // Browsers store color values lower-cased and zero-padded.
     expect(fillInput.value).toBe('#008040');
+  });
+
+  describe('palette integration (Bloco 4d)', () => {
+    it('palette is rendered below the color rows', () => {
+      const r = createRect({ x: 0, y: 0, width: 10, height: 10 });
+      const { fixture, state, selection } = setup();
+      state.setDocument({
+        ...state.document(),
+        root: createGroup([r], { id: state.document().root.id }),
+      });
+      selection.select(r.id);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('svge-color-palette')).not.toBeNull();
+    });
+
+    it('clicking the fill row marks fill as the active palette target', () => {
+      const r = createRect({ x: 0, y: 0, width: 10, height: 10 });
+      const { fixture, state, selection } = setup();
+      state.setDocument({
+        ...state.document(),
+        root: createGroup([r], { id: state.document().root.id }),
+      });
+      selection.select(r.id);
+      fixture.detectChanges();
+      const rows = Array.from(
+        fixture.nativeElement.querySelectorAll('label.field-row'),
+      ) as HTMLLabelElement[];
+      // Default target is fill; first row should already be active.
+      expect(rows[0]?.classList.contains('active-target')).toBe(true);
+      expect(rows[1]?.classList.contains('active-target')).toBe(false);
+      // Switch to stroke.
+      rows[1]!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      fixture.detectChanges();
+      expect(rows[0]?.classList.contains('active-target')).toBe(false);
+      expect(rows[1]?.classList.contains('active-target')).toBe(true);
+    });
+
+    it('palette colorPicked applies to fill by default', () => {
+      const r = createRect({ x: 0, y: 0, width: 10, height: 10 }, { style: { fill: '#000000' } });
+      const { fixture, state, selection } = setup();
+      // Seed a deterministic palette BEFORE first detectChanges so the
+      // component renders with a known swatch list.
+      const reg = TestBed.inject(PaletteRegistry);
+      reg.register({ id: 'spec', name: 'Spec', swatches: ['#ff8800'] });
+      state.setDocument({
+        ...state.document(),
+        root: createGroup([r], { id: state.document().root.id }),
+      });
+      selection.select(r.id);
+      fixture.detectChanges();
+      // Click the first swatch — Angular @Output binding routes it
+      // through onPalettePick → setStyle('fill', '#ff8800').
+      const swatch = fixture.nativeElement.querySelector(
+        'svge-color-palette .swatch',
+      ) as HTMLButtonElement | null;
+      if (swatch === null) throw new Error('palette swatch not found');
+      swatch.click();
+      fixture.detectChanges();
+      const updated = findNodeById(state.document().root, r.id);
+      expect(updated?.style.fill).toBe('#ff8800');
+    });
+
+    it('palette colorPicked applies to stroke after activating stroke row', () => {
+      const r = createRect(
+        { x: 0, y: 0, width: 10, height: 10 },
+        { style: { fill: '#000000', stroke: '#333333' } },
+      );
+      const { fixture, state, selection } = setup();
+      const reg = TestBed.inject(PaletteRegistry);
+      reg.register({ id: 'spec', name: 'Spec', swatches: ['#00ff00'] });
+      state.setDocument({
+        ...state.document(),
+        root: createGroup([r], { id: state.document().root.id }),
+      });
+      selection.select(r.id);
+      fixture.detectChanges();
+      const rows = Array.from(
+        fixture.nativeElement.querySelectorAll('label.field-row'),
+      ) as HTMLLabelElement[];
+      rows[1]!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      fixture.detectChanges();
+      const specSwatch = fixture.nativeElement.querySelector(
+        'svge-color-palette .swatch',
+      ) as HTMLButtonElement;
+      specSwatch.click();
+      fixture.detectChanges();
+      const updated = findNodeById(state.document().root, r.id);
+      expect(updated?.style.stroke).toBe('#00ff00');
+      expect(updated?.style.fill).toBe('#000000'); // unchanged
+    });
   });
 
   it('color row is position:relative so the picker dialog anchors next to the swatch', () => {

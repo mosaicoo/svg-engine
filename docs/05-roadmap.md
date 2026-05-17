@@ -222,9 +222,13 @@
   - Cada `(change)` dispara `SetPropertyCommand` (1 undo entry por edit; sem per-keystroke pollution)
   - `parseNumericInput()` helper rejeita strings vazias (evita commit de `0` quando `Number('')` retorna 0)
   - **Pivot picker integrado e transform decomposto adiados** para sub-bloco 4c-Polish (precisa matrix decomposition + integração com TransformService)
-- [ ] **Bloco 4d**: Paleta de cores + `PaletteRegistry` (categoria 8 do D-023)
-  - `PaletteService` consome `PaletteRegistry`; built-in palettes (Material colors, Tailwind, custom HSL); plugins podem contribuir
-  - `<svge-color-palette>` UI + integração com inspector (fill/stroke pickers)
+- [x] **Bloco 4d**: Paleta de cores + `PaletteRegistry` (categoria 8 do D-023)
+  - `Palette` type (id/name/category?/swatches[]) + `PaletteRegistry` (signal-backed, register retorna `Disposable`, throw em duplicate/empty-id/empty-swatches, `byCategory(...)`)
+  - `builtinPalettesPlugin` (categoria 8 do D-023) registra 3 paletas via `ctx.track`: `default-greys` (utility, com `transparent` como 1ª swatch), `material-primary` (brand, 10 cores Material 500), `tailwind-pastels` (brand, 9 pastels Tailwind 200)
+  - `<svge-color-palette>` em `svg-engine/ui`: standalone, input `palettes` opcional (fallback `PaletteRegistry.palettes()`) + input `transparentLabel`, output `colorPicked`. Swatches 24×16 com checkerboard, hover scale, focus ring; swatch `transparent` ganha ícone block vermelho (padrão Figma/Affinity)
+  - Integração no inspector: palette strip abaixo das color rows; `.active-target` class marca qual field (fill/stroke) recebe o próximo click (default fill, troca por `pointerdown` na row). Padrão de mercado (Photoshop swatches panel)
+  - `builtinPalettesPlugin` provisionado em `app.config.ts` do playground
+  - +22 testes (8 registry/plugin + 9 UI component + 5 integração inspector) → **550 passing**
 - [ ] **Bloco 4e**: Toolbar extensível + `MenuContributionRegistry` (categoria 9 parte 1 do D-023)
   - `<svge-toolbar>` com slots por categoria; contribuições via plugin
   - Migração das ferramentas builtin para usar este sistema

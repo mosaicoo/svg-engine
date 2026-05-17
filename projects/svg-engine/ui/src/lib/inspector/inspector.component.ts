@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, type Signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal,
+  type Signal,
+} from '@angular/core';
 import { MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
@@ -11,6 +18,7 @@ import {
   type SvgStyle,
 } from 'svg-engine/core';
 import { LayersService, SelectionService } from 'svg-engine/edit';
+import { SvgeColorPalette } from '../color-palette/color-palette.component';
 import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from './inspector-pipes';
 
 /**
@@ -56,6 +64,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
     MatLabel,
     MatInput,
     MatIcon,
+    SvgeColorPalette,
     RectFieldPipe,
     EllipseFieldPipe,
     LineFieldPipe,
@@ -230,7 +239,12 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       <section class="section">
         <h3 class="section-title">Style</h3>
         <div class="grid color-grid">
-          <label class="field-row" [class.disabled]="isLocked()">
+          <label
+            class="field-row"
+            [class.disabled]="isLocked()"
+            [class.active-target]="activeColorTarget() === 'fill'"
+            (pointerdown)="setActiveColorTarget('fill')"
+          >
             <span class="lbl">fill</span>
             <span
               class="swatch"
@@ -247,7 +261,12 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
               (change)="setStyle('fill', $any($event.target).value)"
             />
           </label>
-          <label class="field-row" [class.disabled]="isLocked()">
+          <label
+            class="field-row"
+            [class.disabled]="isLocked()"
+            [class.active-target]="activeColorTarget() === 'stroke'"
+            (pointerdown)="setActiveColorTarget('stroke')"
+          >
             <span class="lbl">stroke</span>
             <span
               class="swatch"
@@ -265,6 +284,13 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
             />
           </label>
         </div>
+        <!--
+          Palette swatches strip (Bloco 4d): clicking applies the picked
+          color to whichever color field (fill/stroke) was last activated
+          via pointerdown on its label. Default target is 'fill'.
+        -->
+        <svge-color-palette class="palette-strip" (colorPicked)="onPalettePick($event)" />
+
         <div class="grid">
           <mat-form-field appearance="outline">
             <mat-label>stroke-width</mat-label>
@@ -381,6 +407,19 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
     .field-row.disabled {
       cursor: not-allowed;
     }
+    /* Bloco 4d: visually marks which color field (fill or stroke) is
+       the destination of the next palette click. Subtle left-border
+       accent in primary color, no layout shift. */
+    .field-row.active-target {
+      box-shadow: inset 3px 0 0 0 var(--mat-sys-primary, #1976d2);
+      padding-left: 5px;
+      margin-left: -8px;
+      border-radius: 2px;
+    }
+    .palette-strip {
+      display: block;
+      margin: 6px 0 2px;
+    }
     .field-row .lbl {
       flex: 1;
       color: var(--mat-sys-on-surface-variant, #777);
@@ -473,6 +512,29 @@ export class SvgeInspector {
   });
 
   protected readonly selectionCount = this.selection.count;
+
+  /**
+   * Tracks which color field (`fill` or `stroke`) the palette strip
+   * should write to. Updated by `pointerdown` on either color label so
+   * the palette routes to the user's most recent intent. Defaults to
+   * `'fill'` (the most-commonly-edited field per Figma/Affinity
+   * telemetry). Visually mirrored back via the `.active-target` class
+   * on the corresponding row so the user knows where the next palette
+   * click will go.
+   */
+  protected readonly activeColorTarget = signal<'fill' | 'stroke'>('fill');
+  protected setActiveColorTarget(target: 'fill' | 'stroke'): void {
+    this.activeColorTarget.set(target);
+  }
+
+  /**
+   * Apply a swatch from `<svge-color-palette>` to the active color
+   * field. Lock and "same value" checks live inside `setStyle()` so
+   * we don't duplicate them here.
+   */
+  protected onPalettePick(color: string): void {
+    this.setStyle(this.activeColorTarget(), color);
+  }
 
   /**
    * Defense-in-depth: under normal operation `SelectionService` filters
