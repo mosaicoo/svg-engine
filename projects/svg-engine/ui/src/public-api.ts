@@ -39,3 +39,6 @@ export * from './lib/toolbar';
 
 // Rulers (Fase 4 Bloco 4f)
 export * from './lib/rulers';
+
+// Theme toggle + service (Fase 4 Bloco 4i — D-012 part 2)
+export * from './lib/theme-toggle';

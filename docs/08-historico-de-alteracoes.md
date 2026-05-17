@@ -6,6 +6,80 @@
 
 ---
 
+## 2026-05-17 — Fase 4 Bloco 4i: theme toggle (D-012 part 2) — FASE 4 COMPLETA
+
+**Contexto**
+
+Último bloco da Fase 4. `ThemeService` + `<svge-theme-toggle>` fecham
+o tema D-012 (parte 2). Padrão de mercado (GitHub/Slack/VSCode):
+toggle de 1 botão com 3 estados cíclicos (`light`/`dark`/`system`).
+
+**Mudanças**
+
+`ui/lib/theme-toggle/theme.service.ts`:
+
+- Tipos `Theme = 'system'|'light'|'dark'` + `ResolvedTheme = 'light'|'dark'`
+- `_theme` signal lê valor persistido em `localStorage` chave
+  `svge.theme` no construtor (fallback `'system'` se ausente/inválido)
+- `_systemPrefersDark` signal escuta `prefers-color-scheme: dark`
+  via `matchMedia.addEventListener('change', ...)` (com fallback
+  `addListener` p/ Safari antigo)
+- `resolved` computed: `'system'` resolve para light/dark conforme
+  media query; explicit retorna verbatim
+- `setTheme(t)` persiste em localStorage + dedup
+- `cycle()` light → dark → system → light
+- `effect()` reflete `resolved()` para `<html data-theme="...">`
+  — Material 3 e Tailwind picks up; sem flash-of-unstyled em first
+  paint porque o atributo está no `<html>` antes do `<body>` renderizar
+- Safe-fallback total para SSR (typeof localStorage / window /
+  matchMedia === 'undefined') + try/catch (storage bloqueado em
+  privacy mode / sandbox iframe)
+
+`ui/lib/theme-toggle/theme-toggle.component.ts`:
+
+- `<svge-theme-toggle>` Material `<mat-icon-button>`
+- Ícone do tema CHOSEN (não do resolved): `light_mode`/`dark_mode`/
+  `brightness_auto`. Usuário vê "o que eu escolhi", não "o que o
+  sistema me deu" — convenção GitHub/Slack
+- Tooltip: "Theme: Current (click for Next)"
+- aria-label completa
+
+**Decisões técnicas**
+
+- **`<html data-theme="..."` em vez de class no `<body>`**: Material
+  3 + Tailwind selecionam por `[data-theme="dark"]` sem conflito;
+  atributo no `<html>` é aplicado pré-`<body>` → zero FOUC
+- **`'system'` como default**: respeitar a preferência do usuário
+  do OS é o comportamento correto na primeira visita. Toggle salva
+  override apenas se o usuário quiser
+- **Cycle vs picker explícito**: 1 botão (cycle) ocupa menos espaço
+  de toolbar. Consumers que querem picker explícito chamam
+  `setTheme()` diretamente (API pública)
+- **`localStorage` opt-in com try/catch**: privacy mode bloqueia.
+  Em vez de explodir, voltamos ao `'system'` — preferência se perde
+  no reload, mas o app continua funcionando
+
+**Cobertura**
+
+`theme.service.spec.ts`: 8 testes (defaults/setTheme 4, resolved+
+DOM reflection 2, persistence boot reads valid + ignores invalid 2)
+
+**Total**: +8 testes → **632 passing** em 48 arquivos. Zero regressão
+
+**Status Fase 4**
+
+Todos os 10 blocos da Fase 4 entregues: 4-pre (workspace
+background), 4-Resize-Proper, 4-Inspector-Polish, 4-IP-Fix, 4-IP-FixBugs,
+4-IP-FixBugs2, 4a (editor shell), 4b (layers + lock v2), 4c (inspector),
+**4d (palettes)**, **4h (grouping)**, **4e (toolbar contribution)**,
+**4g (shortcuts)**, **4f (workspace settings)**, **4i (theme toggle)**.
+
+Próxima parada: **Fase 5** (IO + Optimize): `SvgImporter`/`SvgExporter`
+
+- `OptimizationPipeline` extensível via plugins.
+
+---
+
 ## 2026-05-17 — Fase 4 Bloco 4f: workspace settings (page/grid/guides/rulers)
 
 **Contexto**

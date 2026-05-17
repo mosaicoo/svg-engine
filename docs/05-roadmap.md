@@ -157,7 +157,7 @@
   - `06-componentes-editor-svg.md` atualizado: refs aos 5 services novos (Marquee/Snap/Alignment/PluginRegistry/ToolHostService)
   - Tabela "Decisões pendentes" reorganizada: D-023/D-024 antigos cumpridos, "Versionamento + changelog" renumerado para D-031
 
-## Fase 4 — UX completa
+## Fase 4 — UX completa ✅ (todos os blocos entregues, 632 testes)
 
 > **Foundation pré-Fase 4** (D-021 resolvido):
 >
@@ -252,8 +252,10 @@
   - `UngroupCommand`: promove children do group para o grand-parent no índice original do group. Rejeita root + non-group. Group transform é DROPPED (limitação documentada — futuro `BakeGroupTransformCommand`). Undo recria o group com mesmo id + transform + style
   - Playground: handlers `Ctrl+G` / `Ctrl+Shift+G` (Mac: `Cmd+G`); botões "Group" / "Ungroup" no toolbar (disabled-when-inválido com `canUngroupFocus` computed)
   - +11 testes (group ordering / common-parent validation / undo roundtrip / single-node group / ungroup positioning / undo restore-with-transform) → **561 passing**
-- [ ] **Bloco 4i**: Theme toggle explícito (D-012 part 2)
-  - `<svge-theme-toggle>` Material; persiste em `localStorage`; sobrepõe `prefers-color-scheme`
+- [x] **Bloco 4i**: Theme toggle explícito (D-012 part 2)
+  - `ThemeService` (em `svg-engine/ui`): tipos `Theme = 'system'|'light'|'dark'` + `ResolvedTheme = 'light'|'dark'`. `setTheme()` persiste em `localStorage` chave `svge.theme`; init lê valor persistido (fallback `'system'` se inválido); `cycle()` light→dark→system→light. `_systemPrefersDark` signal escuta `prefers-color-scheme` (`addEventListener` moderno + `addListener` fallback Safari antigo). `effect()` reflete resolved theme para `<html data-theme="...">` (Material 3 / Tailwind picks up; sem flash-of-unstyled). Safe-fallback p/ SSR (typeof localStorage/window === 'undefined')
+  - `<svge-theme-toggle>` Material `<mat-icon-button>` com ícone do tema CHOSEN (light_mode/dark_mode/brightness_auto) — tooltip mostra current + hint do próximo. Click chama `cycle()`
+  - +8 testes (defaults+setTheme 4, resolved+DOM 2, persistence boot 2) → **632 passing**
 
 ## Fase 5 — IO + extensibilidade
 
