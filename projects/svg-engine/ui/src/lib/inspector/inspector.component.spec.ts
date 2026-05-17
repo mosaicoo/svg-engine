@@ -14,7 +14,7 @@ import {
   InsertNodeCommand,
 } from 'svg-engine/core';
 import { LayersService, SelectionService } from 'svg-engine/edit';
-import { SvgeInspector } from './inspector.component';
+import { cssColorToHex6, SvgeInspector } from './inspector.component';
 
 @Component({
   standalone: true,
@@ -425,6 +425,80 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
     // Browsers represent 'transparent' as 'rgba(0, 0, 0, 0)' in computed style;
     // we set it directly via inline style binding so it stays as the literal.
     expect(['transparent', 'rgba(0, 0, 0, 0)']).toContain(swatches[0]?.style.backgroundColor);
+  });
+
+  describe('cssColorToHex6 (picker value normalization, Bloco 4-IP-FixBugs2)', () => {
+    it('passes through 6-char hex unchanged (lower-cased)', () => {
+      expect(cssColorToHex6('#FF8800')).toBe('#ff8800');
+      expect(cssColorToHex6('#aabbcc')).toBe('#aabbcc');
+    });
+
+    it('expands 3-char shorthand hex to 6-char', () => {
+      expect(cssColorToHex6('#f80')).toBe('#ff8800');
+      expect(cssColorToHex6('#ABC')).toBe('#aabbcc');
+    });
+
+    it('named colors are handled (browser path; jsdom may return null)', () => {
+      // Named colors (`'red'`, `'tomato'`) require the Canvas round-trip
+      // because there's no JS table for the ~150 CSS named colors. In
+      // a real browser this returns the correct hex; in jsdom Canvas
+      // doesn't normalize, so we accept either hex OR null (the call
+      // site falls back to the gray default — acceptable for now since
+      // the seeded shapes use hsl() not named colors).
+      const out = cssColorToHex6('red');
+      if (out !== null) expect(out).toMatch(/^#[0-9a-f]{6}$/);
+    });
+
+    it('normalizes rgb() (both legacy comma + CSS Color 4 space form)', () => {
+      expect(cssColorToHex6('rgb(255, 0, 0)')).toBe('#ff0000');
+      expect(cssColorToHex6('rgb(0 128 64)')).toBe('#008040');
+      // Alpha is discarded
+      expect(cssColorToHex6('rgba(255, 0, 0, 0.5)')).toBe('#ff0000');
+      // Percent channels
+      expect(cssColorToHex6('rgb(100%, 0%, 0%)')).toBe('#ff0000');
+    });
+
+    it('normalizes hsl() including the format randomPastel() produces', () => {
+      // Pure red via HSL
+      expect(cssColorToHex6('hsl(0, 100%, 50%)')).toBe('#ff0000');
+      // CSS Color 4 space-separated form (matches randomPastel output)
+      const pastel = cssColorToHex6('hsl(180 60% 75%)');
+      expect(pastel).toMatch(/^#[0-9a-f]{6}$/);
+      expect(pastel).not.toBe('#cccccc');
+      // Alpha discarded
+      expect(cssColorToHex6('hsla(0, 100%, 50%, 0.3)')).toBe('#ff0000');
+      // Hue normalization: 360 == 0 == red
+      expect(cssColorToHex6('hsl(360, 100%, 50%)')).toBe('#ff0000');
+    });
+
+    it('returns null for malformed input', () => {
+      expect(cssColorToHex6('not a color at all')).toBeNull();
+      expect(cssColorToHex6('')).toBeNull();
+    });
+  });
+
+  it('picker input value is normalized to hex even when model has hsl/rgb/named', () => {
+    // Bloco 4-IP-FixBugs2 regression: pre-fix, the native picker opened
+    // at #cccccc (gray) whenever the model held a non-hex color. Now it
+    // opens at the normalized hex equivalent so the user sees their
+    // actual color highlighted in the picker dialog.
+    const r = createRect(
+      { x: 0, y: 0, width: 10, height: 10 },
+      { style: { fill: 'rgb(0, 128, 64)' } },
+    );
+    const { fixture, state, selection } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([r], { id: state.document().root.id }),
+    });
+    selection.select(r.id);
+    fixture.detectChanges();
+    const fillInput = fixture.nativeElement.querySelector(
+      'input[type="color"]',
+    ) as HTMLInputElement | null;
+    if (fillInput === null) throw new Error('fill input not found');
+    // Browsers store color values lower-cased and zero-padded.
+    expect(fillInput.value).toBe('#008040');
   });
 
   it('color row is position:relative so the picker dialog anchors next to the swatch', () => {

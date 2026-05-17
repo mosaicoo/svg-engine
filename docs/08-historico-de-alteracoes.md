@@ -6,6 +6,72 @@
 
 ---
 
+## 2026-05-16 — Fase 4 Bloco 4-IP-FixBugs2: color picker valor (#cccccc → real)
+
+**Contexto**
+
+Após o 4-IP-FixBugs corrigir a POSIÇÃO do popover de cor, o usuário
+reportou que o popover abria no lugar certo mas com o seletor
+inicializado em `rgb(204, 204, 204)` (= `#cccccc`) em vez da cor
+real da forma.
+
+**Root cause**: `styleColor()` (binding do `[value]` do `<input
+type="color">`) só aceita `#RRGGBB` e fazia fallback para `#cccccc`
+em qualquer outro formato. As formas seedadas no playground usam
+`randomPastel()` que retorna `hsl(...)` — sempre cai no fallback.
+O swatch ao lado mostra a cor REAL via `[style.background-color]`
+(que aceita qualquer CSS color), criando a divergência reportada
+(swatch certo, picker errado).
+
+**Fix** (`inspector.component.ts`):
+
+- Novo helper `cssColorToHex6(input): string | null` com estratégia
+  em cascata por custo crescente:
+  1. `#rrggbb` / `#rgb` — regex, sem DOM
+  2. `rgb(...)` / `rgba(...)` — parser JS puro (canais inteiros,
+     decimais, percentuais; alpha descartado; formato legacy
+     vírgula OU CSS Color 4 espaço)
+  3. `hsl(...)` / `hsla(...)` — parser JS + conversão HSL→RGB
+     conforme spec CSS Color 3 (unidades `deg`/`rad`/`grad`/`turn`;
+     alpha descartado; hue normalizado para [0, 360))
+  4. Cores nomeadas / lab / lch / sistema — fallback Canvas
+     `fillStyle` round-trip. Em jsdom Canvas não normaliza →
+     função retorna `null`, caller cai no `#cccccc` (sem regressão
+     em testes)
+- `styleColor()` agora usa `cssColorToHex6(v) ?? '#cccccc'`;
+  rejeita explicitamente `'none'`, `'transparent'` e `'url(...)'`
+  antes (não fazem sentido no native picker)
+
+**Decisões técnicas**
+
+- **Parsers JS-side primeiro, Canvas só de fallback**: jsdom tem
+  Canvas incompleto, então testes precisam funcionar sem Canvas.
+  Parsers JS cobrem 95% dos casos da app (rect/ellipse seedados via
+  `randomPastel` → HSL). Canvas só importa em browser real para
+  cores nomeadas — não-bloqueante para o fluxo principal
+- **HSL→RGB algoritmo CSS Color 3**: implementação direta do
+  pseudocódigo da spec, sem dependência externa
+- **Alpha descartado**: `<input type="color">` é RGB-only por design
+
+**Cobertura**
+
+- `inspector.component.spec.ts`: +6 testes em `describe('cssColorToHex6')`
+  (hex passthrough; expansão de 3-char; rgb legacy/CSS4/alpha/percent;
+  hsl vírgula/espaço/alpha/normalização de hue; named browser-only;
+  malformed → null) + 1 teste integrado (rect com `fill: rgb(0,128,64)`
+  → picker.value = `#008040`)
+- **Total**: +7 testes → **528 passing** em 41 arquivos. Zero regressão
+
+**Comportamento visível na app**
+
+- Adicionar uma forma (rect/ellipse) — gera fill via `randomPastel`
+  (HSL) — selecionar a forma — clicar no swatch de fill: popover
+  nativo abre com o seletor JÁ no pastel correto (não mais cinza)
+- Cores que o usuário editou previamente via picker (já `#RRGGBB`):
+  comportamento idêntico ao anterior (fast path)
+
+---
+
 ## 2026-05-16 — Fase 4 Bloco 4-IP-FixBugs: 2 bugs reais (resize + picker)
 
 **Contexto**

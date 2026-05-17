@@ -163,6 +163,11 @@
 >
 > - [x] **Bloco 4-pre**: `WorkspaceService` + `<svge-workspace-background>` (background transparente xadrez / sólido / imagem). Headless (HTML+CSS, sem Material). Toolbar de presets no playground
 
+- [x] **Bloco 4-IP-FixBugs2**: picker valor sempre `#cccccc` para cores não-hex (hsl/rgb/named)
+  - **Sintoma**: após FixBugs corrigir a posição do popover, o seletor abria com cinza (`rgb(204,204,204)`) em vez da cor real (que aparecia corretamente no swatch ao lado)
+  - **Root cause**: `styleColor()` fazia fallback para `#cccccc` em qualquer formato ≠ `#RRGGBB`. Formas seedadas via `randomPastel()` (HSL) sempre caíam no fallback
+  - **Fix**: novo helper `cssColorToHex6(input)` com cascata por custo — regex de hex (sem DOM) → parser JS de rgb()/rgba() (legacy + CSS Color 4) → parser JS de hsl()/hsla() com conversão HSL→RGB conforme spec → Canvas fillStyle round-trip como fallback para named/lab/lch. Alpha sempre descartado (native picker é RGB-only). `styleColor()` agora chama esse helper
+  - +7 testes em `inspector.component.spec.ts` (hex passthrough; expansão 3-char; rgb legacy/CSS4/alpha/percent; hsl com formato do `randomPastel`; hue normalizado; integrado: picker.value mostra `#008040` para `rgb(0,128,64)`) → **528 passing**
 - [x] **Bloco 4-IP-FixBugs**: dois bugs reais reportados pelo usuário
   - **Bug 1 (resize edges)**: depois de mover uma forma, arrastar qualquer aresta fazia o lado oposto deslizar. Root cause: `bakeScaleIntoNode` tratava `anchor` (doc coords) e `node.x/y` (local coords pré-transform) como se estivessem no mesmo sistema. Para `transform = translate(tx,ty)` (caso comum pós-Move), as coords divergiam por `(tx,ty)`. Fix: dispatcher subtrai `(transform[4],transform[5])` do anchor; recursão de grupos passa `localAnchor` p/ compor cadeia de translates aninhados
   - **Bug 2 (color picker no canto)**: clique no swatch abria o popover do `<input type="color">` no canto do viewport. Root cause: `.color-input-hidden` era `position: absolute` sem ancestor positioned → input escapava para o initial containing block. Fix: `.field-row` ganhou `position: relative` + input reposicionado com `top: 50%; left: 36px`

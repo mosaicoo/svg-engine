@@ -515,17 +515,24 @@ export class SvgeInspector {
   }
 
   /**
-   * Value bound to the `<input type="color">` picker. Color inputs
-   * require `#RRGGBB` — non-hex values (e.g., `'rgb(...)'`, `'hsl(...)'`,
-   * `'none'`, `'url(#grad)'`) get a neutral fallback. The **real** current
-   * color is shown in the swatch element next to the picker via
-   * {@link rawStyleColor} (any CSS color string).
+   * Value bound to the `<input type="color">` picker. Color inputs only
+   * accept `#RRGGBB`, so non-hex values (e.g., `'rgb(...)'`, `'hsl(...)'`,
+   * `'tomato'`) are NORMALIZED to hex via {@link cssColorToHex6} (Canvas
+   * round-trip) so the native picker opens at the **real** model color
+   * instead of a gray fallback.
+   *
+   * Special non-paint values (`'none'`, `'url(#grad)'`, `'transparent'`)
+   * fall through to a neutral default — they can't be expressed in the
+   * native picker. The swatch ({@link rawStyleColor}) still shows them
+   * truthfully via CSS `background-color`.
    */
   protected styleColor(field: 'fill' | 'stroke'): string {
     const node = this.focusNode();
     if (node === null) return '#000000';
     const v = node.style[field];
-    return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : '#cccccc';
+    if (typeof v !== 'string') return '#cccccc';
+    if (v === 'none' || v === 'transparent' || v.startsWith('url(')) return '#cccccc';
+    return cssColorToHex6(v) ?? '#cccccc';
   }
 
   /**
@@ -615,4 +622,148 @@ function parseNumericInput(raw: string): number | null {
   if (trimmed === '') return null;
   const v = Number(trimmed);
   return Number.isFinite(v) ? v : null;
+}
+
+/**
+ * Normalize any CSS color string to a 6-character `#RRGGBB` hex (lower-
+ * case). Returns `null` when the input can't be interpreted as a color
+ * (`'none'`, `'url(#grad)'`, malformed, etc. — callers handle the
+ * fallback). Used by the inspector's color picker to seed the native
+ * `<input type="color">` so it opens at the **real** model color (e.g.
+ * a `hsl(...)` from a generative palette) instead of the gray default.
+ *
+ * Strategy — short-circuits in order of decreasing cheapness:
+ * 1. `#rrggbb` / `#rgb` → regex match, no DOM
+ * 2. `rgb(...)` / `rgba(...)` → pure-JS parse, no DOM
+ * 3. `hsl(...)` / `hsla(...)` → pure-JS parse + HSL→RGB conversion
+ * 4. Named colors / exotic syntaxes → Canvas `fillStyle` round-trip
+ *    (DOM required; safely returns `null` in non-browser contexts
+ *    or when Canvas isn't fully implemented — e.g., jsdom)
+ *
+ * Alpha is discarded — native `<input type="color">` doesn't support it.
+ *
+ * Why not just always use Canvas: jsdom's Canvas impl is incomplete
+ * (writing `fillStyle` doesn't normalize), so tests can't rely on it.
+ * The pure-JS paths also avoid one DOM allocation per inspector update.
+ */
+export function cssColorToHex6(input: string): string | null {
+  const trimmed = input.trim();
+  if (trimmed === '') return null;
+  // Already 6-char hex → fast path.
+  if (/^#[0-9a-f]{6}$/i.test(trimmed)) return trimmed.toLowerCase();
+  // 3-char shorthand hex → expand without touching DOM.
+  const short = trimmed.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i);
+  if (short !== null) {
+    return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`.toLowerCase();
+  }
+  const fromRgb = parseRgbToHex(trimmed);
+  if (fromRgb !== null) return fromRgb;
+  const fromHsl = parseHslToHex(trimmed);
+  if (fromHsl !== null) return fromHsl;
+  // Last resort: Canvas round-trip for named/lab/lch/system colors. In
+  // jsdom the round-trip may return an object or stay unchanged; we
+  // detect that and return null so callers fall back to gray.
+  if (typeof document === 'undefined') return null;
+  const ctx = document.createElement('canvas').getContext('2d');
+  if (ctx === null) return null;
+  const sentinel = '#000000';
+  ctx.fillStyle = sentinel;
+  ctx.fillStyle = trimmed;
+  const out = ctx.fillStyle;
+  if (typeof out !== 'string') return null;
+  if (/^#[0-9a-f]{6}$/i.test(out)) return out.toLowerCase();
+  return parseRgbToHex(out);
+}
+
+function parseRgbToHex(input: string): string | null {
+  // CSS accepts both comma-separated (legacy) and whitespace-separated
+  // (CSS Color 4) forms. We match both, plus optional `rgba(`/`/ a` tail
+  // (alpha is discarded).
+  const m = input.match(
+    /^rgba?\(\s*(-?\d+(?:\.\d+)?%?)\s*[, ]\s*(-?\d+(?:\.\d+)?%?)\s*[, ]\s*(-?\d+(?:\.\d+)?%?)\s*(?:[,/]\s*[\d.]+%?\s*)?\)$/i,
+  );
+  if (m === null) return null;
+  const r = parseChannel(m[1]!);
+  const g = parseChannel(m[2]!);
+  const b = parseChannel(m[3]!);
+  if (r === null || g === null || b === null) return null;
+  return `#${toHex2(r)}${toHex2(g)}${toHex2(b)}`;
+}
+
+function parseHslToHex(input: string): string | null {
+  // hsl(H, S%, L%) or hsl(H S% L%) with optional alpha. Hue in degrees
+  // (with optional 'deg'/'turn'/'rad'/'grad' unit), S/L are percentages.
+  const m = input.match(
+    /^hsla?\(\s*(-?\d+(?:\.\d+)?)(deg|rad|grad|turn)?\s*[, ]\s*(-?\d+(?:\.\d+)?)%\s*[, ]\s*(-?\d+(?:\.\d+)?)%\s*(?:[,/]\s*[\d.]+%?\s*)?\)$/i,
+  );
+  if (m === null) return null;
+  let h = Number.parseFloat(m[1]!);
+  const unit = m[2]?.toLowerCase();
+  if (unit === 'rad') h = (h * 180) / Math.PI;
+  else if (unit === 'grad') h = h * 0.9;
+  else if (unit === 'turn') h = h * 360;
+  // Normalize hue to [0, 360)
+  h = ((h % 360) + 360) % 360;
+  const s = clamp01(Number.parseFloat(m[3]!) / 100);
+  const l = clamp01(Number.parseFloat(m[4]!) / 100);
+  const { r, g, b } = hslToRgb(h, s, l);
+  return `#${toHex2(r)}${toHex2(g)}${toHex2(b)}`;
+}
+
+function parseChannel(raw: string): number | null {
+  if (raw.endsWith('%')) {
+    const pct = Number.parseFloat(raw.slice(0, -1));
+    if (!Number.isFinite(pct)) return null;
+    return Math.round(clamp01(pct / 100) * 255);
+  }
+  const n = Number.parseFloat(raw);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(255, Math.round(n)));
+}
+
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
+function toHex2(n: number): string {
+  return n.toString(16).padStart(2, '0');
+}
+
+/**
+ * HSL→RGB per CSS Color spec (https://www.w3.org/TR/css-color-3/#hsl-color).
+ * Returns 8-bit RGB channels (0..255 inclusive).
+ */
+function hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: number } {
+  // h in [0, 360), s/l in [0, 1]
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const hPrime = h / 60;
+  const x = c * (1 - Math.abs((hPrime % 2) - 1));
+  let r1 = 0;
+  let g1 = 0;
+  let b1 = 0;
+  if (hPrime < 1) {
+    r1 = c;
+    g1 = x;
+  } else if (hPrime < 2) {
+    r1 = x;
+    g1 = c;
+  } else if (hPrime < 3) {
+    g1 = c;
+    b1 = x;
+  } else if (hPrime < 4) {
+    g1 = x;
+    b1 = c;
+  } else if (hPrime < 5) {
+    r1 = x;
+    b1 = c;
+  } else {
+    r1 = c;
+    b1 = x;
+  }
+  const m = l - c / 2;
+  return {
+    r: Math.round((r1 + m) * 255),
+    g: Math.round((g1 + m) * 255),
+    b: Math.round((b1 + m) * 255),
+  };
 }
