@@ -230,7 +230,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       <section class="section">
         <h3 class="section-title">Style</h3>
         <div class="grid color-grid">
-          <label class="field-row">
+          <label class="field-row" [class.disabled]="isLocked()">
             <span class="lbl">fill</span>
             <span
               class="swatch"
@@ -240,12 +240,14 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
             ></span>
             <input
               type="color"
+              class="color-input-hidden"
+              aria-label="Pick fill color"
               [disabled]="isLocked()"
               [value]="styleColor('fill')"
               (change)="setStyle('fill', $any($event.target).value)"
             />
           </label>
-          <label class="field-row">
+          <label class="field-row" [class.disabled]="isLocked()">
             <span class="lbl">stroke</span>
             <span
               class="swatch"
@@ -255,6 +257,8 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
             ></span>
             <input
               type="color"
+              class="color-input-hidden"
+              aria-label="Pick stroke color"
               [disabled]="isLocked()"
               [value]="styleColor('stroke')"
               (change)="setStyle('stroke', $any($event.target).value)"
@@ -363,44 +367,65 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
     .field-row {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
       font-size: 12px;
+      cursor: pointer;
+    }
+    .field-row.disabled {
+      cursor: not-allowed;
     }
     .field-row .lbl {
       flex: 1;
       color: var(--mat-sys-on-surface-variant, #777);
     }
-    .field-row input[type='color'] {
-      flex: 0 0 36px;
-      height: 28px;
-      padding: 0;
-      border: 1px solid var(--mat-sys-outline-variant, #ccc);
-      border-radius: 4px;
-      cursor: pointer;
-      background: transparent;
-    }
-    /* Bloco 4-Inspector-Polish: real-color swatch (any CSS color string,
-       including hsl/rgb/named/url) shown next to the native input
-       type="color" which can only render #RRGGBB. The style binding
-       fills the swatch with the actual model value. A checkerboard
-       backdrop renders behind transparent/semi-transparent fills. */
+    /* Bloco 4-IP-Fix: single visible color chip (swatch). The native
+       <input type="color"> is visually hidden but kept in the DOM as
+       a sibling of this <label>'s text; clicking the label opens the
+       native picker via the browser's label-input association. Result:
+       one element to look at AND to click (Figma/Affinity pattern).
+
+       Background-image draws a checkerboard backdrop so transparent /
+       semi-transparent fills show through. The [style.background-color]
+       binding paints the real model color on top. */
     .field-row .swatch {
-      flex: 0 0 18px;
-      width: 18px;
-      height: 18px;
-      border-radius: 3px;
+      flex: 0 0 28px;
+      width: 28px;
+      height: 22px;
+      border-radius: 4px;
       border: 1px solid var(--mat-sys-outline-variant, #ccc);
       background-image:
         linear-gradient(45deg, #ccc 25%, transparent 25%),
         linear-gradient(-45deg, #ccc 25%, transparent 25%),
         linear-gradient(45deg, transparent 75%, #ccc 75%),
         linear-gradient(-45deg, transparent 75%, #ccc 75%);
-      background-size: 6px 6px;
+      background-size: 8px 8px;
       background-position:
         0 0,
-        0 3px,
-        3px -3px,
-        -3px 0;
+        0 4px,
+        4px -4px,
+        -4px 0;
+      transition: border-color 120ms;
+    }
+    .field-row:not(.disabled):hover .swatch {
+      border-color: var(--mat-sys-primary, #1976d2);
+    }
+    .field-row.disabled .swatch {
+      opacity: 0.5;
+    }
+    /* Native color input visually hidden — clicking the parent <label>
+       still opens its picker dialog (browsers: label-for-input association).
+       Kept tab-focusable (NOT removed via display:none) so keyboard users
+       can still reach + change colors. */
+    .color-input-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      overflow: hidden;
+      pointer-events: none;
+      margin: -1px;
+      padding: 0;
+      border: 0;
     }
     .placeholder {
       display: flex;

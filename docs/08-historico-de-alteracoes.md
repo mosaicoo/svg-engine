@@ -6,6 +6,68 @@
 
 ---
 
+## 2026-05-16 — Fase 4 Bloco 4-IP-Fix: fusão swatch + color picker
+
+**Contexto**
+
+Logo após o 4-Inspector-Polish, screenshot do usuário mostrou que cada
+linha de cor (fill / stroke) tinha **dois controles visíveis lado a
+lado**: o swatch novo (quadradinho com a cor real) e o `<input
+type="color">` nativo (caixa cinza padrão do browser).
+
+Padrão de mercado (Figma, Affinity, Inkscape, Sketch): **um único
+controle visual por campo de cor**. O swatch _é_ o picker — clicar nele
+abre o seletor nativo. Sem caixa cinza separada.
+
+**Mudanças**
+
+`projects/svg-engine/ui/src/lib/inspector/inspector.component.ts`:
+
+- Template: cada linha de cor agora é um `<label class="field-row">`
+  envolvendo o `<span class="swatch">` (visível) + `<input
+type="color" class="color-input-hidden">` (no DOM, mas escondido).
+  Associação label↔input do browser garante que clique no `<label>`
+  abre o picker nativo automaticamente
+- CSS: swatch maior (28×22), `border-radius: 4px`, hover destaca a
+  borda em `primary`, disabled reduz opacidade
+- Nova classe `.color-input-hidden`: `position: absolute; width: 1px;
+height: 1px; opacity: 0; pointer-events: none` — input fica
+  invisível mas continua **tab-focusable** (acessibilidade
+  preservada — usuário de teclado ainda chega no picker via Tab)
+- `aria-hidden="true"` no swatch + `aria-label` explícito no input
+  (screen readers ouvem "Pick fill color", não veem o swatch redundante)
+- Lock: classe `disabled` no `<label>` muda cursor para `not-allowed`
+  e reduz opacidade do swatch
+
+**Decisões técnicas**
+
+- **Label-input association vs JS click**: padrão HTML semântico
+  (`<label>` envolvendo `<input>`) entrega tudo de graça — clique,
+  foco, screen reader. Solução JS-driven seria over-engineering
+- **Visually-hidden vs `display: none`**: `display: none` removeria
+  o input do tab order e do accessibility tree. Truque "1px com
+  opacity 0 e pointer-events none" é o padrão WCAG para visually
+  hidden mas tecnicamente presente
+- **Por que não Material `mat-form-field` aqui**: color picker nativo
+  não se encaixa no design Material padrão (sem floating label, sem
+  outline). O `<label>` HTML cru é mais limpo e mais customizável
+
+**Cobertura**
+
+- `inspector.component.spec.ts`: +1 teste
+  (lock-down da estrutura fundida — 2 labels `.field-row`, cada um
+  com 1 swatch e 1 input `.color-input-hidden`)
+- **Total**: +1 teste → **514 passing** em 41 arquivos. Zero regressão
+
+**Comportamento visível na app**
+
+- Inspector mostra **um** quadradinho colorido por campo (fill, stroke)
+- Hover destaca a borda; clique abre o picker nativo do browser
+- Tab continua chegando no input invisível → picker funciona via
+  teclado também
+
+---
+
 ## 2026-05-16 — Fase 4 Bloco 4-Inspector-Polish: polimentos solicitados
 
 **Contexto**
@@ -111,6 +173,7 @@ durante o drag em tempo real (em vez de estagnar em 100 até commit).
   swatch element renderizado; swatch reflete HSL/RGB; swatch
   `transparent` para undefined)
 - **Total**: +10 testes → 513 passing em 41 arquivos. Zero regressão.
+  (4-IP-Fix abaixo trouxe o total a 514.)
 
 **Comportamento visível na app**
 

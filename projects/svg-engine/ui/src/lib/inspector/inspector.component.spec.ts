@@ -426,4 +426,31 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
     // we set it directly via inline style binding so it stays as the literal.
     expect(['transparent', 'rgba(0, 0, 0, 0)']).toContain(swatches[0]?.style.backgroundColor);
   });
+
+  it('color picker is fused with swatch under a single <label> (single visual control)', () => {
+    // Bloco 4-IP-Fix: market-standard pattern. Native <input type="color">
+    // is visually hidden (via .color-input-hidden) but tab-focusable and
+    // wired to the swatch via the parent <label>. Result: ONE clickable
+    // element per color field (no duplicated grey picker box).
+    const r = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const { fixture, state, selection } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([r], { id: state.document().root.id }),
+    });
+    selection.select(r.id);
+    fixture.detectChanges();
+
+    const fieldRows = Array.from(
+      fixture.nativeElement.querySelectorAll('label.field-row'),
+    ) as HTMLLabelElement[];
+    expect(fieldRows.length).toBe(2); // fill + stroke
+    // Each label wraps exactly one swatch + one hidden color input
+    for (const row of fieldRows) {
+      expect(row.querySelectorAll('.swatch').length).toBe(1);
+      const colorInputs = row.querySelectorAll('input[type="color"]');
+      expect(colorInputs.length).toBe(1);
+      expect(colorInputs[0]?.classList.contains('color-input-hidden')).toBe(true);
+    }
+  });
 });

@@ -163,6 +163,11 @@
 >
 > - [x] **Bloco 4-pre**: `WorkspaceService` + `<svge-workspace-background>` (background transparente xadrez / sólido / imagem). Headless (HTML+CSS, sem Material). Toolbar de presets no playground
 
+- [x] **Bloco 4-IP-Fix**: fusão swatch + color picker (eliminação do controle duplicado)
+  - **Problema reportado** (via screenshot): cada linha de cor mostrava DOIS controles — o swatch (cor real) E o `<input type="color">` nativo (caixa cinza padrão), lado a lado. Padrão de mercado (Figma/Affinity/Inkscape) é um único controle por campo
+  - **Solução**: `<label class="field-row">` envolvendo `<span class="swatch">` + `<input type="color" class="color-input-hidden">`. Label↔input association do browser garante que clique no swatch abre o picker nativo. Native input fica visually-hidden (1×1px, opacity 0, pointer-events none) mas tab-focusable (a11y preservada)
+  - CSS: swatch 28×22 com border-radius, hover destaca borda em primary, disabled reduz opacidade. `aria-hidden="true"` no swatch + `aria-label` explícito no input ("Pick fill/stroke color") → screen readers ouvem semântica limpa
+  - +1 teste (lock-down da estrutura fundida: 2 labels, 1 swatch + 1 input-hidden cada) → **514 passing**
 - [x] **Bloco 4-Inspector-Polish**: 3 fixes solicitados pelo usuário após Resize-Proper
   - **Item 3 (mais importante)**: bake **durante o drag** — `TransformService.updateResize` agora chama `bakeScaleIntoNode` a cada frame em vez de só compor scale-transform; `DragState` resize ganha `startNode` snapshot; `endResize`/`cancelGesture` revertem ao node inteiro antes de dispatch. Inspector mostra `w`/`h`/`x`/`y` atualizando em tempo real durante o resize.
   - **Item 1**: pipes `rectField`/`ellipseField`/`lineField` arredondam para inteiro (display-only; model preserva precisão). `styleNumber('opacity')` mostra 2 decimais; `styleNumber` default `'1'` (SVG implicit) quando undefined.
