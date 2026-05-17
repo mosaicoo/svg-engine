@@ -52,3 +52,40 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 - Design services around a single responsibility
 - Use the `providedIn: 'root'` option for singleton services
 - Use the `inject()` function instead of constructor injection
+
+## Dev workflow (CRITICAL — pitfall encountered 2026-05-16)
+
+`tsconfig.json` resolves `svg-engine/{core,render,edit,ui}` imports to
+**`./dist/svg-engine/...`** — the **built** library, NOT the source.
+This means: editing source files in `projects/svg-engine/**/*.ts` does
+NOT affect what `ng serve playground` bundles. The dev server reads the
+last-built `dist/`.
+
+**To see your library changes in the running playground**:
+
+1. Rebuild the library: `npx ng build svg-engine`
+   (or run `npx ng build svg-engine --watch` in a separate terminal
+   so it rebuilds automatically on source edits)
+2. The running `ng serve playground` watches `dist/` and HMRs the
+   playground when the build completes
+3. In the browser, hard-refresh (Ctrl+Shift+R) to bypass stale module
+   chunks
+
+**Validation checklist before claiming a library fix is live**:
+
+- Build summary shows `Built svg-engine/...` for the changed entry
+- `grep <new-symbol> dist/svg-engine/fesm2022/svg-engine-<entry>.mjs`
+  finds the new code
+- (Optional) `curl http://localhost:4200/chunk-XXXX.js | grep <new-symbol>`
+  confirms the bundle served by Vite contains it
+
+**Symptom of forgetting this step**: source has the fix, tests pass,
+but the running playground behaves as if the fix isn't there. Wasted
+hours debugging code that's not running.
+
+Spec/unit tests (`npx ng test`) compile the source directly via
+TypeScript paths to `dist/` — but the test runner ALSO needs an up-to-
+date `dist/` for the same reason. If you change a library file and
+don't rebuild, tests might run against stale `.d.ts` types too. Safer
+default: `ng build svg-engine` before running `ng test` after any
+library edit.
