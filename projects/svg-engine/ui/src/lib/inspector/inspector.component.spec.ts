@@ -523,17 +523,21 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
       });
       selection.select(r.id);
       fixture.detectChanges();
-      const rows = Array.from(
+      // Active-target moved from <label.field-row> to the wrapping
+      // <div.color-cell> (Bloco 4-Alpha) so the accent ring wraps
+      // both the color row and the new alpha input.
+      const cells = Array.from(
+        fixture.nativeElement.querySelectorAll('.color-cell'),
+      ) as HTMLElement[];
+      const labelRows = Array.from(
         fixture.nativeElement.querySelectorAll('label.field-row'),
       ) as HTMLLabelElement[];
-      // Default target is fill; first row should already be active.
-      expect(rows[0]?.classList.contains('active-target')).toBe(true);
-      expect(rows[1]?.classList.contains('active-target')).toBe(false);
-      // Switch to stroke.
-      rows[1]!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      expect(cells[0]?.classList.contains('active-target')).toBe(true);
+      expect(cells[1]?.classList.contains('active-target')).toBe(false);
+      labelRows[1]!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
       fixture.detectChanges();
-      expect(rows[0]?.classList.contains('active-target')).toBe(false);
-      expect(rows[1]?.classList.contains('active-target')).toBe(true);
+      expect(cells[0]?.classList.contains('active-target')).toBe(false);
+      expect(cells[1]?.classList.contains('active-target')).toBe(true);
     });
 
     it('palette colorPicked applies to fill by default', () => {
@@ -588,6 +592,72 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
       const updated = findNodeById(state.document().root, r.id);
       expect(updated?.style.stroke).toBe('#00ff00');
       expect(updated?.style.fill).toBe('#000000'); // unchanged
+    });
+  });
+
+  describe('per-color alpha inputs (Bloco 4-Alpha)', () => {
+    function setupWithRect(style?: Record<string, unknown>) {
+      const r = createRect(
+        { x: 0, y: 0, width: 10, height: 10 },
+        style ? { style: style as import('svg-engine/core').SvgStyle } : {},
+      );
+      const ctx = setup();
+      ctx.state.setDocument({
+        ...ctx.state.document(),
+        root: createGroup([r], { id: ctx.state.document().root.id }),
+      });
+      ctx.selection.select(r.id);
+      ctx.fixture.detectChanges();
+      return { ...ctx, r };
+    }
+
+    it('renders one alpha input per color cell (2 total: fill + stroke)', () => {
+      const { fixture } = setupWithRect();
+      const alphas = fixture.nativeElement.querySelectorAll('.alpha-input');
+      expect(alphas.length).toBe(2);
+    });
+
+    it('alpha inputs default to "1" when fillOpacity/strokeOpacity are undefined', () => {
+      const { fixture } = setupWithRect();
+      const alphas = Array.from(
+        fixture.nativeElement.querySelectorAll('.alpha-input'),
+      ) as HTMLInputElement[];
+      expect(alphas[0]?.value).toBe('1');
+      expect(alphas[1]?.value).toBe('1');
+    });
+
+    it('alpha inputs reflect model values formatted to 2 decimals', () => {
+      const { fixture } = setupWithRect({ fillOpacity: 0.5, strokeOpacity: 0.25 });
+      const alphas = Array.from(
+        fixture.nativeElement.querySelectorAll('.alpha-input'),
+      ) as HTMLInputElement[];
+      expect(alphas[0]?.value).toBe('0.50');
+      expect(alphas[1]?.value).toBe('0.25');
+    });
+
+    it('editing fill alpha dispatches SetPropertyCommand for fillOpacity', () => {
+      const { fixture, state, r } = setupWithRect({ fill: '#ff0000' });
+      const alphas = Array.from(
+        fixture.nativeElement.querySelectorAll('.alpha-input'),
+      ) as HTMLInputElement[];
+      alphas[0]!.value = '0.3';
+      alphas[0]!.dispatchEvent(new Event('change', { bubbles: true }));
+      fixture.detectChanges();
+      const updated = findNodeById(state.document().root, r.id);
+      expect(updated?.style.fillOpacity).toBe(0.3);
+    });
+
+    it('swatch background uses rgba() composing color + alpha when alpha < 1', () => {
+      const { fixture } = setupWithRect({ fill: '#ff0000', fillOpacity: 0.5 });
+      const swatch = fixture.nativeElement.querySelector('.swatch') as HTMLElement;
+      // Browsers normalize inline rgba() to lowercase with spaces.
+      expect(swatch.style.backgroundColor).toMatch(/rgba\(\s*255\s*,\s*0\s*,\s*0\s*,\s*0?\.5\s*\)/);
+    });
+
+    it('swatch background returns "transparent" when alpha is 0', () => {
+      const { fixture } = setupWithRect({ fill: '#ff0000', fillOpacity: 0 });
+      const swatch = fixture.nativeElement.querySelector('.swatch') as HTMLElement;
+      expect(['transparent', 'rgba(0, 0, 0, 0)']).toContain(swatch.style.backgroundColor);
     });
   });
 

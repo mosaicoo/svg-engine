@@ -6,6 +6,91 @@
 
 ---
 
+## 2026-05-17 — Fase 4 Bloco 4z-fixes: 4 ajustes pós-integração
+
+**Contexto**
+
+Após o 4z (integração na playground), o usuário identificou 4 pontos:
+
+1. **Theme toggle não muda cores** — `<html data-theme="...">` muda
+   mas Material/playground ignoram porque seguem `color-scheme` que
+   só lê `prefers-color-scheme` por default
+2. **Shift+click não adiciona à seleção** — handler do canvas
+   chamava `select(id)` (replace) sem ler `event.shiftKey`
+3. **Rulers com labels parciais/invisíveis** — labels caíam num
+   espaço apertado (~8px) com font 9px e contraste fraco
+4. **Color picker sem RGBA** — `<input type="color">` é RGB-only
+   por HTML spec; usuário precisa de controle de alpha
+
+**Mudanças**
+
+`playground/src/styles.scss`:
+
+- `html[data-theme='light'] { color-scheme: light }` +
+  `html[data-theme='dark'] { color-scheme: dark }`. `'system'` =
+  ausência de override; Material M3 deriva variant do `color-scheme`,
+  propaga para todos os `var(--mat-sys-*)` automaticamente
+
+`playground/playground-home.component.ts`:
+
+- `onCanvasPointerDown`: quando clica num nó, verifica
+  `event.shiftKey || event.ctrlKey || event.metaKey` e chama
+  `selection.toggle(id)` (adiciona/remove); fallback `select(id)`
+  só quando NÃO é additive. Padrão Figma/Affinity/Illustrator
+
+`ui/lib/rulers/rulers.component.ts`:
+
+- Thickness 20→24px; font 9→10px com line-height 12px
+- Label TOPO do tick (não embaixo) — padrão Photoshop
+- Cor `--mat-sys-on-surface` (mais forte que `-variant`)
+- Tick horizontal `bottom: 0` (cresce para cima); vertical rotacionado
+- Corner também 24×24
+
+`playground-home.component.scss`: gutter `with-rulers` 20→24px
+
+`ui/lib/inspector/inspector.component.ts` (**Bloco 4-Alpha**):
+
+- Template: cada color row em `<div class="color-cell">` com
+  `<label.field-row>` + novo `<input type="number" class="alpha-input">`
+- `active-target` mudou de `.field-row` para `.color-cell` (envolve
+  color + alpha juntos)
+- Novo `styleAlpha(field)`: lê `fillOpacity`/`strokeOpacity`,
+  default `'1'` quando undefined
+- Novo `swatchColorWithAlpha(field)`: compõe `rgba(r,g,b,alpha)`
+  para swatch refletir transparência visualmente (checkerboard vaza)
+- Setter usa `setStyleNumber('fillOpacity', raw)` — caminho
+  existente, 1 undo entry
+
+**Decisões técnicas**
+
+- **Alpha inline em vez de custom RGBA picker**: native picker é
+  RGB-only por spec HTML; custom picker full-feature seria ~600 LoC.
+  Inline alpha é padrão Figma/Affinity e usa campo SVG-canônico
+  `fill-opacity`/`stroke-opacity`
+- **`color-scheme` para theme override**: Material 3 gera ambas
+  variants — só precisa do `color-scheme` certo no ancestor.
+  Solução em 2 linhas de SCSS
+- **Shift OU Ctrl OU Meta**: todos triggam additive — evita usuários
+  "tentando lembrar qual tecla"
+
+**Cobertura**
+
+`inspector.component.spec.ts`: +6 testes no
+`describe('per-color alpha inputs')`:
+
+- 2 alpha inputs renderizados (fill + stroke)
+- Default `'1'` quando undefined
+- Valores formatados 2 decimais
+- Editar alpha dispatcha `SetPropertyCommand` para `fillOpacity`
+- Swatch usa `rgba()` quando alpha < 1
+- Swatch `transparent` quando alpha = 0
+
+Active-target spec atualizada para `.color-cell` (não `.field-row`).
+
+**Total**: +6 testes → **638 passing** em 48 arquivos. Zero regressão
+
+---
+
 ## 2026-05-17 — Fase 4 Bloco 4z: integração na playground
 
 **Contexto**

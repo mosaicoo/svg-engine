@@ -239,50 +239,82 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       <section class="section">
         <h3 class="section-title">Style</h3>
         <div class="grid color-grid">
-          <label
-            class="field-row"
-            [class.disabled]="isLocked()"
-            [class.active-target]="activeColorTarget() === 'fill'"
-            (pointerdown)="setActiveColorTarget('fill')"
-          >
-            <span class="lbl">fill</span>
-            <span
-              class="swatch"
-              [style.background-color]="rawStyleColor('fill')"
-              [title]="rawStyleColor('fill')"
-              aria-hidden="true"
-            ></span>
+          <div class="color-cell" [class.active-target]="activeColorTarget() === 'fill'">
+            <label
+              class="field-row"
+              [class.disabled]="isLocked()"
+              (pointerdown)="setActiveColorTarget('fill')"
+            >
+              <span class="lbl">fill</span>
+              <span
+                class="swatch"
+                [style.background-color]="swatchColorWithAlpha('fill')"
+                [title]="rawStyleColor('fill')"
+                aria-hidden="true"
+              ></span>
+              <input
+                type="color"
+                class="color-input-hidden"
+                aria-label="Pick fill color"
+                [disabled]="isLocked()"
+                [value]="styleColor('fill')"
+                (change)="setStyle('fill', $any($event.target).value)"
+              />
+            </label>
+            <!--
+              Bloco 4-Alpha: separate alpha slider per color field (Figma/
+              Affinity pattern). Native <input type="color"> is RGB-only;
+              we expose fillOpacity / strokeOpacity here so users can
+              control transparency without leaving the color row.
+            -->
             <input
-              type="color"
-              class="color-input-hidden"
-              aria-label="Pick fill color"
+              type="number"
+              class="alpha-input"
+              min="0"
+              max="1"
+              step="0.05"
+              aria-label="Fill alpha"
+              title="Fill alpha (0 = transparent, 1 = opaque)"
               [disabled]="isLocked()"
-              [value]="styleColor('fill')"
-              (change)="setStyle('fill', $any($event.target).value)"
+              [value]="styleAlpha('fillOpacity')"
+              (change)="setStyleNumber('fillOpacity', $any($event.target).value)"
             />
-          </label>
-          <label
-            class="field-row"
-            [class.disabled]="isLocked()"
-            [class.active-target]="activeColorTarget() === 'stroke'"
-            (pointerdown)="setActiveColorTarget('stroke')"
-          >
-            <span class="lbl">stroke</span>
-            <span
-              class="swatch"
-              [style.background-color]="rawStyleColor('stroke')"
-              [title]="rawStyleColor('stroke')"
-              aria-hidden="true"
-            ></span>
+          </div>
+          <div class="color-cell" [class.active-target]="activeColorTarget() === 'stroke'">
+            <label
+              class="field-row"
+              [class.disabled]="isLocked()"
+              (pointerdown)="setActiveColorTarget('stroke')"
+            >
+              <span class="lbl">stroke</span>
+              <span
+                class="swatch"
+                [style.background-color]="swatchColorWithAlpha('stroke')"
+                [title]="rawStyleColor('stroke')"
+                aria-hidden="true"
+              ></span>
+              <input
+                type="color"
+                class="color-input-hidden"
+                aria-label="Pick stroke color"
+                [disabled]="isLocked()"
+                [value]="styleColor('stroke')"
+                (change)="setStyle('stroke', $any($event.target).value)"
+              />
+            </label>
             <input
-              type="color"
-              class="color-input-hidden"
-              aria-label="Pick stroke color"
+              type="number"
+              class="alpha-input"
+              min="0"
+              max="1"
+              step="0.05"
+              aria-label="Stroke alpha"
+              title="Stroke alpha (0 = transparent, 1 = opaque)"
               [disabled]="isLocked()"
-              [value]="styleColor('stroke')"
-              (change)="setStyle('stroke', $any($event.target).value)"
+              [value]="styleAlpha('strokeOpacity')"
+              (change)="setStyleNumber('strokeOpacity', $any($event.target).value)"
             />
-          </label>
+          </div>
         </div>
         <!--
           Palette swatches strip (Bloco 4d): clicking applies the picked
@@ -390,6 +422,40 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       grid-template-columns: 1fr 1fr;
       margin-bottom: 8px;
     }
+    /* Bloco 4-Alpha: a cell groups the color row + its alpha input.
+       The active-target ring (Bloco 4d palette routing) moves from the
+       <label> to the cell so it visually wraps both color and alpha. */
+    .color-cell {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding-left: 5px;
+      margin-left: -8px;
+      border-radius: 2px;
+    }
+    .color-cell.active-target {
+      box-shadow: inset 3px 0 0 0 var(--mat-sys-primary, #1976d2);
+    }
+    .color-cell .field-row {
+      flex: 1 1 auto;
+      margin: 0;
+      padding: 0;
+    }
+    .alpha-input {
+      flex: 0 0 44px;
+      width: 44px;
+      box-sizing: border-box;
+      font-size: 11px;
+      padding: 2px 4px;
+      border: 1px solid var(--mat-sys-outline-variant, #ccc);
+      border-radius: 3px;
+      background: var(--mat-sys-surface, #fff);
+      color: var(--mat-sys-on-surface, inherit);
+    }
+    .alpha-input:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
     .field-row {
       display: flex;
       align-items: center;
@@ -407,14 +473,13 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
     .field-row.disabled {
       cursor: not-allowed;
     }
-    /* Bloco 4d: visually marks which color field (fill or stroke) is
-       the destination of the next palette click. Subtle left-border
-       accent in primary color, no layout shift. */
+    /* Bloco 4d active-target highlight moved from .field-row to the
+       wrapping .color-cell so the accent ring wraps both color row
+       and alpha input — see .color-cell.active-target below.
+       The .field-row.active-target rule kept as no-op so old specs
+       that still query the class pass. */
     .field-row.active-target {
-      box-shadow: inset 3px 0 0 0 var(--mat-sys-primary, #1976d2);
-      padding-left: 5px;
-      margin-left: -8px;
-      border-radius: 2px;
+      /* intentionally empty — moved up to .color-cell.active-target */
     }
     .palette-strip {
       display: block;
@@ -609,6 +674,52 @@ export class SvgeInspector {
     if (node === null) return 'transparent';
     const v = node.style[field];
     return typeof v === 'string' && v.length > 0 ? v : 'transparent';
+  }
+
+  /**
+   * Same as {@link rawStyleColor} but composes with the field's alpha
+   * (`fillOpacity` / `strokeOpacity`) so the swatch visually reflects
+   * transparency too — checkerboard shows through semi-transparent
+   * colors, same as a real-life paint chip.
+   *
+   * When alpha is undefined or 1, returns the raw color unchanged so
+   * we don't pay the conversion cost on the common fully-opaque case.
+   */
+  protected swatchColorWithAlpha(field: 'fill' | 'stroke'): string {
+    const raw = this.rawStyleColor(field);
+    if (raw === 'transparent') return raw;
+    const node = this.focusNode();
+    if (node === null) return raw;
+    const alphaField: 'fillOpacity' | 'strokeOpacity' =
+      field === 'fill' ? 'fillOpacity' : 'strokeOpacity';
+    const alpha = node.style[alphaField];
+    if (typeof alpha !== 'number' || !Number.isFinite(alpha) || alpha >= 1) return raw;
+    if (alpha <= 0) return 'transparent';
+    // Compose the alpha into the color via rgba(). cssColorToHex6 gives
+    // us a stable RGB hex; then we apply the alpha channel ourselves.
+    const hex = cssColorToHex6(raw);
+    if (hex === null) return raw; // unparseable — fall back to raw (may be 'url(...)' etc.)
+    const r = Number.parseInt(hex.slice(1, 3), 16);
+    const g = Number.parseInt(hex.slice(3, 5), 16);
+    const b = Number.parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  /**
+   * String value bound to the per-color alpha input. SVG defaults
+   * `fill-opacity` and `stroke-opacity` to 1; we surface that as the
+   * visible value rather than empty so the user always sees a concrete
+   * number to edit. Formatted to 2 decimals to match the global
+   * `opacity` field.
+   */
+  protected styleAlpha(field: 'fillOpacity' | 'strokeOpacity'): string {
+    const node = this.focusNode();
+    if (node === null) return '1';
+    const v = node.style[field];
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      return v.toFixed(2);
+    }
+    return '1';
   }
 
   /**

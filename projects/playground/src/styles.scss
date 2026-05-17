@@ -19,6 +19,18 @@ html {
   );
 }
 
+// Fase 4 Bloco 4i — ThemeService writes `<html data-theme="...">`.
+// Material M3 derives its variant from `color-scheme`, so we override
+// the default `light dark` (follow OS) when the user picks an explicit
+// theme. `data-theme="system"` is the absence of an override and the
+// body's `color-scheme: light dark` continues to follow `prefers-color-scheme`.
+html[data-theme='light'] {
+  color-scheme: light;
+}
+html[data-theme='dark'] {
+  color-scheme: dark;
+}
+
 body {
   color-scheme: light dark;
 

@@ -124,13 +124,13 @@
   overflow: hidden;
   min-height: 0;
 
-  // When rulers are on, leave a 20px gutter on top + left so the
+  // When rulers are on, leave a 24px gutter on top + left so the
   // ruler strips overlay there without covering the canvas content.
-  // The 20px matches the `:host .ruler-h/-v` thickness in SvgeRulers.
+  // The 24px matches the `:host .ruler-h/-v` thickness in SvgeRulers.
   &.with-rulers .canvas-inner {
     position: absolute;
-    top: 20px;
-    left: 20px;
+    top: 24px;
+    left: 24px;
     right: 0;
     bottom: 0;
   }

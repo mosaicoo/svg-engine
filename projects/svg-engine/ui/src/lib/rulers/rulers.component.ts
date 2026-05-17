@@ -53,6 +53,8 @@ import { ViewportService } from 'svg-engine/render';
     }
   `,
   styles: `
+    /* Ruler thickness — bumped from 20→24 so the label has room to
+       render comfortably alongside the tick marks at 10px font. */
     :host {
       display: block;
       position: relative;
@@ -60,8 +62,9 @@ import { ViewportService } from 'svg-engine/render';
       height: 100%;
       pointer-events: none;
       font-family: ui-monospace, monospace;
-      font-size: 9px;
-      color: var(--mat-sys-on-surface-variant, #666);
+      font-size: 10px;
+      line-height: 12px;
+      color: var(--mat-sys-on-surface, #222);
     }
     .ruler {
       position: absolute;
@@ -70,17 +73,17 @@ import { ViewportService } from 'svg-engine/render';
     }
     .ruler-h {
       top: 0;
-      left: 20px;
+      left: 24px;
       right: 0;
-      height: 20px;
+      height: 24px;
       border-left: 0;
       overflow: hidden;
     }
     .ruler-v {
-      top: 20px;
+      top: 24px;
       left: 0;
       bottom: 0;
-      width: 20px;
+      width: 24px;
       border-top: 0;
       overflow: hidden;
     }
@@ -88,8 +91,8 @@ import { ViewportService } from 'svg-engine/render';
       position: absolute;
       top: 0;
       left: 0;
-      width: 20px;
-      height: 20px;
+      width: 24px;
+      height: 24px;
       background: var(--mat-sys-surface-container, #eee);
       border-right: 1px solid var(--mat-sys-outline-variant, #ddd);
       border-bottom: 1px solid var(--mat-sys-outline-variant, #ddd);
@@ -97,8 +100,12 @@ import { ViewportService } from 'svg-engine/render';
     .tick {
       position: absolute;
     }
+    /* Horizontal layout:
+       - Label at TOP (0..12px) so the user reads it naturally
+       - Tick line at BOTTOM (minor 18..24, major 12..24) — major is
+         taller so it visually anchors the label above it. */
     .ruler-h .tick {
-      top: 0;
+      bottom: 0;
       width: 0;
       height: 6px;
       border-left: 1px solid var(--mat-sys-outline-variant, #bbb);
@@ -110,12 +117,16 @@ import { ViewportService } from 'svg-engine/render';
     .ruler-h .tick.major[data-label]::after {
       content: attr(data-label);
       position: absolute;
-      top: 12px;
+      top: -12px;
       left: 2px;
       white-space: nowrap;
+      color: var(--mat-sys-on-surface, #333);
     }
+    /* Vertical layout (mirror image):
+       - Label rotated 90° CCW on the LEFT side
+       - Tick line on the RIGHT side */
     .ruler-v .tick {
-      left: 0;
+      right: 0;
       width: 6px;
       height: 0;
       border-top: 1px solid var(--mat-sys-outline-variant, #bbb);
@@ -127,11 +138,12 @@ import { ViewportService } from 'svg-engine/render';
     .ruler-v .tick.major[data-label]::after {
       content: attr(data-label);
       position: absolute;
-      top: -10px;
-      left: 12px;
+      top: 2px;
+      left: -10px;
       white-space: nowrap;
       writing-mode: vertical-rl;
       transform: rotate(180deg);
+      color: var(--mat-sys-on-surface, #333);
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,

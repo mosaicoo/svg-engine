@@ -476,7 +476,11 @@ export class PlaygroundHome implements OnDestroy {
       capturePointer(event);
       return;
     }
-    if (!this.selection.isSelected(id)) {
+    // Shift/Ctrl click = additive (toggle); otherwise replace selection
+    // unless already selected. Standard Figma/Affinity/Illustrator UX.
+    if (event.shiftKey || event.ctrlKey || event.metaKey) {
+      this.selection.toggle(id);
+    } else if (!this.selection.isSelected(id)) {
       this.selection.select(id);
     }
     // Locked nodes are still selectable (consistent with Illustrator/
