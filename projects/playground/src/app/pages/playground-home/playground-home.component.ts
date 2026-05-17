@@ -13,12 +13,15 @@ import {
   createPath,
   createRect,
   EditorStateService,
+  findNodeById,
+  GroupSelectionCommand,
   HistoryService,
   InsertNodeCommand,
   MoveNodeCommand,
   type NodeId,
   type Point,
   RemoveNodeCommand,
+  UngroupCommand,
 } from 'svg-engine/core';
 import {
   type AlignAxis,
@@ -100,7 +103,7 @@ export class PlaygroundHome implements OnDestroy {
   private readonly bus = inject(CommandBus);
   private readonly state = inject(EditorStateService);
   private readonly history = inject(HistoryService);
-  private readonly selection = inject(SelectionService);
+  protected readonly selection = inject(SelectionService);
   private readonly transform = inject(TransformService);
   private readonly marquee = inject(MarqueeService);
   private readonly alignment = inject(AlignmentService);
@@ -118,6 +121,18 @@ export class PlaygroundHome implements OnDestroy {
   protected readonly nodeCount = this.state.nodeCount;
   protected readonly canUndo = this.history.canUndo;
   protected readonly canRedo = this.history.canRedo;
+
+  /**
+   * Whether the current focus is a group (so the Ungroup button can
+   * enable). Mirrors the same guard used by the Ctrl+Shift+G handler.
+   */
+  protected readonly canUngroupFocus = computed(() => {
+    if (this.selection.count() !== 1) return false;
+    const focus = this.selection.focusId();
+    if (focus === null) return false;
+    const node = findNodeById(this.state.document().root, focus);
+    return node?.type === 'group';
+  });
   protected readonly zoomPct = computed(() => `${(this.viewport.zoom() * 100).toFixed(0)}%`);
   protected readonly selectedCount = this.selection.count;
   protected readonly focusIdShort = computed(() => {
@@ -160,6 +175,18 @@ export class PlaygroundHome implements OnDestroy {
         event.preventDefault();
       }
     }
+    // Group / Ungroup shortcuts (Fase 4 Bloco 4h). Both standard across
+    // Figma / Affinity / Illustrator. Ctrl on Windows/Linux, Cmd on Mac.
+    if ((event.ctrlKey || event.metaKey) && (event.key === 'g' || event.key === 'G')) {
+      if (isEditableTarget(event.target)) return;
+      if (event.shiftKey) {
+        this.ungroupSelection();
+      } else {
+        this.groupSelection();
+      }
+      event.preventDefault();
+      return;
+    }
     // Single-key tool shortcuts (V/P/...) — but only when no input is focused
     // and the key isn't part of a modifier combo (Ctrl+V = paste, etc.).
     if (
@@ -180,6 +207,33 @@ export class PlaygroundHome implements OnDestroy {
     // handle, e.g., Esc-cancel for in-progress drafts).
     this.toolHost.routeKeyDown(event);
   };
+
+  /**
+   * Wrap the current selection in a new group. No-op when 0 nodes are
+   * selected; for 2+ nodes, requires a common parent (the command itself
+   * fails gracefully on cross-parent selections — UX could surface a
+   * toast in a future block).
+   */
+  protected groupSelection(): void {
+    const ids = Array.from(this.selection.selectedIds());
+    if (ids.length === 0) return;
+    this.bus.dispatch(new GroupSelectionCommand(ids));
+  }
+
+  /**
+   * Dissolve the focused group (if exactly one group is selected). For
+   * non-group selections or multi-selections, no-op — Affinity-style
+   * (Figma asks the user to pick which group to ungroup; we keep it
+   * simple for v1).
+   */
+  protected ungroupSelection(): void {
+    if (this.selection.count() !== 1) return;
+    const focus = this.selection.focusId();
+    if (focus === null) return;
+    const node = findNodeById(this.state.document().root, focus);
+    if (node === null || node.type !== 'group') return;
+    this.bus.dispatch(new UngroupCommand(focus));
+  }
 
   constructor() {
     // Sync the viewport's content box with the document's viewBox so the

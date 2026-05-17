@@ -6,6 +6,81 @@
 
 ---
 
+## 2026-05-17 — Fase 4 Bloco 4h: agrupamento / desagrupamento
+
+**Contexto**
+
+Bloco 4h da Fase 4 — comandos de modelo `Group` / `Ungroup` + atalhos
+de teclado padrão de mercado (Figma / Affinity / Illustrator). Cobre
+a operação de organização hierárquica mais usada em editor SVG.
+
+**Mudanças**
+
+`projects/svg-engine/core/src/lib/commands/group-selection.command.ts`:
+
+- `GroupSelectionCommand` envolve a seleção em novo `GroupNode`
+- Validações: selection vazia → fail; nodes precisam compartilhar
+  parent imediato (cross-parent grouping é um edit de reparenting
+  que ficará para um futuro `MoveNodesInTreeCommand`)
+- Insertion index = posição do TOPMOST selected child no parent
+  (preserva stacking visual)
+- Children dentro do novo group em PARENT-order, NÃO selection-order
+  (consistência visual com o que o usuário já vê)
+- Novo group carrega IDENTITY + default style — visual idêntico ao
+  pré-grouping
+- Undo restaura cada child no seu índice original
+
+`projects/svg-engine/core/src/lib/commands/ungroup.command.ts`:
+
+- `UngroupCommand` dissolve um group: children promovidos ao
+  grand-parent no índice original do group, ordem preservada
+- Rejeita root (sem parent → órfãos) + non-group (`fail()`)
+- Group transform é DROPPED — match Figma/Affinity ungroup behaviour
+- Undo recria o group com MESMO id + transform + style + metadata
+
+`projects/playground/src/app/pages/playground-home/playground-home.component.ts`:
+
+- Handlers `Ctrl+G` / `Cmd+G` → `groupSelection()`
+- `Ctrl+Shift+G` → `ungroupSelection()`
+- Ambos ignoram input/textarea focado (`isEditableTarget` guard)
+- `canUngroupFocus` computed expõe estado ao toolbar (true ↔
+  selection==1 ∧ focus.type==='group')
+
+`projects/playground/src/app/pages/playground-home/playground-home.component.html`:
+
+- Botões "Group" + "Ungroup" no fieldset Edit, disabled-when-inválido,
+  com `title` mostrando o atalho
+
+**Decisões técnicas**
+
+- **Common-parent validation > silent reparenting**: agrupar cross-
+  parent envolve mover sub-trees, o que merece um command dedicado
+  (categoria reparenting). Fail explícito agora
+- **Snapshot inteiro do group p/ undo do Ungroup**: o group original
+  é guardado byref para que `transform`, `style` e `metadata` sejam
+  restaurados — undo bit-perfeito
+- **Single-node group permitido**: "envelopar 1 forma em group" é
+  caso real (frame/wrap, organização de layers)
+- **Group transform drop no Ungroup é deliberado**: alternativa
+  seria bake recursivo no commit; mais complexidade — documentado
+  como limitação para futuro `BakeGroupTransformCommand`
+
+**Cobertura**
+
+11 testes em `group-ungroup.spec.ts` (group: positioning, ordering,
+empty/cross-parent fail, undo, single-node; ungroup: promotion,
+non-group fail, root fail, undo restore-with-transform)
+
+**Total**: +11 testes → **561 passing** em 44 arquivos. Zero regressão
+
+**Comportamento visível na app**
+
+- Selecionar 2+ formas com mesmo parent + `Ctrl+G` → forma um group
+- Selecionar 1 group + `Ctrl+Shift+G` → dissolve
+- Botões "Group" / "Ungroup" no toolbar refletem disponibilidade
+
+---
+
 ## 2026-05-17 — Fase 4 Bloco 4d: paletas de cores (categoria 8 do D-023)
 
 **Contexto**

@@ -23,6 +23,22 @@
     <legend>Edit</legend>
     <button type="button" (click)="nudgeFirst()">Nudge first (+10, +10)</button>
     <button type="button" (click)="removeFirst()">Remove first</button>
+    <button
+      type="button"
+      (click)="groupSelection()"
+      [disabled]="selection.count() === 0"
+      title="Group selection (Ctrl+G)"
+    >
+      Group
+    </button>
+    <button
+      type="button"
+      (click)="ungroupSelection()"
+      [disabled]="!canUngroupFocus()"
+      title="Ungroup (Ctrl+Shift+G)"
+    >
+      Ungroup
+    </button>
     <button type="button" (click)="undo()" [disabled]="!canUndo()">Undo</button>
     <button type="button" (click)="redo()" [disabled]="!canRedo()">Redo</button>
   </fieldset>

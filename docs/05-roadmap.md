@@ -239,9 +239,11 @@
 - [ ] **Bloco 4g**: Atalhos configuráveis + `ShortcutRegistry` (categoria 9 parte 2 do D-023)
   - `ShortcutService` resolve combinations → command id
   - UI de configuração (capture combo, conflict detection)
-- [ ] **Bloco 4h**: Agrupamento / desagrupamento
-  - `GroupSelectionCommand` (cria `GroupNode` envolvendo seleção)
-  - `UngroupCommand` (dissolve `GroupNode`, promovendo children)
+- [x] **Bloco 4h**: Agrupamento / desagrupamento
+  - `GroupSelectionCommand`: wraps seleção em novo `GroupNode`. Valida common-parent (mixed → fail), insere o group no índice do TOP child da seleção (preserva stacking), children em PARENT-order (não selection-order), undo restaura cada child em seu índice original
+  - `UngroupCommand`: promove children do group para o grand-parent no índice original do group. Rejeita root + non-group. Group transform é DROPPED (limitação documentada — futuro `BakeGroupTransformCommand`). Undo recria o group com mesmo id + transform + style
+  - Playground: handlers `Ctrl+G` / `Ctrl+Shift+G` (Mac: `Cmd+G`); botões "Group" / "Ungroup" no toolbar (disabled-when-inválido com `canUngroupFocus` computed)
+  - +11 testes (group ordering / common-parent validation / undo roundtrip / single-node group / ungroup positioning / undo restore-with-transform) → **561 passing**
 - [ ] **Bloco 4i**: Theme toggle explícito (D-012 part 2)
   - `<svge-theme-toggle>` Material; persiste em `localStorage`; sobrepõe `prefers-color-scheme`
 
