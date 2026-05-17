@@ -156,6 +156,35 @@
       (input)="setCustomBackground($any($event.target).value)"
     />
   </fieldset>
+  <fieldset>
+    <legend>View</legend>
+    <label>
+      <input type="checkbox" [checked]="ws.grid().enabled" (change)="ws.toggleGrid()" />
+      Grid
+    </label>
+    <label>
+      <input type="checkbox" [checked]="ws.rulers().enabled" (change)="ws.toggleRulers()" />
+      Rulers
+    </label>
+    <button type="button" (click)="addHGuide()" title="Add horizontal guide at viewBox center">
+      + H guide
+    </button>
+    <button type="button" (click)="addVGuide()" title="Add vertical guide at viewBox center">
+      + V guide
+    </button>
+    <button
+      type="button"
+      (click)="ws.clearGuides()"
+      [disabled]="ws.guides().length === 0"
+      title="Clear all guides"
+    >
+      Clear guides
+    </button>
+  </fieldset>
+  <fieldset>
+    <legend>Theme</legend>
+    <svge-theme-toggle></svge-theme-toggle>
+  </fieldset>
 </section>
 
 <div class="workspace">
@@ -166,6 +195,7 @@
 
   <section
     class="canvas"
+    [class.with-rulers]="ws.rulers().enabled"
     aria-label="SVG canvas"
     (pointerdown)="onCanvasPointerDown($event)"
     (pointermove)="onCanvasPointerMove($event)"
@@ -173,19 +203,26 @@
     (pointercancel)="onCanvasPointerUp($event)"
     (pointerleave)="onCanvasPointerLeave()"
   >
-    <svge-workspace-background>
-      <svge-renderer
-        svgeLayersFilter
-        [tree]="tree()"
-        [viewBox]="viewBox()"
-        [ariaLabel]="'Editable SVG document with ' + nodeCount() + ' nodes'"
-      >
-        <svg:g svgeSelectionOverlay></svg:g>
-        <svg:g svgeRotationPivot></svg:g>
-        <svg:g svgeMarquee></svg:g>
-        <svg:g svgeSnapGuides></svg:g>
-      </svge-renderer>
-    </svge-workspace-background>
+    @if (ws.rulers().enabled) {
+      <svge-rulers class="rulers-layer"></svge-rulers>
+    }
+    <div class="canvas-inner">
+      <svge-workspace-background>
+        <svge-renderer
+          svgeLayersFilter
+          [tree]="tree()"
+          [viewBox]="viewBox()"
+          [ariaLabel]="'Editable SVG document with ' + nodeCount() + ' nodes'"
+        >
+          <svg:g svgeGridOverlay></svg:g>
+          <svg:g svgeGuidesOverlay></svg:g>
+          <svg:g svgeSelectionOverlay></svg:g>
+          <svg:g svgeRotationPivot></svg:g>
+          <svg:g svgeMarquee></svg:g>
+          <svg:g svgeSnapGuides></svg:g>
+        </svge-renderer>
+      </svge-workspace-background>
+    </div>
   </section>
 
   <aside class="sidebar right" aria-label="Inspector panel">

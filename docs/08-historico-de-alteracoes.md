@@ -6,6 +6,85 @@
 
 ---
 
+## 2026-05-17 — Fase 4 Bloco 4z: integração na playground
+
+**Contexto**
+
+Após entregar todos os blocos da Fase 4 (4d/4h/4e/4g/4f/4i),
+constatou-se via screenshot do usuário que 4 features estavam
+construídas como library mas NÃO wired na playground:
+
+1. **4i theme toggle** — botão não estava no header
+2. **4g shortcuts** — `Ctrl+G`/`Ctrl+Shift+G` ainda usavam handler
+   manual em `onKeyDown` em vez do `ShortcutRegistry`
+3. **4f grid/guides/rulers** — overlays criados mas não embutidos
+   no SVG da playground
+4. **4e toolbar contributions** — deliberadamente adiado (toolbar
+   manual da playground funciona bem; migração custaria refatorar
+   todos os botões existentes para `MenuContribution`)
+
+Este bloco cobre os 3 primeiros via integração na playground.
+
+**Mudanças**
+
+`projects/playground/src/app/pages/playground-home/playground-home.component.ts`:
+
+- Imports novos de `svg-engine/edit`: `GridOverlay`, `GuidesOverlay`,
+  `ShortcutRegistry`, `ShortcutService`
+- Imports novos de `svg-engine/ui`: `SvgeRulers`, `SvgeThemeToggle`
+- Component `imports` array recebe os 4 novos
+- Inject de `ShortcutRegistry` + `ShortcutService`; `ws = workspace`
+  alias p/ template ergonomics
+- Constructor: registra `playground.group` (`CmdOrCtrl+G`) e
+  `playground.ungroup` (`CmdOrCtrl+Shift+G`) + `shortcutService.start()`
+- `ngOnDestroy` adicional `shortcutService.stop()`
+- `onKeyDown` perdeu o bloco Ctrl+G/Ctrl+Shift+G (Esc + tool
+  shortcuts permanecem inline porque dependem de gesture state)
+- Novos métodos: `addHGuide()` / `addVGuide()` adicionam guide no
+  CENTRO do viewBox atual
+
+`projects/playground/src/app/pages/playground-home/playground-home.component.html`:
+
+- Novo fieldset `View`: checkbox Grid + Rulers + botões
+  H/V guide + Clear guides (disabled-when-empty)
+- Novo fieldset `Theme`: `<svge-theme-toggle>` standalone
+- Canvas reestruturado com `.canvas-inner` wrapper + `<svge-rulers>`
+  como sibling absoluto-fill (z-index 2, pointer-events none)
+- `<svg:g svgeGridOverlay>` + `<svg:g svgeGuidesOverlay>` ANTES do
+  SelectionOverlay (handles ficam por cima)
+- Class `with-rulers` no `.canvas` reserva gutter 20px
+
+`...component.scss`: `.canvas-inner` absolute; gutter 20px quando
+`with-rulers`
+
+**Decisões técnicas**
+
+- **Ctrl+G via ShortcutRegistry, Esc inline**: shortcuts globais
+  migrados. Esc + tool shortcuts ficam inline porque dependem de
+  `transform.isDragging()` / `marquee.isActive()` / gesture state
+- **Guides no centro do viewBox**: padrão UX — usuário aperta
+  "+ H guide" e a linha aparece em posição visível, não em (0,0)
+- **`<svge-toolbar>` (4e) NÃO migrado**: a toolbar custom da
+  playground tem Snap dropdown, Background presets, View fieldset
+  — agrupamento via `<fieldset>` é melhor que linear row. Plugins
+  externos ainda podem contribuir via `MenuContributionRegistry`
+
+**Comportamento visível**
+
+- Theme toggle no header (icon cycle light/dark/system)
+- Ctrl+G / Ctrl+Shift+G via `ShortcutRegistry` (agora Cmd+G também
+  funciona no Mac, antes só Ctrl)
+- Checkbox Grid → grid overlay no canvas
+- Checkbox Rulers → strips top + left com ticks "nice"
+- "+ H guide" / "+ V guide" / "Clear guides"
+
+**Status**
+
+Library Fase 4 COMPLETA + integrada na playground (632 passing).
+Pronto para Fase 5 (IO + Optimize).
+
+---
+
 ## 2026-05-17 — Fase 4 Bloco 4i: theme toggle (D-012 part 2) — FASE 4 COMPLETA
 
 **Contexto**

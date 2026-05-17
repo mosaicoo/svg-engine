@@ -29,6 +29,8 @@ import {
   type DistributeAxis,
   findRenderedNode,
   getRenderedNodeBBox,
+  GridOverlay,
+  GuidesOverlay,
   LayersFilter,
   LayersService,
   Marquee,
@@ -41,6 +43,8 @@ import {
   SELECT_TOOL_ID,
   SelectionOverlay,
   SelectionService,
+  ShortcutRegistry,
+  ShortcutService,
   type SnapMode,
   SnapGuides,
   SnapService,
@@ -52,7 +56,7 @@ import {
   WorkspaceService,
 } from 'svg-engine/edit';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
-import { LayersPanel, SvgeInspector } from 'svg-engine/ui';
+import { LayersPanel, SvgeInspector, SvgeRulers, SvgeThemeToggle } from 'svg-engine/ui';
 
 type ShapeKind = 'rect' | 'ellipse' | 'path';
 
@@ -94,6 +98,10 @@ const DRAG_START_THRESHOLD_PX = 3;
     LayersFilter,
     LayersPanel,
     SvgeInspector,
+    GridOverlay,
+    GuidesOverlay,
+    SvgeRulers,
+    SvgeThemeToggle,
   ],
   templateUrl: './playground-home.component.html',
   styleUrl: './playground-home.component.scss',
@@ -113,6 +121,10 @@ export class PlaygroundHome implements OnDestroy {
   protected readonly toolHost = inject(ToolHostService);
   protected readonly toolRegistry = inject(ToolRegistry);
   protected readonly workspace = inject(WorkspaceService);
+  /** Short alias for template ergonomics — `ws.grid()`, `ws.guides()`, etc. */
+  protected readonly ws = this.workspace;
+  private readonly shortcuts = inject(ShortcutRegistry);
+  private readonly shortcutService = inject(ShortcutService);
 
   protected readonly title = signal('SVGEngine Playground');
 
@@ -175,18 +187,11 @@ export class PlaygroundHome implements OnDestroy {
         event.preventDefault();
       }
     }
-    // Group / Ungroup shortcuts (Fase 4 Bloco 4h). Both standard across
-    // Figma / Affinity / Illustrator. Ctrl on Windows/Linux, Cmd on Mac.
-    if ((event.ctrlKey || event.metaKey) && (event.key === 'g' || event.key === 'G')) {
-      if (isEditableTarget(event.target)) return;
-      if (event.shiftKey) {
-        this.ungroupSelection();
-      } else {
-        this.groupSelection();
-      }
-      event.preventDefault();
-      return;
-    }
+    // (Group / Ungroup shortcuts are now contributed via ShortcutRegistry —
+    // see constructor — and dispatched by ShortcutService. Esc and the
+    // single-key tool shortcuts remain inline because they're tied to
+    // gesture state / ToolHost which lives in this component.)
+
     // Single-key tool shortcuts (V/P/...) — but only when no input is focused
     // and the key isn't part of a modifier combo (Ctrl+V = paste, etc.).
     if (
@@ -248,10 +253,48 @@ export class PlaygroundHome implements OnDestroy {
         this.toolHost.activate(SELECT_TOOL_ID);
       }
     });
+
+    // Fase 4 Bloco 4g — register group / ungroup shortcuts with the
+    // ShortcutRegistry instead of handling them inline in onKeyDown.
+    // ShortcutService dispatches automatically; we just declare intent.
+    this.shortcuts.register({
+      id: 'playground.group',
+      combo: 'CmdOrCtrl+G',
+      description: 'Group selection',
+      run: (event) => {
+        event.preventDefault();
+        this.groupSelection();
+      },
+    });
+    this.shortcuts.register({
+      id: 'playground.ungroup',
+      combo: 'CmdOrCtrl+Shift+G',
+      description: 'Ungroup selection',
+      run: (event) => {
+        event.preventDefault();
+        this.ungroupSelection();
+      },
+    });
+    this.shortcutService.start();
   }
 
   ngOnDestroy(): void {
     document.removeEventListener('keydown', this.onKeyDown);
+    this.shortcutService.stop();
+  }
+
+  // Fase 4 Bloco 4f — guide helpers (called from the View toolbar).
+
+  /** Add a horizontal guide at the current viewBox vertical center. */
+  protected addHGuide(): void {
+    const vb = this.viewport.viewBox();
+    this.ws.addGuide('h', vb.y + vb.height / 2);
+  }
+
+  /** Add a vertical guide at the current viewBox horizontal center. */
+  protected addVGuide(): void {
+    const vb = this.viewport.viewBox();
+    this.ws.addGuide('v', vb.x + vb.width / 2);
   }
 
   protected addShape(kind: ShapeKind): void {
