@@ -6,6 +6,73 @@
 
 ---
 
+## 2026-05-17 — Fase 4 Bloco 4e: toolbar extensível + MenuContributionRegistry
+
+**Contexto**
+
+Bloco 4e — primeira metade da categoria 9 do D-023 (`MenuContribution`
+
+- futuras `Shortcut`). Permite que plugins contribuam botões para
+  toolbars / menus / context-menus sem editar código do shell.
+
+**Mudanças**
+
+`edit/lib/menu/menu-contribution.ts`:
+
+- Tipo `MenuContribution`: id, slot, label, icon?, tooltip?, shortcut?,
+  order?, disabled?: `Signal<boolean>`, visible?: `Signal<boolean>`,
+  `run()` callback. Data-only (sem componentes Angular) — UIs
+  constroem o `<button>` a partir desses campos
+- Tipo `MenuSlot` alias `string`: convenção `toolbar.main`,
+  `toolbar.shape`, `sidebar.left`, `context.canvas` etc. UIs decidem
+  quais slots renderizam; slots desconhecidos são silently ignored
+
+`edit/lib/menu/menu-contribution-registry.service.ts`:
+
+- `MenuContributionRegistry` injectable signal-backed seguindo a
+  forma de `ToolRegistry`/`PaletteRegistry`
+- `register(contribution): Disposable` — throw em id/slot vazios e
+  id duplicado
+- `bySlot(slot): Signal<readonly MenuContribution[]>` retorna
+  contribuições visíveis (`visible() === true` ou `visible == null`)
+  para o slot, ordenadas por `order` (default 100, stable sort)
+
+`ui/lib/toolbar/toolbar.component.ts`:
+
+- `<svge-toolbar slot="...">` standalone, OnPush
+- Renderiza Material `<mat-icon-button>` por contribuição: ícone
+  quando provido, fallback para text com `.text-fallback` class
+- Tooltip mostra `label` + `(shortcut)` quando hint presente
+- Disabled signal honrado per-item; click chama `contribution.run()`
+- Empty / unknown slot → renderiza nada
+
+**Decisões técnicas**
+
+- **Data-only contributions, sem Angular component**: contributors
+  declaram intenção (id/label/icon/order/run), UI compõe o widget.
+  Contribuições serializáveis (futuro: persistência de layout),
+  inspecionáveis, hot-reloadable
+- **Signals para `disabled`/`visible`**: alinhado com a stack reativa.
+  Toolbar OnPush; bySlot é `computed` então re-render automático
+- **`order` com default 100 + stable sort em ties**: dá espaço de
+  inserção sem magic numbers
+- **Slot opaco (string)**: registry não sabe layout; UIs filtram
+  por id. Plugins inventam slots novos sem mexer no core
+- **`<svge-toolbar>` genérico vs um por slot**: mesmo primitivo
+  serve toolbars principais, sub-toolbars, side panels
+
+**Cobertura**
+
+- `menu-contribution-registry.service.spec.ts`: 11 testes
+- `toolbar.component.spec.ts`: 6 testes
+- **Total**: +17 testes → **578 passing** em 46 arquivos. Zero regressão
+
+**Próximo passo** (Bloco 4g): `ShortcutRegistry` complementar —
+liga combinações de teclado ao `run()` de contributions; o campo
+`shortcut` do `MenuContribution` vira só display text + lookup key.
+
+---
+
 ## 2026-05-17 — Fase 4 Bloco 4h: agrupamento / desagrupamento
 
 **Contexto**

@@ -33,3 +33,6 @@ export * from './lib/inspector';
 
 // Color palette UI (Bloco 4d)
 export * from './lib/color-palette';
+
+// Extensible toolbar UI (Bloco 4e)
+export * from './lib/toolbar';

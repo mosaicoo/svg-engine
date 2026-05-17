@@ -229,9 +229,12 @@
   - Integração no inspector: palette strip abaixo das color rows; `.active-target` class marca qual field (fill/stroke) recebe o próximo click (default fill, troca por `pointerdown` na row). Padrão de mercado (Photoshop swatches panel)
   - `builtinPalettesPlugin` provisionado em `app.config.ts` do playground
   - +22 testes (8 registry/plugin + 9 UI component + 5 integração inspector) → **550 passing**
-- [ ] **Bloco 4e**: Toolbar extensível + `MenuContributionRegistry` (categoria 9 parte 1 do D-023)
-  - `<svge-toolbar>` com slots por categoria; contribuições via plugin
-  - Migração das ferramentas builtin para usar este sistema
+- [x] **Bloco 4e**: Toolbar extensível + `MenuContributionRegistry` (categoria 9 parte 1 do D-023)
+  - Tipo `MenuContribution` (id/slot/label/icon?/tooltip?/shortcut?/order?/disabled?/visible?/run). Campos `disabled`/`visible` são `Signal<boolean>` — UI re-renderiza automaticamente quando estado muda
+  - `MenuContributionRegistry` (signal-backed): `register(contrib)` → `Disposable`. `bySlot(slot)` retorna `Signal<readonly MenuContribution[]>` filtrado por slot + visible + ordenado por `order` (default 100, stable sort em ties). Throw em id vazio/duplicado/slot vazio
+  - `<svge-toolbar slot="..."/>` em `svg-engine/ui`: renderiza Material `<mat-icon-button>` por contribuição visível. Icon ou text fallback. Tooltip com shortcut hint. Disabled honra signal do item. Componente standalone, OnPush
+  - Slot convention documentada (`toolbar.main`/`toolbar.shape`/`toolbar.transform`/`sidebar.*`/`context.*`). Plugins podem inventar slots novos; UIs ignoram slots desconhecidos
+  - +13 testes (registry: basics 3, validation 3, bySlot 5; UI: render/disabled/click/icon-fallback/order 6) → **578 passing**
 - [ ] **Bloco 4f**: Workspace settings — page + grid + guides + rulers
   - Expansão do `WorkspaceService`: `page`, `grid`, `guides`, `rulers` signals
   - `<svge-workspace-settings>` painel (Material dialog) — page size/orientation/margins

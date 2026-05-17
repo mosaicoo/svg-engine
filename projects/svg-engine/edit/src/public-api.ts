@@ -79,3 +79,6 @@ export * from './lib/layers';
 
 // Color palettes + built-in palette plugin (Fase 4 Bloco 4d)
 export * from './lib/palette';
+
+// Menu / toolbar contribution registry (Fase 4 Bloco 4e)
+export * from './lib/menu';
