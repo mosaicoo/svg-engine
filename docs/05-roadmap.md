@@ -239,9 +239,11 @@
   - Expansão do `WorkspaceService`: `page`, `grid`, `guides`, `rulers` signals
   - `<svge-workspace-settings>` painel (Material dialog) — page size/orientation/margins
   - `<svge-grid-overlay>` + `<svge-rulers>` + `<svge-guides>` (overlays SVG/HTML conforme apropriado)
-- [ ] **Bloco 4g**: Atalhos configuráveis + `ShortcutRegistry` (categoria 9 parte 2 do D-023)
-  - `ShortcutService` resolve combinations → command id
-  - UI de configuração (capture combo, conflict detection)
+- [x] **Bloco 4g**: Atalhos configuráveis + `ShortcutRegistry` (categoria 9 parte 2 do D-023)
+  - Tipo `Shortcut` (id/combo/when?: Signal<boolean>/description?/run(event)). `parseCombo()` + `comboMatches()` puros: aceitam `Ctrl`/`Control`, `Shift`, `Alt`/`Option`, `Cmd`/`Meta`/`Win`, `CmdOrCtrl` (cross-platform). Key tokens (`g`/`ArrowUp`/`Escape`/`F5`) normalizados via lower-case. Throw em token desconhecido / empty
+  - `ShortcutRegistry` (signal-backed): `register(shortcut): Disposable`, `tryMatch(event): Shortcut | null`. Duplicate id → throw; duplicate combo permitido (when guards mantêm disjunto). Insertion order tiebreak
+  - `ShortcutService`: opt-in `start()`/`stop()` — adiciona listener `document.keydown`, ignora editable targets (input/textarea/contenteditable), chama `shortcut.run(event)`. `preventDefault` é responsabilidade do `run()` (permite shortcuts não-destrutivos)
+  - +26 testes (parseCombo 8 + comboMatches 4 + registry 7 + service 4 + interação) → **604 passing**
 - [x] **Bloco 4h**: Agrupamento / desagrupamento
   - `GroupSelectionCommand`: wraps seleção em novo `GroupNode`. Valida common-parent (mixed → fail), insere o group no índice do TOP child da seleção (preserva stacking), children em PARENT-order (não selection-order), undo restaura cada child em seu índice original
   - `UngroupCommand`: promove children do group para o grand-parent no índice original do group. Rejeita root + non-group. Group transform é DROPPED (limitação documentada — futuro `BakeGroupTransformCommand`). Undo recria o group com mesmo id + transform + style

@@ -82,3 +82,6 @@ export * from './lib/palette';
 
 // Menu / toolbar contribution registry (Fase 4 Bloco 4e)
 export * from './lib/menu';
+
+// Keyboard shortcuts (Fase 4 Bloco 4g)
+export * from './lib/shortcut';

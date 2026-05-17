@@ -6,6 +6,63 @@
 
 ---
 
+## 2026-05-17 — Fase 4 Bloco 4g: ShortcutRegistry + ShortcutService
+
+**Contexto**
+
+Bloco 4g — segunda metade da categoria 9 do D-023. Complementa o 4e
+(`MenuContributionRegistry`) com o sistema de **atalhos de teclado
+configuráveis**. Permite que plugins liguem combinações de teclado
+a callbacks com guards reativos e cross-platform (`CmdOrCtrl`).
+
+**Mudanças**
+
+`edit/lib/shortcut/shortcut.ts`:
+
+- `Shortcut` type: id, combo, when?: `Signal<boolean>`, description?,
+  `run(event)`. Event exposto para o handler decidir `preventDefault()`
+- `parseCombo(str): ParsedCombo` — split por `+`, aliases `Ctrl`/
+  `Control`, `Shift`, `Alt`/`Option`, `Cmd`/`Meta`/`Win`, `CmdOrCtrl`.
+  Keys lowercased. Throw em token desconhecido / empty
+- `comboMatches(parsed, event): boolean` — exact modifier set; CmdOrCtrl
+  aceita Ctrl OU Meta
+
+`edit/lib/shortcut/shortcut-registry.service.ts`:
+
+- `ShortcutRegistry` signal-backed seguindo Tool/MenuContribution form
+- `register(shortcut) → Disposable`. Throw em id vazio/duplicado/combo
+  inválido (validate at register time)
+- Duplicate combo permitido (use `when` para disjunção)
+- `tryMatch(event)` retorna primeiro shortcut que bate E `when`
+  ativo. Insertion order tiebreak
+
+`edit/lib/shortcut/shortcut.service.ts`:
+
+- `ShortcutService` opt-in via `start()`/`stop()` (idempotent)
+- Listener `document.keydown`; skipa editable targets (input/
+  textarea/select/contenteditable)
+- Chama `shortcut.run(event)`; service NÃO faz `preventDefault`
+
+**Decisões técnicas**
+
+- **CmdOrCtrl cross-platform**: padrão Electron/VSCode. Shortcut
+  declarado uma vez serve Mac (Cmd) e Win/Linux (Ctrl)
+- **Validação no register**: combo inválido lança imediatamente.
+  Plugin dev vê erro no bootstrap, não meses depois
+- **Duplicate combo OK + `when` guards**: realista — `Escape` faz
+  coisa diferente no marquee vs rotation tool
+- **preventDefault no `run()`**: shortcuts destrutivos chamam;
+  navegação pode deixar passar
+- **`isEditableTarget` no service**: policy universal centralizada
+  para múltiplos consumers não reimplementarem
+
+**Cobertura**
+
+`shortcut.spec.ts`: 26 testes (parseCombo 8 + comboMatches 4 +
+registry 7 + service 4 + integração) → **604 passing**
+
+---
+
 ## 2026-05-17 — Fase 4 Bloco 4e: toolbar extensível + MenuContributionRegistry
 
 **Contexto**
