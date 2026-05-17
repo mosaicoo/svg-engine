@@ -27,6 +27,84 @@ export type BackgroundConfig =
 const DEFAULT_BACKGROUND: BackgroundConfig = { kind: 'transparent' };
 
 /**
+ * Page (paper) settings — informs the rendered canvas size, print
+ * preview, and exports that respect "page". The actual SVG `viewBox`
+ * still controls what the renderer draws; `PageConfig` is presentation
+ * meta that the editor uses to crop / center / outline the page.
+ *
+ * Units are abstract document units — same as `viewBox`. We don't bake
+ * in mm/in/px here because conversion is the consumer's job (depends
+ * on output device DPI). A future `units` extension can layer on top.
+ */
+export interface PageConfig {
+  readonly width: number;
+  readonly height: number;
+  readonly orientation: 'portrait' | 'landscape';
+  /** Inner safe-area inset (top/right/bottom/left); defaults to 0. */
+  readonly margins: {
+    readonly top: number;
+    readonly right: number;
+    readonly bottom: number;
+    readonly left: number;
+  };
+}
+
+const DEFAULT_MARGINS = { top: 0, right: 0, bottom: 0, left: 0 } as const;
+const DEFAULT_PAGE: PageConfig = {
+  width: 800,
+  height: 600,
+  orientation: 'landscape',
+  margins: DEFAULT_MARGINS,
+};
+
+/**
+ * Editor grid configuration. The grid is purely a visual aid +
+ * snap-target source (see `SnapService`). Never serialized.
+ *
+ * - `enabled`: master visibility toggle
+ * - `spacing`: minor-line spacing in document units (must be > 0)
+ * - `majorEvery`: highlight every Nth line as a thicker major line
+ *   (1 = treat every line as major; typical: 5 or 10)
+ * - `color`: CSS color for minor lines (major derives by alpha boost)
+ */
+export interface GridConfig {
+  readonly enabled: boolean;
+  readonly spacing: number;
+  readonly majorEvery: number;
+  readonly color: string;
+}
+
+const DEFAULT_GRID: GridConfig = {
+  enabled: false,
+  spacing: 20,
+  majorEvery: 5,
+  color: '#90a4ae',
+};
+
+/**
+ * A single user-drawn guide line. Either horizontal (constant y) or
+ * vertical (constant x), spanning the full canvas. Guides are visual
+ * + snap targets (Snap support added in a future block).
+ */
+export interface Guide {
+  readonly id: string;
+  readonly axis: 'h' | 'v';
+  /** y position for horizontal guides, x position for vertical guides. */
+  readonly position: number;
+}
+
+/**
+ * Editor rulers configuration. Rulers are purely presentational
+ * (top + left strips with ticks + numbers). When `enabled=false`,
+ * the UI hides them entirely.
+ */
+export interface RulersConfig {
+  readonly enabled: boolean;
+}
+
+const DEFAULT_RULERS: RulersConfig = { enabled: false };
+
+/**
  * Editor-side **workspace presentation state** (D-021 resolution).
  *
  * Holds non-document configuration that describes how the canvas is
@@ -49,9 +127,26 @@ const DEFAULT_BACKGROUND: BackgroundConfig = { kind: 'transparent' };
 @Injectable({ providedIn: 'root' })
 export class WorkspaceService {
   private readonly _background = signal<BackgroundConfig>(DEFAULT_BACKGROUND);
+  private readonly _page = signal<PageConfig>(DEFAULT_PAGE);
+  private readonly _grid = signal<GridConfig>(DEFAULT_GRID);
+  private readonly _rulers = signal<RulersConfig>(DEFAULT_RULERS);
+  private readonly _guides = signal<readonly Guide[]>([]);
+  private guideCounter = 0;
 
   /** Reactive snapshot of the current background config. */
   readonly background = this._background.asReadonly();
+
+  /** Reactive snapshot of the current page (paper) config. */
+  readonly page = this._page.asReadonly();
+
+  /** Reactive snapshot of the current grid config. */
+  readonly grid = this._grid.asReadonly();
+
+  /** Reactive snapshot of the rulers config. */
+  readonly rulers = this._rulers.asReadonly();
+
+  /** Reactive snapshot of the user-drawn guides. */
+  readonly guides = this._guides.asReadonly();
 
   /**
    * Convenience computed — true when the current background is the
@@ -88,6 +183,142 @@ export class WorkspaceService {
   resetBackground(): void {
     this._background.set(DEFAULT_BACKGROUND);
   }
+
+  // ── Page ────────────────────────────────────────────────────────
+
+  /**
+   * Update page settings. Partial — only the fields provided are
+   * overwritten. Invalid dims (non-finite, ≤ 0) are silently rejected
+   * field-by-field so UIs can patch incrementally without try/catch.
+   */
+  patchPage(patch: Partial<PageConfig>): void {
+    const current = this._page();
+    const width = isPositiveFinite(patch.width) ? patch.width! : current.width;
+    const height = isPositiveFinite(patch.height) ? patch.height! : current.height;
+    const orientation = patch.orientation ?? current.orientation;
+    const margins = patch.margins
+      ? {
+          top: isNonNegFinite(patch.margins.top) ? patch.margins.top : current.margins.top,
+          right: isNonNegFinite(patch.margins.right) ? patch.margins.right : current.margins.right,
+          bottom: isNonNegFinite(patch.margins.bottom)
+            ? patch.margins.bottom
+            : current.margins.bottom,
+          left: isNonNegFinite(patch.margins.left) ? patch.margins.left : current.margins.left,
+        }
+      : current.margins;
+    const next: PageConfig = { width, height, orientation, margins };
+    if (samePage(current, next)) return;
+    this._page.set(next);
+  }
+
+  resetPage(): void {
+    this._page.set(DEFAULT_PAGE);
+  }
+
+  // ── Grid ────────────────────────────────────────────────────────
+
+  /**
+   * Patch grid config. Invalid fields (spacing ≤ 0, majorEvery ≤ 0)
+   * are silently rejected — same policy as `patchPage`.
+   */
+  patchGrid(patch: Partial<GridConfig>): void {
+    const current = this._grid();
+    const enabled = patch.enabled ?? current.enabled;
+    const spacing = isPositiveFinite(patch.spacing) ? patch.spacing! : current.spacing;
+    const majorEvery = isPositiveInt(patch.majorEvery) ? patch.majorEvery! : current.majorEvery;
+    const color =
+      typeof patch.color === 'string' && patch.color.length > 0 ? patch.color : current.color;
+    const next: GridConfig = { enabled, spacing, majorEvery, color };
+    if (sameGrid(current, next)) return;
+    this._grid.set(next);
+  }
+
+  toggleGrid(): void {
+    this.patchGrid({ enabled: !this._grid().enabled });
+  }
+
+  resetGrid(): void {
+    this._grid.set(DEFAULT_GRID);
+  }
+
+  // ── Rulers ──────────────────────────────────────────────────────
+
+  setRulersEnabled(enabled: boolean): void {
+    if (this._rulers().enabled === enabled) return;
+    this._rulers.set({ enabled });
+  }
+
+  toggleRulers(): void {
+    this.setRulersEnabled(!this._rulers().enabled);
+  }
+
+  // ── Guides ──────────────────────────────────────────────────────
+
+  /**
+   * Add a guide line at the given position. Returns the generated id
+   * so callers can remove or update it later. Invalid (non-finite)
+   * positions are silently rejected (returns null).
+   */
+  addGuide(axis: 'h' | 'v', position: number): string | null {
+    if (!Number.isFinite(position)) return null;
+    this.guideCounter += 1;
+    const id = `guide-${this.guideCounter}`;
+    this._guides.set([...this._guides(), { id, axis, position }]);
+    return id;
+  }
+
+  /** Update the position of an existing guide. No-op if id missing. */
+  moveGuide(id: string, position: number): void {
+    if (!Number.isFinite(position)) return;
+    const next = this._guides().map((g) => (g.id === id ? { ...g, position } : g));
+    if (next === this._guides()) return;
+    this._guides.set(next);
+  }
+
+  /** Remove a guide by id. No-op if id missing. */
+  removeGuide(id: string): void {
+    const filtered = this._guides().filter((g) => g.id !== id);
+    if (filtered.length === this._guides().length) return;
+    this._guides.set(filtered);
+  }
+
+  clearGuides(): void {
+    if (this._guides().length === 0) return;
+    this._guides.set([]);
+  }
+}
+
+function isPositiveFinite(n: number | undefined): n is number {
+  return typeof n === 'number' && Number.isFinite(n) && n > 0;
+}
+
+function isNonNegFinite(n: number | undefined): n is number {
+  return typeof n === 'number' && Number.isFinite(n) && n >= 0;
+}
+
+function isPositiveInt(n: number | undefined): n is number {
+  return typeof n === 'number' && Number.isFinite(n) && n > 0 && Number.isInteger(n);
+}
+
+function samePage(a: PageConfig, b: PageConfig): boolean {
+  return (
+    a.width === b.width &&
+    a.height === b.height &&
+    a.orientation === b.orientation &&
+    a.margins.top === b.margins.top &&
+    a.margins.right === b.margins.right &&
+    a.margins.bottom === b.margins.bottom &&
+    a.margins.left === b.margins.left
+  );
+}
+
+function sameGrid(a: GridConfig, b: GridConfig): boolean {
+  return (
+    a.enabled === b.enabled &&
+    a.spacing === b.spacing &&
+    a.majorEvery === b.majorEvery &&
+    a.color === b.color
+  );
 }
 
 function isValidBackground(c: BackgroundConfig): boolean {

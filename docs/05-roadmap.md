@@ -235,10 +235,13 @@
   - `<svge-toolbar slot="..."/>` em `svg-engine/ui`: renderiza Material `<mat-icon-button>` por contribuição visível. Icon ou text fallback. Tooltip com shortcut hint. Disabled honra signal do item. Componente standalone, OnPush
   - Slot convention documentada (`toolbar.main`/`toolbar.shape`/`toolbar.transform`/`sidebar.*`/`context.*`). Plugins podem inventar slots novos; UIs ignoram slots desconhecidos
   - +13 testes (registry: basics 3, validation 3, bySlot 5; UI: render/disabled/click/icon-fallback/order 6) → **578 passing**
-- [ ] **Bloco 4f**: Workspace settings — page + grid + guides + rulers
-  - Expansão do `WorkspaceService`: `page`, `grid`, `guides`, `rulers` signals
-  - `<svge-workspace-settings>` painel (Material dialog) — page size/orientation/margins
-  - `<svge-grid-overlay>` + `<svge-rulers>` + `<svge-guides>` (overlays SVG/HTML conforme apropriado)
+- [x] **Bloco 4f**: Workspace settings — page + grid + guides + rulers
+  - `WorkspaceService` expandido com 4 signals novos + tipos: `PageConfig` (width/height/orientation/margins), `GridConfig` (enabled/spacing/majorEvery/color), `RulersConfig` (enabled), `Guide[]` (axis/position). APIs: `patchPage`, `resetPage`, `patchGrid`, `toggleGrid`, `resetGrid`, `setRulersEnabled`, `toggleRulers`, `addGuide`, `moveGuide`, `removeGuide`, `clearGuides`. Validação silent-reject + signal-dedup
+  - `GridOverlay` (em `edit`, selector `g[svgeGridOverlay]`): linhas SVG cobrindo o viewBox atual; major/minor distinção por opacity; `vector-effect="non-scaling-stroke"`; `pointer-events: none`; computed re-roda apenas quando viewBox ou grid signals mudam
+  - `GuidesOverlay` (em `edit`, selector `g[svgeGuidesOverlay]`): linhas SVG ciano por guide; horizontal/vertical span do viewBox; v1 display-only (drag-to-move adiado)
+  - `<svge-rulers>` (em `ui`): HTML overlay top + left, ticks com algoritmo "nice spacing" (1/2/5 × 10ⁿ, ~8 majors), labels formatados; visibilidade reativa via `rulers().enabled`
+  - **Settings panel UI adiado**: o `WorkspaceService` expõe toda a API; consumers (playground / shells custom) montam o dialog quando quiserem. Reduz dependências Material no bloco
+  - +20 testes em `workspace.service.spec.ts` (page 6, grid 5, rulers 3, guides 6) → **624 passing**
 - [x] **Bloco 4g**: Atalhos configuráveis + `ShortcutRegistry` (categoria 9 parte 2 do D-023)
   - Tipo `Shortcut` (id/combo/when?: Signal<boolean>/description?/run(event)). `parseCombo()` + `comboMatches()` puros: aceitam `Ctrl`/`Control`, `Shift`, `Alt`/`Option`, `Cmd`/`Meta`/`Win`, `CmdOrCtrl` (cross-platform). Key tokens (`g`/`ArrowUp`/`Escape`/`F5`) normalizados via lower-case. Throw em token desconhecido / empty
   - `ShortcutRegistry` (signal-backed): `register(shortcut): Disposable`, `tryMatch(event): Shortcut | null`. Duplicate id → throw; duplicate combo permitido (when guards mantêm disjunto). Insertion order tiebreak

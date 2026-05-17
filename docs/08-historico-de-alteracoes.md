@@ -6,6 +6,99 @@
 
 ---
 
+## 2026-05-17 — Fase 4 Bloco 4f: workspace settings (page/grid/guides/rulers)
+
+**Contexto**
+
+Bloco 4f — expansão do `WorkspaceService` com 4 dimensões novas de
+estado de apresentação do editor (`page`, `grid`, `rulers`, `guides`),
+mais 3 componentes de UI/overlay para renderizar.
+
+**Mudanças**
+
+`edit/lib/workspace/workspace.service.ts`:
+
+- Tipos novos: `PageConfig` (width/height/orientation/margins),
+  `GridConfig` (enabled/spacing/majorEvery/color), `RulersConfig`
+  (enabled), `Guide` (id/axis/position)
+- Signals: `_page`, `_grid`, `_rulers`, `_guides` + readonly exposures
+- APIs com validação silent-reject + signal-dedup:
+  - Page: `patchPage(partial)`, `resetPage()` — rejects non-positive
+    dims, non-finite values; margins fields patcháveis individualmente
+  - Grid: `patchGrid(partial)`, `toggleGrid()`, `resetGrid()` — rejects
+    spacing ≤ 0, majorEvery não-inteiro
+  - Rulers: `setRulersEnabled(b)`, `toggleRulers()`
+  - Guides: `addGuide(axis, position) → string | null`,
+    `moveGuide(id, position)`, `removeGuide(id)`, `clearGuides()` —
+    rejects non-finite positions
+
+`edit/lib/workspace/grid-overlay.component.ts`:
+
+- `g[svgeGridOverlay]` standalone OnPush
+- Computed que itera de `floor(viewBox.x/spacing)` até
+  `ceil((viewBox.x+width)/spacing)`, idem para y
+- Major lines = `index % majorEvery === 0` (opacity 0.65 vs 0.35)
+- `vector-effect="non-scaling-stroke"` mantém espessura constante
+- `pointer-events: none`
+
+`edit/lib/workspace/guides-overlay.component.ts`:
+
+- `g[svgeGuidesOverlay]` standalone OnPush
+- Horizontal: full-width line at `g.position` y; vertical: idem para x
+- Cor ciano (#00bcd4) distinta do grid
+- V1 display-only; drag-to-move ficou para futuro
+
+`ui/lib/rulers/rulers.component.ts`:
+
+- `<svge-rulers>` standalone OnPush HTML/CSS (NÃO SVG)
+- Strips top (h: 20px) + left (w: 20px) + corner block
+- `niceTickSpacing(raw)` heurística textbook 1/2/5 × 10ⁿ, ~8 majors
+- 5 minor por major; labels formatados (`formatLabel` strip zeros)
+- Posição via `[style.left.%]` / `[style.top.%]` — sem DOM
+  measurement, render direto via `(value-start)/span*100`
+- Vertical labels rotacionados 180° com `writing-mode: vertical-rl`
+
+**Decisões técnicas**
+
+- **Patch APIs vs setters individuais**: `patchPage({width: 1024})`
+  é mais ergonômico que `setPageWidth(1024)`. Validação por-campo
+  permite enviar `width: -1` sem destruir os outros valores
+- **Silent reject vs throw em valores inválidos**: UIs digitam
+  rapidamente — uma keystroke parcial não deve crashar o dialog.
+  Stay-as-is permite o usuário continuar digitando
+- **HTML rulers vs SVG rulers**: labels HTML são crisp em qualquer
+  zoom; SVG `<text>` ficaria pixelado/scalado. Mais simples
+  manter ticks como `<div>` posicionados em %
+- **Settings dialog UI adiado**: o serviço expõe API completa.
+  Consumers (playground/shell custom) compõem o dialog
+  Material quando quiserem. Reduz Material deps neste bloco
+- **Guides v1 display-only**: drag-to-move precisa hit-testing
+  - capture pointer + integração com Snap. Escopo deliberado;
+    feedback rápido vale mais que feature completa
+
+**Cobertura**
+
+`workspace.service.spec.ts` ganhou 20 testes:
+
+- Page: 6 (defaults, partial patch, validation, margins patch,
+  signal dedup, reset)
+- Grid: 5 (defaults, toggle, validation, valid update, reset)
+- Rulers: 3 (defaults, toggle/set, idempotent)
+- Guides: 6 (empty start, add+id-gen, non-finite reject, move,
+  remove, clear)
+
+**Total**: +20 testes → **624 passing** em 47 arquivos. Zero regressão
+
+**Comportamento visível na app** (após consumer integrar):
+
+- Toggle grid: linhas finas aparecem no canvas, espessura constante
+  no zoom, major lines destacadas
+- Toggle rulers: strips top + left mostram coords da viewBox atual,
+  ticks "nice" se reajustam ao zoom
+- Add guide H/V: linha ciano persiste na canvas; pan/zoom preserva
+
+---
+
 ## 2026-05-17 — Fase 4 Bloco 4g: ShortcutRegistry + ShortcutService
 
 **Contexto**

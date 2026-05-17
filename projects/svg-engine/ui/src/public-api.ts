@@ -36,3 +36,6 @@ export * from './lib/color-palette';
 
 // Extensible toolbar UI (Bloco 4e)
 export * from './lib/toolbar';
+
+// Rulers (Fase 4 Bloco 4f)
+export * from './lib/rulers';
