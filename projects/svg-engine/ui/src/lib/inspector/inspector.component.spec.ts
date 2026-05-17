@@ -427,6 +427,28 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
     expect(['transparent', 'rgba(0, 0, 0, 0)']).toContain(swatches[0]?.style.backgroundColor);
   });
 
+  it('color row is position:relative so the picker dialog anchors next to the swatch', () => {
+    // Bloco 4-IP-FixBugs: without position:relative on the label, the
+    // absolutely-positioned hidden input escapes to the initial
+    // containing block (viewport). Native browsers anchor the color
+    // picker dialog to the input element, so the popover would appear
+    // in the viewport's top-left corner instead of next to the swatch.
+    const r = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const { fixture, state, selection } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([r], { id: state.document().root.id }),
+    });
+    selection.select(r.id);
+    fixture.detectChanges();
+    const fieldRow = fixture.nativeElement.querySelector(
+      'label.field-row',
+    ) as HTMLLabelElement | null;
+    if (fieldRow === null) throw new Error('field-row not found');
+    const cs = getComputedStyle(fieldRow);
+    expect(cs.position).toBe('relative');
+  });
+
   it('color picker is fused with swatch under a single <label> (single visual control)', () => {
     // Bloco 4-IP-Fix: market-standard pattern. Native <input type="color">
     // is visually hidden (via .color-input-hidden) but tab-focusable and

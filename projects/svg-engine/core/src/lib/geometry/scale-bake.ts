@@ -249,6 +249,18 @@ export function bakePath(node: PathNode, sx: number, sy: number, anchor: Point):
  * caller should fall back to composing a scale matrix into the
  * transform (the legacy behavior).
  *
+ * **Coordinate-system note (critical for correctness)**: `anchor` is
+ * accepted in **document space** (matches `TransformService` /
+ * `SelectionOverlay`, which derive the anchor from the rendered bbox).
+ * The per-type bake helpers, however, operate on the node's **local**
+ * (pre-transform) geometry. When the node carries a non-zero translate
+ * (`e`, `f` in the transform matrix), we MUST subtract that translation
+ * from the anchor before dispatching, otherwise the post-bake geometry
+ * is shifted by `(e, f)` relative to where the user expected the fixed
+ * pivot to land. Pre-fix this manifested as: "after moving a shape,
+ * dragging any resize edge made the opposite edge drift" — see the bug
+ * report fixed in 4-IP-FixBugs.
+ *
  * Group bake is recursive: each child is baked individually. A child
  * that itself fails the bake check (because its own transform has
  * rotation) is preserved unchanged — visually slightly off, but
@@ -256,9 +268,7 @@ export function bakePath(node: PathNode, sx: number, sy: number, anchor: Point):
  *
  * **Cost notes**: O(geometry size) per node. Path bake parses + re-
  * serializes the entire `d` string; for thousand-vertex paths that's
- * sub-millisecond on modern hardware but worth knowing. The resize
- * gesture only calls this on **commit** (mouse up), not per-frame
- * during drag — preview uses the cheap scale-transform approach.
+ * sub-millisecond on modern hardware but worth knowing.
  */
 export function bakeScaleIntoNode(
   node: SvgNode,
@@ -267,24 +277,41 @@ export function bakeScaleIntoNode(
   anchor: Point,
 ): SvgNode | null {
   if (!isIdentityOrTranslate(node.transform)) return null;
+  // Anchor arrives in document space; convert to the node's local space
+  // (pre-transform). For identity-or-translate the conversion is just a
+  // subtraction by the translation components (transform[4], transform[5]).
+  const localAnchor: Point = {
+    x: anchor.x - node.transform[4],
+    y: anchor.y - node.transform[5],
+  };
   switch (node.type) {
     case 'rect':
-      return bakeRect(node, sx, sy, anchor);
+      return bakeRect(node, sx, sy, localAnchor);
     case 'ellipse':
-      return bakeEllipse(node, sx, sy, anchor);
+      return bakeEllipse(node, sx, sy, localAnchor);
     case 'line':
-      return bakeLine(node, sx, sy, anchor);
+      return bakeLine(node, sx, sy, localAnchor);
     case 'polygon':
-      return bakePolygon(node, sx, sy, anchor);
+      return bakePolygon(node, sx, sy, localAnchor);
     case 'polyline':
-      return bakePolyline(node, sx, sy, anchor);
+      return bakePolyline(node, sx, sy, localAnchor);
     case 'path':
-      return bakePath(node, sx, sy, anchor);
+      return bakePath(node, sx, sy, localAnchor);
     case 'text':
-      return bakeText(node, sx, sy, anchor);
+      return bakeText(node, sx, sy, localAnchor);
     case 'image':
-      return bakeImage(node, sx, sy, anchor);
+      return bakeImage(node, sx, sy, localAnchor);
     case 'group':
-      return bakeGroup(node, sx, sy, anchor, (child) => bakeScaleIntoNode(child, sx, sy, anchor));
+      // Group's own transform is identity-or-translate (checked above).
+      // Children live in the group's LOCAL coord frame (post-group-
+      // translate), so we recurse with `localAnchor` — which is the
+      // doc anchor minus the group's translate, i.e. the anchor in the
+      // group's local frame. Each child's recursive call will further
+      // subtract that child's own translate before dispatching to the
+      // per-type bake helper. Net effect: deeply-nested translates are
+      // composed correctly all the way down.
+      return bakeGroup(node, sx, sy, anchor, (child) =>
+        bakeScaleIntoNode(child, sx, sy, localAnchor),
+      );
   }
 }

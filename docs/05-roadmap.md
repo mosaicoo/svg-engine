@@ -163,6 +163,10 @@
 >
 > - [x] **Bloco 4-pre**: `WorkspaceService` + `<svge-workspace-background>` (background transparente xadrez / sólido / imagem). Headless (HTML+CSS, sem Material). Toolbar de presets no playground
 
+- [x] **Bloco 4-IP-FixBugs**: dois bugs reais reportados pelo usuário
+  - **Bug 1 (resize edges)**: depois de mover uma forma, arrastar qualquer aresta fazia o lado oposto deslizar. Root cause: `bakeScaleIntoNode` tratava `anchor` (doc coords) e `node.x/y` (local coords pré-transform) como se estivessem no mesmo sistema. Para `transform = translate(tx,ty)` (caso comum pós-Move), as coords divergiam por `(tx,ty)`. Fix: dispatcher subtrai `(transform[4],transform[5])` do anchor; recursão de grupos passa `localAnchor` p/ compor cadeia de translates aninhados
+  - **Bug 2 (color picker no canto)**: clique no swatch abria o popover do `<input type="color">` no canto do viewport. Root cause: `.color-input-hidden` era `position: absolute` sem ancestor positioned → input escapava para o initial containing block. Fix: `.field-row` ganhou `position: relative` + input reposicionado com `top: 50%; left: 36px`
+  - +6 testes em `scale-bake.spec.ts` (translated rect mr/tc; translated ellipse; identity preservada; rotated null; nested group+translate cadeia) + 1 teste no inspector (`.field-row` é relative) → **521 passing**
 - [x] **Bloco 4-IP-Fix**: fusão swatch + color picker (eliminação do controle duplicado)
   - **Problema reportado** (via screenshot): cada linha de cor mostrava DOIS controles — o swatch (cor real) E o `<input type="color">` nativo (caixa cinza padrão), lado a lado. Padrão de mercado (Figma/Affinity/Inkscape) é um único controle por campo
   - **Solução**: `<label class="field-row">` envolvendo `<span class="swatch">` + `<input type="color" class="color-input-hidden">`. Label↔input association do browser garante que clique no swatch abre o picker nativo. Native input fica visually-hidden (1×1px, opacity 0, pointer-events none) mas tab-focusable (a11y preservada)

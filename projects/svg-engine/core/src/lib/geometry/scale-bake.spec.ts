@@ -17,6 +17,7 @@ import {
   bakePolygon,
   bakePolyline,
   bakeRect,
+  bakeScaleIntoNode,
   bakeText,
   isIdentityOrTranslate,
   scaleAxisInterval,
@@ -288,5 +289,107 @@ describe('isIdentityOrTranslate', () => {
 
   it('handles floating-point noise within 1e-9 tolerance', () => {
     expect(isIdentityOrTranslate([1 + 1e-12, 0, 0, 1, 0, 0])).toBe(true);
+  });
+});
+
+describe('bakeScaleIntoNode — anchor coord-system (Bloco 4-IP-FixBugs)', () => {
+  // Regression: pre-fix, dragging any resize edge of a MOVED shape made
+  // the opposite edge drift. Root cause: `anchor` arrives in document
+  // coords, but the per-type bake helpers expected node-local coords. For
+  // a node with translate(tx, ty), bakeScaleIntoNode now subtracts
+  // (tx, ty) from anchor before dispatching so the bake stays in local
+  // coords. End-state: dragging the right-middle edge of a moved rect
+  // keeps the left edge perfectly fixed in document space.
+
+  it('rect with translate: dragging right-edge keeps left edge fixed in doc space', () => {
+    // Local geometry: rect at (200, 100) sized 100×100. Translate (50, 50).
+    // Visual bbox in doc space: { x: 250, y: 150, w: 100, h: 100 }.
+    const rect = createRect(
+      { x: 200, y: 100, width: 100, height: 100 },
+      { transform: translate(50, 50) },
+    );
+    // Simulate dragging the `mr` handle by 1.5× the width. Anchor for
+    // `mr` resize is `ml` of the doc-space bbox: (250, 200).
+    const docAnchor = { x: 250, y: 200 };
+    const baked = bakeScaleIntoNode(rect, 1.5, 1, docAnchor);
+    expect(baked).not.toBeNull();
+    if (baked === null || baked.type !== 'rect') throw new Error('expected baked rect');
+    // Post-bake the left visual edge MUST still be at doc x=250
+    // (= baked.x + transform[4]). Width grew from 100 to 150.
+    expect(baked.x + baked.transform[4]).toBeCloseTo(250, 9);
+    expect(baked.width).toBeCloseTo(150, 9);
+    // Right visual edge: 250 + 150 = 400 (= original 350 + 50 stretch)
+    expect(baked.x + baked.transform[4] + baked.width).toBeCloseTo(400, 9);
+  });
+
+  it('rect with translate: dragging top-edge keeps bottom edge fixed in doc space', () => {
+    const rect = createRect(
+      { x: 200, y: 100, width: 100, height: 100 },
+      { transform: translate(50, 50) },
+    );
+    // `tc` handle → anchor = `bc` of doc bbox: (300, 250).
+    const docAnchor = { x: 300, y: 250 };
+    const baked = bakeScaleIntoNode(rect, 1, 1.5, docAnchor);
+    if (baked === null || baked.type !== 'rect') throw new Error('expected baked rect');
+    // Bottom visual edge stays at doc y=250.
+    expect(baked.y + baked.transform[5] + baked.height).toBeCloseTo(250, 9);
+    expect(baked.height).toBeCloseTo(150, 9);
+    // Top visual edge: 250 - 150 = 100 (= original 150 stretched 50 upward)
+    expect(baked.y + baked.transform[5]).toBeCloseTo(100, 9);
+  });
+
+  it('ellipse with translate: center scales around doc-space anchor correctly', () => {
+    // Ellipse cx=100, cy=100, rx=50, ry=50 + translate(200, 200).
+    // Visual center in doc space: (300, 300). Visual bbox: (250,250) → (350,350).
+    const e = createEllipse(
+      { cx: 100, cy: 100, rx: 50, ry: 50 },
+      { transform: translate(200, 200) },
+    );
+    // Drag `mr` handle → anchor at doc (250, 300), sx=2, sy=1
+    const docAnchor = { x: 250, y: 300 };
+    const baked = bakeScaleIntoNode(e, 2, 1, docAnchor);
+    if (baked === null || baked.type !== 'ellipse') throw new Error('expected baked ellipse');
+    // Visual left edge (cx - rx + tx) must remain at doc x=250
+    expect(baked.cx - baked.rx + baked.transform[4]).toBeCloseTo(250, 9);
+    expect(baked.rx).toBeCloseTo(100, 9); // doubled
+    expect(baked.ry).toBeCloseTo(50, 9); // unchanged (sy=1)
+  });
+
+  it('node with identity transform: behaviour unchanged (no regression)', () => {
+    const rect = createRect({ x: 100, y: 100, width: 100, height: 100 });
+    const baked = bakeScaleIntoNode(rect, 1.5, 1, { x: 100, y: 150 });
+    if (baked === null || baked.type !== 'rect') throw new Error('expected baked rect');
+    // Anchor at (100, 150) = left-middle. Right grows 50 → width=150.
+    expect(baked.x).toBeCloseTo(100, 9);
+    expect(baked.width).toBeCloseTo(150, 9);
+  });
+
+  it('returns null for rotated nodes (existing fallback contract preserved)', () => {
+    const rect = createRect(
+      { x: 0, y: 0, width: 100, height: 100 },
+      { transform: rotate(Math.PI / 4) },
+    );
+    expect(bakeScaleIntoNode(rect, 2, 2, { x: 0, y: 0 })).toBeNull();
+  });
+
+  it('group with translate containing a child with translate: anchor composes down the chain', () => {
+    // Group at translate(50, 50), containing rect at local (10, 10)
+    // sized 100×100 with its own translate(20, 20). Document-space
+    // bbox of rect: x = 10 + 50 + 20 = 80, y = 80, w = 100, h = 100.
+    // Right edge in doc space: 180. User grabs the rect's right
+    // edge → anchor for resize is the rect's left edge = doc x=80.
+    const rect = createRect(
+      { x: 10, y: 10, width: 100, height: 100 },
+      { transform: translate(20, 20) },
+    );
+    const group = createGroup([rect], { transform: translate(50, 50) });
+    // Drag right edge to double the width: sx=2 around doc anchor (80, 130)
+    const baked = bakeScaleIntoNode(group, 2, 1, { x: 80, y: 130 });
+    if (baked === null || baked.type !== 'group') throw new Error('expected baked group');
+    const bakedRect = baked.children[0] as ReturnType<typeof createRect>;
+    // Visual left edge: rect.x + rect.transform[4] + group.transform[4]
+    //                  = bakedRect.x + 20 + 50 = doc 80
+    expect(bakedRect.x + bakedRect.transform[4] + baked.transform[4]).toBeCloseTo(80, 9);
+    expect(bakedRect.width).toBeCloseTo(200, 9);
   });
 });

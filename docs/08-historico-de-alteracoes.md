@@ -6,6 +6,105 @@
 
 ---
 
+## 2026-05-16 — Fase 4 Bloco 4-IP-FixBugs: 2 bugs reais (resize + picker)
+
+**Contexto**
+
+Usuário reportou que **arrasto das arestas** (handles laterais) e
+**controles de cor** estavam com bugs. Auditoria honesta do código
+confirmou: dois bugs reais introduzidos/expostos pelos blocos
+anteriores (4-Inspector-Polish e 4-IP-Fix).
+
+### Bug 1 — Resize edges quebrado pós-`MoveNodeCommand`
+
+**Sintoma**: depois de mover uma forma (drag para reposicionar), ao
+arrastar qualquer handle de aresta a forma "desliza" lateralmente —
+o lado oposto da aresta arrastada NÃO permanece fixo.
+
+**Root cause**: `bakeScaleIntoNode(node, sx, sy, anchor)` tratava
+`anchor` como se estivesse no MESMO sistema de coordenadas de
+`node.x`/`node.y`. Mas:
+
+- `node.x`/`node.y` estão em **coords locais** (pré-transform)
+- `anchor` vem do `SelectionOverlay` em **coords de documento**
+  (pós-transform — bbox renderizada via `composedAncestorMatrix`)
+
+Quando o nó tem `transform = translate(tx, ty)` (qualquer forma
+movida pelo `MoveNodeCommand` cai nesse caso), as coords divergem por
+`(tx, ty)`. A bake calculava o intervalo escalado em torno de um
+ponto deslocado → lado oposto da aresta arrastada saía do lugar.
+
+Pré-bake-during-drag (4-Inspector-Polish) o bug existia também mas
+ficava invisível porque o preview usava scale-transform composition
+(que opera em doc coords). Quando o bake passou a rodar a cada frame
+do drag, o bug virou um problema visível e severo.
+
+**Fix**: `bakeScaleIntoNode` agora subtrai `(node.transform[4],
+node.transform[5])` do `anchor` ANTES de despachar para o helper
+per-type. Para o caso recursivo de grupos, passa `localAnchor` (= doc
+anchor − group translate) à recursão, garantindo composição correta
+ao longo da cadeia de translates aninhados.
+
+`projects/svg-engine/core/src/lib/geometry/scale-bake.ts`:
+
+- `bakeScaleIntoNode`: calcula `localAnchor = anchor − transform[4..5]`
+  e passa aos helpers per-type
+- Caso `group`: passa `localAnchor` à recursão (não `anchor`) para
+  que descendentes herdem o frame correto
+
+### Bug 2 — Color picker abre no canto do viewport
+
+**Sintoma**: clicar no swatch de cor faz o popover do `<input
+type="color">` aparecer no canto superior-esquerdo da página, em vez
+de ao lado do swatch.
+
+**Root cause**: `.color-input-hidden` foi declarado com `position:
+absolute` MAS `.field-row` (o `<label>` que contém o input) não tinha
+`position: relative`. Sem ancestor posicionado, o input absolute foge
+para o initial containing block (= viewport). Browsers ancoram o
+popover do color picker ao elemento `<input>` — portanto o popover
+abre na origem do viewport.
+
+**Fix** (`inspector.component.ts`):
+
+- `.field-row` ganha `position: relative` (ancoragem)
+- `.color-input-hidden` ganha `top: 50%; left: 36px` (próximo ao
+  swatch, dentro da row)
+
+**Decisões técnicas**
+
+- **Bake doc→local na entrada, não nos helpers**: helpers per-type
+  permanecem puros e simples (recebem local anchor). Conversão fica
+  centralizada em `bakeScaleIntoNode` — único caller-facing entry.
+- **Group recursion composta**: cada nível subtrai sua própria
+  translate. Resultado idêntico a `doc_anchor − Σ(ancestor translates)`
+  na profundidade do nó — sem precisar acumular state no helper.
+- **`position: relative` no field-row** sem alterar layout: relative
+  sem top/left não move o elemento; só serve de âncora para o
+  absolute descendente.
+
+**Cobertura**
+
+- `scale-bake.spec.ts`: +6 testes
+  (rect+translate dragging mr fixa lado esquerdo; rect+translate
+  dragging tc fixa lado inferior; ellipse+translate; identity-transform
+  preservada; rotated retorna null; group+translate com child+translate
+  cadeia de composição)
+- `inspector.component.spec.ts`: +1 teste
+  (`.field-row` tem `position: relative`)
+- **Total**: +7 testes → **521 passing** em 41 arquivos. Zero
+  regressão. Tests existentes do `bakeGroup` direto continuam verdes
+  (eles não vão pelo dispatcher, então a mudança não os afeta).
+
+**Comportamento visível na app**
+
+- Mover qualquer forma + redimensionar por qualquer handle (corner
+  OU edge): lado oposto fica perfeitamente parado em doc space
+- Clicar em qualquer swatch de cor: popover nativo abre ao lado do
+  swatch, como esperado
+
+---
+
 ## 2026-05-16 — Fase 4 Bloco 4-IP-Fix: fusão swatch + color picker
 
 **Contexto**

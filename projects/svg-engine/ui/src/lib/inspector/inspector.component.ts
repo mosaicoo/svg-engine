@@ -370,6 +370,13 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       gap: 8px;
       font-size: 12px;
       cursor: pointer;
+      /* position: relative is REQUIRED so the absolutely-positioned
+         .color-input-hidden anchors inside the row instead of
+         escaping to the initial containing block (viewport). The
+         native color picker dialog opens NEAR its input element —
+         without this, the picker would pop up in the top-left
+         corner of the page (Bloco 4-IP-FixBugs). */
+      position: relative;
     }
     .field-row.disabled {
       cursor: not-allowed;
@@ -415,15 +422,24 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
     /* Native color input visually hidden — clicking the parent <label>
        still opens its picker dialog (browsers: label-for-input association).
        Kept tab-focusable (NOT removed via display:none) so keyboard users
-       can still reach + change colors. */
+       can still reach + change colors.
+
+       Positioned to overlay the swatch (left:36px = swatch right edge +
+       gap) so the browser's native color-picker popover anchors NEXT TO
+       the swatch instead of in the viewport corner. The 1px-by-1px size
+       + opacity 0 keeps it invisible; pointer-events:none lets clicks
+       fall through to the parent <label>, which then dispatches a
+       programmatic click to this input — opening the picker. */
     .color-input-hidden {
       position: absolute;
+      top: 50%;
+      left: 36px;
       width: 1px;
       height: 1px;
       opacity: 0;
       overflow: hidden;
       pointer-events: none;
-      margin: -1px;
+      margin: 0;
       padding: 0;
       border: 0;
     }
