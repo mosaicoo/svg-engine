@@ -6,6 +6,82 @@
 
 ---
 
+## 2026-05-17 — Fase 4 Bloco 4z-fixes3: theme override propagado (Material vars explícitos)
+
+**Contexto**
+
+Após 4z-fixes adicionar `html[data-theme=light/dark] { color-scheme }`,
+usuário reportou que cores do playground continuavam dark mesmo
+escolhendo light. Diagnóstico via DevTools confirmou: o atributo
+`data-theme` muda, MAS as cores não.
+
+**Root cause** (sutil, espec-CSS):
+
+`color-scheme` é **NÃO-herdada** por spec CSS. Material 3 emite
+`--mat-sys-surface: light-dark(#faf9fd, #121316)` em `html`. A função
+`light-dark()` resolve **per-element** baseado no `color-scheme` do
+elemento que USA a var (não onde foi declarada).
+
+Como `color-scheme: light` afeta só o html em si (descendentes mantêm
+`color-scheme: normal` = OS pref), todos os consumidores das vars
+(body, toolbar, panels) continuam resolvendo `light-dark()` no esquema
+do OS — neste caso, dark.
+
+**Fix**
+
+`playground/src/styles.scss`: re-emite `mat.theme(...)` com
+`theme-type: light/dark` dentro dos blocos `html[data-theme=...]`.
+Material gera **valores hex explícitos** (sem `light-dark()`) nas
+vars desses blocos:
+
+```scss
+html[data-theme='light'] {
+  color-scheme: light;
+  @include mat.theme(
+    (
+      color: (
+        ...,
+        theme-type: light,
+      ),
+      ...,
+    )
+  );
+}
+html[data-theme='dark'] {
+  color-scheme: dark;
+  @include mat.theme(
+    (
+      color: (
+        ...,
+        theme-type: dark,
+      ),
+      ...,
+    )
+  );
+}
+```
+
+Valores hex são **herdados** via cascade de CSS variables — todo
+descendente que faz `var(--mat-sys-surface)` recebe o valor literal,
+sem depender de `color-scheme` local.
+
+**Trade-off**
+
+- CSS bundle ~25 KB maior (3× emissão de paleta Material em vez de 1×)
+- Theme switch funciona em 100% dos consumidores, independente de
+  `color-scheme` cascade
+
+**Comportamento visível**
+
+- Botão "sun" (light) → toda a UI clara
+- "moon" (dark) → toda a UI escura
+- "A" (system/auto) → segue OS pref via `light-dark()` (rule original)
+
+**Cobertura**: apenas SCSS — sem testes novos. Lib **649 passing**
+em 49 arquivos. Zero regressão.
+
+---
+
 ## 2026-05-17 — Fase 4 Bloco 4z-fixes2: shortcut leak / pós-Group selection / z-order
 
 **Contexto**

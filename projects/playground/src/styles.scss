@@ -5,6 +5,8 @@
 // custom components at https://material.angular.dev/guide/theming
 @use '@angular/material' as mat;
 
+// Default ('system' / no override): both light and dark palettes emitted
+// via `light-dark()`. Browser picks based on `prefers-color-scheme`.
 html {
   height: 100%;
   @include mat.theme(
@@ -20,15 +22,45 @@ html {
 }
 
 // Fase 4 Bloco 4i — ThemeService writes `<html data-theme="...">`.
-// Material M3 derives its variant from `color-scheme`, so we override
-// the default `light dark` (follow OS) when the user picks an explicit
-// theme. `data-theme="system"` is the absence of an override and the
-// body's `color-scheme: light dark` continues to follow `prefers-color-scheme`.
+//
+// Critical: `color-scheme` is non-inherited (per CSS spec). Setting it
+// only on <html> resolves `light-dark()` ONLY on html itself — every
+// descendant (body, toolbar, panels) uses its own color-scheme (default
+// `normal` = OS pref). So we MUST re-emit `mat.theme` with the explicit
+// `theme-type` for the override to propagate to all consumers of the
+// `var(--mat-sys-*)` vars.
+//
+// `theme-type: 'light' | 'dark'` makes mat.theme emit fixed color values
+// (no `light-dark()` function), so descendants pick up the explicit
+// variant via standard CSS-var inheritance — no per-element color-scheme
+// gymnastics needed.
 html[data-theme='light'] {
   color-scheme: light;
+  @include mat.theme(
+    (
+      color: (
+        primary: mat.$azure-palette,
+        tertiary: mat.$blue-palette,
+        theme-type: light,
+      ),
+      typography: Roboto,
+      density: 0,
+    )
+  );
 }
 html[data-theme='dark'] {
   color-scheme: dark;
+  @include mat.theme(
+    (
+      color: (
+        primary: mat.$azure-palette,
+        tertiary: mat.$blue-palette,
+        theme-type: dark,
+      ),
+      typography: Roboto,
+      density: 0,
+    )
+  );
 }
 
 body {
