@@ -11,6 +11,8 @@ import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
 import {
   CommandBus,
+  composeTransform,
+  decomposeTransform,
   EditorStateService,
   findNodeById,
   type NodeId,
@@ -19,7 +21,13 @@ import {
   type SvgNode,
   type SvgStyle,
 } from 'svg-engine/core';
-import { LayersService, SelectionService } from 'svg-engine/edit';
+import {
+  type BBoxAnchor,
+  getRenderedNodeBBox,
+  LayersService,
+  SelectionService,
+  TransformService,
+} from 'svg-engine/edit';
 import { SvgeColorPalette } from '../color-palette/color-palette.component';
 import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from './inspector-pipes';
 
@@ -237,6 +245,86 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
           }
         }
       }
+
+      <!--
+        Transform section (Item 5 — débito 4c-Polish): decomposed
+        rotation + scale numeric inputs + 3×3 pivot picker. Translation
+        is already covered by the per-type geometry inputs (e.g.,
+        rect x/y) so we don't duplicate it here. Single-edit only —
+        decomposition of mixed-selection transforms is ill-defined.
+      -->
+      <section class="section">
+        <h3 class="section-title">Transform</h3>
+        <div class="grid">
+          <mat-form-field appearance="outline">
+            <mat-label>rotation°</mat-label>
+            <input
+              matInput
+              type="number"
+              step="1"
+              [disabled]="isLocked()"
+              [value]="transformRotationDeg()"
+              (change)="setTransformRotationDeg($any($event.target).value)"
+            />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>scale x</mat-label>
+            <input
+              matInput
+              type="number"
+              step="0.1"
+              [disabled]="isLocked()"
+              [value]="transformScaleX()"
+              (change)="setTransformScale($any($event.target).value, transformScaleY())"
+            />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>scale y</mat-label>
+            <input
+              matInput
+              type="number"
+              step="0.1"
+              [disabled]="isLocked()"
+              [value]="transformScaleY()"
+              (change)="setTransformScale(transformScaleX(), $any($event.target).value)"
+            />
+          </mat-form-field>
+          <button
+            type="button"
+            class="reset-btn"
+            [disabled]="isLocked()"
+            (click)="resetTransform()"
+            title="Reset rotation + scale (keeps translation)"
+          >
+            Reset
+          </button>
+        </div>
+        <!-- Pivot picker: 3×3 grid + center. Clicking sets the focused
+             node's pivot to the corresponding anchor of its bbox. -->
+        <div class="pivot-row">
+          <span class="pivot-label">pivot</span>
+          <div class="pivot-grid" role="group" aria-label="Pivot anchor">
+            @for (a of pivotAnchors; track a) {
+              <button
+                type="button"
+                class="pivot-dot"
+                [class.active]="currentPivotAnchor() === a"
+                [attr.aria-label]="'Pivot ' + a"
+                [attr.title]="'Pivot ' + a"
+                (click)="setPivotAnchor(a)"
+              ></button>
+            }
+          </div>
+          <button
+            type="button"
+            class="reset-btn"
+            (click)="resetPivot()"
+            title="Reset pivot to bbox center"
+          >
+            Reset
+          </button>
+        </div>
+      </section>
 
       <section class="section">
         <h3 class="section-title">Style</h3>
@@ -665,6 +753,63 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       font-size: 12px;
       padding: 4px 0;
     }
+    /* Transform / Pivot section (Item 5 — débito 4c-Polish) */
+    .reset-btn {
+      grid-column: span 2;
+      font-size: 11px;
+      padding: 4px 8px;
+      border: 1px solid var(--mat-sys-outline-variant, #ccc);
+      border-radius: 4px;
+      background: transparent;
+      color: var(--mat-sys-on-surface, inherit);
+      cursor: pointer;
+    }
+    .reset-btn:hover:not(:disabled) {
+      background: var(--mat-sys-surface-container-high, #eee);
+    }
+    .reset-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .pivot-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0 0;
+    }
+    .pivot-label {
+      flex: 1 1 auto;
+      font-size: 12px;
+      color: var(--mat-sys-on-surface-variant, #777);
+    }
+    .pivot-grid {
+      flex: 0 0 auto;
+      display: grid;
+      grid-template-columns: repeat(3, 12px);
+      grid-template-rows: repeat(3, 12px);
+      gap: 4px;
+    }
+    .pivot-dot {
+      width: 12px;
+      height: 12px;
+      padding: 0;
+      border-radius: 50%;
+      border: 1px solid var(--mat-sys-outline-variant, #bbb);
+      background: var(--mat-sys-surface, #fff);
+      cursor: pointer;
+      transition: transform 80ms;
+    }
+    .pivot-dot:hover {
+      transform: scale(1.2);
+      border-color: var(--mat-sys-primary, #1976d2);
+    }
+    .pivot-dot.active {
+      background: var(--mat-sys-primary, #1976d2);
+      border-color: var(--mat-sys-primary, #1976d2);
+    }
+    .pivot-row .reset-btn {
+      grid-column: auto;
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -673,6 +818,25 @@ export class SvgeInspector {
   private readonly selection = inject(SelectionService);
   private readonly bus = inject(CommandBus);
   private readonly layers = inject(LayersService);
+  private readonly transformService = inject(TransformService);
+
+  /**
+   * The 8 anchors of the bbox, in the order shown by the 3×3 pivot
+   * picker (Item 5 — débito 4c-Polish). `mc` (middle-center) is the
+   * default and rendered as the active anchor whenever a custom pivot
+   * is NOT set.
+   */
+  protected readonly pivotAnchors: readonly BBoxAnchor[] = [
+    'tl',
+    'tc',
+    'tr',
+    'ml',
+    'mc',
+    'mr',
+    'bl',
+    'bc',
+    'br',
+  ];
 
   /** Currently focused node, or `null` (no/multi selection or stale id). */
   protected readonly focusNode: Signal<SvgNode | null> = computed(() => {
@@ -911,6 +1075,136 @@ export class SvgeInspector {
     }
     // SVG defaults: opacity = 1 (full opaque), stroke-width = 1
     return '1';
+  }
+
+  // ── Transform decomposition (Item 5 — débito 4c-Polish) ──────
+
+  /** Decomposed transform of the focused node (single-edit only). */
+  private readonly decomposed = computed(() => {
+    const node = this.focusNode();
+    if (node === null) return null;
+    return decomposeTransform(node.transform);
+  });
+
+  protected transformRotationDeg(): string {
+    const d = this.decomposed();
+    if (d === null) return '';
+    return ((d.rotationRad * 180) / Math.PI).toFixed(1);
+  }
+
+  protected transformScaleX(): string {
+    const d = this.decomposed();
+    if (d === null) return '';
+    return d.scaleX.toFixed(2);
+  }
+
+  protected transformScaleY(): string {
+    const d = this.decomposed();
+    if (d === null) return '';
+    return d.scaleY.toFixed(2);
+  }
+
+  protected setTransformRotationDeg(raw: string): void {
+    const node = this.focusNode();
+    if (node === null || this.layers.isLocked(node.id)) return;
+    const deg = parseNumericInput(raw);
+    if (deg === null) return;
+    const d = decomposeTransform(node.transform);
+    const next = composeTransform({ ...d, rotationRad: (deg * Math.PI) / 180 });
+    this.bus.dispatch(new SetPropertyCommand(node.id, 'transform', next));
+  }
+
+  protected setTransformScale(rawX: string | number, rawY: string | number): void {
+    const node = this.focusNode();
+    if (node === null || this.layers.isLocked(node.id)) return;
+    const sx = typeof rawX === 'number' ? rawX : parseNumericInput(rawX);
+    const sy = typeof rawY === 'number' ? rawY : parseNumericInput(rawY);
+    if (sx === null || sy === null) return;
+    const d = decomposeTransform(node.transform);
+    const next = composeTransform({ ...d, scaleX: sx, scaleY: sy });
+    this.bus.dispatch(new SetPropertyCommand(node.id, 'transform', next));
+  }
+
+  /**
+   * Reset rotation + scale to identity, keeping translation. Useful
+   * for "I got lost in the transforms" recovery. Translation stays
+   * because clearing it would visually teleport the shape to origin
+   * (surprising). User can edit the per-type geometry x/y to move.
+   */
+  protected resetTransform(): void {
+    const node = this.focusNode();
+    if (node === null || this.layers.isLocked(node.id)) return;
+    const d = decomposeTransform(node.transform);
+    const next = composeTransform({
+      ...d,
+      rotationRad: 0,
+      scaleX: 1,
+      scaleY: 1,
+    });
+    // Skip dispatch when already identity-equivalent.
+    if (
+      next[0] === node.transform[0] &&
+      next[1] === node.transform[1] &&
+      next[2] === node.transform[2] &&
+      next[3] === node.transform[3]
+    ) {
+      return;
+    }
+    this.bus.dispatch(new SetPropertyCommand(node.id, 'transform', next));
+  }
+
+  // ── Pivot picker (Item 5 — débito 4c-Polish) ────────────────
+
+  /**
+   * Currently-active anchor of the focused node's pivot, or `'mc'`
+   * (default center) when no custom pivot is set OR the custom pivot
+   * doesn't match any of the 8 named anchors. The 3×3 picker uses
+   * this to highlight the active dot.
+   */
+  protected readonly currentPivotAnchor = computed<BBoxAnchor>(() => {
+    const node = this.focusNode();
+    if (node === null) return 'mc';
+    const customPivots = this.transformService.customPivots();
+    const local = customPivots.get(node.id);
+    if (local === undefined) return 'mc'; // default
+    // The custom pivot is stored in NODE-LOCAL coords (0..1 fractional
+    // along bbox). Match against the 9 anchor positions.
+    const eps = 1e-3;
+    const closeX = (a: number, b: number): boolean => Math.abs(a - b) < eps;
+    const x = local.x;
+    const y = local.y;
+    let xName: 'l' | 'c' | 'r';
+    let yName: 't' | 'm' | 'b';
+    if (closeX(x, 0)) xName = 'l';
+    else if (closeX(x, 0.5)) xName = 'c';
+    else if (closeX(x, 1)) xName = 'r';
+    else return 'mc'; // arbitrary custom pivot — none of the 9 anchors active
+    if (closeX(y, 0)) yName = 't';
+    else if (closeX(y, 0.5)) yName = 'm';
+    else if (closeX(y, 1)) yName = 'b';
+    else return 'mc';
+    // Compose: e.g., y=t, x=l → 'tl'; y=m, x=c → 'mc'
+    return (yName + xName) as BBoxAnchor;
+  });
+
+  /**
+   * Set the focused node's pivot to one of the 9 bbox anchors. Looks
+   * up the rendered bbox via the SVG root (queried from the document —
+   * inspector and renderer share the same DOM tree). No-op when no
+   * SVG root or no rendered element (e.g., during initial mount).
+   */
+  protected setPivotAnchor(anchor: BBoxAnchor): void {
+    const node = this.focusNode();
+    if (node === null) return;
+    const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+    if (svg === null) return;
+    const bbox = getRenderedNodeBBox(svg, node.id);
+    if (bbox === null) return;
+    this.transformService.setPivotAnchorForNode(node.id, anchor, bbox);
+  }
+
+  protected resetPivot(): void {
+    this.transformService.resetPivot();
   }
 
   /**

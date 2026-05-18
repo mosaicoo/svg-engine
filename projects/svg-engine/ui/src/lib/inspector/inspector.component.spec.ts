@@ -736,6 +736,120 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
   });
 });
 
+describe('SvgeInspector — transform decomposition (Item 5, débito 4c-Polish)', () => {
+  function setupWithRect(transform: import('svg-engine/core').Transform) {
+    const ctx = setup();
+    const r = createRect({ x: 0, y: 0, width: 10, height: 10 }, { transform });
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup([r], { id: ctx.state.document().root.id }),
+    });
+    ctx.selection.select(r.id);
+    ctx.fixture.detectChanges();
+    return { ...ctx, r };
+  }
+
+  it('shows rotation=0, scaleX=1, scaleY=1 for identity transform', () => {
+    const { fixture } = setupWithRect([1, 0, 0, 1, 0, 0]);
+    const inputs = Array.from(
+      fixture.nativeElement.querySelectorAll('mat-form-field input[type="number"]'),
+    ) as HTMLInputElement[];
+    // First 4 = rect geometry; then 3 transform inputs (rotation, sx, sy)
+    // then 2 style numbers (stroke-width, opacity).
+    const rotationInput = inputs[4]!;
+    expect(rotationInput.value).toBe('0.0');
+    expect(inputs[5]!.value).toBe('1.00'); // scaleX
+    expect(inputs[6]!.value).toBe('1.00'); // scaleY
+  });
+
+  it('decomposes a pure 90° rotation correctly', () => {
+    // Pure rotation 90° → [0, 1, -1, 0, 0, 0]
+    const { fixture } = setupWithRect([0, 1, -1, 0, 0, 0]);
+    const inputs = Array.from(
+      fixture.nativeElement.querySelectorAll('mat-form-field input[type="number"]'),
+    ) as HTMLInputElement[];
+    expect(Math.abs(Number(inputs[4]!.value) - 90)).toBeLessThan(0.1);
+    expect(inputs[5]!.value).toBe('1.00');
+    expect(inputs[6]!.value).toBe('1.00');
+  });
+
+  it('editing rotation dispatches SetPropertyCommand with composed transform', () => {
+    const { fixture, state, r } = setupWithRect([1, 0, 0, 1, 0, 0]);
+    const inputs = Array.from(
+      fixture.nativeElement.querySelectorAll('mat-form-field input[type="number"]'),
+    ) as HTMLInputElement[];
+    const rotationInput = inputs[4]!;
+    rotationInput.value = '45';
+    rotationInput.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    const updated = findNodeById(state.document().root, r.id);
+    // After 45° rotation, transform[0] = cos(45°) ≈ 0.707
+    expect(
+      Math.abs(
+        (updated as unknown as { transform: readonly number[] }).transform[0]! -
+          Math.cos(Math.PI / 4),
+      ),
+    ).toBeLessThan(1e-6);
+  });
+
+  it('Reset button restores identity rotation + scale (keeps translation)', () => {
+    // Start with translate(10,20) + rotate(45°) + scale(2)
+    const t = ((): import('svg-engine/core').Transform => {
+      const angle = Math.PI / 4;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      // T(10,20) · R(45) · S(2) = [2cos, 2sin, -2sin, 2cos, 10, 20]
+      return [2 * cos, 2 * sin, -2 * sin, 2 * cos, 10, 20];
+    })();
+    const { fixture, state, r } = setupWithRect(t);
+    // Click Reset button (first .reset-btn in the Transform section)
+    const resetBtn = fixture.nativeElement.querySelector('.reset-btn') as HTMLButtonElement;
+    resetBtn.click();
+    fixture.detectChanges();
+    const updated = findNodeById(state.document().root, r.id);
+    const newT = (updated as unknown as { transform: readonly number[] }).transform;
+    // Translation preserved
+    expect(newT[4]).toBe(10);
+    expect(newT[5]).toBe(20);
+    // Rotation + scale reset to identity
+    expect(newT[0]).toBe(1);
+    expect(newT[3]).toBe(1);
+    expect(newT[1]).toBe(0);
+    expect(newT[2]).toBe(0);
+  });
+});
+
+describe('SvgeInspector — pivot picker (Item 5b, débito 4c-Polish)', () => {
+  it('renders a 3×3 grid of 9 pivot dots', () => {
+    const ctx = setup();
+    const r = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup([r], { id: ctx.state.document().root.id }),
+    });
+    ctx.selection.select(r.id);
+    ctx.fixture.detectChanges();
+    const dots = ctx.fixture.nativeElement.querySelectorAll('.pivot-dot');
+    expect(dots.length).toBe(9);
+  });
+
+  it('default active anchor is mc (middle-center) when no custom pivot set', () => {
+    const ctx = setup();
+    const r = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup([r], { id: ctx.state.document().root.id }),
+    });
+    ctx.selection.select(r.id);
+    ctx.fixture.detectChanges();
+    const dots = Array.from(
+      ctx.fixture.nativeElement.querySelectorAll('.pivot-dot'),
+    ) as HTMLElement[];
+    // Middle dot in 3×3 grid is index 4 (tl, tc, tr, ml, mc, mr, bl, bc, br)
+    expect(dots[4]?.classList.contains('active')).toBe(true);
+  });
+});
+
 describe('SvgeInspector — multi-edit (Item 1, débito 4c)', () => {
   function setupMulti(rectsStyle: Record<string, unknown>[]) {
     const ctx = setup();

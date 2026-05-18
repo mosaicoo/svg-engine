@@ -21,3 +21,8 @@ export {
   type PathCmd,
   type PathSegment,
 } from './path-d-scaler';
+export {
+  composeTransform,
+  decomposeTransform,
+  type DecomposedTransform,
+} from './transform-decompose';
