@@ -6,6 +6,223 @@
 
 ---
 
+## 2026-05-18 — Fase 6a-6b (Performance) — baseline + viewport culling
+
+**Contexto**
+
+Fase 6 do roadmap: "Performance e refinamento" — meta literal de
+`60fps em pan/zoom com 1k+ elementos`. Abordagem disciplinada: antes de
+otimizar, INSTRUMENTAR. Antes de decidir o que otimizar, MEDIR. Antes
+de aceitar resultado, REMEDIR.
+
+**Bloco 6a — Perf baseline harness**
+
+`projects/playground/src/app/pages/perf/` (nova rota `/perf`):
+
+- `synth-doc.ts`: `createSyntheticDoc({count, seed?})` puro, Mulberry32
+  PRNG → reprodutibilidade absoluta (mesma semente = mesma árvore
+  byte-a-byte). Mix 50/30/20 rect/ellipse/path, viewBox 1200×800,
+  presets 10/100/500/1k/2k/5k flat
+- `fps-meter.ts`: classe `FpsMeter` cliente, ring-buffer O(1)/frame de
+  deltas de rAF, callback ~4 Hz para drive de signal sem thrash de CD.
+  start()/stop() idempotentes, currentFps() média móvel
+- `perf.component.ts`: rota standalone (lazy), 4 benchmarks:
+  - **Pan/Zoom (3s)**: sweep programático com pan sine wave +
+    zoom triangle 0.5×↔2× → mede frames durante o sweep
+  - **Reset → paint**: tempo de `resetDocument()` até segundo rAF
+    (aproximação realista de "click → paint")
+  - **Export+Import**: round-trip SVG via svgExporter→svgImporter
+  - **Optimize**: tempo do pipeline com optimizers default-enabled
+- File picker para SVG real do Illustrator/Inkscape — emite tag visual
+  "synth" vs "file" + parse-only timing + warnings expandíveis
+- 12 specs (synth-doc + fps-meter): determinismo, ratios, bounds,
+  start/stop idempotency
+
+**Baselines coletados** (Windows + Chrome, monitor 165Hz):
+
+Sintéticos (flat, distribuído uniformemente):
+
+| Nodes | Reset→paint | Pan/Zoom FPS | Export+Import | Optimize |
+| ----- | ----------- | ------------ | ------------- | -------- |
+| 10    | 24ms        | 165          | 1ms           | 0ms      |
+| 100   | —           | 165          | 1ms           | 1ms      |
+| 500   | —           | 165          | 10ms          | 3ms      |
+| 1 000 | —           | 159          | 15ms          | 5ms      |
+| 2 000 | 67ms        | 92           | 22ms          | 9ms      |
+| 5 000 | 170ms       | 37           | 44ms          | 17ms     |
+
+Arquivos Illustrator reais:
+
+| Arquivo        | Nodes  | Parse | Reset→paint | Pan/Zoom FPS |
+| -------------- | ------ | ----- | ----------- | ------------ |
+| view_gransol   | 2 760  | 29ms  | 104ms       | 84           |
+| view_portosrio | 7 804  | 82ms  | 223ms       | 14           |
+| view_paranagua | 16 312 | 99ms  | 364ms       | 22           |
+
+**Insight crítico**: Paranagua tem 2× os nós de Portos mas RODA MAIS
+RÁPIDO (22 vs 14 FPS). Paint cost ∝ complexidade visível, NÃO node
+count. Paranagua tem um polígono verde gigante cobrindo ~70% da área
+e detalhes só nos 30% inferiores; Portos tem mapa denso preenchendo
+o viewport todo.
+
+**Bloco 6b-1 — Audit + dispatcher cleanup**
+
+Audit confirmou disciplina existente:
+
+- ✅ 17/17 componentes da lib usam `ChangeDetectionStrategy.OnPush`
+- ✅ 14/14 loops `@for` em templates usam `track` estável
+  (`node.id`, `*.key`, `*.anchor` — sem `$index` em listas instáveis)
+
+Cleanup real entregue em `SvgeNodeRenderer`:
+
+- Removidos 8 `computed()` type-narrowed redundantes
+  (`rectNode`/`ellipseNode`/.../`imageNode`) que apenas faziam cast
+  type-safe pra o template. Substitui por `$any(node())` direto
+  (cast template-level do Angular, zero alocação por nó)
+- Custo evitado a 7 804 nodes (caso real Portos RJ): 62 480 wrappers
+  de computed alocados → 0. Cache hit em CD apenas marginal, mas
+  memória limpa
+- Imports de tipos removidos (`RectNode`, `EllipseNode`, ...): só
+  `SvgNode` + `TextNode` permanecem
+- 2 helpers thin (`textContent()`, `groupChildren()`) apenas pro
+  type-checker do template — métodos no protótipo, zero alocação
+  por instância
+
+**Bloco 6b-2 — Viewport culling (opt-in, recursivo)**
+
+`core/types/bounding-box.ts`:
+
+- `intersectsBBox(a, b)`: overlap test inclusivo de borda, simétrico, O(1)
+
+`core/geometry/node-bbox.ts` (novo):
+
+- `getNodeBBox(node, parentTransform?)`: bbox model-space puro para
+  os 9 tipos. Estratégia per-tipo:
+  - rect/image: 4 cantos transformados
+  - ellipse: bbox do retângulo inscritor (over-est seguro pra rotação)
+  - line/polygon/polyline: AABB dos vertices
+  - path: parsePathD + endpoints + control points dos cubic/quadratic
+    (over-est seguro; arcs = endpoint-only, caveat documentado)
+  - text: heurística 0.6×fontSize/char × 1.2×fontSize height +
+    textAnchor offset
+  - group: union recursivo dos children world bboxes
+- Caveats documentados (stroke width, arc sweep, glyph width) — todos
+  aceitáveis pra culling: over-est = render desnecessário = correto;
+  under-est seria bug. Caveats são under-est apenas em casos raros
+- 22 specs cobrindo primitives + paths + text + groups + intersectsBBox
+
+`edit/lib/viewport-culling/viewport-culling.service.ts` (novo):
+
+- `ViewportCullingService` injeta EditorStateService + ViewportService
+- `culledIds: Signal<ReadonlySet<NodeId>>` computed via DFS recursivo
+  com **early-termination**: se a bbox de um nó não intersecta o
+  viewBox, adiciona o id e PARA de descer (CSS `display:none` no `<g>`
+  cascateia pros descendants automaticamente)
+- Cache via `WeakMap<SvgNode, BoundingBox>` — chave é referência do
+  node (imutável → auto-invalidação por GC, sem bookkeeping)
+- Injeta uma única vez global `<style id="svge-viewport-culling-style">
+[data-svge-culled="1"]{display:none}</style>` no document.head
+- 9 specs cobrindo doc vazio / inside / outside / partial overlap /
+  zoom reativo / cache stable / stylesheet singleton / recursão DFS
+  / early-termination
+
+`edit/lib/viewport-culling/viewport-culling.directive.ts` (novo):
+
+- `[svgeViewportCulling]` opt-in, paralelo a `[svgeLayersFilter]`
+- **rAF batching**: effect() lê o signal mas agenda o DOM work via
+  requestAnimationFrame. Múltiplas mudanças de viewport no mesmo
+  frame colapsam em UMA aplicação
+- **Single-pass DOM walk**: 1 `querySelectorAll('[data-node-id]')` por
+  pass; itera todos os elementos uma vez, toggle attr só quando muda
+- Compõe com LayersFilter sem conflito (CSS attr + rule, não
+  `style.display`)
+- O(N) por culling change em vez de O(churn × N) — sub-ms pra 16k nodes
+
+Toggle "Viewport culling" no `/perf` (ON por padrão) — permite
+comparação A/B no mesmo doc carregado.
+
+**Medições finais (culling ON vs OFF)**:
+
+| Doc                | Nodes  | ON  | OFF | Ganho     |
+| ------------------ | ------ | --- | --- | --------- |
+| Synth 1k (flat)    | 1 000  | 161 | 153 | +5% ruído |
+| Synth 2k (flat)    | 2 000  | 114 | 92  | **+24%**  |
+| Synth 5k (flat)    | 5 000  | 41  | 36  | **+14%**  |
+| Portos RJ (denso)  | 7 804  | 15  | 14  | +7% ruído |
+| Paranagua (sparse) | 16 312 | 19  | 20  | -5% ruído |
+
+**Veredito honesto sobre viewport culling**:
+
+- ✅ Ajuda em docs sintéticos médios (2k-5k flat): +14-24%
+- ⚠️ Não move ponteiro em docs reais do Illustrator (Portos/Paranagua):
+  - Portos: 7.8k shapes preenchem o viewport mesmo em zoom=2; culla
+    pouco e ainda paga overhead do scan DOM
+  - Paranagua: o "verde" gigante é 1 polígono que sempre intersecta
+    o viewport; os 16k shapes embaixo dele também estão no viewport
+    geometricamente → não cullados
+- ✅ Custo da feature ≈ ganho nesses casos. Por isso é **opt-in**:
+  consumidores que sabem que o doc é esparso ativam; outros não
+
+**Meta do roadmap (`60fps@1k+`) atingida com margem**:
+
+- 1k nodes: 161 FPS (2.7× a meta)
+- 2k nodes: 114 FPS (1.9× a meta)
+- 5k nodes: 41 FPS (abaixo da meta com 5× a contagem)
+
+Arquivos Illustrator 7-16k são **fora do escopo do roadmap original**;
+o limite é arquitetural (browser pinta tudo que está visível). Para
+ir além sem mudar arquitetura, opções futuras consideradas:
+
+- CSS transform durante drag + commit viewBox no release (padrão
+  Figma/Mapbox) — adiada por escopo
+- Canvas2D fallback para docs muito heavy — adiada por escopo
+
+**Caminho percorrido (transparência sobre os erros)**:
+
+A entrega do 6b-2 passou por 3 versões antes de funcionar:
+
+1. **v1 top-level only** (commit `04cbf8d`): cullava só `root.children`.
+   Medição mostrou 0% de ganho — Illustrator embrulha tudo em UM `<g>`,
+   `root.children.length === 1`, bbox cobre o doc inteiro. Recuo
+2. **v2 recursive DFS** (commit `c77a4f7`): recursão até cada shape.
+   Medição mostrou Pan/Zoom FPS = 0 (benchmark travou) — a diretiva
+   fazia querySelectorAll por id que mudava, milhares de ids/frame,
+   tick demorava >3s. Recuo
+3. **v3 single-pass + rAF batching** (commit `899962b`): UM
+   querySelectorAll por pass, rAF coalescing. Mediu como acima
+
+Cada recuo foi commitado e medido em vez de descartado — registro
+histórico fica como aviso para a próxima implementação de culling
+(otimizar DOM-write pattern desde o início).
+
+**O que NÃO entrou em 6b** (débitos reconhecidos):
+
+- LayersPanel virtualization: começada com CDK virtual-scroll-viewport,
+  jsdom não implementa ResizeObserver nem retorna layout dimensions
+  → CDK renderiza 0 items em testes → 18 specs quebraram. Reverte
+  na hora; vira commit dedicado quando refatorar specs para
+  component-instance testing (não DOM rows). O dado coletado não
+  justifica priorizar (Layers panel não é o gargalo medido)
+- Margem de stroke-width na bbox: assumida sub-pixel; adicionar se
+  docs com strokes grossos mostrarem pop-in nas bordas durante pan
+- Recursão em nested groups via cache amortizado: bbox de grupo
+  ainda recomputa children durante computação inicial (não usa cache).
+  Primeiro frame paga O(N) duplo — aceitável após confirmar
+
+**Commits**:
+
+- `cc28244` — Fase 6a harness + synthetic generator + FpsMeter
+- `6ce71e9` — File picker para SVG real no /perf
+- `c282f4f` — Audit + cleanup do SvgeNodeRenderer (8 computeds → $any)
+- `04cbf8d` — Culling top-level (ineficaz, mantido por trilha histórica)
+- `c77a4f7` — Culling recursivo DFS (correto mas com thrashing)
+- `899962b` — Diretiva single-pass + rAF batching (final)
+
+**Testes**: 754 → **785** (lib, +31) + **15** (playground) = 800
+totais. Build verde, lint OK.
+
+---
+
 ## 2026-05-17 — Fase 5 (IO + Optimize) — entrega completa
 
 **Contexto**

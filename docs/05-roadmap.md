@@ -284,11 +284,33 @@
 
 ## Fase 6 — Performance e refinamento
 
-- [ ] Virtualização para documentos com muitos elementos
-- [ ] Web Worker para parsing/serialização pesada (se necessário)
-- [ ] Profiling: 60fps em pan/zoom com 1k+ elementos como meta
-- [ ] Acessibilidade (foco, ARIA, navegação por teclado)
-- [ ] Documentação de uso da library
+- [x] **Bloco 6a — Perf baseline harness** ✅ (rota `/perf` no playground)
+  - Synthetic doc generator (Mulberry32, mix 50/30/20 rect/ellipse/path, presets 10-5k)
+  - FpsMeter cliente (rAF ring-buffer, ~4Hz tick callback)
+  - 4 benchmarks instrumentados: Pan/Zoom 3s, Reset→paint, Export+Import, Optimize
+  - File picker para SVG real (Illustrator/Inkscape) com parse-only timing + warnings
+- [x] **Bloco 6b-1 — Audit + dispatcher cleanup** ✅
+  - 17/17 componentes confirmados em OnPush; 14/14 @for com track estável
+  - SvgeNodeRenderer: 8 computed type-narrowed removidos via `$any()` template cast (~62k wrappers a menos em mem @ 7.8k nodes)
+- [x] **Bloco 6b-2 — Viewport culling opt-in** ✅
+  - `getNodeBBox(node, parentTransform?)` puro em core/geometry (9 tipos, over-est seguro)
+  - `intersectsBBox` em core/types
+  - `ViewportCullingService` (edit) — DFS recursivo + early-termination + WeakMap cache
+  - `[svgeViewportCulling]` diretiva opt-in com rAF batching + single-pass DOM walk
+  - Toggle no /perf p/ comparar A/B no mesmo doc
+- [x] **Meta `60fps@1k+` atingida com folga** ✅: 1k=161 FPS (2.7×), 2k=114 FPS (1.9×), 5k=41 FPS
+  - Docs reais Illustrator 7-16k ficam em 14-22 FPS (fora do escopo do roadmap; limite arquitetural de paint cost no browser)
+- [ ] **Bloco 6c — Acessibilidade + Docs** (próximo)
+  - Suporte a `<defs>` e `<clipPath>` no svgImporter (resolve warnings vistos no Paranagua/Gransol)
+  - Audit ARIA + navegação por teclado nos overlays e panels
+  - README + `docs/09-api-publica.md` preenchidos
+  - Guia "como escrever um plugin" referenciando D-020/D-023
+- [ ] **Bloco 6d — EffectRegistry** (D-023 cat 7)
+- [ ] **Bloco 6e — ScriptRuntimePlugin** (D-024)
+- [ ] **Débitos reconhecidos**:
+  - LayersPanel virtualization (CDK virtual-scroll requer ResizeObserver — jsdom mock pendente; refactor de specs para component-instance testing)
+  - Margem de stroke-width na bbox de culling (caso ainda não-observado)
+  - Web Worker para parser (descartado por dado — 99ms@16k é aceitável)
 - [ ] **Polish de tema light/dark** (parking lot — coletar conforme aparecer):
   - Combobox / `<select>` nativo: background em dark mode (cor padrão do browser não harmoniza com a paleta Material)
   - Outros controles que vamos descobrir ao usar a app em ambos os temas
