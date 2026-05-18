@@ -223,13 +223,24 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
     .row.locked .label {
       color: var(--mat-sys-on-surface-variant, #777);
     }
+    /* Material 3 mat-icon-button defaults to 40px with internal
+       padding and a 48px hidden touch-target. Overriding width/height
+       alone leaves the icon visually off-center because the inner
+       padding and touch target keep their original sizing. Flex-
+       centering + zero padding + state-layer + touch-target overrides
+       line everything up perfectly inside the 28px hover circle.
+       (Bloco 4b-DnD polish) */
     .expand,
     .visibility,
     .lock {
       width: 28px;
       height: 28px;
-      line-height: 28px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       --mdc-icon-button-state-layer-size: 28px;
+      --mat-icon-button-touch-target-display: none;
     }
     .expand mat-icon,
     .visibility mat-icon,
@@ -239,6 +250,10 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
       width: 18px;
       height: 18px;
       line-height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
     }
     .expand-spacer {
       width: 28px;
