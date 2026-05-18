@@ -205,7 +205,12 @@
   - `LayersService` (em `edit`): `hiddenIds`/`lockedIds` Set signals + togglers (idempotent, dedup); `showAll`/`unlockAll`
   - `[svgeLayersFilter]` directive (em `edit`): aplica `display: none` em `[data-node-id]` matching `hiddenIds` via `effect()`; preserva pre-existing inline display ao restaurar; opt-in (consumer attach na renderer)
   - `<svge-layers-panel>` (em `ui`): recursive Material UI; expand/collapse de groups; ícone por tipo; visibility/lock buttons; click-to-select com Ctrl/Shift modifiers; classes `.selected`/`.hidden`/`.locked` p/ styling
-  - **Drag-drop reorder ADIADO** para sub-bloco 4b-DnD (precisa de `MoveNodeInTreeCommand` novo no core; mantém 4b focado)
+  - ~~Drag-drop reorder ADIADO~~ → **entregue em 4b-DnD** (ver abaixo)
+- [x] **Bloco 4b-DnD**: drag-drop reorder no layers panel
+  - `MoveNodeInTreeCommand(nodeId, newParentId, newIndex)` em core: move + reparent atomic (same-parent reorder OR cross-parent move). Semantic "final-state index" (newIndex = posição que o node ASSUME na children array pós-move). Valida: not-root, target-exists, target-é-group, no-cycle (não pode mover group para descendente). No-op em mesma posição. Undo restaura parent + index originais
+  - `<svge-layers-panel>` recebe HTML5 drag handlers: `draggable="true"` (exceto locked), `dragstart`/`dragover`/`drop`/`dragend`. Visual indicators: `.drop-before` (linha primary no topo), `.drop-after` (linha primary no bottom), `.drop-inside` (ring + bg primary-container — só quando target é group). Y-zonas top 30% → before, bottom 30% → after, middle 40% → inside (se group). Skip locked target, self, descendant (cycle prevention)
+  - Após drop, o nó movido fica selecionado (Figma/Affinity UX)
+  - +21 testes (15 do command em `move-node-in-tree.spec.ts` + 6 de integração no layers panel) → **670 passing**
 - [x] **Bloco 4b-Lock v2**: enforcement do cadeado — locked = totalmente off-limits
   - **Correção do v1**: usuário esclareceu que locked NÃO pode ser selecionado nem ter propriedades exibidas; única interação permitida é via botões eye/lock do próprio layers panel
   - `SelectionService`: injeta `LayersService`. Filter no write em `select`/`selectMany`/`addToSelection`/`toggle`/`setHover`. Effect com `untracked()` auto-deseleciona quando `lockedIds` cresce (pruning + focus reassignment + hover clear)

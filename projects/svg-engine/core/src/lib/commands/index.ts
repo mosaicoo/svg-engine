@@ -2,6 +2,7 @@ export { fail, ok, type Command, type CommandContext, type CommandResult } from 
 export { GroupSelectionCommand } from './group-selection.command';
 export { InsertNodeCommand } from './insert-node.command';
 export { MoveNodeCommand } from './move-node.command';
+export { MoveNodeInTreeCommand } from './move-node-in-tree.command';
 export { RemoveNodeCommand } from './remove-node.command';
 export { type ReorderDirection, ReorderNodeCommand } from './reorder-node.command';
 export { composeAnchoredScale, ResizeNodeCommand } from './resize-node.command';

@@ -216,3 +216,123 @@ describe('LayersPanel — group expansion', () => {
     expect(rows(fixture.nativeElement).length).toBe(2); // group + child
   });
 });
+
+describe('LayersPanel — drag-drop reorder (Bloco 4b-DnD)', () => {
+  function seed3() {
+    const ctx = setup();
+    const a = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const b = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const c = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup([a, b, c], { id: ctx.state.document().root.id }),
+    });
+    ctx.fixture.detectChanges();
+    return { ...ctx, a, b, c };
+  }
+
+  /**
+   * Simulate a drag from `srcRow` to `tgtRow` at the given `position`.
+   * jsdom returns zero-dimensional layout rects, so we stub
+   * `getBoundingClientRect` on the target row with a known size so the
+   * component's Y-zone math (top 30% / middle / bottom 30%) works.
+   *
+   * Both `DataTransfer` and `DragEvent` are missing in jsdom — we
+   * dispatch `MouseEvent`s with the drag event-type names; component
+   * handlers guard `dataTransfer` defensively (== null) so the
+   * MouseEvent-without-dataTransfer is accepted.
+   */
+  function simulateDragDrop(
+    srcRow: HTMLElement,
+    tgtRow: HTMLElement,
+    position: 'before' | 'after' | 'inside',
+  ): void {
+    const fakeRect: DOMRect = {
+      top: 0,
+      bottom: 30,
+      left: 0,
+      right: 200,
+      width: 200,
+      height: 30,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    };
+    tgtRow.getBoundingClientRect = () => fakeRect;
+    const y = position === 'before' ? 2 : position === 'after' ? 28 : 15; // 30 * 0.3 boundaries
+    const x = 10;
+    srcRow.dispatchEvent(new MouseEvent('dragstart', { bubbles: true }));
+    tgtRow.dispatchEvent(new MouseEvent('dragover', { bubbles: true, clientX: x, clientY: y }));
+    tgtRow.dispatchEvent(new MouseEvent('drop', { bubbles: true, clientX: x, clientY: y }));
+    srcRow.dispatchEvent(new MouseEvent('dragend', { bubbles: true }));
+  }
+
+  it('drag a → AFTER c: order becomes [b, c, a]', () => {
+    const { state, fixture, a, b, c } = seed3();
+    const rs = rows(fixture.nativeElement);
+    simulateDragDrop(rs[0]!, rs[2]!, 'after');
+    fixture.detectChanges();
+    expect(state.document().root.children.map((ch) => ch.id)).toEqual([b.id, c.id, a.id]);
+  });
+
+  it('drag c → BEFORE a: order becomes [c, a, b]', () => {
+    const { state, fixture, a, b, c } = seed3();
+    const rs = rows(fixture.nativeElement);
+    simulateDragDrop(rs[2]!, rs[0]!, 'before');
+    fixture.detectChanges();
+    expect(state.document().root.children.map((ch) => ch.id)).toEqual([c.id, a.id, b.id]);
+  });
+
+  it('drag onto a group (inside): node becomes first child (reparent)', () => {
+    const { state, fixture } = setup();
+    const inner = createRect({ x: 0, y: 0, width: 5, height: 5 });
+    const grp = createGroup([inner]);
+    const loose = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([grp, loose] as unknown as ReturnType<typeof createRect>[], {
+        id: state.document().root.id,
+      }),
+    });
+    fixture.detectChanges();
+    const rs = rows(fixture.nativeElement);
+    simulateDragDrop(rs[1]!, rs[0]!, 'inside');
+    fixture.detectChanges();
+    const root = state.document().root;
+    expect(root.children.length).toBe(1);
+    expect(
+      (root.children[0] as { children: readonly { id: string }[] }).children.map((ch) => ch.id),
+    ).toEqual([loose.id, inner.id]);
+  });
+
+  it('drag on locked target: no mutation', () => {
+    const { state, fixture, layers, a, b, c } = seed3();
+    layers.setLocked(c.id, true);
+    fixture.detectChanges();
+    const before = state.document();
+    const rs = rows(fixture.nativeElement);
+    simulateDragDrop(rs[0]!, rs[2]!, 'after');
+    fixture.detectChanges();
+    expect(state.document()).toBe(before);
+    expect(state.document().root.children.map((ch) => ch.id)).toEqual([a.id, b.id, c.id]);
+  });
+
+  it('drag onto self: no-op (no mutation)', () => {
+    const { state, fixture, a, b, c } = seed3();
+    const before = state.document();
+    const rs = rows(fixture.nativeElement);
+    simulateDragDrop(rs[1]!, rs[1]!, 'after');
+    fixture.detectChanges();
+    expect(state.document()).toBe(before);
+    expect(state.document().root.children.map((ch) => ch.id)).toEqual([a.id, b.id, c.id]);
+  });
+
+  it('after successful drop, the moved node is selected', () => {
+    const { fixture, selection, a } = seed3();
+    selection.clear();
+    const rs = rows(fixture.nativeElement);
+    simulateDragDrop(rs[0]!, rs[2]!, 'after');
+    fixture.detectChanges();
+    expect(selection.focusId()).toBe(a.id);
+  });
+});

@@ -6,6 +6,102 @@
 
 ---
 
+## 2026-05-17 — Fase 4 Bloco 4b-DnD: drag-drop reorder no layers panel
+
+**Contexto**
+
+Sub-bloco do 4b deferido até agora — agora entregue. Permite que o
+usuário reordene a hierarquia visualmente via drag-drop, incluindo
+reparenting cross-group.
+
+**Mudanças**
+
+`core/lib/commands/move-node-in-tree.command.ts` (novo):
+
+- `MoveNodeInTreeCommand(nodeId, newParentId, newIndex)`: comando
+  atomic para mover qualquer nó (não-root) para qualquer posição
+  em qualquer grupo (mesmo parent OU diferente)
+- Semantic "final-state index": `newIndex` é a posição que o nó
+  ASSUME na children array pós-move (em vez de "índice de insert na
+  array pós-removal"). Mais intuitivo para o caller — sem ajustes
+  de ±1
+- Validações: não pode mover root; targetParent precisa existir e
+  ser group; cycle detection (não pode mover group para seu próprio
+  descendente)
+- No-op detection: mesmo parent + mesma posição final → return ok
+  sem mutar
+- Undo: re-insere no parent + index originais (capturados pré-mutação)
+
+`ui/lib/layers-panel/layers-panel.component.ts`:
+
+- Template: cada `.row` ganha `[draggable]="!isLocked"` +
+  `(dragstart)`, `(dragover)`, `(dragleave)`, `(drop)`, `(dragend)`
+- Classes condicionais `[class.dragging]`, `[class.drop-before]`,
+  `[class.drop-after]`, `[class.drop-inside]` para feedback visual
+- 3 signals novos: `dragSourceId`, `dropTarget` (id + position)
+- Métodos: `onDragStart` (set source), `onDragOver` (compute
+  position via Y-zonas, set dropTarget, preventDefault), `onDragLeave`
+  (clear se sair da row corrente), `onDrop` (dispatch
+  MoveNodeInTreeCommand + select moved node), `onDragEnd` (cleanup)
+- Y-zones: top 30% → 'before', bottom 30% → 'after', middle 40% →
+  'inside' (apenas se target é group; senão fallback 'after')
+- Cycle prevention: `sourceContainsTarget` rejeita drops onde target
+  é descendente do source
+- Helper `resolveTargetParentAndIndex` traduz `(target, position)`
+  → `(parentId, finalIndex)` ajustando para o shift quando same-
+  parent + source ANTES de target
+- CSS: `.dragging` (opacity 0.4 no source), `.drop-before/after`
+  (inset 2px box-shadow primary no topo/bottom), `.drop-inside`
+  (ring + bg primary-container)
+- Após drop ok, `selection.select(source)` — match Figma/Affinity
+
+`core/lib/commands/index.ts`: re-exporta `MoveNodeInTreeCommand`.
+
+**Decisões técnicas**
+
+- **Final-state semantic vs insert-index semantic**: "final-state"
+  é o que o usuário pensa intuitivamente ("eu quero o nó parar AQUI").
+  Insert-index ("eu quero inserir aqui na array já modificada")
+  exigia ajustes mentais ±1 do caller. Move-side faz o cálculo certo
+- **Y-zonas 30/40/30**: top/bottom 30% para before/after deixa zona
+  "inside" de 40% para groups — mais fácil de mirar do que 25/50/25
+- **Cycle prevention no UI E no command**: dupla verificação. UI
+  esconde o indicador (evita "promessa quebrada"). Command rejeita
+  o dispatch (defense in depth — se um caller programático tentar)
+- **`onDragLeave` heurística com `relatedTarget`**: dragleave dispara
+  ao mover sobre filhos do row (mat-icon, button). Filtro
+  `row.contains(related)` evita flickering do indicator
+
+**Cobertura**
+
+- `move-node-in-tree.spec.ts`: 15 testes
+  - Same-parent reorder (move first→last, last→first, middle→first,
+    no-op detection, clamp out-of-range)
+  - Reparent (move INTO group, move OUT of group)
+  - Validation failures (root, missing id, missing parent, non-group
+    parent, self-loop, descendant cycle)
+  - Undo (same-parent + reparent round-trip)
+- `layers-panel.component.spec.ts`: +6 testes
+  - drag after / before
+  - drop inside group (reparent)
+  - drop on locked target (no-op)
+  - drop on self (no-op)
+  - selected after drop
+
+**Total**: +21 testes → **670 passing** em 50 arquivos. Zero regressão.
+
+**Comportamento visível**
+
+- Arrastar layer up/down: linha primary aparece entre rows mostrando
+  onde vai cair
+- Soltar no meio de um group: row do group fica destacada (ring
+  primary + bg primary-container) — drop = reparent
+- Tentar arrastar group A para dentro do próprio A (ou descendente):
+  cursor fica "no entry", nenhum indicator aparece, drop é rejeitado
+- Após drop: nó movido fica selecionado
+
+---
+
 ## 2026-05-17 — Fase 4 Bloco 4z-fixes4: swatch checkerboard condicional
 
 **Contexto**
