@@ -228,7 +228,10 @@
       hidden
       (change)="onImportFileChange($event)"
     />
-    <button type="button" (click)="exportSvg()" title="Download as SVG">Export</button>
+    <button type="button" (click)="exportSvg()" title="Download as SVG">Export SVG</button>
+    <button type="button" (click)="exportPng()" title="Download as PNG (raster via canvas)">
+      Export PNG
+    </button>
     <button type="button" (click)="optimizeDocument()" title="Run built-in optimization passes">
       Optimize
     </button>

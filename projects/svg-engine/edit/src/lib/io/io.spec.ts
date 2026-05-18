@@ -217,7 +217,11 @@ describe('IO round-trip', () => {
       '</svg>';
     const a = svgImporter.import(src);
     if (!a.ok) throw new Error('first parse failed');
+    // svgExporter is sync (returns string); the Exporter contract widens
+    // to `string | Promise<string | Blob>` for the binary-async branch
+    // (see png-exporter), so we narrow here.
     const serialized = svgExporter.export(a.document);
+    if (typeof serialized !== 'string') throw new Error('SVG exporter expected to be sync');
     const b = svgImporter.import(serialized);
     if (!b.ok) throw new Error('re-parse failed');
     expect(b.document.viewBox).toEqual(a.document.viewBox);

@@ -425,13 +425,42 @@ export class PlaygroundHome implements OnDestroy {
    * download. Filename is `svge-export-<timestamp>.svg`.
    */
   protected exportSvg(): void {
-    const exporter = this.exporters.byMediaType('image/svg+xml');
+    void this.exportAs('image/svg+xml');
+  }
+
+  /**
+   * Export the current document as PNG (Item 6 — reference plugin
+   * demonstrating async / binary exporters). Filename is
+   * `svge-export-<timestamp>.png`.
+   */
+  protected exportPng(): void {
+    void this.exportAs('image/png');
+  }
+
+  /**
+   * Generic download helper that handles BOTH sync (text) and async
+   * (binary) exporters uniformly. The {@link Exporter.export} contract
+   * returns `string | Promise<string | Blob>` so we normalize via
+   * `Promise.resolve(...)` and branch on the resolved type.
+   *
+   * Lookup is by media type so the same code path works for any
+   * exporter the consumer happens to have registered.
+   */
+  private async exportAs(mediaType: string): Promise<void> {
+    const exporter = this.exporters.byMediaType(mediaType);
     if (exporter === null) {
-      console.warn('Playground: no SVG exporter registered');
+      console.warn(`Playground: no exporter registered for "${mediaType}"`);
       return;
     }
-    const text = exporter.export(this.state.document());
-    const blob = new Blob([text], { type: exporter.mediaType });
+    let payload: string | Blob;
+    try {
+      payload = await Promise.resolve(exporter.export(this.state.document()));
+    } catch (e) {
+      console.error(`Playground: export failed —`, e);
+      return;
+    }
+    const blob =
+      typeof payload === 'string' ? new Blob([payload], { type: exporter.mediaType }) : payload;
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

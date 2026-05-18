@@ -42,14 +42,25 @@ export interface Importer {
  * - `id`/`name`: identifier + label
  * - `mediaType`: emitted MIME type (e.g., `'image/svg+xml'`)
  * - `extension`: suggested file extension WITHOUT the dot
- * - `export(doc)`: serialize the document. Returns `string` for text-
- *   formats. Binary formats (PNG via canvas) can return Promise<Blob>
- *   via the {@link AsyncExporter} variant — left for future plugins.
+ * - `export(doc)`: serialize the document. Returns `string` for text
+ *   formats (SVG), or `Promise<string | Blob>` for binary / async
+ *   formats (PNG via canvas, PDF, etc. — anything that needs Image
+ *   loading or worker offload).
+ *
+ * **Why the union return type**: text-format exporters (SVG) are
+ * cheap + synchronous; forcing them to wrap in `Promise` would add
+ * noise + slow down the common case. Binary exporters are inherently
+ * async due to `Image.onload`. The union lets each format express
+ * its natural shape.
+ *
+ * Consumers check `typeof result === 'string'` for the sync branch
+ * and `await result` for the async branch (or use `await Promise.resolve(result)`
+ * to handle both uniformly).
  */
 export interface Exporter {
   readonly id: string;
   readonly name: string;
   readonly mediaType: string;
   readonly extension: string;
-  export(document: SvgDocument): string;
+  export(document: SvgDocument): string | Promise<string | Blob>;
 }
