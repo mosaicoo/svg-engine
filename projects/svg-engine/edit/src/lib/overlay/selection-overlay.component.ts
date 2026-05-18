@@ -94,7 +94,10 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
             [attr.width]="handleSize()"
             [attr.height]="handleSize()"
             [attr.data-svge-handle]="h.anchor"
-            [attr.aria-label]="'Resize ' + h.anchor"
+            [attr.aria-label]="'Resize handle, ' + h.anchor"
+            role="button"
+            tabindex="0"
+            focusable="true"
             (pointerdown)="onResizeHandlePointerDown($event, h.anchor)"
             (pointermove)="onHandlePointerMove($event)"
             (pointerup)="onHandlePointerUp($event)"
@@ -115,7 +118,10 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
             [attr.cy]="r.y"
             [attr.r]="handleHalf()"
             [attr.data-svge-handle]="'rotation'"
-            aria-label="Rotation"
+            aria-label="Rotation handle"
+            role="button"
+            tabindex="0"
+            focusable="true"
             (pointerdown)="onRotationHandlePointerDown($event)"
             (pointermove)="onHandlePointerMove($event)"
             (pointerup)="onHandlePointerUp($event)"
@@ -144,6 +150,20 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
       vector-effect: non-scaling-stroke;
       cursor: pointer;
       touch-action: none;
+      /* Default outline removed so the keyboard-focus ring (below) is
+         the only visual focus affordance. Without this, native browser
+         outlines from tabindex=0 would show on hover/click via :focus
+         (mouse), which is noisy. The focus-visible rule keeps it
+         keyboard-only. */
+      outline: none;
+    }
+    .handle:focus-visible {
+      /* Keyboard-only focus ring — accessibility (Fase 6c-2). Orange
+         glow ensures contrast against the default primary-blue stroke,
+         visible on both light and dark canvases. */
+      stroke: #ff6f00;
+      stroke-width: 2;
+      filter: drop-shadow(0 0 2px rgba(255, 111, 0, 0.5));
     }
     .handle.resize {
       cursor: grab;

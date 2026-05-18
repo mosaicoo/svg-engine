@@ -8,6 +8,7 @@ import {
   pencilToolPlugin,
   pngExporterPlugin,
   provideSvgEnginePlugin,
+  selectionNudgePlugin,
   selectToolPlugin,
 } from 'svg-engine/edit';
 
@@ -34,5 +35,8 @@ export const appConfig: ApplicationConfig = {
     // Built-in optimization passes (Fase 5-Optimize) — precision rounding,
     // drop SVG default attrs, prune empty groups.
     provideSvgEnginePlugin(builtinOptimizersPlugin),
+    // Arrow-key nudge for selection (Fase 6c-2 a11y). Keyboard-only
+    // users get parity with pointer drag for the most common edit op.
+    provideSvgEnginePlugin(selectionNudgePlugin),
   ],
 };
