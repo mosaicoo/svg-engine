@@ -6,6 +6,54 @@
 
 ---
 
+## 2026-05-17 — Fase 4 Bloco 4z-fixes4: swatch checkerboard condicional
+
+**Contexto**
+
+Usuário reportou que os swatches da paleta de cores apareciam todos
+com padrão xadrez/transparente, mesmo para cores sólidas — visual
+"polka-dot" desnecessário. O checkerboard só faz sentido quando o
+swatch representa cor com transparência real.
+
+**Mudanças**
+
+`ui/lib/color-palette/color-palette.component.ts`:
+
+- Removido `background-image` (checker) do `.swatch` base
+- Adicionado APENAS ao `.swatch.transparent` (a swatch X-vermelha
+  de "limpar cor" da paleta GREYS). Cores sólidas Material/Tailwind
+  agora renderizam como chips limpos
+
+`ui/lib/inspector/inspector.component.ts`:
+
+- Novo `swatchShowChecker(field): boolean` — true quando cor é
+  `transparent`/`none` OU `fillOpacity`/`strokeOpacity` < 1
+- Template binda `[class.show-checker]` nos dois swatches
+- CSS: `background-image` checker movido de `.field-row .swatch`
+  para `.field-row .swatch.show-checker`. Solid opaque colors agora
+  renderizam como chip limpo
+
+**Decisão técnica**
+
+- **Checker condicional vs sempre-visível**: padrão da indústria
+  (Photoshop/Figma/Affinity) — checker SÓ quando há transparência
+  real. 2 casos onde tem valor: swatch explícito "transparent",
+  preview de cor com alpha < 1
+
+**Cobertura**
+
+Sem testes novos (mudança visual, lógica trivial). Specs existentes
+green. **649 passing** em 49 arquivos.
+
+**Pendência registrada no roadmap (Fase 6)**
+
+Polish de tema light/dark — coletar conforme aparecer:
+
+- Combobox / `<select>` nativo: background em dark mode
+- Migrar `<select>` da toolbar para `<mat-select>`
+
+---
+
 ## 2026-05-17 — Fase 4 Bloco 4z-fixes3: theme override propagado (Material vars explícitos)
 
 **Contexto**

@@ -248,6 +248,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
               <span class="lbl">fill</span>
               <span
                 class="swatch"
+                [class.show-checker]="swatchShowChecker('fill')"
                 [style.background-color]="swatchColorWithAlpha('fill')"
                 [title]="rawStyleColor('fill')"
                 aria-hidden="true"
@@ -289,6 +290,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
               <span class="lbl">stroke</span>
               <span
                 class="swatch"
+                [class.show-checker]="swatchShowChecker('stroke')"
                 [style.background-color]="swatchColorWithAlpha('stroke')"
                 [title]="rawStyleColor('stroke')"
                 aria-hidden="true"
@@ -495,15 +497,19 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
        native picker via the browser's label-input association. Result:
        one element to look at AND to click (Figma/Affinity pattern).
 
-       Background-image draws a checkerboard backdrop so transparent /
-       semi-transparent fills show through. The [style.background-color]
-       binding paints the real model color on top. */
+       Bloco 4z-fixes4: checkerboard backdrop is now CONDITIONAL via
+       the .show-checker class, added only when the color is transparent
+       or alpha < 1. Solid opaque fills render as a clean solid chip
+       (no polka dots). */
     .field-row .swatch {
       flex: 0 0 28px;
       width: 28px;
       height: 22px;
       border-radius: 4px;
       border: 1px solid var(--mat-sys-outline-variant, #ccc);
+      transition: border-color 120ms;
+    }
+    .field-row .swatch.show-checker {
       background-image:
         linear-gradient(45deg, #ccc 25%, transparent 25%),
         linear-gradient(-45deg, #ccc 25%, transparent 25%),
@@ -515,7 +521,6 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
         0 4px,
         4px -4px,
         -4px 0;
-      transition: border-color 120ms;
     }
     .field-row:not(.disabled):hover .swatch {
       border-color: var(--mat-sys-primary, #1976d2);
@@ -703,6 +708,24 @@ export class SvgeInspector {
     const g = Number.parseInt(hex.slice(3, 5), 16);
     const b = Number.parseInt(hex.slice(5, 7), 16);
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  /**
+   * Whether the swatch for `field` should render the checkerboard
+   * backdrop (Bloco 4z-fixes4). True when the underlying paint is
+   * "see-through" — either the color itself is `'transparent'` /
+   * `'none'` / undefined, OR the field's alpha is < 1. False for
+   * solid opaque colors so the swatch renders as a clean chip.
+   */
+  protected swatchShowChecker(field: 'fill' | 'stroke'): boolean {
+    const raw = this.rawStyleColor(field);
+    if (raw === 'transparent' || raw === 'none') return true;
+    const node = this.focusNode();
+    if (node === null) return false;
+    const alphaField: 'fillOpacity' | 'strokeOpacity' =
+      field === 'fill' ? 'fillOpacity' : 'strokeOpacity';
+    const alpha = node.style[alphaField];
+    return typeof alpha === 'number' && Number.isFinite(alpha) && alpha < 1;
   }
 
   /**

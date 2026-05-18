@@ -95,8 +95,12 @@ import { type Palette, PaletteRegistry } from 'svg-engine/edit';
       flex-wrap: wrap;
       gap: 4px;
     }
-    /* Swatch chip — slightly smaller than the inspector's per-field
-       swatch (24×16 vs 28×22) so a full palette fits in two rows. */
+    /* Swatch chip — slightly smaller than the inspector per-field
+       swatch (24×16 vs 28×22) so a full palette fits in two rows.
+       Palette entries are by definition opaque named colors, so no
+       checkerboard backdrop — that would make solid colors look
+       polka-dotted (Bloco 4z-fixes4). Only the explicit transparent
+       swatch (.swatch.transparent below) gets the checker pattern. */
     .swatch {
       flex: 0 0 24px;
       width: 24px;
@@ -107,8 +111,23 @@ import { type Palette, PaletteRegistry } from 'svg-engine/edit';
       cursor: pointer;
       position: relative;
       transition: transform 80ms;
-      /* Checkerboard backdrop for transparent / semi-transparent
-         swatches — same pattern as the inspector field swatch. */
+    }
+    .swatch:hover {
+      transform: scale(1.12);
+      border-color: var(--mat-sys-primary, #1976d2);
+      z-index: 1;
+    }
+    .swatch:focus-visible {
+      outline: 2px solid var(--mat-sys-primary, #1976d2);
+      outline-offset: 1px;
+    }
+    /* Only the transparent swatch (.swatch.transparent class) gets the
+       universal "no fill" checkerboard backdrop + red block icon. */
+    .swatch.transparent {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: transparent;
       background-image:
         linear-gradient(45deg, #ddd 25%, transparent 25%),
         linear-gradient(-45deg, #ddd 25%, transparent 25%),
@@ -120,21 +139,6 @@ import { type Palette, PaletteRegistry } from 'svg-engine/edit';
         0 3px,
         3px -3px,
         -3px 0;
-    }
-    .swatch:hover {
-      transform: scale(1.12);
-      border-color: var(--mat-sys-primary, #1976d2);
-      z-index: 1;
-    }
-    .swatch:focus-visible {
-      outline: 2px solid var(--mat-sys-primary, #1976d2);
-      outline-offset: 1px;
-    }
-    .swatch.transparent {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background-color: transparent;
     }
     .swatch.transparent .x-icon {
       font-size: 14px;

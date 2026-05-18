@@ -275,6 +275,10 @@
 - [ ] Profiling: 60fps em pan/zoom com 1k+ elementos como meta
 - [ ] Acessibilidade (foco, ARIA, navegação por teclado)
 - [ ] Documentação de uso da library
+- [ ] **Polish de tema light/dark** (parking lot — coletar conforme aparecer):
+  - Combobox / `<select>` nativo: background em dark mode (cor padrão do browser não harmoniza com a paleta Material)
+  - Outros controles que vamos descobrir ao usar a app em ambos os temas
+  - Idealmente migrar `<select>` da toolbar para Material `<mat-select>`
 
 ## Fase 7 — Backend .NET (condicional)
 
