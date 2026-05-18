@@ -15,6 +15,7 @@ import {
   OptimizeCommand,
   OptimizerRegistry,
   SelectionService,
+  SvgeViewportCullingDirective,
 } from 'svg-engine/edit';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
 import { FpsMeter } from './fps-meter';
@@ -57,7 +58,7 @@ import { createSyntheticDoc } from './synth-doc';
 @Component({
   selector: 'app-pg-perf',
   standalone: true,
-  imports: [SvgeRenderer],
+  imports: [SvgeRenderer, SvgeViewportCullingDirective],
   templateUrl: './perf.component.html',
   styleUrl: './perf.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -118,6 +119,15 @@ export class PerfPage implements OnDestroy {
 
   /** True while the pan/zoom benchmark is running (disables buttons). */
   protected readonly busyBenchmark = signal(false);
+
+  /**
+   * Toggle for the `[svgeViewportCulling]` directive (Fase 6b-2). When
+   * `true`, the renderer applies `data-svge-culled="1"` to top-level
+   * children outside the visible viewBox; CSS rule turns them into
+   * `display: none` so the browser skips paint. Toggle off to compare
+   * before/after on the same loaded document.
+   */
+  protected readonly cullingEnabled = signal(true);
 
   /** Tree + viewBox bindings for the renderer. */
   protected readonly tree = computed(() => this.state.document().root);

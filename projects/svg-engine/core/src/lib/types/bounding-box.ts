@@ -29,3 +29,18 @@ export function unionBBox(a: BoundingBox, b: BoundingBox): BoundingBox {
 export function containsPoint(box: BoundingBox, x: number, y: number): boolean {
   return x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height;
 }
+
+/**
+ * Test whether two axis-aligned bounding boxes intersect (overlap by at
+ * least one shared point including edges). Symmetric: `intersectsBBox(a, b)`
+ * equals `intersectsBBox(b, a)`.
+ *
+ * Used by viewport culling (Fase 6b-2) to decide whether a node's bbox
+ * overlaps the visible viewBox — if not, the node can be culled from
+ * the SVG render tree without changing visible output.
+ */
+export function intersectsBBox(a: BoundingBox, b: BoundingBox): boolean {
+  return (
+    a.x <= b.x + b.width && a.x + a.width >= b.x && a.y <= b.y + b.height && a.y + a.height >= b.y
+  );
+}

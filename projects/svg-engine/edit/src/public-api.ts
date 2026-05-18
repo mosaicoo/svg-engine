@@ -91,3 +91,6 @@ export * from './lib/io';
 
 // Optimization pipeline (Fase 5-Optimize)
 export * from './lib/optimize';
+
+// Viewport culling (Fase 6b-2 — perf for large docs)
+export * from './lib/viewport-culling';

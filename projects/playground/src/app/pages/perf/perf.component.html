@@ -41,6 +41,20 @@
   </fieldset>
 
   <fieldset>
+    <legend>Render mode</legend>
+    <label
+      title="When ON, top-level nodes outside the visible viewBox are removed from the SVG render tree via data-svge-culled attribute + display:none. Toggle OFF to measure the no-culling baseline on the same loaded doc."
+    >
+      <input
+        type="checkbox"
+        [checked]="cullingEnabled()"
+        (change)="cullingEnabled.set($any($event.target).checked)"
+      />
+      Viewport culling
+    </label>
+  </fieldset>
+
+  <fieldset>
     <legend>Benchmarks</legend>
     <button
       type="button"
@@ -111,11 +125,20 @@
 </section>
 
 <section class="perf-canvas" aria-label="Render preview">
-  <svge-renderer
-    [tree]="tree()"
-    [viewBox]="viewBox()"
-    [ariaLabel]="'Performance harness — ' + loadedCount() + ' nodes'"
-  ></svge-renderer>
+  @if (cullingEnabled()) {
+    <svge-renderer
+      svgeViewportCulling
+      [tree]="tree()"
+      [viewBox]="viewBox()"
+      [ariaLabel]="'Performance harness — ' + loadedCount() + ' nodes (culling on)'"
+    ></svge-renderer>
+  } @else {
+    <svge-renderer
+      [tree]="tree()"
+      [viewBox]="viewBox()"
+      [ariaLabel]="'Performance harness — ' + loadedCount() + ' nodes (culling off)'"
+    ></svge-renderer>
+  }
 </section>
 
 <footer class="perf-help">

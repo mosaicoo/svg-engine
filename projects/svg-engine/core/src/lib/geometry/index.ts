@@ -26,3 +26,4 @@ export {
   decomposeTransform,
   type DecomposedTransform,
 } from './transform-decompose';
+export { getNodeBBox } from './node-bbox';
