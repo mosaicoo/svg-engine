@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { WorkspaceService } from './workspace.service';
+import { ViewportService } from 'svg-engine/render';
+import { pageBoundsIn, WorkspaceService } from './workspace.service';
 
 /**
  * SVG overlay that draws a visible **page marker** (the printable area)
@@ -47,17 +48,18 @@ import { WorkspaceService } from './workspace.service';
   selector: 'g[svgePageOverlay]',
   standalone: true,
   template: `
-    @if (effectivePage(); as p) {
+    @if (pageBounds(); as p) {
       <!--
-        Outer page rectangle — the visible "paper" of the canvas. Subtle
-        drop shadow via SVG filter would require <defs> coordination;
-        kept simple with a plain outline + faint fill so consumers can
-        style further via CSS variables on host.
+        Outer page rectangle — the visible "paper" of the canvas.
+        Anchored at the page's computed origin (centered inside the
+        viewport contentBox via the pageBoundsIn helper). Grid and
+        guides overlays use the same helper so they stay aligned to
+        the same rectangle.
       -->
       <svg:rect
         class="page-rect"
-        [attr.x]="0"
-        [attr.y]="0"
+        [attr.x]="p.x"
+        [attr.y]="p.y"
         [attr.width]="p.width"
         [attr.height]="p.height"
       />
@@ -99,31 +101,29 @@ import { WorkspaceService } from './workspace.service';
 })
 export class PageOverlay {
   private readonly ws = inject(WorkspaceService);
+  private readonly viewport = inject(ViewportService);
 
   /**
-   * Effective page dimensions after orientation swap. `portrait` swaps
-   * width/height so the displayed rect always matches the user's
-   * intuition (portrait = tall, landscape = wide).
+   * Page rectangle (in document coordinates) centered inside the
+   * viewport's contentBox via the shared {@link pageBoundsIn} helper.
+   * Returns null when page has zero dims (defensive — patchPage
+   * validation rejects that, but tests may stub).
    */
-  protected readonly effectivePage = computed<{ width: number; height: number } | null>(() => {
-    const p = this.ws.page();
-    if (p.width <= 0 || p.height <= 0) return null;
-    if (p.orientation === 'portrait') {
-      // Swap only when the supplied dims are landscape-oriented (w > h).
-      // If user typed taller-than-wide AND chose 'portrait', already correct.
-      return p.width > p.height
-        ? { width: p.height, height: p.width }
-        : { width: p.width, height: p.height };
-    }
-    // 'landscape': inverse condition.
-    return p.height > p.width
-      ? { width: p.height, height: p.width }
-      : { width: p.width, height: p.height };
+  protected readonly pageBounds = computed<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(() => {
+    const page = this.ws.page();
+    if (page.width <= 0 || page.height <= 0) return null;
+    return pageBoundsIn(this.viewport.contentBox(), page);
   });
 
   /**
    * Inner safe-area rect dimensions, OR null when all margins are zero
-   * (skip rendering the dashed inset rect entirely).
+   * (skip rendering the dashed inset rect entirely). Anchored to the
+   * page's resolved origin so it slides with the centered page.
    */
   protected readonly marginsRect = computed<{
     x: number;
@@ -132,12 +132,12 @@ export class PageOverlay {
     height: number;
   } | null>(() => {
     const m = this.ws.page().margins;
-    const effective = this.effectivePage();
-    if (effective === null) return null;
+    const bounds = this.pageBounds();
+    if (bounds === null) return null;
     if (m.top === 0 && m.right === 0 && m.bottom === 0 && m.left === 0) return null;
-    const width = effective.width - m.left - m.right;
-    const height = effective.height - m.top - m.bottom;
+    const width = bounds.width - m.left - m.right;
+    const height = bounds.height - m.top - m.bottom;
     if (width <= 0 || height <= 0) return null;
-    return { x: m.left, y: m.top, width, height };
+    return { x: bounds.x + m.left, y: bounds.y + m.top, width, height };
   });
 }

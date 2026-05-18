@@ -301,3 +301,72 @@ describe('wheelZoomSensitivityFromSpeed (helper)', () => {
     expect(wheelZoomSensitivityFromSpeed(-5)).toBeCloseTo(0.0002, 6);
   });
 });
+
+describe('pageBoundsIn (helper)', () => {
+  const defaultPage = {
+    width: 800,
+    height: 600,
+    orientation: 'landscape' as const,
+    margins: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+
+  it('page == contentBox → bounds at origin', async () => {
+    const { pageBoundsIn } = await import('./workspace.service');
+    const out = pageBoundsIn({ width: 800, height: 600 }, defaultPage);
+    expect(out).toEqual({ x: 0, y: 0, width: 800, height: 600 });
+  });
+
+  it('page < contentBox → centered both axes', async () => {
+    const { pageBoundsIn } = await import('./workspace.service');
+    const out = pageBoundsIn(
+      { width: 1200, height: 800 },
+      { ...defaultPage, width: 400, height: 300 },
+    );
+    expect(out).toEqual({ x: 400, y: 250, width: 400, height: 300 });
+  });
+
+  it('page > contentBox → clamped to origin (no negative coords)', async () => {
+    const { pageBoundsIn } = await import('./workspace.service');
+    const out = pageBoundsIn(
+      { width: 200, height: 200 },
+      { ...defaultPage, width: 800, height: 600 },
+    );
+    expect(out.x).toBe(0);
+    expect(out.y).toBe(0);
+    expect(out.width).toBe(800);
+    expect(out.height).toBe(600);
+  });
+
+  it('orientation swap: portrait + landscape-shaped dims → swap', async () => {
+    const { pageBoundsIn } = await import('./workspace.service');
+    const out = pageBoundsIn(
+      { width: 1000, height: 1000 },
+      { ...defaultPage, width: 800, height: 400, orientation: 'portrait' },
+    );
+    // Effective dims = 400×800 (swapped); centered in 1000×1000
+    expect(out.width).toBe(400);
+    expect(out.height).toBe(800);
+    expect(out.x).toBe(300);
+    expect(out.y).toBe(100);
+  });
+
+  it('orientation swap: landscape + portrait-shaped dims → swap', async () => {
+    const { pageBoundsIn } = await import('./workspace.service');
+    const out = pageBoundsIn(
+      { width: 1000, height: 1000 },
+      { ...defaultPage, width: 400, height: 800, orientation: 'landscape' },
+    );
+    expect(out.width).toBe(800);
+    expect(out.height).toBe(400);
+  });
+
+  it('orientation matches authored shape: no swap', async () => {
+    const { pageBoundsIn } = await import('./workspace.service');
+    const out = pageBoundsIn(
+      { width: 1000, height: 1000 },
+      { ...defaultPage, width: 800, height: 600, orientation: 'landscape' },
+    );
+    expect(out.width).toBe(800);
+    expect(out.height).toBe(600);
+  });
+});

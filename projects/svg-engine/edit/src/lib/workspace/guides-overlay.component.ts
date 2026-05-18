@@ -8,7 +8,7 @@ import {
   type OnDestroy,
 } from '@angular/core';
 import { ViewportService } from 'svg-engine/render';
-import { WorkspaceService } from './workspace.service';
+import { pageBoundsIn, WorkspaceService } from './workspace.service';
 
 /**
  * SVG overlay that renders user-drawn guide lines (Bloco 4f) with
@@ -138,25 +138,23 @@ export class GuidesOverlay implements OnDestroy {
   /**
    * Guide line span — clipped to the **intersection of viewport and
    * page bounds** so guides stay within the editable canvas (matches
-   * the grid-clip behaviour, Fase 6 UX polish). When the page extends
-   * beyond the viewport, the visible portion shrinks; when the viewport
-   * extends beyond the page (zoom-out), the guide stops at the page
-   * edge so the pasteboard area remains visually empty.
-   *
-   * Falls back to the viewport bounds when page has zero dims
-   * (defensive — patchPage validation rejects that, but tests may
-   * inject a stub).
+   * the grid-clip behaviour, Fase 6 UX polish). Page bounds are
+   * resolved via the shared {@link pageBoundsIn} helper so they
+   * align with the page rect rendered by `PageOverlay` (centered in
+   * the contentBox, not anchored at world origin).
    */
   private readonly clipBounds = computed(() => {
     const vb = this.viewport.viewBox();
     const page = this.ws.page();
-    const pageW = page.width > 0 ? page.width : vb.width;
-    const pageH = page.height > 0 ? page.height : vb.height;
-    // Page starts at origin (matches page-overlay anchor).
-    const left = Math.max(vb.x, 0);
-    const top = Math.max(vb.y, 0);
-    const right = Math.min(vb.x + vb.width, pageW);
-    const bottom = Math.min(vb.y + vb.height, pageH);
+    if (page.width <= 0 || page.height <= 0) {
+      // Defensive fallback to full viewport when page is malformed.
+      return { left: vb.x, top: vb.y, right: vb.x + vb.width, bottom: vb.y + vb.height };
+    }
+    const pb = pageBoundsIn(this.viewport.contentBox(), page);
+    const left = Math.max(vb.x, pb.x);
+    const top = Math.max(vb.y, pb.y);
+    const right = Math.min(vb.x + vb.width, pb.x + pb.width);
+    const bottom = Math.min(vb.y + vb.height, pb.y + pb.height);
     return { left, top, right, bottom };
   });
 

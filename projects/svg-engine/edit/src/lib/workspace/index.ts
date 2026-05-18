@@ -3,6 +3,7 @@ export {
   type GridConfig,
   type Guide,
   type InteractionConfig,
+  pageBoundsIn,
   type PageConfig,
   type RulersConfig,
   WHEEL_ZOOM_SPEED_MAX,

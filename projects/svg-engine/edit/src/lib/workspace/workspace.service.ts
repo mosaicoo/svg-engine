@@ -145,6 +145,43 @@ export function wheelZoomSensitivityFromSpeed(speed: number): number {
 }
 
 /**
+ * Resolved page bounds (in document coordinates) computed from the
+ * raw {@link PageConfig} + the viewport's content box. The page is
+ * **centered** inside the content box when the content box is larger
+ * than the page (the common case) — matches Illustrator / Affinity
+ * convention where the "paper" sits in the middle of the workspace
+ * and pasteboard surrounds it.
+ *
+ * **Orientation swap**: same logic as in `PageOverlay.effectivePage` —
+ * portrait+landscape-shaped dims swap, landscape+portrait-shaped dims
+ * swap. Other combos stay as authored.
+ *
+ * **When content box equals page**: page bounds = (0, 0, page.w, page.h).
+ * No pasteboard exists. Matches the prior hardcoded behaviour.
+ *
+ * Shared between `PageOverlay` (rendering the rect), `GridOverlay`
+ * (clipping grid lines to the page area), and `GuidesOverlay`
+ * (clipping guide spans). Keeping the math in ONE function means all
+ * three stay in sync when the rule changes.
+ */
+export function pageBoundsIn(
+  contentBox: { readonly width: number; readonly height: number },
+  page: PageConfig,
+): { readonly x: number; readonly y: number; readonly width: number; readonly height: number } {
+  const portraitShaped = page.width <= page.height;
+  const wantsPortrait = page.orientation === 'portrait';
+  // Swap when authored shape disagrees with orientation choice.
+  const swap = wantsPortrait !== portraitShaped;
+  const effW = swap ? page.height : page.width;
+  const effH = swap ? page.width : page.height;
+  // Center inside contentBox; clamp at 0 so a page larger than the
+  // contentBox doesn't render at negative coords (sticks to origin).
+  const x = Math.max(0, (contentBox.width - effW) / 2);
+  const y = Math.max(0, (contentBox.height - effH) / 2);
+  return { x, y, width: effW, height: effH };
+}
+
+/**
  * Editor-side **workspace presentation state** (D-021 resolution).
  *
  * Holds non-document configuration that describes how the canvas is
