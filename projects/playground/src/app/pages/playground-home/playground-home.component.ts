@@ -64,7 +64,14 @@ import {
   WorkspaceService,
 } from 'svg-engine/edit';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
-import { LayersPanel, SvgeInspector, SvgeRulers, SvgeThemeToggle } from 'svg-engine/ui';
+import {
+  LayersPanel,
+  SvgeInspector,
+  SvgeRulers,
+  SvgeThemeToggle,
+  SvgeWorkspaceSettings,
+} from 'svg-engine/ui';
+import { MatDialog } from '@angular/material/dialog';
 
 type ShapeKind = 'rect' | 'ellipse' | 'path';
 
@@ -136,6 +143,7 @@ export class PlaygroundHome implements OnDestroy {
   private readonly importers = inject(ImporterRegistry);
   private readonly exporters = inject(ExporterRegistry);
   private readonly optimizers = inject(OptimizerRegistry);
+  private readonly dialog = inject(MatDialog);
 
   /** Reference to the hidden `<input type="file">` for SVG import. */
   protected readonly importFileRef = viewChild<ElementRef<HTMLInputElement>>('importFile');
@@ -354,6 +362,16 @@ export class PlaygroundHome implements OnDestroy {
   protected addVGuide(): void {
     const vb = this.viewport.viewBox();
     this.ws.addGuide('v', vb.x + vb.width / 2);
+  }
+
+  /**
+   * Open the Material workspace-settings dialog (Item 2 — débito 4f).
+   * The dialog edits page/grid/rulers/guides via the WorkspaceService
+   * APIs; no command-bus involvement (workspace state is presentation,
+   * not document, per D-021).
+   */
+  protected openWorkspaceSettings(): void {
+    this.dialog.open(SvgeWorkspaceSettings, { width: '420px' });
   }
 
   // ── Fase 5-IO + Optimize integration ───────────────────────────

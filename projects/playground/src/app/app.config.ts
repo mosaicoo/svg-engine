@@ -1,4 +1,5 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter } from '@angular/router';
 import {
   builtinIoPlugin,
@@ -14,6 +15,9 @@ import { routes } from './app.routes';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
+    // Required by MatDialog (used by the workspace-settings dialog).
+    // Async variant lazy-loads BrowserAnimationsModule on first use.
+    provideAnimationsAsync(),
     provideRouter(routes),
     // Builtin tool plugins (Bloco 5b). Order matters: select first so it
     // becomes the natural default in the toolbar.
