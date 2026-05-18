@@ -310,31 +310,21 @@ describe('pageBoundsIn (helper)', () => {
     margins: { top: 0, right: 0, bottom: 0, left: 0 },
   };
 
-  it('page == contentBox → bounds at origin', async () => {
+  it('always anchors at doc origin (0, 0) regardless of contentBox size', async () => {
     const { pageBoundsIn } = await import('./workspace.service');
-    const out = pageBoundsIn({ width: 800, height: 600 }, defaultPage);
-    expect(out).toEqual({ x: 0, y: 0, width: 800, height: 600 });
-  });
-
-  it('page < contentBox → centered both axes', async () => {
-    const { pageBoundsIn } = await import('./workspace.service');
+    // contentBox much larger than page → still (0, 0)
     const out = pageBoundsIn(
-      { width: 1200, height: 800 },
+      { width: 2000, height: 1500 },
       { ...defaultPage, width: 400, height: 300 },
     );
-    expect(out).toEqual({ x: 400, y: 250, width: 400, height: 300 });
+    expect(out).toEqual({ x: 0, y: 0, width: 400, height: 300 });
   });
 
-  it('page > contentBox → clamped to origin (no negative coords)', async () => {
+  it('contentBox dims are ignored (page anchored at ruler 0)', async () => {
     const { pageBoundsIn } = await import('./workspace.service');
-    const out = pageBoundsIn(
-      { width: 200, height: 200 },
-      { ...defaultPage, width: 800, height: 600 },
-    );
-    expect(out.x).toBe(0);
-    expect(out.y).toBe(0);
-    expect(out.width).toBe(800);
-    expect(out.height).toBe(600);
+    const a = pageBoundsIn({ width: 100, height: 100 }, defaultPage);
+    const b = pageBoundsIn({ width: 5000, height: 5000 }, defaultPage);
+    expect(a).toEqual(b); // contentBox doesn't affect the result
   });
 
   it('orientation swap: portrait + landscape-shaped dims → swap', async () => {
@@ -343,11 +333,11 @@ describe('pageBoundsIn (helper)', () => {
       { width: 1000, height: 1000 },
       { ...defaultPage, width: 800, height: 400, orientation: 'portrait' },
     );
-    // Effective dims = 400×800 (swapped); centered in 1000×1000
+    // Effective dims = 400×800 (swapped); anchored at (0,0)
     expect(out.width).toBe(400);
     expect(out.height).toBe(800);
-    expect(out.x).toBe(300);
-    expect(out.y).toBe(100);
+    expect(out.x).toBe(0);
+    expect(out.y).toBe(0);
   });
 
   it('orientation swap: landscape + portrait-shaped dims → swap', async () => {

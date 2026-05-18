@@ -49,6 +49,7 @@ import {
   OptimizeCommand,
   OptimizerRegistry,
   PageOverlay,
+  pageBoundsIn,
   resolveNodeIdFromEvent,
   RotationPivot,
   SELECT_TOOL_ID,
@@ -478,9 +479,21 @@ export class PlaygroundHome implements OnDestroy {
       console.warn(`Playground: no exporter registered for "${mediaType}"`);
       return;
     }
+    // Export respects PAGE dimensions, not document.viewBox (which may
+    // include pasteboard). We compose an "export document" with viewBox
+    // = page bounds (origin 0,0 + effective page dims after orientation
+    // swap). This is what users intuitively expect: the page IS what
+    // gets exported; the surrounding pasteboard is editor-only.
+    const doc = this.state.document();
+    const page = this.workspace.page();
+    const pb = pageBoundsIn(this.viewport.contentBox(), page);
+    const exportDoc = {
+      ...doc,
+      viewBox: { x: pb.x, y: pb.y, width: pb.width, height: pb.height },
+    };
     let payload: string | Blob;
     try {
-      payload = await Promise.resolve(exporter.export(this.state.document()));
+      payload = await Promise.resolve(exporter.export(exportDoc));
     } catch (e) {
       console.error(`Playground: export failed —`, e);
       return;
