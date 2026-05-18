@@ -130,12 +130,14 @@
       svgeViewportCulling
       [tree]="tree()"
       [viewBox]="viewBox()"
+      [defs]="defs()"
       [ariaLabel]="'Performance harness — ' + loadedCount() + ' nodes (culling on)'"
     ></svge-renderer>
   } @else {
     <svge-renderer
       [tree]="tree()"
       [viewBox]="viewBox()"
+      [defs]="defs()"
       [ariaLabel]="'Performance harness — ' + loadedCount() + ' nodes (culling off)'"
     ></svge-renderer>
   }

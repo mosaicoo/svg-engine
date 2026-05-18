@@ -153,6 +153,8 @@ export class PlaygroundHome implements OnDestroy {
 
   protected readonly tree = computed(() => this.state.document().root);
   protected readonly viewBox = computed(() => this.state.document().viewBox);
+  /** Reusable-defs fragment (Fase 6c-1) — round-tripped from imported SVGs. */
+  protected readonly defs = computed(() => this.state.document().defs ?? null);
   protected readonly nodeCount = this.state.nodeCount;
   protected readonly canUndo = this.history.canUndo;
   protected readonly canRedo = this.history.canRedo;

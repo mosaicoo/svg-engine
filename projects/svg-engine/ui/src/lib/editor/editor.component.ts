@@ -124,6 +124,7 @@ import { WorkspaceBackground } from 'svg-engine/edit';
         <svge-renderer
           [tree]="resolvedTree()"
           [viewBox]="resolvedViewBox()"
+          [defs]="resolvedDefs()"
           [ariaLabel]="ariaLabel() ?? 'Editable SVG document'"
         >
           <ng-content />
@@ -200,6 +201,16 @@ export class SvgeEditor {
   /** Effective viewBox fed to `<svge-renderer>` (input → state fallback). */
   protected readonly resolvedViewBox = computed<BoundingBox>(
     () => this.viewBox() ?? this.state.document().viewBox,
+  );
+
+  /**
+   * Effective reusable-defs fragment fed to `<svge-renderer>` (Fase 6c-1).
+   * Reads from the current document's `defs` field — populated by the
+   * SVG importer when it encounters `<defs>`/`<linearGradient>`/`<clipPath>`
+   * etc. Null when the document has no defs.
+   */
+  protected readonly resolvedDefs = computed<string | null>(
+    () => this.state.document().defs ?? null,
   );
 
   /** Optional title displayed in the toolbar. Defaults to "SVGEngine". */

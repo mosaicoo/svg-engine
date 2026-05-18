@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  computed,
+  effect,
+  inject,
+  input,
+  viewChild,
+} from '@angular/core';
 import type { BoundingBox, SvgDocument, SvgNode } from 'svg-engine/core';
 import { SvgeNodeRenderer } from '../renderers/node-renderer.component';
 import { ViewportService } from '../viewport/viewport.service';
@@ -36,6 +45,7 @@ import { ViewportService } from '../viewport/viewport.service';
   imports: [SvgeNodeRenderer],
   template: `
     <svg
+      #svgRoot
       xmlns="http://www.w3.org/2000/svg"
       [attr.viewBox]="viewBoxAttr()"
       [attr.width]="width() ?? null"
@@ -74,12 +84,28 @@ import { ViewportService } from '../viewport/viewport.service';
 })
 export class SvgeRenderer {
   private readonly viewport = inject(ViewportService);
+  private readonly svgRoot = viewChild<ElementRef<SVGSVGElement>>('svgRoot');
 
   readonly tree = input.required<SvgNode>();
   readonly viewBox = input<BoundingBox | null>(null);
   readonly width = input<number | null>(null);
   readonly height = input<number | null>(null);
   readonly ariaLabel = input<string | null>(null);
+  /**
+   * Optional reusable-definitions fragment ({@link SvgDocument.defs}).
+   * When non-empty, the renderer injects the fragment as the first
+   * child of `<svg>` via `insertAdjacentHTML('afterbegin', ...)` so
+   * `url(#id)` references inside the tree resolve at paint time.
+   *
+   * **Why insertAdjacentHTML and not the Angular template**: the
+   * fragment can include arbitrary SVG markup (`<linearGradient>`,
+   * `<clipPath>`, …) with namespaces and id attributes. Embedding via
+   * `[innerHTML]` would run through Angular's sanitizer which can
+   * mangle SVG-specific constructs. The fragment was already sanitized
+   * at import time (script, event handlers, javascript: hrefs all
+   * removed); we trust it as opaque markup here.
+   */
+  readonly defs = input<string | null>(null);
 
   /**
    * Rendered viewBox attribute. **Always** derived from
@@ -97,6 +123,13 @@ export class SvgeRenderer {
     return `${box.x} ${box.y} ${box.width} ${box.height}`;
   });
 
+  /**
+   * Sentinel data attribute applied to the injected `<defs>` block so
+   * re-runs can find and replace it idempotently instead of stacking
+   * duplicates.
+   */
+  private static readonly DEFS_MARKER_ATTR = 'data-svge-injected-defs';
+
   constructor() {
     // Mirror the explicit viewBox input into the viewport's contentBox.
     // This keeps the viewport's coordinate space aligned with whatever
@@ -106,6 +139,42 @@ export class SvgeRenderer {
       const explicit = this.viewBox();
       if (explicit) this.viewport.setContentBox(explicit);
     });
+    // Inject (or refresh, or remove) the defs fragment. Runs reactively
+    // whenever `defs()` changes — typical case fires once on initial
+    // mount with the value passed by the consumer.
+    effect(() => {
+      this.syncDefs(this.defs());
+    });
+  }
+
+  /**
+   * Idempotently materialize the current `defs()` value as the first
+   * child of `<svg>`. Sequence of operations:
+   *
+   * 1. Locate (and remove) any previous `<defs data-svge-injected-defs="1">`
+   *    we wrote on an earlier effect tick.
+   * 2. If the new fragment is non-empty, build a fresh `<defs>` element
+   *    and set its inner XML via `insertAdjacentHTML`. The marker attr
+   *    distinguishes our injection from consumer-provided defs.
+   *
+   * Safe in jsdom (no-ops when the viewChild ref hasn't resolved yet),
+   * SSR (typeof document gate via insertAdjacentHTML availability),
+   * and worker contexts (effect simply never runs DOM ops without the
+   * viewChild element).
+   */
+  private syncDefs(fragment: string | null): void {
+    const ref = this.svgRoot();
+    if (ref === undefined) return;
+    const svg = ref.nativeElement;
+    const existing = svg.querySelector(`defs[${SvgeRenderer.DEFS_MARKER_ATTR}="1"]`);
+    if (existing !== null) existing.remove();
+    if (fragment === null || fragment.length === 0) return;
+    const wrapper = svg.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    wrapper.setAttribute(SvgeRenderer.DEFS_MARKER_ATTR, '1');
+    // insertAdjacentHTML respects the SVG namespace of the host element,
+    // so gradient/clipPath markup parses as SVG (not HTML).
+    wrapper.insertAdjacentHTML('afterbegin', fragment);
+    svg.insertBefore(wrapper, svg.firstChild);
   }
 }
 

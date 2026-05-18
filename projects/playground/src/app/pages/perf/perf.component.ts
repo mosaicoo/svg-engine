@@ -131,6 +131,8 @@ export class PerfPage implements OnDestroy {
 
   /** Tree + viewBox bindings for the renderer. */
   protected readonly tree = computed(() => this.state.document().root);
+  /** Defs fragment passed to the renderer (Fase 6c-1 round-trip). */
+  protected readonly defs = computed(() => this.state.document().defs ?? null);
   protected readonly viewBox = computed(() => this.state.document().viewBox);
 
   /** Reference to the hidden `<input type="file">` used by the file-picker button. */

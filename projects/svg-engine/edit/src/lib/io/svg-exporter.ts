@@ -56,6 +56,24 @@ export const svgExporter: Exporter = {
     lines.push(
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBoxAttr}" width="${fmt(vb.width)}" height="${fmt(vb.height)}">`,
     );
+    // Round-trip defs verbatim (Fase 6c-1). The importer captured this
+    // fragment already-sanitized — no script tags, no on* handlers, no
+    // javascript: hrefs — so re-emitting it is safe. Indented with one
+    // level of leading whitespace inside `<defs>` to match the rest of
+    // the tree's 2-space style.
+    if (typeof document.defs === 'string' && document.defs.length > 0) {
+      lines.push('  <defs>');
+      // The defs fragment is the literal inner XML of the original
+      // `<defs>` (possibly multiple top-level elements). We indent each
+      // line by 4 spaces so the wrapper `<defs>` reads cleanly. Best-
+      // effort: lines that contain no leading whitespace get indented;
+      // already-indented content keeps its original structure.
+      for (const line of document.defs.split('\n')) {
+        const stripped = line.replace(/^\s+/, '');
+        lines.push(stripped.length > 0 ? `    ${stripped}` : '');
+      }
+      lines.push('  </defs>');
+    }
     for (const child of document.root.children) {
       lines.push(renderNode(child, 1));
     }

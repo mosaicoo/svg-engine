@@ -137,14 +137,18 @@ describe('svgImporter — sanitization', () => {
   });
 
   it('collects ONE warning per unsupported tag (not per occurrence)', () => {
+    // Note: <defs> is no longer in the unsupported set since Fase 6c-1
+    // (it's captured into document.defs instead). So only <use> appears
+    // as unsupported here. We still test the de-duplication behaviour by
+    // including TWO `<use>` occurrences and asserting ONE warning.
     const text =
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">' +
-      '<defs></defs><defs></defs><use href="#x" /><use href="#y" />' +
+      '<use href="#x" /><use href="#y" />' +
       '</svg>';
     const result = svgImporter.import(text);
     if (!result.ok) throw new Error('parse failed');
     const unsupportedWarns = result.warnings.filter((w) => w.startsWith('Unsupported'));
-    expect(unsupportedWarns.length).toBe(2); // defs + use, NOT 4
+    expect(unsupportedWarns.length).toBe(1); // use ONCE, not twice
   });
 });
 
@@ -205,6 +209,114 @@ describe('svgExporter — happy paths', () => {
       root: createGroup([rect1, rect2], { id: 'root' as never }),
     };
     expect(svgExporter.export(doc)).toBe(svgExporter.export(doc));
+  });
+});
+
+describe('svgImporter — defs / reusable-defs (Fase 6c-1)', () => {
+  it('preserves <defs> content as opaque fragment on document.defs', () => {
+    const text =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+      '<defs><linearGradient id="g1"><stop offset="0" stop-color="red"/></linearGradient></defs>' +
+      '<rect x="0" y="0" width="50" height="50" fill="url(#g1)" />' +
+      '</svg>';
+    const result = svgImporter.import(text);
+    if (!result.ok) throw new Error('parse failed');
+    expect(result.document.defs).toBeDefined();
+    expect(result.document.defs).toContain('linearGradient');
+    expect(result.document.defs).toContain('id="g1"');
+    // The renderable tree did NOT pick up <defs> as a child.
+    expect(result.document.root.children.length).toBe(1);
+    expect(result.document.root.children[0]?.type).toBe('rect');
+    // No "Unsupported <defs>" warning anymore.
+    expect(result.warnings.some((w) => w.includes('<defs>'))).toBe(false);
+  });
+
+  it('rolls top-level <clipPath> (outside <defs>) into the defs fragment', () => {
+    const text =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+      '<clipPath id="c1"><circle cx="10" cy="10" r="5"/></clipPath>' +
+      '<rect x="0" y="0" width="20" height="20" clip-path="url(#c1)" />' +
+      '</svg>';
+    const result = svgImporter.import(text);
+    if (!result.ok) throw new Error('parse failed');
+    expect(result.document.defs).toBeDefined();
+    expect(result.document.defs).toContain('clipPath');
+    expect(result.warnings.some((w) => w.includes('<clippath>'))).toBe(false);
+  });
+
+  it('silently ignores Inkscape/Sodipodi editor metadata (no warning)', () => {
+    const text =
+      '<svg xmlns="http://www.w3.org/2000/svg" ' +
+      'xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.0.dtd" ' +
+      'viewBox="0 0 100 100">' +
+      '<sodipodi:namedview id="nv1"/>' +
+      '<metadata>some RDF here</metadata>' +
+      '<title>My drawing</title>' +
+      '<rect x="0" y="0" width="10" height="10" />' +
+      '</svg>';
+    const result = svgImporter.import(text);
+    if (!result.ok) throw new Error('parse failed');
+    expect(result.warnings.length).toBe(0);
+    expect(result.document.root.children.length).toBe(1);
+  });
+
+  it('sanitizes <script> and event handlers from inside <defs>', () => {
+    const text =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+      '<defs>' +
+      '<linearGradient id="g1" onload="alert(1)">' +
+      '<stop offset="0" stop-color="red"/>' +
+      '</linearGradient>' +
+      '<script>alert("xss")</script>' +
+      '</defs>' +
+      '<rect x="0" y="0" width="50" height="50" fill="url(#g1)" />' +
+      '</svg>';
+    const result = svgImporter.import(text);
+    if (!result.ok) throw new Error('parse failed');
+    expect(result.document.defs).toBeDefined();
+    expect(result.document.defs).not.toContain('onload');
+    expect(result.document.defs).not.toContain('alert');
+    expect(result.warnings.some((w) => /onload/i.test(w))).toBe(true);
+  });
+
+  it('document with no <defs> has document.defs undefined (no empty string)', () => {
+    const text =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">' +
+      '<rect x="0" y="0" width="5" height="5" />' +
+      '</svg>';
+    const result = svgImporter.import(text);
+    if (!result.ok) throw new Error('parse failed');
+    expect(result.document.defs).toBeUndefined();
+  });
+});
+
+describe('svgExporter — defs round-trip', () => {
+  it('emits <defs>...</defs> when document.defs is non-empty', () => {
+    const source =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+      '<defs><linearGradient id="g1"><stop offset="0" stop-color="red"/></linearGradient></defs>' +
+      '<rect x="0" y="0" width="10" height="10" fill="url(#g1)" />' +
+      '</svg>';
+    const parsed = svgImporter.import(source);
+    if (!parsed.ok) throw new Error('parse failed');
+    const out = svgExporter.export(parsed.document);
+    if (typeof out !== 'string') throw new Error('expected string output');
+    expect(out).toContain('<defs>');
+    expect(out).toContain('</defs>');
+    expect(out).toContain('linearGradient');
+    expect(out).toContain('id="g1"');
+  });
+
+  it('omits <defs> block entirely when document.defs is undefined', () => {
+    const source =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">' +
+      '<rect x="0" y="0" width="5" height="5" />' +
+      '</svg>';
+    const parsed = svgImporter.import(source);
+    if (!parsed.ok) throw new Error('parse failed');
+    const out = svgExporter.export(parsed.document);
+    if (typeof out !== 'string') throw new Error('expected string output');
+    expect(out).not.toContain('<defs');
   });
 });
 

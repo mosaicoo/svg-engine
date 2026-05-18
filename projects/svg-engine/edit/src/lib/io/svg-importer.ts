@@ -71,6 +71,12 @@ export const svgImporter: Importer = {
     const warnings: string[] = [];
     const unsupportedTags = new Set<string>();
     const viewBox = parseViewBoxAttr(svgRoot, warnings);
+    // Capture <defs> BEFORE walking children so the renderable tree
+    // doesn't emit an "Unsupported <defs>" warning. We preserve the
+    // sanitized inner content as an opaque XML fragment on the
+    // document — exporter re-emits it, renderer injects it. Nodes
+    // that reference defs via `url(#id)` keep their reference intact.
+    const defsFragment = extractDefsFragment(svgRoot, warnings);
     const rootChildren = parseChildren(svgRoot, warnings, unsupportedTags);
     // Convert the collected unsupported tags into ONE warning each
     // (not per-occurrence — avoids flooding for documents with many
@@ -78,14 +84,49 @@ export const svgImporter: Importer = {
     for (const tag of unsupportedTags) {
       warnings.push(`Unsupported element <${tag}> skipped`);
     }
-    const document: SvgDocument = {
-      id: generateNodeId(),
-      viewBox,
-      root: createGroup(rootChildren),
-    };
+    const document: SvgDocument =
+      defsFragment.length > 0
+        ? { id: generateNodeId(), viewBox, root: createGroup(rootChildren), defs: defsFragment }
+        : { id: generateNodeId(), viewBox, root: createGroup(rootChildren) };
     return { ok: true, document, warnings };
   },
 };
+
+/**
+ * Tags emitted by editors (Inkscape, Sodipodi, Adobe Illustrator
+ * metadata blocks) that carry no visual contribution to the SVG output
+ * and are not worth warning about. Dropped silently so the warning
+ * list stays focused on things that might actually affect rendering.
+ */
+const SILENTLY_IGNORED_TAGS: ReadonlySet<string> = new Set([
+  // Document metadata — informational only, never affects render
+  'metadata',
+  'title',
+  'desc',
+  // SVG comments / processing — DOMParser already filters most of these
+  // but listed for clarity. Inkscape-namespaced editor state:
+  'sodipodi:namedview',
+  'inkscape:path-effect',
+  'inkscape:perspective',
+]);
+
+/**
+ * Tags treated as "known-but-not-modeled" reusable definitions. When
+ * encountered as direct children of `<svg>` (outside a `<defs>` block),
+ * they're rolled into the document's `defs` fragment instead of
+ * emitting an "Unsupported" warning — the renderer puts them in a
+ * proper `<defs>` block at runtime so references resolve.
+ */
+const REUSABLE_DEF_TAGS: ReadonlySet<string> = new Set([
+  'lineargradient',
+  'radialgradient',
+  'pattern',
+  'clippath',
+  'mask',
+  'filter',
+  'marker',
+  'symbol',
+]);
 
 // ── Element walkers ────────────────────────────────────────────────
 
@@ -111,6 +152,20 @@ function parseElement(
   // Sanitization: SKIP <script> entirely (don't even parse children).
   if (tag === 'script') {
     warnings.push(`<script> dropped for safety`);
+    return null;
+  }
+  // Editor-metadata tags (Inkscape/Sodipodi namespace, <title>, <desc>)
+  // produce no visual output — drop silently so the warning list isn't
+  // noisy with stuff the user can't act on. `<defs>` is handled separately
+  // BEFORE this function runs (extractDefsFragment) so won't reach here.
+  if (SILENTLY_IGNORED_TAGS.has(tag) || tag === 'defs') {
+    return null;
+  }
+  // Reusable defs that appear as direct siblings of renderable content
+  // (rare but happens when authors put a `<linearGradient>` next to a
+  // shape without wrapping it in `<defs>`). Skipped here — they were
+  // already rolled into `extractDefsFragment` during the outer pass.
+  if (REUSABLE_DEF_TAGS.has(tag)) {
     return null;
   }
   // Strip any on* event handlers BEFORE we read the rest of the
@@ -367,4 +422,118 @@ function sanitizeHref(raw: string, warnings: string[], tag: string): string {
     return '';
   }
   return trimmed;
+}
+
+/**
+ * Collect every `<defs>` block in the SVG document plus any top-level
+ * reusable definition elements (`<linearGradient>`, `<clipPath>`, etc.)
+ * that authors sometimes place as direct children of `<svg>` without
+ * wrapping in `<defs>`. Returns the combined, sanitized inner XML as
+ * an opaque fragment — no `<defs>` wrapper (the exporter adds one).
+ *
+ * Sanitization performed BEFORE serialization:
+ *
+ * - All `<script>` descendants removed (drop, no warn — already covered
+ *   by the main parser path for the rest of the doc).
+ * - All `on*` event-handler attributes stripped from every descendant.
+ * - `href` / `xlink:href` values starting with `javascript:` blanked out.
+ *
+ * The result is a string of SVG markup safe to inject into the rendered
+ * `<svg>` via `insertAdjacentHTML` or to serialize via the exporter
+ * without re-running it through the parser.
+ *
+ * Returns an empty string when no defs/reusable defs exist.
+ */
+function extractDefsFragment(svgRoot: Element, warnings: string[]): string {
+  const collected: Element[] = [];
+
+  // 1. Top-level `<defs>` blocks (most common case).
+  for (const child of Array.from(svgRoot.children)) {
+    if (child.tagName.toLowerCase() === 'defs') {
+      // Collect each direct child of `<defs>` (gradients, clipPaths, etc.).
+      for (const def of Array.from(child.children)) {
+        collected.push(def);
+      }
+    }
+  }
+
+  // 2. Top-level reusable-def elements not wrapped in `<defs>`.
+  for (const child of Array.from(svgRoot.children)) {
+    if (REUSABLE_DEF_TAGS.has(child.tagName.toLowerCase())) {
+      collected.push(child);
+    }
+  }
+
+  if (collected.length === 0) return '';
+
+  // Sanitize each collected element (clone to avoid mutating the
+  // original DOM, which the renderable-tree parser may still be walking).
+  // Sanitizer returns null when the root itself is forbidden — drop
+  // those entries entirely (e.g., a `<script>` sitting inside `<defs>`).
+  const sanitized = collected
+    .map((el) => sanitizeDefSubtree(el, warnings))
+    .filter((el): el is Element => el !== null);
+
+  if (sanitized.length === 0) return '';
+
+  // Serialize via outerHTML — preserves the XML structure including
+  // namespaces (DOMParser keeps `xmlns:xlink` on the clone). Concatenate
+  // with newlines so the exporter's pretty-printing is readable.
+  return sanitized.map((el) => el.outerHTML).join('\n');
+}
+
+/**
+ * Recursively scrub script, event-handler attrs, and javascript: hrefs from
+ * a `<defs>` subtree. Clones the element first so we don't mutate the
+ * importer's parsed-DOM source (the renderable-tree walker may still
+ * reference it via querySelectorAll).
+ *
+ * Returns `null` when the root element itself is forbidden — caller
+ * filters those out before serialization. (Removing a detached root via
+ * `.remove()` is a no-op since it has no parent.)
+ */
+function sanitizeDefSubtree(source: Element, warnings: string[]): Element | null {
+  // Root-level forbidden element: drop the whole subtree.
+  if (source.tagName.toLowerCase() === 'script') {
+    warnings.push(`<script> inside <defs> dropped for safety`);
+    return null;
+  }
+  const clone = source.cloneNode(true) as Element;
+  // Scrub attrs on the clone root.
+  scrubAttrs(clone, warnings);
+  // Walk DESCENDANTS only (root already handled above). Collect script
+  // descendants for batch removal — mutating during iteration would
+  // skip siblings.
+  const walker = clone.ownerDocument.createTreeWalker(clone, /* SHOW_ELEMENT */ 0x1);
+  const toRemove: Element[] = [];
+  // First nextNode() moves PAST the root, into the first descendant.
+  let current: Node | null = walker.nextNode();
+  while (current !== null) {
+    const el = current as Element;
+    if (el.tagName.toLowerCase() === 'script') {
+      toRemove.push(el);
+    } else {
+      scrubAttrs(el, warnings);
+    }
+    current = walker.nextNode();
+  }
+  for (const el of toRemove) el.remove();
+  return clone;
+}
+
+/** Strip on* handlers + javascript: hrefs from a single element. */
+function scrubAttrs(el: Element, warnings: string[]): void {
+  for (const attr of Array.from(el.attributes)) {
+    const name = attr.name.toLowerCase();
+    if (name.startsWith('on')) {
+      warnings.push(`Removed event handler "${attr.name}" on <defs> <${el.tagName}>`);
+      el.removeAttribute(attr.name);
+    } else if (
+      (name === 'href' || name === 'xlink:href') &&
+      attr.value.trim().toLowerCase().startsWith('javascript:')
+    ) {
+      warnings.push(`Removed unsafe href on <defs> <${el.tagName}>: javascript:... payload`);
+      el.setAttribute(attr.name, '');
+    }
+  }
 }
