@@ -222,6 +222,7 @@ function styleAttrs(style: SvgStyle): [string, string][] {
   // Canonical alphabetical order — predictable diffs.
   if (style.fill !== undefined) out.push(['fill', style.fill]);
   if (style.fillOpacity !== undefined) out.push(['fill-opacity', fmt(style.fillOpacity)]);
+  if (style.filter !== undefined) out.push(['filter', style.filter]);
   if (style.opacity !== undefined) out.push(['opacity', fmt(style.opacity)]);
   if (style.stroke !== undefined) out.push(['stroke', style.stroke]);
   if (style.strokeOpacity !== undefined) out.push(['stroke-opacity', fmt(style.strokeOpacity)]);

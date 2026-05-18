@@ -45,3 +45,6 @@ export * from './lib/theme-toggle';
 
 // Workspace settings dialog (Item 2 — débito 4f)
 export * from './lib/workspace-settings';
+
+// Effects panel UI (Fase 6d — D-023 cat 7)
+export * from './lib/effects-panel';

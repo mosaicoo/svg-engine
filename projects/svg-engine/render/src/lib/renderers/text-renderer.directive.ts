@@ -24,6 +24,7 @@ import type { TextNode } from 'svg-engine/core';
     '[attr.stroke-width]': 'node().style.strokeWidth ?? null',
     '[attr.opacity]': 'node().style.opacity ?? null',
     '[attr.visibility]': 'node().style.visibility ?? null',
+    '[attr.filter]': 'node().style.filter ?? null',
     // Bloco 4-R4: avoid stroke distortion when scale lives in transform
     '[attr.vector-effect]': '"non-scaling-stroke"',
   },

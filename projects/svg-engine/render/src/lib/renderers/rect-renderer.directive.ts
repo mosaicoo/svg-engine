@@ -33,6 +33,7 @@ import type { RectNode } from 'svg-engine/core';
     '[attr.fill-opacity]': 'node().style.fillOpacity ?? null',
     '[attr.stroke-opacity]': 'node().style.strokeOpacity ?? null',
     '[attr.visibility]': 'node().style.visibility ?? null',
+    '[attr.filter]': 'node().style.filter ?? null',
     // Bloco 4-Resize-Proper / R4: stroke must NOT scale visually when a
     // scale matrix lives in the node's `transform` (the rotated-node
     // fallback path of `ResizeNodeCommand`). For identity-or-translate

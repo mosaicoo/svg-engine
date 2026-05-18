@@ -368,6 +368,9 @@ function parseStyle(el: Element): SvgStyle {
   if (visibility === 'visible' || visibility === 'hidden') {
     style.visibility = visibility;
   }
+  // SVG `filter` attribute (Fase 6d) — typically url(#effect-id).
+  const filter = el.getAttribute('filter');
+  if (filter !== null && filter.length > 0) style.filter = filter;
   // Then merge inline CSS (style="...") — CSS overrides matching attrs.
   const inline = el.getAttribute('style');
   if (inline !== null) {
@@ -408,6 +411,9 @@ function parseStyle(el: Element): SvgStyle {
           if (value === 'visible' || value === 'hidden') {
             style.visibility = value;
           }
+          break;
+        case 'filter':
+          if (value.length > 0) style.filter = value;
           break;
       }
     }

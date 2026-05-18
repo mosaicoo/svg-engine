@@ -26,6 +26,13 @@ export interface SvgStyle {
   readonly strokeLinejoin?: 'miter' | 'round' | 'bevel';
   /** Visibility (separate from {@link SvgMetadata.visible} which is editor-only). */
   readonly visibility?: 'visible' | 'hidden';
+  /**
+   * SVG `filter` attribute — typically `url(#id)` referencing a
+   * `<filter>` element in `<defs>`. Set by consumers to apply effects
+   * registered in `EffectRegistry` (Fase 6d). Persisted in import /
+   * export round-trip like any other presentation attribute.
+   */
+  readonly filter?: string;
 }
 
 /** Empty style (no overrides; all SVG defaults apply). */

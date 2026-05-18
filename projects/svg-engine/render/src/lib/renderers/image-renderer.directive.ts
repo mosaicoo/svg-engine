@@ -14,6 +14,7 @@ import type { ImageNode } from 'svg-engine/core';
     '[attr.preserveAspectRatio]': 'node().preserveAspectRatio ?? null',
     '[attr.opacity]': 'node().style.opacity ?? null',
     '[attr.visibility]': 'node().style.visibility ?? null',
+    '[attr.filter]': 'node().style.filter ?? null',
   },
 })
 export class SvgeImageDirective {

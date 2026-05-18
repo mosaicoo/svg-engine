@@ -32,6 +32,7 @@ import {
   type AlignAxis,
   AlignmentService,
   type DistributeAxis,
+  EffectRegistry,
   ExporterRegistry,
   findRenderedNode,
   getRenderedNodeBBox,
@@ -67,6 +68,7 @@ import {
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
 import {
   LayersPanel,
+  SvgeEffectsPanel,
   SvgeInspector,
   SvgeRulers,
   SvgeThemeToggle,
@@ -118,6 +120,7 @@ const DRAG_START_THRESHOLD_PX = 3;
     GuidesOverlay,
     SvgeRulers,
     SvgeThemeToggle,
+    SvgeEffectsPanel,
   ],
   templateUrl: './playground-home.component.html',
   styleUrl: './playground-home.component.scss',
@@ -144,6 +147,7 @@ export class PlaygroundHome implements OnDestroy {
   private readonly importers = inject(ImporterRegistry);
   private readonly exporters = inject(ExporterRegistry);
   private readonly optimizers = inject(OptimizerRegistry);
+  private readonly effects = inject(EffectRegistry);
   private readonly dialog = inject(MatDialog);
 
   /** Reference to the hidden `<input type="file">` for SVG import. */
@@ -153,8 +157,24 @@ export class PlaygroundHome implements OnDestroy {
 
   protected readonly tree = computed(() => this.state.document().root);
   protected readonly viewBox = computed(() => this.state.document().viewBox);
-  /** Reusable-defs fragment (Fase 6c-1) — round-tripped from imported SVGs. */
-  protected readonly defs = computed(() => this.state.document().defs ?? null);
+  /**
+   * Combined defs fragment passed to `<svge-renderer>`:
+   * - `document.defs` (Fase 6c-1): pass-through of imported `<defs>`
+   *   (gradients, clipPaths, etc.) so `url(#id)` from nodes resolves
+   * - Effects markup (Fase 6d): `<filter>` elements from every
+   *   `EffectRegistry` entry. Nodes apply via `style.filter = url(#id)`
+   *
+   * Concatenation order doesn't matter — both contribute disjoint id
+   * spaces (effects use the reverse-DNS id, doc defs keep their
+   * original ids). Returns `null` when both are empty so the renderer
+   * skips defs injection entirely.
+   */
+  protected readonly defs = computed<string | null>(() => {
+    const docDefs = this.state.document().defs ?? '';
+    const fxDefs = this.effects.buildAllFiltersMarkup();
+    const merged = [docDefs, fxDefs].filter((s) => s.length > 0).join('\n');
+    return merged.length > 0 ? merged : null;
+  });
   protected readonly nodeCount = this.state.nodeCount;
   protected readonly canUndo = this.history.canUndo;
   protected readonly canRedo = this.history.canRedo;

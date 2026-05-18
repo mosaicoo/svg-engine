@@ -2,6 +2,7 @@ import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter } from '@angular/router';
 import {
+  builtinEffectsPlugin,
   builtinIoPlugin,
   builtinOptimizersPlugin,
   builtinPalettesPlugin,
@@ -38,5 +39,9 @@ export const appConfig: ApplicationConfig = {
     // Arrow-key nudge for selection (Fase 6c-2 a11y). Keyboard-only
     // users get parity with pointer drag for the most common edit op.
     provideSvgEnginePlugin(selectionNudgePlugin),
+    // Built-in SVG filter effects (Fase 6d — D-023 cat 7): blur,
+    // drop-shadow, grayscale, sepia. Shipped separately so apps that
+    // don't surface effects in their UI can drop this plugin.
+    provideSvgEnginePlugin(builtinEffectsPlugin),
   ],
 };
