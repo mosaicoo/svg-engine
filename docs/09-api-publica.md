@@ -262,11 +262,152 @@ nó. Multi-seleção: pivot é transient e reseta na mudança de composição
 > </svge-renderer>
 > ```
 
-### `svg-engine/ui` (Fase 4)
+#### Plugin scaffolding (Bloco 5a — `./lib/plugin/`)
 
-> Componentes Angular Material para o editor completo.
+| Símbolo                                    | Descrição                                                                                 |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `EditorPlugin` (interface)                 | `id`, `name`, `version`, `apiVersion`, `dependencies?`, `install(ctx)`, `uninstall?(ctx)` |
+| `PluginContext` (interface)                | `pluginId`, `injector: Injector`, `track<T>(d: T): T`                                     |
+| `Disposable` (interface)                   | `dispose(): void` — devolvido por todo `register()` de registry                           |
+| `InstalledPlugin` (interface)              | `plugin`, `installedAt` — snapshot lido via `PluginRegistry.list/get`                     |
+| `PLUGIN_API_VERSION` (constante)           | `'1.0.0'` no momento. Plugin throws se major não bater                                    |
+| `PluginRegistry` (`@Injectable({ root })`) | `install(plugin)`, `uninstall(id)`, `has(id)`, `get(id)`, `list()`, signal `installed`    |
+| `provideSvgEnginePlugin(plugin)`           | provider `ENVIRONMENT_INITIALIZER multi:true` — install no boot                           |
 
-_(populado quando Fase 4 entregar)_
+Ver [`docs/10-guia-plugin.md`](10-guia-plugin.md) para receitas práticas.
+
+#### Tools (Bloco 5b — `./lib/tool/`)
+
+| Símbolo                                     | Descrição                                                                                                            |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `Tool` (interface)                          | `id`, `label`, `shortcut?`, `icon?`, `cursor?`, `onActivate/Deactivate`, `onPointerDown/Move/Up/Cancel`, `onKeyDown` |
+| `ToolPointerEvent` (interface)              | `raw: PointerEvent`, `docPoint: Point`, `screen{X,Y}`, modifier flags                                                |
+| `ToolContext` (interface)                   | `injector: Injector` — passado nos hooks de lifecycle                                                                |
+| `ToolRegistry` (`@Injectable({ root })`)    | `register(tool): Disposable`, `tools()` signal, `get(id)`, `getByShortcut(key)`                                      |
+| `ToolHostService` (`@Injectable({ root })`) | `activate(id)`, `activeId()` signal, `activeTool()` computed, `routePointer*` / `routeKeyDown` para event hub        |
+| `selectToolPlugin` (`EditorPlugin`)         | Built-in: passthrough — consumer mantém pipeline nativo de seleção/marquee                                           |
+| `pencilToolPlugin` (`EditorPlugin`)         | Built-in: freehand path drawing; commit via `InsertNodeCommand`                                                      |
+| `SELECT_TOOL_ID`                            | Constante `'svge.builtin.tool.select'` para checks                                                                   |
+
+#### Marquee / Snap / Alignment (Bloco 4a-4c)
+
+| Símbolo                                          | Descrição                                                                                           |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `MarqueeService` (`@Injectable({ root })`)       | `state()` signal, `rect()` computed, `start/update/end/cancel`. Normaliza w/h ≥ 0                   |
+| `Marquee` (`g[svgeMarquee]`)                     | Overlay dashed visual                                                                               |
+| `MarqueeCandidate` (interface)                   | `{ id, bbox }` para `nodesInsideMarquee(rect, candidates, mode)`                                    |
+| `nodesInsideMarquee(rect, candidates, mode)`     | Hit-test puro — modos `'intersect'` (Illustrator) e `'contain'` (AutoCAD)                           |
+| `SnapService` (`@Injectable({ root })`)          | config (`enabled`, `mode`, `gridSize`, `thresholdPx`), signal `activeGuides`, `resolveForMove(...)` |
+| `SnapGuides` (`g[svgeSnapGuides]`)               | Overlay magenta (dashed = grid; sólido = objetos)                                                   |
+| `resolveSnap(moving, targets, threshold)`        | Resolver puro (matemática); usado por `SnapService.resolveForMove`                                  |
+| `rectsToSnapTargets(rects)`                      | Gerador puro — 6 features por rect (low/center/high × 2 eixos)                                      |
+| `gridTargetsNear(area, gridSize)`                | Targets de grid limitados à área do moving (bounded mesmo em docs grandes)                          |
+| `AlignmentService.align(items, axis)`            | 6 axes: `left/center-x/right/top/center-y/bottom`                                                   |
+| `AlignmentService.distribute(items, axis)`       | `horizontal` / `vertical` — ≥3 nós, edges mantêm posição                                            |
+| `computeAlignDeltas` / `computeDistributeDeltas` | Math puro (testáveis sem DI)                                                                        |
+
+#### Workspace / Layers / Palette / Menu / Shortcut (Fase 4)
+
+| Símbolo                                               | Descrição                                                                                                 |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `WorkspaceService` (`@Injectable({ root })`)          | `background()`, `grid()`, `rulers()`, `guides()`, `page()` + setters. Estado presentation (D-021)         |
+| `WorkspaceBackground` (`<svge-workspace-background>`) | xadrez / sólido / imagem (D-021)                                                                          |
+| `GridOverlay` (`g[svgeGridOverlay]`)                  | Linhas de grid SVG; major/minor; vector-effect non-scaling                                                |
+| `GuidesOverlay` (`g[svgeGuidesOverlay]`)              | Linhas ciano draggable (drag + dblclick remove + Esc cancel + ARIA slider)                                |
+| `LayersService` (`@Injectable({ root })`)             | `hiddenIds()`, `lockedIds()`, togglers (idempotent + dedup)                                               |
+| `LayersFilter` (`[svgeLayersFilter]`)                 | Directive opt-in: aplica `display:none` em hidden ids via DOM walk reativo                                |
+| `PaletteRegistry` (`@Injectable({ root })`)           | `register(palette): Disposable`, `palettes()` signal, `byCategory(...)`                                   |
+| `builtinPalettesPlugin` (`EditorPlugin`)              | 3 paletas: default-greys, material-primary, tailwind-pastels                                              |
+| `Palette` (interface)                                 | `id`, `name`, `category?`, `swatches: readonly string[]`                                                  |
+| `MenuContribution` (interface)                        | `id`, `slot`, `label`, `icon?`, `tooltip?`, `shortcut?`, `order?`, `disabled?`/`visible?` (Signal), `run` |
+| `MenuContributionRegistry` (`@Injectable`)            | `register(c): Disposable`, `bySlot(slot)` retorna `Signal<readonly MenuContribution[]>` ordenado          |
+| `Shortcut` (interface)                                | `id`, `combo`, `when?`, `description?`, `run(event)`                                                      |
+| `ShortcutRegistry` (`@Injectable({ root })`)          | `register(s): Disposable`, `tryMatch(event)`, signal `shortcuts`                                          |
+| `ShortcutService` (`@Injectable({ root })`)           | Opt-in `start()`/`stop()` — listener global de `keydown`, ignora editable targets                         |
+| `parseCombo` / `comboMatches`                         | Helpers puros (`Ctrl+G`, `Cmd+Shift+G`, `CmdOrCtrl+...`, `ArrowUp`, etc)                                  |
+
+#### IO (Fase 5)
+
+| Símbolo                                 | Descrição                                                                                   |
+| --------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `Importer` (interface)                  | `id`, `name`, `mediaTypes`, `extensions`, `import(text): ImportResult`                      |
+| `Exporter` (interface)                  | `id`, `name`, `mediaType`, `extension`, `export(doc): string \| Promise<string \| Blob>`    |
+| `ImportResult` (discriminated union)    | `{ok: true, document, warnings} \| {ok: false, error}`                                      |
+| `ImporterRegistry` / `ExporterRegistry` | `register(x): Disposable`, helpers `byExtension`, `byMediaType`                             |
+| `svgImporter` (built-in)                | DOMParser + sanitização (script/on\*/javascript:) + suporte defs/clipPath opaco (Fase 6c-1) |
+| `svgExporter` (built-in)                | Output byte-stable / deterministic — ordem canônica, formato compacto, defs round-trip      |
+| `builtinIoPlugin` (`EditorPlugin`)      | Registra `svgImporter` + `svgExporter`                                                      |
+| `pngExporter` / `pngExporterPlugin`     | Canvas-based PNG export (binário/async); 2× DPR retina                                      |
+
+#### Optimize (Fase 5)
+
+| Símbolo                                    | Descrição                                                                                             |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `Optimizer` (interface)                    | `id`, `name`, `description?`, `order?` (default 100), `defaultEnabled?`, `optimize(doc): SvgDocument` |
+| `OptimizerRegistry` (`@Injectable`)        | `register(o): Disposable`, `runPipeline(doc, enabledIds?)` — sort by order, dedup ref-equal output    |
+| `OptimizeCommand`                          | Wraps `runPipeline` em 1 undo entry (Fase 6b)                                                         |
+| `builtinOptimizersPlugin` (`EditorPlugin`) | 3 passes: `precisionOptimizer`, `dropDefaultsOptimizer`, `pruneEmptyGroupsOptimizer`                  |
+
+#### Viewport culling (Fase 6b-2)
+
+| Símbolo                                                  | Descrição                                                                                      |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `ViewportCullingService` (`@Injectable({ root })`)       | `culledIds: Signal<ReadonlySet<NodeId>>` — DFS recursivo com early-termination + WeakMap cache |
+| `SvgeViewportCullingDirective` (`[svgeViewportCulling]`) | Opt-in directive — rAF batching + single-pass DOM walk; toggle attr `data-svge-culled="1"`     |
+
+**Padrão de uso**:
+
+```html
+<svge-renderer svgeLayersFilter svgeViewportCulling [tree]="tree()" [viewBox]="viewBox()">
+  <svg:g svgeSelectionOverlay></svg:g>
+</svge-renderer>
+```
+
+Detalhes de quando culling ajuda (e quando não) em
+[`docs/08-historico-de-alteracoes.md`](08-historico-de-alteracoes.md)
+seção 2026-05-18.
+
+#### Acessibilidade (Fase 6c-2)
+
+| Símbolo                                 | Descrição                                                                                        |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `selectionNudgePlugin` (`EditorPlugin`) | Registra 8 shortcuts (Arrow* + Shift+Arrow*) para nudge keyboard-only via `TranslateManyCommand` |
+
+### `svg-engine/ui` (Fase 4) ✅
+
+> Componentes Angular Material para o editor completo. Peer deps:
+> `@angular/material@^21` + `@angular/cdk@^21` (opcionais, só puxa
+> se você importar deste entry point).
+
+#### Shell
+
+| Selector        | Componente   | Descrição                                                                                                          |
+| --------------- | ------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `<svge-editor>` | `SvgeEditor` | Drop-in shell: toolbar (undo/redo/zoom/reset) + `<svge-workspace-background>` + `<svge-renderer>` + `<ng-content>` |
+
+#### Panels
+
+| Selector                  | Componente         | Descrição                                                                                                               |
+| ------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `<svge-layers-panel>`     | `LayersPanel`      | Tree hierárquico com expand/collapse + visibility/lock + drag-drop reorder + click-to-select                            |
+| `<svge-inspector>`        | `SvgeInspector`    | Painel de propriedades reativo a `selection.focusId()`: geometry, style, transform decomposto, pivot picker, multi-edit |
+| `<svge-color-palette>`    | `SvgeColorPalette` | Strip de swatches; emite `colorPicked`. Renderiza `transparent` com slash icon                                          |
+| `<svge-toolbar slot="X">` | `SvgeToolbar`      | Material `<mat-icon-button>` por contribuição de `MenuContributionRegistry` no slot                                     |
+| `<svge-rulers>`           | `SvgeRulers`       | Overlay HTML top/left com ticks (nice spacing 1/2/5 × 10ⁿ)                                                              |
+| `<svge-theme-toggle>`     | `SvgeThemeToggle`  | Icon button + `ThemeService` (light/dark/system, persist em localStorage chave `svge.theme`)                            |
+
+#### Dialog
+
+| Selector / símbolo      | Descrição                                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------ |
+| `SvgeWorkspaceSettings` | Material dialog: page (width/height/orientation) + grid (enabled/spacing/majorEvery) + rulers + guides |
+
+#### Services
+
+| Símbolo                                  | Descrição                                                                                                           |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `ThemeService` (`@Injectable({ root })`) | `theme: Signal<Theme>`, `resolvedTheme: Signal<ResolvedTheme>`, `setTheme`, `cycle`. Reflete em `<html data-theme>` |
+| `Theme` / `ResolvedTheme` (types)        | `'system'\|'light'\|'dark'` e `'light'\|'dark'`                                                                     |
 
 ---
 
