@@ -3,6 +3,7 @@ import {
   EditorStateService,
   getNodeBBox,
   intersectsBBox,
+  isGroupNode,
   type BoundingBox,
   type NodeId,
   type SvgNode,
@@ -26,11 +27,28 @@ const STYLE_TAG_ID = 'svge-viewport-culling-style';
  * viewBox at any given pan/zoom — culling them from the render tree
  * recovers FPS proportional to off-screen ratio.
  *
- * **Scope (v1)**: cull TOP-LEVEL children of `document().root` whose
- * model-space bbox does not intersect the current `viewport.viewBox()`.
- * Nested-group recursion is deferred — top-level culling captures the
- * lion's share of the win because typical Illustrator exports group
- * by region/feature class.
+ * **Algorithm — recursive DFS with early termination** (Fase 6b-2-fix):
+ * walk the tree depth-first; at each node:
+ *
+ * 1. Compute (and cache) the node's bbox.
+ * 2. If the bbox does NOT intersect the visible viewBox: emit this
+ *    node's id to `culledIds` and STOP descending. The CSS rule turns
+ *    `data-svge-culled="1"` into `display: none` on the corresponding
+ *    `<g data-node-id>`; the browser skips paint for the whole subtree
+ *    automatically — no need to walk further or set the attribute on
+ *    each descendant.
+ * 3. If the bbox intersects AND the node is a group, recurse into its
+ *    children (the group itself stays visible; individual children may
+ *    still be culled).
+ *
+ * **Why not top-level only**: the previous v1 (top-level children of
+ * `root` only) was provably ineffective on real Illustrator output.
+ * Measured against the Portos do RJ (7 804 nodes) and Paranagua
+ * (16 312 nodes) test files: Pan/Zoom FPS unchanged (14 → 14, 20 → 20).
+ * Reason: Illustrator wraps everything in `<g id="Layer_1">` so
+ * `root.children` has length 1; its bbox spans the entire document
+ * and never gets culled. Recursive DFS visits each shape and culls
+ * the ones outside the visible viewBox individually.
  *
  * **Cache**: per-node bbox stored in a `WeakMap<SvgNode, BoundingBox>`.
  * Safe because nodes are immutable — any mutation creates a new node
@@ -65,28 +83,52 @@ export class ViewportCullingService {
   private readonly bboxCache = new WeakMap<SvgNode, BoundingBox>();
 
   /**
-   * Set of top-level node ids whose bbox does NOT intersect the
-   * current visible `viewBox`. Consumed by
-   * {@link SvgeViewportCullingDirective} to apply the culled attr.
+   * Set of node ids whose bbox does NOT intersect the current visible
+   * `viewBox` and which should therefore be hidden from paint. Contains
+   * only the **topmost** id of each out-of-viewport subtree — descendants
+   * are implicitly hidden via CSS (`display: none` on the ancestor
+   * `<g>` cascades). Consumed by {@link SvgeViewportCullingDirective}
+   * to apply the `data-svge-culled` attribute.
    *
-   * **Stability**: returns the same `Set` reference across consecutive
-   * re-runs that produce the same set contents — but the computed
-   * signal re-evaluates per viewport change regardless. The directive
-   * compares against its own "currently culled" snapshot for diff
-   * application, so reference equality isn't load-bearing here.
+   * **Implementation note**: DFS with early termination. Stops descending
+   * the first time a subtree is fully outside the viewport — keeps the
+   * culled set small (one entry per culled subtree instead of one per
+   * culled leaf) and avoids per-frame allocations proportional to the
+   * total node count.
    */
   readonly culledIds: Signal<ReadonlySet<NodeId>> = computed(() => {
     const doc = this.state.document();
     const view = this.viewport.viewBox();
     const culled = new Set<NodeId>();
+    // Skip the root itself — culling it would hide the entire canvas
+    // (and the root's bbox always intersects the viewport that was
+    // derived from it). Start at root.children to evaluate each
+    // top-level subtree, then recurse.
     for (const child of doc.root.children) {
-      const bb = this.getCachedBBox(child);
-      if (!intersectsBBox(bb, view)) {
-        culled.add(child.id);
-      }
+      this.cullSubtree(child, view, culled);
     }
     return culled;
   });
+
+  /**
+   * DFS helper: if `node`'s bbox is outside `view`, mark it culled and
+   * stop. Otherwise, if it's a group, recurse into children. Leaves
+   * whose bbox intersects are left untouched (visible).
+   */
+  private cullSubtree(node: SvgNode, view: BoundingBox, out: Set<NodeId>): void {
+    const bb = this.getCachedBBox(node);
+    if (!intersectsBBox(bb, view)) {
+      // Whole subtree outside the viewport — cull at this level and
+      // skip descendants (CSS will hide them via inherited display:none).
+      out.add(node.id);
+      return;
+    }
+    if (isGroupNode(node)) {
+      for (const child of node.children) {
+        this.cullSubtree(child, view, out);
+      }
+    }
+  }
 
   constructor() {
     this.ensureStylesheetInjected();

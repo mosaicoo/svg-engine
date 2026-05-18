@@ -89,6 +89,60 @@ describe('ViewportCullingService — viewport reactivity', () => {
   });
 });
 
+describe('ViewportCullingService — recursive culling (real Illustrator structure)', () => {
+  it('recurses into a nested group whose bbox intersects the viewport', () => {
+    // Mimic Illustrator output: root → "Layer_1" group → many shapes.
+    // Without recursion, only "Layer_1" is considered (top-level) and
+    // its bbox spans the whole doc → nothing culled. With recursion,
+    // each shape is tested individually.
+    const inside = createRect({ x: 10, y: 10, width: 20, height: 20 });
+    const outside = createRect({ x: 500, y: 500, width: 10, height: 10 });
+    const layer = createGroup([inside, outside]);
+    const doc: SvgDocument = {
+      ...createEmptyDocument({ viewBox: bbox(0, 0, 100, 100) }),
+      root: createGroup([layer]),
+    };
+    const { culling } = setupWithDoc(doc);
+    const culled = culling.culledIds();
+    expect(culled.has(outside.id)).toBe(true);
+    // The layer group itself stays visible (its bbox intersects).
+    expect(culled.has(layer.id)).toBe(false);
+    // The visible child is NOT culled.
+    expect(culled.has(inside.id)).toBe(false);
+  });
+
+  it('cull a whole subtree at its highest out-of-viewport ancestor (no descendant entries)', () => {
+    // Group entirely outside viewport: emit ONE id (the group), not one
+    // per descendant — the CSS display:none on the group hides everything.
+    const child1 = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const child2 = createRect({ x: 20, y: 0, width: 10, height: 10 });
+    const offscreenGroup = createGroup([child1, child2], { id: 'offscr-group' as never });
+    // Place this group well outside the viewport via translate.
+    // (createGroup wraps children at identity; we shift via outer group.)
+    const layer = createGroup([offscreenGroup]);
+    const doc: SvgDocument = {
+      ...createEmptyDocument({ viewBox: bbox(0, 0, 100, 100) }),
+      root: createGroup([layer]),
+    };
+    // Move the offscreen group via the layer transform — easiest path.
+    // (We can't easily mutate the group's transform after creation, so
+    // re-create the layer with a translate that moves children beyond x=100.)
+    const layer2 = createGroup([offscreenGroup], {
+      id: 'layer2' as never,
+      transform: [1, 0, 0, 1, 500, 500],
+    });
+    const doc2: SvgDocument = { ...doc, root: createGroup([layer2]) };
+    const { culling } = setupWithDoc(doc2);
+    const culled = culling.culledIds();
+    // The Layer group itself is now fully outside → culled at THAT level
+    expect(culled.has(layer2.id)).toBe(true);
+    // Children are NOT in the set (CSS handles them via inheritance)
+    expect(culled.has(offscreenGroup.id)).toBe(false);
+    expect(culled.has(child1.id)).toBe(false);
+    expect(culled.has(child2.id)).toBe(false);
+  });
+});
+
 describe('ViewportCullingService — caching', () => {
   it('reusing the same node ref keeps a stable cache entry', () => {
     const a = createRect({ x: 0, y: 0, width: 10, height: 10 });
