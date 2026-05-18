@@ -2,8 +2,12 @@ export {
   type BackgroundConfig,
   type GridConfig,
   type Guide,
+  type InteractionConfig,
   type PageConfig,
   type RulersConfig,
+  WHEEL_ZOOM_SPEED_MAX,
+  WHEEL_ZOOM_SPEED_MIN,
+  wheelZoomSensitivityFromSpeed,
   WorkspaceService,
 } from './workspace.service';
 export { WorkspaceBackground } from './workspace-background.component';

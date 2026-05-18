@@ -1,9 +1,27 @@
 import { Directive, ElementRef, inject, type OnDestroy } from '@angular/core';
 import type { Point } from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
+import { WorkspaceService, wheelZoomSensitivityFromSpeed } from '../workspace/workspace.service';
 
-/** Multiplicative factor applied per wheel notch (≈ 10% zoom step). */
-const WHEEL_ZOOM_FACTOR = 1.1;
+/**
+ * Maximum zoom factor allowed per single wheel event. Even with extreme
+ * deltaY (touchpad pinch, fast wheel flick), clamping to [0.5, 2.0]
+ * keeps a single event from leaping multiple zoom levels and disorienting
+ * the user.
+ */
+const PER_EVENT_FACTOR_MIN = 0.5;
+const PER_EVENT_FACTOR_MAX = 2.0;
+
+/**
+ * `deltaMode` normalizers (W3C UI Events spec): convert line/page-mode
+ * deltas to pixel-mode equivalents so the sensitivity formula behaves
+ * the same regardless of how the browser reports the wheel event.
+ * Pixel-mode is the modern default; line/page modes appear on older
+ * Firefox + some accessibility shells.
+ */
+const DELTA_MODE_PIXEL_SCALE = 1;
+const DELTA_MODE_LINE_SCALE = 16; // ~one CSS line ≈ 16 CSS px
+const DELTA_MODE_PAGE_SCALE = 800; // ~one viewport-page ≈ 800 px
 
 /**
  * Pro-editor canvas gestures — Fase 6 UX polish.
@@ -62,6 +80,7 @@ const WHEEL_ZOOM_FACTOR = 1.1;
 export class SvgeCanvasGestures implements OnDestroy {
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly viewport = inject(ViewportService);
+  private readonly workspace = inject(WorkspaceService);
 
   private boundOnWheel = (e: WheelEvent): void => this.onWheel(e);
   private boundOnPointerDown = (e: PointerEvent): void => this.onPointerDown(e);
@@ -107,11 +126,35 @@ export class SvgeCanvasGestures implements OnDestroy {
     event.preventDefault();
     const anchor = this.screenToDoc(event.clientX, event.clientY);
     if (anchor === null) return;
-    // deltaY > 0 = scroll DOWN = zoom OUT (smaller). The factor flips
-    // accordingly. deltaMode is ignored (line vs pixel) — every notch
-    // is one step regardless of trackpad vs mouse to keep the feel
-    // consistent.
-    const factor = event.deltaY < 0 ? WHEEL_ZOOM_FACTOR : 1 / WHEEL_ZOOM_FACTOR;
+
+    // Normalize deltaY to "approximate CSS pixels" so the same
+    // sensitivity coefficient works across deltaMode variants.
+    const scale =
+      event.deltaMode === WheelEvent.DOM_DELTA_LINE
+        ? DELTA_MODE_LINE_SCALE
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? DELTA_MODE_PAGE_SCALE
+          : DELTA_MODE_PIXEL_SCALE;
+    const normalizedDelta = event.deltaY * scale;
+
+    // Exponential mapping: factor = exp(-delta * sensitivity).
+    // - sensitivity ∈ [0.0002, 0.002] from `wheelZoomSpeed` 1-10
+    // - delta ≈ 100 (one mouse-wheel notch in pixel mode)
+    // - speed=5 (default) → exp(-100 * 0.001) = exp(-0.1) ≈ 0.905 → ~10% zoom out
+    // - speed=1 → exp(-100 * 0.0002) = exp(-0.02) ≈ 0.980 → ~2% zoom out
+    // - speed=10 → exp(-100 * 0.002) = exp(-0.2) ≈ 0.819 → ~18% zoom out
+    //
+    // Old behaviour (1.1 per notch ignoring magnitude) hit the user's
+    // reported "5% to 226% in light scroll" because a single trackpad
+    // gesture can fire 5+ wheel events, each with deltaY ~100+. The
+    // exponential formula stays calibrated regardless of event density.
+    const sensitivity = wheelZoomSensitivityFromSpeed(this.workspace.interaction().wheelZoomSpeed);
+    const rawFactor = Math.exp(-normalizedDelta * sensitivity);
+
+    // Clamp the per-event factor so even an extreme delta (touchpad
+    // pinch reporting deltaY = 1000+) can't leap multiple zoom levels
+    // in one event.
+    const factor = Math.max(PER_EVENT_FACTOR_MIN, Math.min(PER_EVENT_FACTOR_MAX, rawFactor));
     this.viewport.zoomAt(factor, anchor);
   }
 

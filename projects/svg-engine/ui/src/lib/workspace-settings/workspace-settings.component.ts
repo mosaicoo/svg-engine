@@ -6,7 +6,7 @@ import { MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { WorkspaceService } from 'svg-engine/edit';
+import { WHEEL_ZOOM_SPEED_MAX, WHEEL_ZOOM_SPEED_MIN, WorkspaceService } from 'svg-engine/edit';
 
 /**
  * Settings dialog for the `WorkspaceService` (Item 2 — débito 4f).
@@ -130,6 +130,33 @@ import { WorkspaceService } from 'svg-engine/edit';
           Clear all
         </button>
       </section>
+
+      <section class="group">
+        <h3>Interaction</h3>
+        <label class="slider-row">
+          <span class="slider-label">
+            Wheel zoom speed: <strong>{{ wheelZoomSpeed() }}</strong>
+          </span>
+          <input
+            type="range"
+            class="speed-slider"
+            [min]="speedMin"
+            [max]="speedMax"
+            step="1"
+            [value]="wheelZoomSpeed()"
+            (input)="setWheelZoomSpeed($any($event.target).value)"
+            aria-label="Wheel zoom sensitivity"
+          />
+          <span class="slider-hints">
+            <span>Slow</span>
+            <span>Fast</span>
+          </span>
+        </label>
+        <p class="info">
+          Controls how much one notch of the mouse wheel changes zoom. Try lowering this if a single
+          scroll feels like it jumps too far.
+        </p>
+      </section>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button type="button" (click)="resetAll()">Reset defaults</button>
@@ -173,6 +200,29 @@ import { WorkspaceService } from 'svg-engine/edit';
       display: block;
       margin-bottom: 8px;
     }
+    .slider-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
+    .slider-label {
+      font-size: 13px;
+      color: var(--mat-sys-on-surface, inherit);
+    }
+    .slider-label strong {
+      color: var(--mat-sys-primary, #1976d2);
+      font-variant-numeric: tabular-nums;
+    }
+    .speed-slider {
+      width: 100%;
+      accent-color: var(--mat-sys-primary, #1976d2);
+    }
+    .slider-hints {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--mat-sys-on-surface-variant, #777);
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -193,6 +243,9 @@ export class SvgeWorkspaceSettings {
   protected readonly gridMajorEvery = computed(() => this.ws.grid().majorEvery);
   protected readonly rulersEnabled = computed(() => this.ws.rulers().enabled);
   protected readonly guideCount = computed(() => this.ws.guides().length);
+  protected readonly wheelZoomSpeed = computed(() => this.ws.interaction().wheelZoomSpeed);
+  protected readonly speedMin = WHEEL_ZOOM_SPEED_MIN;
+  protected readonly speedMax = WHEEL_ZOOM_SPEED_MAX;
 
   // ── Mutators (delegate validation to WorkspaceService) ────────
 
@@ -224,10 +277,15 @@ export class SvgeWorkspaceSettings {
   protected clearGuides(): void {
     this.ws.clearGuides();
   }
+  protected setWheelZoomSpeed(raw: string | number): void {
+    const n = typeof raw === 'number' ? raw : Number.parseInt(raw, 10);
+    if (Number.isFinite(n)) this.ws.patchInteraction({ wheelZoomSpeed: n });
+  }
   protected resetAll(): void {
     this.ws.resetPage();
     this.ws.resetGrid();
     this.ws.setRulersEnabled(false);
     this.ws.clearGuides();
+    this.ws.resetInteraction();
   }
 }

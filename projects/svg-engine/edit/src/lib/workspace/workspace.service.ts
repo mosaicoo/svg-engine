@@ -105,6 +105,46 @@ export interface RulersConfig {
 const DEFAULT_RULERS: RulersConfig = { enabled: false };
 
 /**
+ * Canvas-interaction configuration — currently only carries the
+ * wheel-zoom sensitivity, but the same shape will hold future
+ * gesture preferences (pan inertia, scroll-to-zoom modifier, etc.).
+ *
+ * - `wheelZoomSpeed`: integer 1-10 representing how much zoom one
+ *   wheel notch produces. 5 (default) maps to a "natural" Figma-like
+ *   feel; 1 is the slowest (must scroll a lot to zoom); 10 is the
+ *   fastest. The exact pixel-delta-to-factor formula lives in the
+ *   {@link SvgeCanvasGestures} directive — see {@link DEFAULT_INTERACTION}.
+ *   Internally the speed is mapped to a sensitivity coefficient via
+ *   `0.0002 * speed`, so:
+ *     - speed=1  → 0.0002 (≈ 2% per 100-px delta)
+ *     - speed=5  → 0.0010 (≈ 9.5% per 100-px delta — Figma-equivalent)
+ *     - speed=10 → 0.0020 (≈ 18% per 100-px delta)
+ *   This range is empirically tuned to feel "natural" on both
+ *   trackpads (low deltaY per event, many events) and mouse wheels
+ *   (high deltaY per event, fewer events).
+ */
+export interface InteractionConfig {
+  readonly wheelZoomSpeed: number;
+}
+
+/** Lowest / highest values of `wheelZoomSpeed` exposed in UI sliders. */
+export const WHEEL_ZOOM_SPEED_MIN = 1;
+export const WHEEL_ZOOM_SPEED_MAX = 10;
+
+const DEFAULT_INTERACTION: InteractionConfig = { wheelZoomSpeed: 5 };
+
+/**
+ * Convert the user-facing "speed" scale (1-10) into the actual
+ * sensitivity coefficient used by the wheel-zoom formula. Exposed as
+ * a constant + helper so tests + UI + directive all agree on the
+ * same mapping.
+ */
+export function wheelZoomSensitivityFromSpeed(speed: number): number {
+  const clamped = Math.max(WHEEL_ZOOM_SPEED_MIN, Math.min(WHEEL_ZOOM_SPEED_MAX, Math.round(speed)));
+  return 0.0002 * clamped;
+}
+
+/**
  * Editor-side **workspace presentation state** (D-021 resolution).
  *
  * Holds non-document configuration that describes how the canvas is
@@ -131,6 +171,7 @@ export class WorkspaceService {
   private readonly _grid = signal<GridConfig>(DEFAULT_GRID);
   private readonly _rulers = signal<RulersConfig>(DEFAULT_RULERS);
   private readonly _guides = signal<readonly Guide[]>([]);
+  private readonly _interaction = signal<InteractionConfig>(DEFAULT_INTERACTION);
   private guideCounter = 0;
 
   /** Reactive snapshot of the current background config. */
@@ -147,6 +188,13 @@ export class WorkspaceService {
 
   /** Reactive snapshot of the user-drawn guides. */
   readonly guides = this._guides.asReadonly();
+
+  /**
+   * Reactive snapshot of canvas-interaction prefs (currently just
+   * wheel-zoom speed). Consumed by `SvgeCanvasGestures` to compute
+   * the effective zoom factor per wheel event.
+   */
+  readonly interaction = this._interaction.asReadonly();
 
   /**
    * Convenience computed — true when the current background is the
@@ -285,6 +333,31 @@ export class WorkspaceService {
   clearGuides(): void {
     if (this._guides().length === 0) return;
     this._guides.set([]);
+  }
+
+  // ── Interaction ─────────────────────────────────────────────────
+
+  /**
+   * Patch interaction config (partial). Currently only `wheelZoomSpeed`
+   * is defined; out-of-range values are clamped to
+   * `[WHEEL_ZOOM_SPEED_MIN, WHEEL_ZOOM_SPEED_MAX]`. Non-integer values
+   * are rounded.
+   */
+  patchInteraction(patch: Partial<InteractionConfig>): void {
+    const current = this._interaction();
+    let wheelZoomSpeed = current.wheelZoomSpeed;
+    if (typeof patch.wheelZoomSpeed === 'number' && Number.isFinite(patch.wheelZoomSpeed)) {
+      wheelZoomSpeed = Math.max(
+        WHEEL_ZOOM_SPEED_MIN,
+        Math.min(WHEEL_ZOOM_SPEED_MAX, Math.round(patch.wheelZoomSpeed)),
+      );
+    }
+    if (wheelZoomSpeed === current.wheelZoomSpeed) return;
+    this._interaction.set({ wheelZoomSpeed });
+  }
+
+  resetInteraction(): void {
+    this._interaction.set(DEFAULT_INTERACTION);
   }
 }
 

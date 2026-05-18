@@ -249,3 +249,55 @@ describe('WorkspaceService — guides (Bloco 4f)', () => {
     expect(ws.guides()).toEqual([]);
   });
 });
+
+describe('WorkspaceService — interaction (Fase 6 UX polish)', () => {
+  it('starts with default wheelZoomSpeed = 5', () => {
+    const ws = setup();
+    expect(ws.interaction().wheelZoomSpeed).toBe(5);
+  });
+
+  it('patchInteraction clamps wheelZoomSpeed to [1, 10] and rounds', () => {
+    const ws = setup();
+    ws.patchInteraction({ wheelZoomSpeed: 100 });
+    expect(ws.interaction().wheelZoomSpeed).toBe(10);
+    ws.patchInteraction({ wheelZoomSpeed: -3 });
+    expect(ws.interaction().wheelZoomSpeed).toBe(1);
+    ws.patchInteraction({ wheelZoomSpeed: 4.7 });
+    expect(ws.interaction().wheelZoomSpeed).toBe(5);
+  });
+
+  it('patchInteraction with non-finite value is silently ignored', () => {
+    const ws = setup();
+    ws.patchInteraction({ wheelZoomSpeed: 7 });
+    ws.patchInteraction({ wheelZoomSpeed: NaN });
+    expect(ws.interaction().wheelZoomSpeed).toBe(7);
+  });
+
+  it('patchInteraction with same value does not re-fire signal', () => {
+    const ws = setup();
+    ws.patchInteraction({ wheelZoomSpeed: 5 });
+    const ref1 = ws.interaction();
+    ws.patchInteraction({ wheelZoomSpeed: 5 });
+    expect(ws.interaction()).toBe(ref1);
+  });
+
+  it('resetInteraction restores default speed', () => {
+    const ws = setup();
+    ws.patchInteraction({ wheelZoomSpeed: 1 });
+    ws.resetInteraction();
+    expect(ws.interaction().wheelZoomSpeed).toBe(5);
+  });
+});
+
+describe('wheelZoomSensitivityFromSpeed (helper)', () => {
+  it('maps default speed 5 to 0.001 sensitivity', async () => {
+    const { wheelZoomSensitivityFromSpeed } = await import('./workspace.service');
+    expect(wheelZoomSensitivityFromSpeed(5)).toBeCloseTo(0.001, 6);
+  });
+
+  it('clamps out-of-range speeds before mapping', async () => {
+    const { wheelZoomSensitivityFromSpeed } = await import('./workspace.service');
+    expect(wheelZoomSensitivityFromSpeed(100)).toBeCloseTo(0.002, 6);
+    expect(wheelZoomSensitivityFromSpeed(-5)).toBeCloseTo(0.0002, 6);
+  });
+});
