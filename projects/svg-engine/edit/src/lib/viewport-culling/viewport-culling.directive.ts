@@ -48,55 +48,93 @@ export class SvgeViewportCullingDirective implements OnDestroy {
   private readonly elRef = inject(ElementRef<Element>);
   private readonly culling = inject(ViewportCullingService);
 
-  /** Snapshot of ids currently culled — drives diff application on next change. */
-  private readonly currentlyCulled = new Set<string>();
+  /**
+   * Pending rAF id when a culling pass is scheduled. Used to coalesce
+   * multiple signal-driven re-runs within the same frame into a single
+   * DOM-write batch — pan/zoom emits many viewport changes per frame and
+   * we don't want to do N DOM walks for N intermediate states.
+   */
+  private rafId: number | null = null;
 
   constructor() {
     effect(() => {
-      this.applyCulling();
+      // Read the signal here (inside the effect) so dependencies track,
+      // but DEFER the actual DOM work to rAF. The signal value will be
+      // re-read inside `applyCulling` against the current state.
+      this.culling.culledIds();
+      this.scheduleCullingPass();
     });
   }
 
   ngOnDestroy(): void {
-    // Restore everything we culled — if the directive is detached but
-    // the elements stay, they should become visible again.
-    for (const id of this.currentlyCulled) {
-      this.uncullOne(id);
+    if (this.rafId !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
     }
-    this.currentlyCulled.clear();
+    // Restore every element we culled so the DOM isn't left in a
+    // partially-hidden state if the directive is removed but the
+    // elements stay.
+    const root = this.elRef.nativeElement;
+    const els = root.querySelectorAll(`[${CULLED_ATTR}="1"]`);
+    for (const el of els as NodeListOf<Element>) {
+      el.removeAttribute(CULLED_ATTR);
+    }
   }
 
+  /**
+   * rAF-batched culling pass scheduler. Multiple invocations within the
+   * same frame collapse into one apply, so a 60-Hz pan/zoom doesn't
+   * compound work across intermediate sub-frame signal updates.
+   *
+   * **Why rAF over microtask**: the visual change we're computing only
+   * matters per browser repaint. Microtask-level coalescing would still
+   * fire 1× per signal write (potentially many per frame in tight loops).
+   */
+  private scheduleCullingPass(): void {
+    if (this.rafId !== null) return;
+    if (typeof requestAnimationFrame !== 'function') {
+      // Non-browser env (SSR / jsdom without rAF stub). Apply immediately
+      // so semantics stay testable; perf concern doesn't apply here.
+      this.applyCulling();
+      return;
+    }
+    this.rafId = requestAnimationFrame(() => {
+      this.rafId = null;
+      this.applyCulling();
+    });
+  }
+
+  /**
+   * **Single-pass** DOM walk to reconcile culling state. Walks every
+   * `[data-node-id]` descendant once per call (NOT per-id-change), reads
+   * its current attr state, and toggles only when the desired and
+   * actual states differ. Replaces the previous per-id `querySelectorAll`
+   * loops that scaled as O(changed_ids × descendants).
+   *
+   * **Cost**: O(elements-with-data-node-id) per call. For 16k-node
+   * Illustrator outputs, ~16k attr reads + at-most-N attr writes per
+   * frame is sub-millisecond on modern browsers — well within the
+   * 60 FPS budget (16.67 ms/frame).
+   *
+   * **Correctness**: descendants of culled groups stay in the DOM with
+   * no per-element attribute — CSS `display: none` cascades from the
+   * group `<g>` (browser skips painting the entire subtree without us
+   * touching each child).
+   */
   private applyCulling(): void {
     const target = this.culling.culledIds();
     const root = this.elRef.nativeElement;
-
-    // Pass 1 — newly-culled ids (in target but not currently).
-    for (const id of target) {
-      if (this.currentlyCulled.has(id)) continue;
-      this.cullOne(id, root);
-    }
-
-    // Pass 2 — newly-visible ids (currently culled but not in target).
-    for (const id of this.currentlyCulled) {
-      if (target.has(id as never)) continue;
-      this.uncullOne(id);
-      this.currentlyCulled.delete(id);
-    }
-  }
-
-  private cullOne(id: string, root: Element): void {
-    const els = root.querySelectorAll(`[data-node-id="${id}"]`);
+    const els = root.querySelectorAll('[data-node-id]');
     for (const el of els as NodeListOf<Element>) {
-      el.setAttribute(CULLED_ATTR, '1');
-    }
-    this.currentlyCulled.add(id);
-  }
-
-  private uncullOne(id: string): void {
-    const root = this.elRef.nativeElement;
-    const els = root.querySelectorAll(`[data-node-id="${id}"]`);
-    for (const el of els as NodeListOf<Element>) {
-      el.removeAttribute(CULLED_ATTR);
+      const id = el.getAttribute('data-node-id');
+      if (id === null) continue;
+      const shouldBeCulled = target.has(id as never);
+      const isCurrentlyCulled = el.getAttribute(CULLED_ATTR) === '1';
+      if (shouldBeCulled && !isCurrentlyCulled) {
+        el.setAttribute(CULLED_ATTR, '1');
+      } else if (!shouldBeCulled && isCurrentlyCulled) {
+        el.removeAttribute(CULLED_ATTR);
+      }
     }
   }
 }
