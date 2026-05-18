@@ -5,11 +5,38 @@
       <button
         type="button"
         (click)="loadSynthetic(count)"
-        [class.active]="loadedCount() === count"
+        [class.active]="loadedSource() === 'synth' && loadedCount() === count"
         [title]="'Load ' + count + ' nodes (50% rect / 30% ellipse / 20% path)'"
       >
         {{ count }}
       </button>
+    }
+  </fieldset>
+
+  <fieldset>
+    <legend>Load real SVG</legend>
+    <button
+      type="button"
+      (click)="openImportPicker()"
+      [class.active]="loadedSource() === 'file'"
+      title="Pick a real .svg file (e.g., Illustrator export) to benchmark against actual production output"
+    >
+      Open SVG…
+    </button>
+    <input
+      #importFile
+      type="file"
+      accept=".svg,image/svg+xml"
+      hidden
+      (change)="onImportFileChange($event)"
+    />
+    @if (importedFileName() !== null) {
+      <span class="file-info" aria-live="polite">
+        <strong>{{ importedFileName() }}</strong> · parsed in {{ importParseMs() }} ms
+        @if (importWarnings().length > 0) {
+          · <span class="warn">{{ importWarnings().length }} warning(s)</span>
+        }
+      </span>
     }
   </fieldset>
 
@@ -51,8 +78,19 @@
     </div>
     <div class="metric">
       <dt>Loaded nodes</dt>
-      <dd>{{ loadedCount() }}</dd>
+      <dd>
+        {{ loadedCount() }}
+        @if (loadedSource() !== null) {
+          <span class="src-tag">{{ loadedSource() === 'file' ? 'file' : 'synth' }}</span>
+        }
+      </dd>
     </div>
+    @if (importParseMs() !== null) {
+      <div class="metric">
+        <dt>Parse only</dt>
+        <dd>{{ importParseMs() }} ms</dd>
+      </div>
+    }
     <div class="metric" [class.pending]="resetMs() === null">
       <dt>Reset → paint</dt>
       <dd>{{ resetMs() === null ? '—' : resetMs() + ' ms' }}</dd>
@@ -82,9 +120,19 @@
 
 <footer class="perf-help">
   <p>
-    <strong>How to use:</strong> pick a node count to load, then run each benchmark in turn. Results
-    stay on screen until <em>Clear</em>. Numbers depend on the browser, machine, and other tabs — to
-    compare changes, run each benchmark <em>3 times</em> and use the middle value (median) to
-    discard warm-up jitter.
+    <strong>How to use:</strong> load a synthetic doc OR pick a real SVG file (e.g., from
+    Illustrator), then run each benchmark in turn. Results stay on screen until <em>Clear</em>.
+    Numbers depend on the browser, machine, and other tabs — to compare changes, run each benchmark
+    <em>3 times</em> and use the middle value (median) to discard warm-up jitter.
   </p>
+  @if (importWarnings().length > 0) {
+    <details class="import-warnings">
+      <summary>{{ importWarnings().length }} import warning(s) — click to expand</summary>
+      <ul>
+        @for (warn of importWarnings(); track $index) {
+          <li>{{ warn }}</li>
+        }
+      </ul>
+    </details>
+  }
 </footer>

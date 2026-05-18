@@ -57,6 +57,21 @@
       cursor: not-allowed;
     }
   }
+
+  .file-info {
+    font-size: 0.8rem;
+    color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.7));
+    padding-left: 0.4rem;
+
+    strong {
+      color: var(--mat-sys-on-surface, inherit);
+      font-weight: 500;
+    }
+
+    .warn {
+      color: var(--mat-sys-error, #c62828);
+    }
+  }
 }
 
 .perf-readouts {
@@ -97,6 +112,20 @@
       color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.4));
       font-weight: 400;
     }
+
+    .src-tag {
+      display: inline-block;
+      margin-left: 0.3rem;
+      padding: 0 0.35rem;
+      font-size: 0.65rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      vertical-align: middle;
+      background: var(--mat-sys-secondary-container, #dde3ea);
+      color: var(--mat-sys-on-secondary-container, #1a2027);
+      border-radius: 0.2rem;
+    }
   }
 }
 
@@ -122,5 +151,30 @@
 
   p {
     margin: 0;
+  }
+
+  .import-warnings {
+    margin-top: 0.4rem;
+    padding: 0.3rem 0.6rem;
+    background: var(--mat-sys-error-container, #ffd6d6);
+    color: var(--mat-sys-on-error-container, #5a0d0d);
+    border-radius: 0.3rem;
+    font-size: 0.78rem;
+
+    summary {
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    ul {
+      margin: 0.35rem 0 0;
+      padding-left: 1.2rem;
+      max-height: 8rem;
+      overflow: auto;
+    }
+
+    li {
+      margin: 0.1rem 0;
+    }
   }
 }

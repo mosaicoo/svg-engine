@@ -1,10 +1,12 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  type ElementRef,
   type OnDestroy,
   computed,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { CommandBus, EditorStateService, HistoryService } from 'svg-engine/core';
 import {
@@ -73,8 +75,31 @@ export class PerfPage implements OnDestroy {
   /** Available preset sizes for the synthetic-doc generator. */
   protected readonly presetCounts: readonly number[] = [10, 100, 500, 1000, 2000, 5000];
 
-  /** Currently loaded node count (mirrors the state but cheap to read in template). */
+  /**
+   * Currently loaded node count. For synthetic docs this equals the preset
+   * (top-level only, since the generator emits flat trees). For real
+   * imported files this is the TOTAL nodes including descendants (uses
+   * `state.nodeCount` which walks recursively) — Illustrator output is
+   * usually nested, so a "100-shape" file may have 300+ tree nodes.
+   */
   protected readonly loadedCount = signal(0);
+
+  /** Source label shown next to the count — distinguishes synth vs. imported file. */
+  protected readonly loadedSource = signal<'synth' | 'file' | null>(null);
+
+  /** File name of the last imported document (when loaded from a real file). */
+  protected readonly importedFileName = signal<string | null>(null);
+
+  /**
+   * Parse-only time for the last imported file in ms — separate from
+   * `roundTripMs` (which times export+import together). This isolates
+   * cost of `svgImporter.import(text)` on a real-world document, which
+   * Illustrator output stresses far harder than the synth generator.
+   */
+  protected readonly importParseMs = signal<number | null>(null);
+
+  /** Warnings emitted by the importer on the last loaded file (sanitization etc.). */
+  protected readonly importWarnings = signal<readonly string[]>([]);
 
   /** Last reset-to-paint duration in ms (or null when not measured yet). */
   protected readonly resetMs = signal<number | null>(null);
@@ -98,6 +123,9 @@ export class PerfPage implements OnDestroy {
   protected readonly tree = computed(() => this.state.document().root);
   protected readonly viewBox = computed(() => this.state.document().viewBox);
 
+  /** Reference to the hidden `<input type="file">` used by the file-picker button. */
+  protected readonly importFileRef = viewChild<ElementRef<HTMLInputElement>>('importFile');
+
   private readonly fpsMeter = new FpsMeter();
 
   constructor() {
@@ -117,12 +145,88 @@ export class PerfPage implements OnDestroy {
    */
   protected loadSynthetic(count: number): void {
     const doc = createSyntheticDoc({ count });
+    this.applyDocAndMeasure(doc, count, 'synth');
+    // Reset the "imported file" panel so the UI doesn't show stale info.
+    this.importedFileName.set(null);
+    this.importParseMs.set(null);
+    this.importWarnings.set([]);
+  }
+
+  /**
+   * Trigger the hidden `<input type="file">` so the user can pick a real
+   * SVG. The actual import + measurement happens in `onImportFileChange`.
+   */
+  protected openImportPicker(): void {
+    this.importFileRef()?.nativeElement.click();
+  }
+
+  /**
+   * Read the picked file, time the importer's parse step in isolation,
+   * then load the resulting document into the renderer (which also
+   * records the standard `Reset→paint` measurement).
+   *
+   * Why parse time gets its own metric: import-from-file is the most
+   * common "expensive" operation against a real Illustrator file —
+   * deeply nested groups, complex `<path d>` attributes, lots of
+   * unsupported elements triggering sanitization warnings. The
+   * synthetic generator can't reproduce this; only a real file does.
+   */
+  protected async onImportFileChange(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file == null) return;
+    const ext = file.name.split('.').pop() ?? '';
+    const importer =
+      this.importers.byExtension(ext) ?? this.importers.byMediaType(file.type) ?? null;
+    if (importer === null) {
+      console.warn(`Perf: no importer registered for "${file.name}"`);
+      input.value = '';
+      return;
+    }
+    let text: string;
+    try {
+      text = await file.text();
+    } catch (e) {
+      console.error('Perf: failed to read file —', e);
+      input.value = '';
+      return;
+    }
+    const parseStart = performance.now();
+    const result = importer.import(text);
+    const parseMs = performance.now() - parseStart;
+    if (!result.ok) {
+      console.error(`Perf: import failed — ${result.error}`);
+      input.value = '';
+      return;
+    }
+    this.importParseMs.set(Math.round(parseMs));
+    this.importedFileName.set(file.name);
+    this.importWarnings.set(result.warnings);
+    // Apply the doc and let the standard `Reset→paint` measurement run.
+    // We pass the recursive node count from state (which already walks
+    // the tree) once it updates — `applyDocAndMeasure` reads it inside
+    // the rAF callback so nested files report their TOTAL node count.
+    this.applyDocAndMeasure(result.document, null, 'file');
+    input.value = '';
+  }
+
+  /**
+   * Shared "reset document, then time the paint" pipeline used by both
+   * synth and real-file loaders. Pass `null` for `displayCount` when the
+   * count should be read from `state.nodeCount` (i.e., for imported files
+   * with nested groups whose total node count isn't known up front).
+   */
+  private applyDocAndMeasure(
+    doc: ReturnType<typeof createSyntheticDoc>,
+    displayCount: number | null,
+    source: 'synth' | 'file',
+  ): void {
     const start = performance.now();
     this.state.resetDocument(doc);
     this.viewport.setContentBox(doc.viewBox);
     this.selection.clear();
     this.history.clear();
-    this.loadedCount.set(count);
+    this.loadedSource.set(source);
     // Two rAFs: the first one batches Angular's CD; the second fires
     // AFTER the browser has had a chance to paint. Realistic "to-paint"
     // approximation without requiring the Performance Paint API
@@ -130,6 +234,10 @@ export class PerfPage implements OnDestroy {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         this.resetMs.set(Math.round(performance.now() - start));
+        // For real files we want the post-walk total. The state's
+        // `nodeCount` computed has settled by now (it depends on the
+        // same document signal we just wrote).
+        this.loadedCount.set(displayCount ?? this.state.nodeCount());
       });
     });
   }
@@ -225,5 +333,7 @@ export class PerfPage implements OnDestroy {
     this.roundTripMs.set(null);
     this.optimizeMs.set(null);
     this.panZoomFps.set(null);
+    this.importParseMs.set(null);
+    this.importWarnings.set([]);
   }
 }
