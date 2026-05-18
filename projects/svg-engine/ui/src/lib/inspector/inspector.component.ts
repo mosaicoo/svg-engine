@@ -13,7 +13,9 @@ import {
   CommandBus,
   EditorStateService,
   findNodeById,
+  type NodeId,
   SetPropertyCommand,
+  SetStylePropertyOnManyCommand,
   type SvgNode,
   type SvgStyle,
 } from 'svg-engine/core';
@@ -71,7 +73,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
   ],
   template: `
     @if (focusNode(); as node) {
-      <header class="inspector-header">
+      <header class="inspector-header" data-mode="single">
         <mat-icon class="type-icon" aria-hidden="true">{{ typeIcon(node) }}</mat-icon>
         <span class="type-label">{{ node.type }}</span>
         <span class="id-label" [title]="node.id">{{ node.id.slice(0, 8) }}</span>
@@ -353,18 +355,117 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
           </mat-form-field>
         </div>
       </section>
+    } @else if (multiEditableIds().length > 1) {
+      <!-- Multi-edit panel (Item 1 - débito 4c): style fields apply
+           atomically to all unlocked selected nodes via one undo entry. -->
+      <header class="inspector-header" data-mode="multi">
+        <mat-icon class="type-icon" aria-hidden="true">filter_none</mat-icon>
+        <span class="type-label">Multi-selection</span>
+        <span class="id-label">{{ multiEditableIds().length }} editable</span>
+      </header>
+      <section class="section">
+        <h3 class="section-title">Style (applies to all)</h3>
+        <div class="grid color-grid">
+          <div class="color-cell" [class.active-target]="activeColorTarget() === 'fill'">
+            <label class="field-row" (pointerdown)="setActiveColorTarget('fill')">
+              <span class="lbl">fill</span>
+              <span
+                class="swatch"
+                [class.show-checker]="swatchShowChecker('fill')"
+                [style.background-color]="swatchColorWithAlpha('fill')"
+                [title]="rawStyleColor('fill')"
+                aria-hidden="true"
+              ></span>
+              <input
+                type="color"
+                class="color-input-hidden"
+                aria-label="Pick fill color (applies to all)"
+                [value]="styleColor('fill')"
+                (change)="setStyle('fill', $any($event.target).value)"
+              />
+            </label>
+            <input
+              type="number"
+              class="alpha-input"
+              min="0"
+              max="1"
+              step="0.05"
+              aria-label="Fill alpha (applies to all)"
+              [value]="styleAlpha('fillOpacity')"
+              [placeholder]="hasMixedStyle('fillOpacity') ? 'mixed' : ''"
+              (change)="setStyleNumber('fillOpacity', $any($event.target).value)"
+            />
+          </div>
+          <div class="color-cell" [class.active-target]="activeColorTarget() === 'stroke'">
+            <label class="field-row" (pointerdown)="setActiveColorTarget('stroke')">
+              <span class="lbl">stroke</span>
+              <span
+                class="swatch"
+                [class.show-checker]="swatchShowChecker('stroke')"
+                [style.background-color]="swatchColorWithAlpha('stroke')"
+                [title]="rawStyleColor('stroke')"
+                aria-hidden="true"
+              ></span>
+              <input
+                type="color"
+                class="color-input-hidden"
+                aria-label="Pick stroke color (applies to all)"
+                [value]="styleColor('stroke')"
+                (change)="setStyle('stroke', $any($event.target).value)"
+              />
+            </label>
+            <input
+              type="number"
+              class="alpha-input"
+              min="0"
+              max="1"
+              step="0.05"
+              aria-label="Stroke alpha (applies to all)"
+              [value]="styleAlpha('strokeOpacity')"
+              [placeholder]="hasMixedStyle('strokeOpacity') ? 'mixed' : ''"
+              (change)="setStyleNumber('strokeOpacity', $any($event.target).value)"
+            />
+          </div>
+        </div>
+        <svge-color-palette class="palette-strip" (colorPicked)="onPalettePick($event)" />
+        <div class="grid">
+          <mat-form-field appearance="outline">
+            <mat-label>stroke-width</mat-label>
+            <input
+              matInput
+              type="number"
+              min="0"
+              step="0.5"
+              [value]="styleNumber('strokeWidth')"
+              [placeholder]="hasMixedStyle('strokeWidth') ? 'mixed' : ''"
+              (change)="setStyleNumber('strokeWidth', $any($event.target).value)"
+            />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>opacity</mat-label>
+            <input
+              matInput
+              type="number"
+              min="0"
+              max="1"
+              step="0.05"
+              [value]="styleNumber('opacity')"
+              [placeholder]="hasMixedStyle('opacity') ? 'mixed' : ''"
+              (change)="setStyleNumber('opacity', $any($event.target).value)"
+            />
+          </mat-form-field>
+        </div>
+      </section>
+    } @else if (selectionCount() > 1) {
+      <p class="placeholder">
+        <mat-icon aria-hidden="true">lock</mat-icon>
+        Multi-selection ({{ selectionCount() }}) — all locked.
+      </p>
     } @else {
-      @if (selectionCount() > 1) {
-        <p class="placeholder">
-          <mat-icon aria-hidden="true">filter_none</mat-icon>
-          Multiple selection ({{ selectionCount() }}) — multi-edit pending.
-        </p>
-      } @else {
-        <p class="placeholder">
-          <mat-icon aria-hidden="true">info</mat-icon>
-          No selection.
-        </p>
-      }
+      <p class="placeholder">
+        <mat-icon aria-hidden="true">info</mat-icon>
+        No selection.
+      </p>
     }
   `,
   styles: `
@@ -584,6 +685,25 @@ export class SvgeInspector {
   protected readonly selectionCount = this.selection.count;
 
   /**
+   * Editable ids = the set of selected nodes that style writes will
+   * apply to (Item 1 — débito 4c multi-edit).
+   *
+   * - Single selection (unlocked): one id → single-edit behavior
+   *   identical to pre-multi-edit
+   * - Multi-selection: ALL unlocked selected ids → writes apply
+   *   atomically via `SetStylePropertyOnManyCommand`
+   * - Empty when nothing is selected or everything selected is locked
+   *
+   * Locked nodes are filtered defensively here too — `SelectionService`
+   * already prunes locked from the selection set, but if a future
+   * consumer programmatically forces them in, the inspector still
+   * refuses to write to them.
+   */
+  protected readonly multiEditableIds = computed<readonly NodeId[]>(() =>
+    Array.from(this.selection.selectedIds()).filter((id) => !this.layers.isLocked(id)),
+  );
+
+  /**
    * Tracks which color field (`fill` or `stroke`) the palette strip
    * should write to. Updated by `pointerdown` on either color label so
    * the palette routes to the user's most recent intent. Defaults to
@@ -647,63 +767,103 @@ export class SvgeInspector {
   }
 
   /**
-   * Value bound to the `<input type="color">` picker. Color inputs only
-   * accept `#RRGGBB`, so non-hex values (e.g., `'rgb(...)'`, `'hsl(...)'`,
-   * `'tomato'`) are NORMALIZED to hex via {@link cssColorToHex6} (Canvas
-   * round-trip) so the native picker opens at the **real** model color
-   * instead of a gray fallback.
+   * The "common" value of `field` across all currently-editable nodes
+   * (Item 1 — débito 4c multi-edit). Returns:
    *
-   * Special non-paint values (`'none'`, `'url(#grad)'`, `'transparent'`)
-   * fall through to a neutral default — they can't be expressed in the
-   * native picker. The swatch ({@link rawStyleColor}) still shows them
-   * truthfully via CSS `background-color`.
+   * - `undefined` when no editable nodes exist (no selection / all locked)
+   * - The shared value when every editable node has the same value
+   *   for `field` (single-selection always falls into this case)
+   * - A `MIXED` sentinel when at least two nodes disagree (only
+   *   reachable in multi-selection)
+   *
+   * The sentinel is distinguishable from `undefined` so the template
+   * can show different states ("empty input" vs "mixed placeholder").
+   */
+  protected commonStyleValue<K extends keyof SvgStyle>(
+    field: K,
+  ): SvgStyle[K] | typeof MIXED | undefined {
+    const ids = this.editableIdsForStyle();
+    if (ids.length === 0) return undefined;
+    const doc = this.state.document();
+    let value: SvgStyle[K] | undefined;
+    let first = true;
+    for (const id of ids) {
+      const node = findNodeById(doc.root, id);
+      if (node === null) continue;
+      const v = node.style[field];
+      if (first) {
+        value = v;
+        first = false;
+      } else if (v !== value) {
+        return MIXED;
+      }
+    }
+    return value;
+  }
+
+  /**
+   * True when the editable selection has mixed values for `field` —
+   * UI uses this to show a "mixed" placeholder on number/text inputs.
+   */
+  protected hasMixedStyle(field: keyof SvgStyle): boolean {
+    return this.commonStyleValue(field) === MIXED;
+  }
+
+  /**
+   * Resolves the id list that style writes target. Single mode: the
+   * focused node id (when present and unlocked). Multi mode: every
+   * unlocked selected id. Empty when nothing can be written.
+   */
+  private editableIdsForStyle(): readonly NodeId[] {
+    const focus = this.focusNode();
+    if (focus !== null) return this.layers.isLocked(focus.id) ? [] : [focus.id];
+    return this.multiEditableIds();
+  }
+
+  /**
+   * Value bound to the `<input type="color">` picker. Color inputs only
+   * accept `#RRGGBB`, so non-hex values are NORMALIZED to hex via
+   * {@link cssColorToHex6}. Special non-paint values (`'none'`,
+   * `'url(...)'`, `'transparent'`) fall through to neutral. Mixed
+   * values in multi-edit also fall through to neutral (picker can't
+   * display "mixed").
    */
   protected styleColor(field: 'fill' | 'stroke'): string {
-    const node = this.focusNode();
-    if (node === null) return '#000000';
-    const v = node.style[field];
+    const v = this.commonStyleValue(field);
+    if (v === MIXED || v === undefined) return '#cccccc';
     if (typeof v !== 'string') return '#cccccc';
     if (v === 'none' || v === 'transparent' || v.startsWith('url(')) return '#cccccc';
     return cssColorToHex6(v) ?? '#cccccc';
   }
 
   /**
-   * Raw CSS color value from the model (any format the user/plugin set
-   * — hex, rgb, hsl, named, url). Drives the visual swatch next to the
-   * picker so the user always sees the **actual** current color even
-   * when it's not a 6-char hex (which the native `<input type="color">`
-   * can't render). `'transparent'` when the field is undefined.
+   * Raw CSS color value drives the visual swatch. In multi-edit mode
+   * with mixed values, returns `'transparent'` so the swatch shows
+   * the checkerboard ("the color isn't uniform").
    */
   protected rawStyleColor(field: 'fill' | 'stroke'): string {
-    const node = this.focusNode();
-    if (node === null) return 'transparent';
-    const v = node.style[field];
+    const v = this.commonStyleValue(field);
+    if (v === MIXED || v === undefined) return 'transparent';
     return typeof v === 'string' && v.length > 0 ? v : 'transparent';
   }
 
   /**
-   * Same as {@link rawStyleColor} but composes with the field's alpha
-   * (`fillOpacity` / `strokeOpacity`) so the swatch visually reflects
-   * transparency too — checkerboard shows through semi-transparent
-   * colors, same as a real-life paint chip.
-   *
-   * When alpha is undefined or 1, returns the raw color unchanged so
-   * we don't pay the conversion cost on the common fully-opaque case.
+   * Same as {@link rawStyleColor} but composes the alpha into the
+   * color so the swatch visually reflects transparency too —
+   * checkerboard shows through semi-transparent colors.
    */
   protected swatchColorWithAlpha(field: 'fill' | 'stroke'): string {
     const raw = this.rawStyleColor(field);
     if (raw === 'transparent') return raw;
-    const node = this.focusNode();
-    if (node === null) return raw;
     const alphaField: 'fillOpacity' | 'strokeOpacity' =
       field === 'fill' ? 'fillOpacity' : 'strokeOpacity';
-    const alpha = node.style[alphaField];
-    if (typeof alpha !== 'number' || !Number.isFinite(alpha) || alpha >= 1) return raw;
+    const alpha = this.commonStyleValue(alphaField);
+    if (alpha === MIXED || alpha === undefined || typeof alpha !== 'number' || alpha >= 1) {
+      return raw;
+    }
     if (alpha <= 0) return 'transparent';
-    // Compose the alpha into the color via rgba(). cssColorToHex6 gives
-    // us a stable RGB hex; then we apply the alpha channel ourselves.
     const hex = cssColorToHex6(raw);
-    if (hex === null) return raw; // unparseable — fall back to raw (may be 'url(...)' etc.)
+    if (hex === null) return raw;
     const r = Number.parseInt(hex.slice(1, 3), 16);
     const g = Number.parseInt(hex.slice(3, 5), 16);
     const b = Number.parseInt(hex.slice(5, 7), 16);
@@ -712,56 +872,45 @@ export class SvgeInspector {
 
   /**
    * Whether the swatch for `field` should render the checkerboard
-   * backdrop (Bloco 4z-fixes4). True when the underlying paint is
-   * "see-through" — either the color itself is `'transparent'` /
-   * `'none'` / undefined, OR the field's alpha is < 1. False for
-   * solid opaque colors so the swatch renders as a clean chip.
+   * backdrop. True when the underlying paint is "see-through" (color
+   * is `'transparent'` / `'none'` / undefined, OR alpha < 1, OR
+   * the value is mixed across multi-edit selection).
    */
   protected swatchShowChecker(field: 'fill' | 'stroke'): boolean {
+    if (this.hasMixedStyle(field)) return true;
     const raw = this.rawStyleColor(field);
     if (raw === 'transparent' || raw === 'none') return true;
-    const node = this.focusNode();
-    if (node === null) return false;
     const alphaField: 'fillOpacity' | 'strokeOpacity' =
       field === 'fill' ? 'fillOpacity' : 'strokeOpacity';
-    const alpha = node.style[alphaField];
+    const alpha = this.commonStyleValue(alphaField);
     return typeof alpha === 'number' && Number.isFinite(alpha) && alpha < 1;
   }
 
   /**
-   * String value bound to the per-color alpha input. SVG defaults
-   * `fill-opacity` and `stroke-opacity` to 1; we surface that as the
-   * visible value rather than empty so the user always sees a concrete
-   * number to edit. Formatted to 2 decimals to match the global
-   * `opacity` field.
+   * String value bound to the per-color alpha input. SVG defaults to
+   * 1 — we surface that explicitly so the user always sees a concrete
+   * number to edit. Multi-edit mixed values render as empty.
    */
   protected styleAlpha(field: 'fillOpacity' | 'strokeOpacity'): string {
-    const node = this.focusNode();
-    if (node === null) return '1';
-    const v = node.style[field];
-    if (typeof v === 'number' && Number.isFinite(v)) {
-      return v.toFixed(2);
-    }
+    const v = this.commonStyleValue(field);
+    if (v === MIXED) return '';
+    if (typeof v === 'number' && Number.isFinite(v)) return v.toFixed(2);
     return '1';
   }
 
   /**
-   * String value bound to the numeric style inputs. Rounded to integer
-   * for `strokeWidth` (display-only — model preserves precision when
-   * user edits). `opacity` shows 2 decimals and defaults to `'1'` when
-   * the model has no explicit value (the SVG implicit default), so the
-   * input always shows a concrete number instead of Material's floating
-   * label placeholder.
+   * String value bound to the numeric style inputs (`strokeWidth`,
+   * `opacity`). Mixed values in multi-edit render empty (placeholder
+   * shows "mixed").
    */
   protected styleNumber(field: 'strokeWidth' | 'opacity'): string {
-    const node = this.focusNode();
-    if (node === null) return '';
-    const v = node.style[field];
+    const v = this.commonStyleValue(field);
+    if (v === MIXED) return '';
     if (typeof v === 'number' && Number.isFinite(v)) {
       return field === 'opacity' ? v.toFixed(2) : String(roundForDisplay(v));
     }
     // SVG defaults: opacity = 1 (full opaque), stroke-width = 1
-    return field === 'opacity' ? '1' : '1';
+    return '1';
   }
 
   /**
@@ -782,31 +931,41 @@ export class SvgeInspector {
   }
 
   /**
-   * Set a string-valued style field (`fill`, `stroke`, etc.) on the
-   * focused node by replacing the entire `style` object — required
-   * because `SetPropertyCommand` works on top-level keys only.
+   * Set a string-valued style field (`fill`, `stroke`, etc.) on every
+   * editable selected node atomically. Single selection produces a
+   * 1-node multi-edit (same observable effect as the old SetPropertyCommand
+   * path); multi-selection writes to all in one undo entry.
+   *
+   * **Dedup**: skipped when the new value equals the current common
+   * value (avoids a no-op undo entry on touch-without-change UIs).
    */
   protected setStyle(field: keyof SvgStyle, value: string): void {
-    const node = this.focusNode();
-    if (node === null) return;
-    if (this.layers.isLocked(node.id)) return; // lock enforcement
-    if (node.style[field] === value) return;
-    const nextStyle: SvgStyle = { ...node.style, [field]: value };
-    this.bus.dispatch(new SetPropertyCommand(node.id, 'style', nextStyle));
+    const ids = this.editableIdsForStyle();
+    if (ids.length === 0) return;
+    const current = this.commonStyleValue(field);
+    if (current !== MIXED && current === value) return;
+    this.bus.dispatch(new SetStylePropertyOnManyCommand(ids, field, value));
   }
 
-  /** Same as {@link setStyle} but parses + validates a numeric string first. */
+  /** Numeric variant of {@link setStyle}: parses + validates first. */
   protected setStyleNumber(field: keyof SvgStyle, raw: string): void {
-    const node = this.focusNode();
-    if (node === null) return;
-    if (this.layers.isLocked(node.id)) return; // lock enforcement
+    const ids = this.editableIdsForStyle();
+    if (ids.length === 0) return;
     const value = parseNumericInput(raw);
     if (value === null) return;
-    if (node.style[field] === value) return;
-    const nextStyle: SvgStyle = { ...node.style, [field]: value };
-    this.bus.dispatch(new SetPropertyCommand(node.id, 'style', nextStyle));
+    const current = this.commonStyleValue(field);
+    if (current !== MIXED && current === value) return;
+    this.bus.dispatch(new SetStylePropertyOnManyCommand(ids, field, value));
   }
 }
+
+/**
+ * Sentinel returned by {@link SvgeInspector.commonStyleValue} to
+ * distinguish "values are mixed across multi-selection" from "value
+ * is undefined everywhere". Module-level `unique symbol` so the
+ * `typeof MIXED` type works in the method's return-type union.
+ */
+const MIXED: unique symbol = Symbol('mixed');
 
 /**
  * Parse a numeric input value, returning `null` for empty / whitespace

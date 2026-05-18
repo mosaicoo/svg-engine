@@ -48,7 +48,7 @@ describe('SvgeInspector — empty / multi states', () => {
     expect(placeholderText(fixture.nativeElement)).toContain('No selection');
   });
 
-  it('shows multi-selection placeholder with count when >1 selected', () => {
+  it('shows multi-edit panel (not placeholder) when >1 selected (Item 1 — débito 4c)', () => {
     const { fixture, state, selection } = setup();
     const a = createRect({ x: 0, y: 0, width: 10, height: 10 });
     const b = createRect({ x: 0, y: 0, width: 10, height: 10 });
@@ -58,9 +58,34 @@ describe('SvgeInspector — empty / multi states', () => {
     });
     selection.selectMany([a.id, b.id]);
     fixture.detectChanges();
-    const text = placeholderText(fixture.nativeElement);
-    expect(text).toContain('Multiple selection');
-    expect(text).toContain('2');
+    // Header (mode=multi) AND a STYLE section render — no placeholder.
+    const header = fixture.nativeElement.querySelector(
+      '.inspector-header[data-mode="multi"]',
+    ) as HTMLElement | null;
+    expect(header).not.toBeNull();
+    expect(header?.textContent).toContain('Multi-selection');
+    expect(header?.textContent).toContain('2 editable');
+    expect(fixture.nativeElement.querySelector('.section-title')?.textContent).toContain('Style');
+  });
+
+  it('shows "all locked" placeholder when multi-selection has zero unlocked items', () => {
+    const ctx = setup();
+    const layers = TestBed.inject(LayersService);
+    layers.unlockAll();
+    const a = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const b = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup([a, b], { id: ctx.state.document().root.id }),
+    });
+    ctx.selection.selectMany([a.id, b.id]);
+    layers.setLocked(a.id, true);
+    layers.setLocked(b.id, true);
+    TestBed.flushEffects();
+    ctx.fixture.detectChanges();
+    // Selection.toggle/select filter locked, so count() drops to 0 → "No selection".
+    // (Confirms the lock-enforcement chain stays intact for multi too.)
+    expect(placeholderText(ctx.fixture.nativeElement)).toContain('No selection');
   });
 });
 
@@ -708,5 +733,124 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
       expect(colorInputs.length).toBe(1);
       expect(colorInputs[0]?.classList.contains('color-input-hidden')).toBe(true);
     }
+  });
+});
+
+describe('SvgeInspector — multi-edit (Item 1, débito 4c)', () => {
+  function setupMulti(rectsStyle: Record<string, unknown>[]) {
+    const ctx = setup();
+    const rects = rectsStyle.map((style) =>
+      createRect(
+        { x: 0, y: 0, width: 10, height: 10 },
+        { style: style as import('svg-engine/core').SvgStyle },
+      ),
+    );
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup(rects, { id: ctx.state.document().root.id }),
+    });
+    ctx.selection.selectMany(rects.map((r) => r.id));
+    ctx.fixture.detectChanges();
+    return { ...ctx, rects };
+  }
+
+  it('common fill value: when all selected nodes share the same color, picker reads it', () => {
+    const { fixture } = setupMulti([{ fill: '#ff0000' }, { fill: '#ff0000' }]);
+    const colorInput = fixture.nativeElement.querySelector(
+      'input[type="color"]',
+    ) as HTMLInputElement | null;
+    expect(colorInput?.value).toBe('#ff0000');
+  });
+
+  it('mixed fill values: picker shows neutral fallback, alpha input is empty', () => {
+    const { fixture } = setupMulti([
+      { fill: '#ff0000', fillOpacity: 0.5 },
+      { fill: '#00ff00', fillOpacity: 1 },
+    ]);
+    const colorInput = fixture.nativeElement.querySelector(
+      'input[type="color"]',
+    ) as HTMLInputElement;
+    expect(colorInput.value).toBe('#cccccc'); // neutral
+    const alphaInput = fixture.nativeElement.querySelector('.alpha-input') as HTMLInputElement;
+    expect(alphaInput.value).toBe(''); // mixed → empty
+    expect(alphaInput.placeholder).toBe('mixed');
+  });
+
+  it('editing fill in multi-edit dispatches SetStylePropertyOnManyCommand atomically', () => {
+    const { fixture, state, rects } = setupMulti([{ fill: '#000000' }, { fill: '#000000' }]);
+    const colorInput = fixture.nativeElement.querySelector(
+      'input[type="color"]',
+    ) as HTMLInputElement;
+    colorInput.value = '#abcdef';
+    colorInput.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    // Both nodes updated.
+    for (const r of rects) {
+      const updated = findNodeById(state.document().root, r.id);
+      expect(updated?.style.fill).toBe('#abcdef');
+    }
+  });
+
+  it('single undo reverts a multi-edit on all affected nodes', () => {
+    const { fixture, state, rects, bus } = setupMulti([
+      { fill: '#000000' },
+      { fill: '#000000' },
+      { fill: '#000000' },
+    ]);
+    const colorInput = fixture.nativeElement.querySelector(
+      'input[type="color"]',
+    ) as HTMLInputElement;
+    colorInput.value = '#abcdef';
+    colorInput.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    bus.undo();
+    for (const r of rects) {
+      expect(findNodeById(state.document().root, r.id)?.style.fill).toBe('#000000');
+    }
+  });
+
+  it('palette pick in multi-edit applies the color to all selected', () => {
+    const { fixture, state, rects } = setupMulti([{ fill: '#000000' }, { fill: '#111111' }]);
+    const reg = TestBed.inject(PaletteRegistry);
+    reg.register({ id: 'spec', name: 'Spec', swatches: ['#ff8800'] });
+    fixture.detectChanges();
+    const specSwatch = fixture.nativeElement.querySelector(
+      'svge-color-palette .swatch',
+    ) as HTMLButtonElement;
+    specSwatch.click();
+    fixture.detectChanges();
+    for (const r of rects) {
+      expect(findNodeById(state.document().root, r.id)?.style.fill).toBe('#ff8800');
+    }
+  });
+
+  it('locked nodes are excluded from multi-edit writes', () => {
+    const ctx = setup();
+    const layers = TestBed.inject(LayersService);
+    layers.unlockAll();
+    const a = createRect({ x: 0, y: 0, width: 10, height: 10 }, { style: { fill: '#000000' } });
+    const b = createRect({ x: 0, y: 0, width: 10, height: 10 }, { style: { fill: '#000000' } });
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup([a, b], { id: ctx.state.document().root.id }),
+    });
+    ctx.selection.selectMany([a.id, b.id]);
+    // Lock b AFTER select — SelectionService prunes locked, but the
+    // inspector defensively re-filters via multiEditableIds anyway.
+    layers.setLocked(b.id, true);
+    TestBed.flushEffects();
+    ctx.fixture.detectChanges();
+    // Now only a is selected (lock pruned b).
+    expect(ctx.selection.count()).toBe(1);
+    // The inspector shows SINGLE-edit for a. Verify a fill change
+    // doesn't touch b.
+    const colorInput = ctx.fixture.nativeElement.querySelector(
+      'input[type="color"]',
+    ) as HTMLInputElement;
+    colorInput.value = '#ff0000';
+    colorInput.dispatchEvent(new Event('change', { bubbles: true }));
+    ctx.fixture.detectChanges();
+    expect(findNodeById(ctx.state.document().root, a.id)?.style.fill).toBe('#ff0000');
+    expect(findNodeById(ctx.state.document().root, b.id)?.style.fill).toBe('#000000');
   });
 });
