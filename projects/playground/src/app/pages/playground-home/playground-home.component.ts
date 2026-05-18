@@ -45,6 +45,7 @@ import {
   MarqueeService,
   type NodeBBox,
   nodesInsideMarquee,
+  OptimizeCommand,
   OptimizerRegistry,
   resolveNodeIdFromEvent,
   RotationPivot,
@@ -443,16 +444,11 @@ export class PlaygroundHome implements OnDestroy {
 
   /**
    * Run the optimizer pipeline (all default-enabled passes) on the
-   * current document. Replaces state directly (NOT via CommandBus) —
-   * optimization isn't meant to live on the undo stack as a single
-   * step; if the user wants to revert, they can Ctrl+Z each prior
-   * edit. A future polish could wrap the whole pipeline in an
-   * `OptimizeCommand` for one-click undo.
+   * current document, wrapped in a single undoable command (Item 3 —
+   * débito 5-Optimize). One Ctrl+Z reverts the whole pass set.
    */
   protected optimizeDocument(): void {
-    const before = this.state.document();
-    const after = this.optimizers.runPipeline(before);
-    if (after !== before) this.state.setDocument(after);
+    this.bus.dispatch(new OptimizeCommand(this.optimizers));
   }
 
   protected addShape(kind: ShapeKind): void {

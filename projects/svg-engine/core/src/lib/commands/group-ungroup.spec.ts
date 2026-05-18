@@ -184,4 +184,73 @@ describe('UngroupCommand', () => {
     expect(restored).not.toBeNull();
     expect(restored?.transform).toEqual(translate(5, 5));
   });
+
+  it('Item 4 — bakes group transform into children (visual fidelity preserved)', () => {
+    // Group with translate(10, 20) wrapping an identity child rect.
+    // After ungroup, the child should END UP with transform translate(10, 20)
+    // so visual position is preserved.
+    const child = createRect({ x: 0, y: 0, width: 5, height: 5 });
+    const grp = createGroup([child], { transform: translate(10, 20) });
+    const { state, bus } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([grp as unknown as ReturnType<typeof createRect>], {
+        id: state.document().root.id,
+      }),
+    });
+    bus.dispatch(new UngroupCommand(grp.id));
+    const promoted = findNodeById(state.document().root, child.id);
+    expect(promoted?.transform).toEqual(translate(10, 20));
+  });
+
+  it('Item 4 — bake composes with child existing transform (parent · child)', () => {
+    // Group translate(10, 20) wrapping child with translate(3, 4).
+    // After ungroup: child gets translate(10, 20) · translate(3, 4) =
+    // translate(13, 24).
+    const child = createRect({ x: 0, y: 0, width: 5, height: 5 }, { transform: translate(3, 4) });
+    const grp = createGroup([child], { transform: translate(10, 20) });
+    const { state, bus } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([grp as unknown as ReturnType<typeof createRect>], {
+        id: state.document().root.id,
+      }),
+    });
+    bus.dispatch(new UngroupCommand(grp.id));
+    const promoted = findNodeById(state.document().root, child.id);
+    expect(promoted?.transform).toEqual(translate(13, 24));
+  });
+
+  it('Item 4 — identity-transform group: bake is a no-op (child ref preserved)', () => {
+    const child = createRect({ x: 0, y: 0, width: 5, height: 5 });
+    const grp = createGroup([child]); // identity transform
+    const { state, bus } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([grp as unknown as ReturnType<typeof createRect>], {
+        id: state.document().root.id,
+      }),
+    });
+    bus.dispatch(new UngroupCommand(grp.id));
+    const promoted = findNodeById(state.document().root, child.id);
+    // Same ref because identity bake short-circuits.
+    expect(promoted).toBe(child);
+  });
+
+  it('Item 4 — undo restores PRE-bake child transforms', () => {
+    const child = createRect({ x: 0, y: 0, width: 5, height: 5 }, { transform: translate(3, 4) });
+    const grp = createGroup([child], { transform: translate(10, 20) });
+    const { state, bus } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([grp as unknown as ReturnType<typeof createRect>], {
+        id: state.document().root.id,
+      }),
+    });
+    bus.dispatch(new UngroupCommand(grp.id));
+    bus.undo();
+    // Child is back inside the restored group with its ORIGINAL transform.
+    const restoredChild = findNodeById(state.document().root, child.id);
+    expect(restoredChild?.transform).toEqual(translate(3, 4));
+  });
 });

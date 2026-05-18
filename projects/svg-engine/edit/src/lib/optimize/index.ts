@@ -6,3 +6,4 @@ export {
   pruneEmptyGroupsOptimizer,
 } from './builtin-optimizers';
 export { builtinOptimizersPlugin } from './builtin-optimizers.plugin';
+export { OptimizeCommand } from './optimize.command';
