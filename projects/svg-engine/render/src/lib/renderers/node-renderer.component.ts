@@ -1,17 +1,6 @@
 import { NgComponentOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
-import {
-  type EllipseNode,
-  type ImageNode,
-  isGroupNode,
-  type LineNode,
-  type PathNode,
-  type PolygonNode,
-  type PolylineNode,
-  type RectNode,
-  type SvgNode,
-  type TextNode,
-} from 'svg-engine/core';
+import { isGroupNode, type SvgNode, type TextNode } from 'svg-engine/core';
 import { NodeRendererRegistry } from '../registry/node-renderer-registry.service';
 import { renderTransformAttr } from '../util/transform-attr';
 import { SvgeEllipseDirective } from './ellipse-renderer.directive';
@@ -73,28 +62,28 @@ import { SvgeTextDirective } from './text-renderer.directive';
   template: `
     @switch (node().type) {
       @case ('rect') {
-        <svg:rect [svgeRect]="rectNode()" />
+        <svg:rect [svgeRect]="$any(node())" />
       }
       @case ('ellipse') {
-        <svg:ellipse [svgeEllipse]="ellipseNode()" />
+        <svg:ellipse [svgeEllipse]="$any(node())" />
       }
       @case ('line') {
-        <svg:line [svgeLine]="lineNode()" />
+        <svg:line [svgeLine]="$any(node())" />
       }
       @case ('polygon') {
-        <svg:polygon [svgePolygon]="polygonNode()" />
+        <svg:polygon [svgePolygon]="$any(node())" />
       }
       @case ('polyline') {
-        <svg:polyline [svgePolyline]="polylineNode()" />
+        <svg:polyline [svgePolyline]="$any(node())" />
       }
       @case ('path') {
-        <svg:path [svgePath]="pathNode()" />
+        <svg:path [svgePath]="$any(node())" />
       }
       @case ('text') {
-        <svg:text [svgeText]="textNode()">{{ textNode().content }}</svg:text>
+        <svg:text [svgeText]="$any(node())">{{ textContent() }}</svg:text>
       }
       @case ('image') {
-        <svg:image [svgeImage]="imageNode()" />
+        <svg:image [svgeImage]="$any(node())" />
       }
       @case ('group') {
         @for (child of groupChildren(); track child.id) {
@@ -119,24 +108,33 @@ export class SvgeNodeRenderer {
 
   readonly node = input.required<SvgNode>();
 
+  /** Host-bound transform attr; runs once per input change (OnPush). */
   protected readonly transformAttr = computed(() => renderTransformAttr(this.node().transform));
 
-  protected readonly groupChildren = computed(() => {
-    const n = this.node();
-    return isGroupNode(n) ? n.children : [];
-  });
-
+  /**
+   * Custom-component lookup stays computed because the
+   * {@link NodeRendererRegistry} signal can change at runtime (plugin
+   * install/uninstall) and we want the @switch default branch to react.
+   */
   protected readonly customComponent = computed(() => this.registry.resolve(this.node().type));
 
-  // Per-type narrowed views. Safe because @switch on `type` guarantees
-  // the actual narrowing at the call site; these computeds give the
-  // template type-safe access without scattering casts.
-  protected readonly rectNode = computed(() => this.node() as RectNode);
-  protected readonly ellipseNode = computed(() => this.node() as EllipseNode);
-  protected readonly lineNode = computed(() => this.node() as LineNode);
-  protected readonly polygonNode = computed(() => this.node() as PolygonNode);
-  protected readonly polylineNode = computed(() => this.node() as PolylineNode);
-  protected readonly pathNode = computed(() => this.node() as PathNode);
-  protected readonly textNode = computed(() => this.node() as TextNode);
-  protected readonly imageNode = computed(() => this.node() as ImageNode);
+  /**
+   * Text content access for the `@case ('text')` branch. Returns `''`
+   * for non-text nodes (never reached at runtime; appeases the template
+   * type checker without scattering `$any` for the string interpolation).
+   */
+  protected textContent(): string {
+    const n = this.node();
+    return n.type === 'text' ? (n as TextNode).content : '';
+  }
+
+  /**
+   * Children iteration for the `@case ('group')` branch. Same template-
+   * type-checker rationale as {@link textContent}. Empty array for
+   * non-group nodes (never reached).
+   */
+  protected groupChildren(): readonly SvgNode[] {
+    const n = this.node();
+    return isGroupNode(n) ? n.children : [];
+  }
 }
