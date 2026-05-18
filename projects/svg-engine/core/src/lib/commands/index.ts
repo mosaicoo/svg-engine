@@ -3,6 +3,7 @@ export { GroupSelectionCommand } from './group-selection.command';
 export { InsertNodeCommand } from './insert-node.command';
 export { MoveNodeCommand } from './move-node.command';
 export { RemoveNodeCommand } from './remove-node.command';
+export { type ReorderDirection, ReorderNodeCommand } from './reorder-node.command';
 export { composeAnchoredScale, ResizeNodeCommand } from './resize-node.command';
 export { composePivotRotation, RotateNodeCommand } from './rotate-node.command';
 export { SetPropertyCommand } from './set-property.command';

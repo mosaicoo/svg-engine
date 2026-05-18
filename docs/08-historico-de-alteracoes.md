@@ -6,6 +6,66 @@
 
 ---
 
+## 2026-05-17 — Fase 4 Bloco 4z-fixes2: shortcut leak / pós-Group selection / z-order
+
+**Contexto**
+
+Três issues reportados pelo usuário:
+
+1. **Erro ao navegar Shell-demo → Home (raw)**:
+   `ShortcutRegistry.register: shortcut "playground.group" is already
+registered`. O componente registrava shortcuts no constructor mas
+   não tinha cleanup ao destruir
+2. **Após `Ctrl+G`, o novo grupo NÃO ficava selecionado** — focus
+   ficava perdido (apontando para ids antigos que agora estão dentro
+   do group)
+3. **Faltavam operações z-order** (trás, frente, para trás, para frente)
+
+**Mudanças**
+
+`playground-home.component.ts`:
+
+- Novo field `shortcutDisposables: Disposable[]` armazena Disposables
+  dos `shortcuts.register()`. `ngOnDestroy` itera + `dispose()` em
+  cada um e limpa o array
+- `groupSelection()`: pré-aloca `newGroupId = generateNodeId()`,
+  passa para `GroupSelectionCommand(ids, newGroupId)`, e
+  `selection.select(newGroupId)` se `result.ok`. Match Figma/Affinity
+- `ungroupSelection()`: captura `childIds` ANTES do dispatch; após
+  `result.ok`, `selection.selectMany(childIds)`
+- Novo computed `canReorder()` (single-selection AND not root)
+- Novo método `reorder(direction)` dispatcha `ReorderNodeCommand`
+
+`core/lib/commands/reorder-node.command.ts`:
+
+- `ReorderNodeCommand(nodeId, direction)` onde direction =
+  `'forward' | 'backward' | 'toFront' | 'toBack'`
+- SVG-canonical: first child = back, last child = front
+- No-op cases (return ok sem mutar): já no edge
+- Fail: id não existe; é o root
+- Undo: re-insere no índice original (capturado em execute pré-mutação)
+
+`playground-home.component.html`: Edit fieldset ganha 4 botões
+z-order entre Ungroup e Undo (`⤓ ↓ ↑ ⤒`), disabled-when-inválido
+
+**Decisões técnicas**
+
+- **Pré-alocar id do group**: alternativas seriam command retornar
+  id via `result` (mudar shape) ou observar tree pós-dispatch.
+  Pré-alocar é zero-acoplamento, zero-novo-API
+- **Selecionar children pós-Ungroup via `selectMany`**: padrão Figma
+- **Z-order single-selection only**: multi-node z-order precisa
+  decidir ordem entre selecionados — escopo deferido
+
+**Cobertura**
+
+`reorder-node.spec.ts`: 11 testes (forward, backward, toFront/toBack
+move + no-op + failure modes + undo round-trip)
+
+**Total**: +11 testes → **649 passing** em 49 arquivos. Zero regressão
+
+---
+
 ## 2026-05-17 — Fase 4 Bloco 4z-fixes: 4 ajustes pós-integração
 
 **Contexto**

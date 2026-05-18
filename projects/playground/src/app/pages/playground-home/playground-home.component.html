@@ -39,6 +39,40 @@
     >
       Ungroup
     </button>
+    <span aria-hidden="true">·</span>
+    <button
+      type="button"
+      (click)="reorder('toBack')"
+      [disabled]="!canReorder()"
+      title="Send to back"
+    >
+      ⤓
+    </button>
+    <button
+      type="button"
+      (click)="reorder('backward')"
+      [disabled]="!canReorder()"
+      title="Send backward"
+    >
+      ↓
+    </button>
+    <button
+      type="button"
+      (click)="reorder('forward')"
+      [disabled]="!canReorder()"
+      title="Bring forward"
+    >
+      ↑
+    </button>
+    <button
+      type="button"
+      (click)="reorder('toFront')"
+      [disabled]="!canReorder()"
+      title="Bring to front"
+    >
+      ⤒
+    </button>
+    <span aria-hidden="true">·</span>
     <button type="button" (click)="undo()" [disabled]="!canUndo()">Undo</button>
     <button type="button" (click)="redo()" [disabled]="!canRedo()">Redo</button>
   </fieldset>

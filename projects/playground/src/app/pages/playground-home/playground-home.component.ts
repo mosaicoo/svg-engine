@@ -14,6 +14,7 @@ import {
   createRect,
   EditorStateService,
   findNodeById,
+  generateNodeId,
   GroupSelectionCommand,
   HistoryService,
   InsertNodeCommand,
@@ -21,6 +22,8 @@ import {
   type NodeId,
   type Point,
   RemoveNodeCommand,
+  type ReorderDirection,
+  ReorderNodeCommand,
   UngroupCommand,
 } from 'svg-engine/core';
 import {
@@ -222,7 +225,13 @@ export class PlaygroundHome implements OnDestroy {
   protected groupSelection(): void {
     const ids = Array.from(this.selection.selectedIds());
     if (ids.length === 0) return;
-    this.bus.dispatch(new GroupSelectionCommand(ids));
+    // Pre-allocate the new group's id so we can select it after the
+    // command runs (without needing to introspect the resulting tree).
+    // Matches Figma/Affinity UX — after Cmd+G, the new group is the
+    // single selected node and the panel scrolls to it.
+    const newGroupId = generateNodeId();
+    const result = this.bus.dispatch(new GroupSelectionCommand(ids, newGroupId));
+    if (result.ok) this.selection.select(newGroupId);
   }
 
   /**
@@ -237,7 +246,12 @@ export class PlaygroundHome implements OnDestroy {
     if (focus === null) return;
     const node = findNodeById(this.state.document().root, focus);
     if (node === null || node.type !== 'group') return;
-    this.bus.dispatch(new UngroupCommand(focus));
+    // Capture the children ids BEFORE the command runs so we can
+    // re-select them after the group is dissolved (Figma/Affinity UX —
+    // the promoted children become the new selection).
+    const childIds = node.children.map((c) => c.id);
+    const result = this.bus.dispatch(new UngroupCommand(focus));
+    if (result.ok) this.selection.selectMany(childIds);
   }
 
   constructor() {
@@ -255,31 +269,65 @@ export class PlaygroundHome implements OnDestroy {
     });
 
     // Fase 4 Bloco 4g — register group / ungroup shortcuts with the
-    // ShortcutRegistry instead of handling them inline in onKeyDown.
-    // ShortcutService dispatches automatically; we just declare intent.
-    this.shortcuts.register({
-      id: 'playground.group',
-      combo: 'CmdOrCtrl+G',
-      description: 'Group selection',
-      run: (event) => {
-        event.preventDefault();
-        this.groupSelection();
-      },
-    });
-    this.shortcuts.register({
-      id: 'playground.ungroup',
-      combo: 'CmdOrCtrl+Shift+G',
-      description: 'Ungroup selection',
-      run: (event) => {
-        event.preventDefault();
-        this.ungroupSelection();
-      },
-    });
+    // ShortcutRegistry. Disposables tracked so navigating away (and
+    // back) doesn't accumulate duplicate registrations — see
+    // ngOnDestroy. ShortcutRegistry throws on duplicate id, so without
+    // proper cleanup the second mount of this page errored.
+    this.shortcutDisposables.push(
+      this.shortcuts.register({
+        id: 'playground.group',
+        combo: 'CmdOrCtrl+G',
+        description: 'Group selection',
+        run: (event) => {
+          event.preventDefault();
+          this.groupSelection();
+        },
+      }),
+    );
+    this.shortcutDisposables.push(
+      this.shortcuts.register({
+        id: 'playground.ungroup',
+        combo: 'CmdOrCtrl+Shift+G',
+        description: 'Ungroup selection',
+        run: (event) => {
+          event.preventDefault();
+          this.ungroupSelection();
+        },
+      }),
+    );
     this.shortcutService.start();
+  }
+
+  /** Disposables for shortcuts registered in the constructor. */
+  private readonly shortcutDisposables: import('svg-engine/edit').Disposable[] = [];
+
+  /**
+   * Z-order operation enabled when exactly one node is selected
+   * (multi-node z-order would need to decide ordering among the
+   * selected set — deferred). Matches Figma/Affinity: bring-to-front
+   * etc. typically apply to single-node selections.
+   */
+  protected readonly canReorder = computed(() => {
+    if (this.selection.count() !== 1) return false;
+    const focus = this.selection.focusId();
+    if (focus === null) return false;
+    // Cannot reorder the document root (= focusId equals root id).
+    return focus !== this.state.document().root.id;
+  });
+
+  /** Dispatch a z-order command for the currently focused node. */
+  protected reorder(direction: ReorderDirection): void {
+    const focus = this.selection.focusId();
+    if (focus === null) return;
+    this.bus.dispatch(new ReorderNodeCommand(focus, direction));
   }
 
   ngOnDestroy(): void {
     document.removeEventListener('keydown', this.onKeyDown);
+    // Dispose shortcut contributions so re-mounting the page (e.g.,
+    // navigation Shell-demo → Home) doesn't throw "already registered".
+    for (const d of this.shortcutDisposables) d.dispose();
+    this.shortcutDisposables.length = 0;
     this.shortcutService.stop();
   }
 
