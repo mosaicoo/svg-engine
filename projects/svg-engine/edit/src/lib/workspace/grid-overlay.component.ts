@@ -73,15 +73,35 @@ export class GridOverlay {
   protected readonly lineColor = computed(() => this.ws.grid().color);
 
   /**
-   * The set of `<line>` records to render. Iterates from the lowest
-   * grid index intersecting the viewBox's left/top edge up to the
-   * one past its right/bottom. `key` is stable across pan so Angular's
-   * `@for` track avoids re-creating DOM nodes when scrolling.
+   * The set of `<line>` records to render. Lines are constrained to the
+   * **intersection of viewport and page bounds** — grid serves as an
+   * alignment aid for content INSIDE the page, so showing it across
+   * the pasteboard creates visual noise. When the intersection is empty
+   * (page is entirely outside viewport, e.g., panned far away), no
+   * lines render.
+   *
+   * `key` is stable across pan so Angular's `@for` track avoids
+   * re-creating DOM nodes when scrolling.
    */
   protected readonly lines = computed(() => {
     const grid = this.ws.grid();
     if (!grid.enabled) return [];
     const vb = this.viewport.viewBox();
+    const page = this.ws.page();
+    // Page bounds in document space, starting at origin (matches
+    // page-overlay which also anchors at 0,0). When page has zero
+    // dims (shouldn't happen via patchPage validation, but defensive),
+    // fall back to full viewBox.
+    const pageW = page.width > 0 ? page.width : vb.width;
+    const pageH = page.height > 0 ? page.height : vb.height;
+    // Intersection of viewport and page rectangles. If they don't
+    // overlap, the grid simply isn't visible.
+    const ix1 = Math.max(vb.x, 0);
+    const iy1 = Math.max(vb.y, 0);
+    const ix2 = Math.min(vb.x + vb.width, pageW);
+    const iy2 = Math.min(vb.y + vb.height, pageH);
+    if (ix2 <= ix1 || iy2 <= iy1) return [];
+
     const out: {
       key: string;
       x1: number;
@@ -91,30 +111,34 @@ export class GridOverlay {
       major: boolean;
     }[] = [];
     const { spacing, majorEvery } = grid;
-    // Snap lowest grid index to the floor of viewBox / spacing so the
-    // first line drawn is at-or-just-before the left/top edge.
-    const startCol = Math.floor(vb.x / spacing);
-    const endCol = Math.ceil((vb.x + vb.width) / spacing);
-    const startRow = Math.floor(vb.y / spacing);
-    const endRow = Math.ceil((vb.y + vb.height) / spacing);
+    // Snap lowest grid index to the floor of intersection / spacing so
+    // the first line drawn is at-or-just-after the page's left/top edge.
+    // We clamp to >= 0 because pages start at origin — no grid line at
+    // negative coords for now (origin = page corner).
+    const startCol = Math.max(0, Math.floor(ix1 / spacing));
+    const endCol = Math.ceil(ix2 / spacing);
+    const startRow = Math.max(0, Math.floor(iy1 / spacing));
+    const endRow = Math.ceil(iy2 / spacing);
     for (let col = startCol; col <= endCol; col++) {
       const x = col * spacing;
+      if (x > pageW) break; // clip horizontally to page right edge
       out.push({
         key: `v${col}`,
         x1: x,
-        y1: vb.y,
+        y1: iy1,
         x2: x,
-        y2: vb.y + vb.height,
+        y2: iy2,
         major: col % majorEvery === 0,
       });
     }
     for (let row = startRow; row <= endRow; row++) {
       const y = row * spacing;
+      if (y > pageH) break; // clip vertically to page bottom edge
       out.push({
         key: `h${row}`,
-        x1: vb.x,
+        x1: ix1,
         y1: y,
-        x2: vb.x + vb.width,
+        x2: ix2,
         y2: y,
         major: row % majorEvery === 0,
       });

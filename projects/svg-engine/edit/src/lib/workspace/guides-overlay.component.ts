@@ -135,16 +135,35 @@ export class GuidesOverlay implements OnDestroy {
 
   protected readonly guides = this.ws.guides;
 
-  protected readonly viewBoxLeft = computed(() => this.viewport.viewBox().x);
-  protected readonly viewBoxTop = computed(() => this.viewport.viewBox().y);
-  protected readonly viewBoxRight = computed(() => {
+  /**
+   * Guide line span — clipped to the **intersection of viewport and
+   * page bounds** so guides stay within the editable canvas (matches
+   * the grid-clip behaviour, Fase 6 UX polish). When the page extends
+   * beyond the viewport, the visible portion shrinks; when the viewport
+   * extends beyond the page (zoom-out), the guide stops at the page
+   * edge so the pasteboard area remains visually empty.
+   *
+   * Falls back to the viewport bounds when page has zero dims
+   * (defensive — patchPage validation rejects that, but tests may
+   * inject a stub).
+   */
+  private readonly clipBounds = computed(() => {
     const vb = this.viewport.viewBox();
-    return vb.x + vb.width;
+    const page = this.ws.page();
+    const pageW = page.width > 0 ? page.width : vb.width;
+    const pageH = page.height > 0 ? page.height : vb.height;
+    // Page starts at origin (matches page-overlay anchor).
+    const left = Math.max(vb.x, 0);
+    const top = Math.max(vb.y, 0);
+    const right = Math.min(vb.x + vb.width, pageW);
+    const bottom = Math.min(vb.y + vb.height, pageH);
+    return { left, top, right, bottom };
   });
-  protected readonly viewBoxBottom = computed(() => {
-    const vb = this.viewport.viewBox();
-    return vb.y + vb.height;
-  });
+
+  protected readonly viewBoxLeft = computed(() => this.clipBounds().left);
+  protected readonly viewBoxTop = computed(() => this.clipBounds().top);
+  protected readonly viewBoxRight = computed(() => this.clipBounds().right);
+  protected readonly viewBoxBottom = computed(() => this.clipBounds().bottom);
 
   /**
    * Hit-zone thickness in viewBox units, sized to approximate

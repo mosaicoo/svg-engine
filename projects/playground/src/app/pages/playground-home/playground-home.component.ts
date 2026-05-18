@@ -55,6 +55,7 @@ import {
   SelectionOverlay,
   SelectionService,
   ShortcutRegistry,
+  SvgeCanvasGestures,
   ShortcutService,
   type SnapMode,
   SnapGuides,
@@ -120,6 +121,7 @@ const DRAG_START_THRESHOLD_PX = 3;
     GridOverlay,
     GuidesOverlay,
     PageOverlay,
+    SvgeCanvasGestures,
     SvgeRulers,
     SvgeThemeToggle,
     SvgeEffectsPanel,
@@ -668,6 +670,11 @@ export class PlaygroundHome implements OnDestroy {
   }
 
   protected onCanvasPointerDown(event: PointerEvent): void {
+    // Non-left buttons are reserved for canvas gestures (middle-mouse
+    // pan via `[svgeCanvasGestures]` directive) or the browser
+    // (right-click context menu). Skip selection / marquee handling
+    // so middle-pan doesn't accidentally start a marquee underneath.
+    if (event.button !== 0) return;
     if (this.routeToActiveTool(event, 'down')) {
       capturePointer(event);
       return;

@@ -89,6 +89,42 @@ export class ViewportService {
     this._panY.update((y) => y + dy);
   }
 
+  /**
+   * Zoom by `factor` while keeping `anchor` (in document coordinates)
+   * stationary on screen. Used by wheel-zoom (anchor = cursor) and
+   * "zoom to selection" (anchor = selection centre).
+   *
+   * **Math**: pre-zoom relative position of the anchor inside the
+   * visible viewBox must equal post-zoom relative position. Solving
+   * for the new pan and applying both `zoom` and `pan` atomically
+   * makes the visible viewBox preserve the anchor.
+   *
+   * **No-op-safe**: if `factor` would push zoom past min/max limits,
+   * the clamped zoom may equal the current zoom — pan adjusts to a
+   * zero delta, anchor stays put (no observable change).
+   */
+  zoomAt(factor: number, anchor: { readonly x: number; readonly y: number }): void {
+    if (!Number.isFinite(factor) || factor <= 0) return;
+    const oldVb = this.viewBox();
+    const cb = this._contentBox();
+    const newZoom = this.clampZoom(this._zoom() * factor);
+    const newW = cb.width / newZoom;
+    const newH = cb.height / newZoom;
+    // Relative position of anchor in the OLD visible viewBox.
+    const relX = oldVb.width > 0 ? (anchor.x - oldVb.x) / oldVb.width : 0.5;
+    const relY = oldVb.height > 0 ? (anchor.y - oldVb.y) / oldVb.height : 0.5;
+    // Desired NEW viewBox top-left so that anchor preserves relX/relY.
+    const newX = anchor.x - relX * newW;
+    const newY = anchor.y - relY * newH;
+    // Invert the viewBox computed (vb.x = cb.x + panX + (cb.w - newW)/2)
+    // to recover the matching pan.
+    const newPanX = newX - cb.x - (cb.width - newW) / 2;
+    const newPanY = newY - cb.y - (cb.height - newH) / 2;
+    this._zoom.set(newZoom);
+    this._panX.set(newPanX);
+    this._panY.set(newPanY);
+  }
+
   /** Reset zoom to 1 and pan to origin (centered on content). */
   reset(): void {
     this._zoom.set(1);

@@ -11,7 +11,7 @@ import {
   type SvgNode,
 } from 'svg-engine/core';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
-import { PageOverlay, WorkspaceBackground } from 'svg-engine/edit';
+import { PageOverlay, SvgeCanvasGestures, WorkspaceBackground } from 'svg-engine/edit';
 
 /**
  * Full-featured editor shell (Fase 4 Bloco 4a). Composes the headless
@@ -72,6 +72,7 @@ import { PageOverlay, WorkspaceBackground } from 'svg-engine/edit';
     SvgeRenderer,
     WorkspaceBackground,
     PageOverlay,
+    SvgeCanvasGestures,
   ],
   template: `
     <mat-toolbar class="editor-toolbar">
@@ -127,7 +128,7 @@ import { PageOverlay, WorkspaceBackground } from 'svg-engine/edit';
         <mat-icon>fit_screen</mat-icon>
       </button>
     </mat-toolbar>
-    <div class="canvas-area">
+    <div class="canvas-area" svgeCanvasGestures>
       <svge-workspace-background>
         <svge-renderer
           [tree]="resolvedTree()"

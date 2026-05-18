@@ -114,4 +114,53 @@ describe('ViewportService', () => {
       expect(v).toEqual({ x: 10, y: 20, width: 200, height: 100 });
     });
   });
+
+  describe('zoomAt', () => {
+    it('keeps the anchor at the same relative viewBox position after zoom-in', () => {
+      // contentBox is 800×600, zoom=1 → viewBox = (0,0,800,600). Anchor
+      // at doc (200, 150) sits at (200/800, 150/600) = (0.25, 0.25)
+      // of the viewBox. After zooming in 2×, the same anchor should
+      // still be at (0.25, 0.25) of the new viewBox.
+      viewport.zoomAt(2, { x: 200, y: 150 });
+      const vb = viewport.viewBox();
+      expect(viewport.zoom()).toBeCloseTo(2);
+      const relX = (200 - vb.x) / vb.width;
+      const relY = (150 - vb.y) / vb.height;
+      expect(relX).toBeCloseTo(0.25);
+      expect(relY).toBeCloseTo(0.25);
+    });
+
+    it('keeps anchor at same relative position after zoom-out', () => {
+      // Start zoomed in then zoom out around an off-center anchor.
+      viewport.setZoom(4);
+      const before = viewport.viewBox();
+      const anchor = { x: before.x + before.width * 0.7, y: before.y + before.height * 0.3 };
+      viewport.zoomAt(0.5, anchor);
+      const after = viewport.viewBox();
+      const relX = (anchor.x - after.x) / after.width;
+      const relY = (anchor.y - after.y) / after.height;
+      expect(relX).toBeCloseTo(0.7);
+      expect(relY).toBeCloseTo(0.3);
+    });
+
+    it('no-ops cleanly at zoom limits (clamped factor keeps anchor stable)', () => {
+      viewport.setZoomLimits(0.5, 4);
+      viewport.setZoom(4);
+      const before = viewport.viewBox();
+      viewport.zoomAt(10, { x: 100, y: 100 }); // would push to 40×, clamped to 4×
+      const after = viewport.viewBox();
+      expect(after.x).toBeCloseTo(before.x);
+      expect(after.y).toBeCloseTo(before.y);
+      expect(after.width).toBeCloseTo(before.width);
+    });
+
+    it('rejects non-finite or non-positive factors', () => {
+      const before = viewport.viewBox();
+      viewport.zoomAt(NaN, { x: 100, y: 100 });
+      viewport.zoomAt(0, { x: 100, y: 100 });
+      viewport.zoomAt(-2, { x: 100, y: 100 });
+      const after = viewport.viewBox();
+      expect(after).toEqual(before);
+    });
+  });
 });
