@@ -136,12 +136,15 @@ export class GuidesOverlay implements OnDestroy {
   protected readonly guides = this.ws.guides;
 
   /**
-   * Guide line span — clipped to the **intersection of viewport and
-   * page bounds** so guides stay within the editable canvas (matches
-   * the grid-clip behaviour, Fase 6 UX polish). Page bounds are
-   * resolved via the shared {@link pageBoundsIn} helper so they
-   * align with the page rect rendered by `PageOverlay` (centered in
-   * the contentBox, not anchored at world origin).
+   * Guide line span — anchored to the **page bounds** so guides stay
+   * fixed in doc coordinates regardless of pan/zoom. The browser's
+   * SVG viewBox clipping handles the offscreen portion automatically.
+   *
+   * **History**: a previous version clipped to the intersection of
+   * viewport and page, which made guide lines shrink/grow as the
+   * user panned (the line endpoints tracked the viewport, not the
+   * page). Users perceived this as guides being "anchored to the
+   * screen" rather than to the page. Reverted to page-only bounds.
    */
   private readonly clipBounds = computed(() => {
     const vb = this.viewport.viewBox();
@@ -151,11 +154,7 @@ export class GuidesOverlay implements OnDestroy {
       return { left: vb.x, top: vb.y, right: vb.x + vb.width, bottom: vb.y + vb.height };
     }
     const pb = pageBoundsIn(this.viewport.contentBox(), page);
-    const left = Math.max(vb.x, pb.x);
-    const top = Math.max(vb.y, pb.y);
-    const right = Math.min(vb.x + vb.width, pb.x + pb.width);
-    const bottom = Math.min(vb.y + vb.height, pb.y + pb.height);
-    return { left, top, right, bottom };
+    return { left: pb.x, top: pb.y, right: pb.x + pb.width, bottom: pb.y + pb.height };
   });
 
   protected readonly viewBoxLeft = computed(() => this.clipBounds().left);

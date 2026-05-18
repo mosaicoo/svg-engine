@@ -89,16 +89,24 @@ export class GridOverlay {
     const vb = this.viewport.viewBox();
     const page = this.ws.page();
     if (page.width <= 0 || page.height <= 0) return [];
-    // Page bounds in document space — centered inside contentBox via
-    // the shared helper. Grid lines anchor at the page's origin so
-    // they stay aligned with the page wherever it sits in the canvas.
+    // Page bounds in document space — anchored at doc origin via
+    // pageBoundsIn helper. Grid lines anchor to the page so they
+    // stay aligned with the page wherever it sits in the canvas.
     const pb = pageBoundsIn(this.viewport.contentBox(), page);
     const pageLeft = pb.x;
     const pageTop = pb.y;
     const pageRight = pb.x + pb.width;
     const pageBottom = pb.y + pb.height;
-    // Intersection of viewport and page rectangles. If they don't
-    // overlap, the grid simply isn't visible.
+    // Intersection of viewport and page — used ONLY to decide WHICH
+    // grid columns/rows to generate (perf: skip lines completely
+    // outside the visible area). The line endpoints themselves use
+    // the FULL page bounds so the line visually spans the page from
+    // edge to edge regardless of pan/zoom. The previous version used
+    // intersection bounds for endpoints, which made each line shrink
+    // to match the visible viewport — they appeared "anchored" to
+    // the viewport edges when panning, instead of moving with the
+    // page as expected. (Fase 6 UX polish — bug reported via
+    // screenshot of pan animation.)
     const ix1 = Math.max(vb.x, pageLeft);
     const iy1 = Math.max(vb.y, pageTop);
     const ix2 = Math.min(vb.x + vb.width, pageRight);
@@ -114,13 +122,6 @@ export class GridOverlay {
       major: boolean;
     }[] = [];
     const { spacing, majorEvery } = grid;
-    // Grid lines are anchored at the page origin (pageLeft, pageTop) and
-    // step `spacing` doc-units along each axis. Iterate by column/row
-    // INDEX so the line at index 0 lands exactly on the page corner,
-    // not at world origin. This is the key change from the previous
-    // version which had lines on the absolute coord grid (0, 20, 40...)
-    // — meaning a page positioned at (100, 80) had its first grid line
-    // 100 px shifted from its own corner.
     const colStartIdx = Math.max(0, Math.floor((ix1 - pageLeft) / spacing));
     const colEndIdx = Math.ceil((ix2 - pageLeft) / spacing);
     const rowStartIdx = Math.max(0, Math.floor((iy1 - pageTop) / spacing));
@@ -131,9 +132,13 @@ export class GridOverlay {
       out.push({
         key: `v${col}`,
         x1: x,
-        y1: iy1,
+        // Line spans the FULL page height in doc coords. SVG viewBox
+        // clipping handles the offscreen portion for free — no perf
+        // cost from "drawing past the edge" because the browser only
+        // rasterizes visible pixels.
+        y1: pageTop,
         x2: x,
-        y2: iy2,
+        y2: pageBottom,
         major: col % majorEvery === 0,
       });
     }
@@ -142,9 +147,10 @@ export class GridOverlay {
       if (y > pageBottom) break;
       out.push({
         key: `h${row}`,
-        x1: ix1,
+        // Horizontal lines span the FULL page width (same reasoning).
+        x1: pageLeft,
         y1: y,
-        x2: ix2,
+        x2: pageRight,
         y2: y,
         major: row % majorEvery === 0,
       });
