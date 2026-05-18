@@ -2,9 +2,11 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  type ElementRef,
   inject,
   type OnDestroy,
   signal,
+  viewChild,
 } from '@angular/core';
 import {
   type BoundingBox,
@@ -30,10 +32,12 @@ import {
   type AlignAxis,
   AlignmentService,
   type DistributeAxis,
+  ExporterRegistry,
   findRenderedNode,
   getRenderedNodeBBox,
   GridOverlay,
   GuidesOverlay,
+  ImporterRegistry,
   LayersFilter,
   LayersService,
   Marquee,
@@ -41,6 +45,7 @@ import {
   MarqueeService,
   type NodeBBox,
   nodesInsideMarquee,
+  OptimizerRegistry,
   resolveNodeIdFromEvent,
   RotationPivot,
   SELECT_TOOL_ID,
@@ -128,6 +133,12 @@ export class PlaygroundHome implements OnDestroy {
   protected readonly ws = this.workspace;
   private readonly shortcuts = inject(ShortcutRegistry);
   private readonly shortcutService = inject(ShortcutService);
+  private readonly importers = inject(ImporterRegistry);
+  private readonly exporters = inject(ExporterRegistry);
+  private readonly optimizers = inject(OptimizerRegistry);
+
+  /** Reference to the hidden `<input type="file">` for SVG import. */
+  protected readonly importFileRef = viewChild<ElementRef<HTMLInputElement>>('importFile');
 
   protected readonly title = signal('SVGEngine Playground');
 
@@ -343,6 +354,87 @@ export class PlaygroundHome implements OnDestroy {
   protected addVGuide(): void {
     const vb = this.viewport.viewBox();
     this.ws.addGuide('v', vb.x + vb.width / 2);
+  }
+
+  // ── Fase 5-IO + Optimize integration ───────────────────────────
+
+  /**
+   * Trigger the hidden `<input type="file">` to let the user pick an
+   * SVG. The actual import happens in `onImportFileChange`.
+   */
+  protected openImportPicker(): void {
+    this.importFileRef()?.nativeElement.click();
+  }
+
+  /**
+   * Read the picked file, run the SVG importer, replace the current
+   * document. Warnings are logged to console for now — a future
+   * polish could surface them as a Material snackbar.
+   */
+  protected async onImportFileChange(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file == null) return;
+    const text = await file.text();
+    const importer =
+      this.importers.byExtension(file.name.split('.').pop() ?? '') ??
+      this.importers.byMediaType(file.type) ??
+      null;
+    if (importer === null) {
+      console.warn(`Playground: no importer registered for "${file.name}"`);
+      input.value = '';
+      return;
+    }
+    const result = importer.import(text);
+    if (!result.ok) {
+      console.error(`Playground: import failed — ${result.error}`);
+      input.value = '';
+      return;
+    }
+    if (result.warnings.length > 0) {
+      console.warn(`Playground: import succeeded with warnings:`, result.warnings);
+    }
+    this.state.resetDocument(result.document);
+    this.viewport.setContentBox(result.document.viewBox);
+    this.selection.clear();
+    this.history.clear();
+    input.value = ''; // allow re-picking the same file
+  }
+
+  /**
+   * Serialize the current document via the SVG exporter and trigger a
+   * download. Filename is `svge-export-<timestamp>.svg`.
+   */
+  protected exportSvg(): void {
+    const exporter = this.exporters.byMediaType('image/svg+xml');
+    if (exporter === null) {
+      console.warn('Playground: no SVG exporter registered');
+      return;
+    }
+    const text = exporter.export(this.state.document());
+    const blob = new Blob([text], { type: exporter.mediaType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `svge-export-${Date.now()}.${exporter.extension}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Run the optimizer pipeline (all default-enabled passes) on the
+   * current document. Replaces state directly (NOT via CommandBus) —
+   * optimization isn't meant to live on the undo stack as a single
+   * step; if the user wants to revert, they can Ctrl+Z each prior
+   * edit. A future polish could wrap the whole pipeline in an
+   * `OptimizeCommand` for one-click undo.
+   */
+  protected optimizeDocument(): void {
+    const before = this.state.document();
+    const after = this.optimizers.runPipeline(before);
+    if (after !== before) this.state.setDocument(after);
   }
 
   protected addShape(kind: ShapeKind): void {

@@ -6,6 +6,189 @@
 
 ---
 
+## 2026-05-17 — Fase 5 (IO + Optimize) — entrega completa
+
+**Contexto**
+
+Fase 5 do roadmap: categorias 3/4/5 do D-023 (Optimizers / Importers /
+Exporters). Library agora consome E produz SVG; otimização passa via
+pipeline plugável; tudo wired no playground.
+
+**Mudanças — Bloco 5-IO**
+
+`edit/lib/io/io-types.ts`:
+
+- Tipos `Importer` (id/name/mediaTypes/extensions/import) e `Exporter`
+  (id/name/mediaType/extension/export)
+- `ImportResult` discriminated union: `{ok:true, document, warnings}`
+  ou `{ok:false, error}` — warnings não-fatais para soft issues
+  (e.g., "skipped a `<script>` for safety")
+
+`edit/lib/io/io-registries.service.ts`:
+
+- `ImporterRegistry` + `ExporterRegistry` signal-backed seguindo
+  ToolRegistry/PaletteRegistry. register retorna Disposable
+- Lookup helpers: `byExtension(ext)` case-insensitive + tolera leading
+  dot, `byMediaType(type)` exact match. Insertion-order tiebreak
+
+`edit/lib/io/svg-importer.ts`:
+
+- `svgImporter`: parser via DOMParser ('image/svg+xml'). Suporta:
+  rect, ellipse, circle (folded em ellipse rx=ry), line, polygon,
+  polyline, path, text, image, g recursivo
+- Sanitização:
+  - `<script>` dropped + warned
+  - `on*` event handlers stripped + warned (per attr)
+  - `xlink:href`/`href` com `javascript:` blocked + warned
+  - XXE estruturalmente impossível (DOMParser `image/svg+xml` não
+    processa entities)
+- Unsupported tags: ONE warning per tag (não per occurrence) — evita
+  flood em arquivos com 50 gradients
+- viewBox extraído do root; fallback para width/height attrs; fallback
+  final 800×600
+- Parse de transform reusa `parseTransformAttr` (edit/geometry)
+- Parse de style: presentation attrs + inline `style="..."` CSS
+  (CSS sobrescreve attrs em conflito, match cascade)
+- Pure (sem DOM mutation fora do throwaway parser doc), worker-safe
+
+`edit/lib/io/svg-exporter.ts`:
+
+- `svgExporter`: saída **byte-stable / deterministic** — friendly para
+  diffs / golden-file tests / VCS commits
+- Atributos em ordem CANÔNICA fixa (não iteration order)
+- Numerics: `Math.round(n * 1e6) / 1e6`, trailing zeros strip,
+  `-0` normalizado para `0`
+- Identity transforms `[1,0,0,1,0,0]` OMITIDOS (default implícito)
+- Translate-only emitido compacto `translate(x,y)` em vez de matrix
+- Style emitido como presentation attrs (não inline CSS), em ordem
+  alfabética. Visual idêntico
+- 2-space indentação recursiva; leaf elements em uma linha; XML
+  escape em text content + attr values
+
+`edit/lib/io/builtin-io.plugin.ts`:
+
+- `builtinIoPlugin` registra ambos via `ctx.track`. Provisionado no
+  `app.config.ts` do playground
+
+**Mudanças — Bloco 5-Optimize**
+
+`edit/lib/optimize/optimizer.ts`:
+
+- Tipo `Optimizer` (id/name/description?/order?/defaultEnabled?/optimize)
+- Contract: pure transformation `SvgDocument → SvgDocument`. MUST
+  return structurally-equivalent doc no-op (lets pipeline detect via
+  ref equality)
+
+`edit/lib/optimize/optimizer-registry.service.ts`:
+
+- `OptimizerRegistry` signal-backed
+- `runPipeline(doc, enabledIds?)` — ordena por `order` ASC (default 100,
+  stable sort em ties), filtra por enabledIds OU `defaultEnabled !== false`,
+  encadeia. Retorna mesma ref quando nenhum pass mudou
+
+`edit/lib/optimize/builtin-optimizers.ts` — **3 passes conservadores**
+(nunca alteram render visual):
+
+- `precisionOptimizer` (order 10): round numerics para 3 decimais.
+  Cobre geometria, transform components, path `d` tokens via regex
+  (`/-?\d+\.?\d*(?:[eE][+-]?\d+)?/g`), style numéricos
+- `dropDefaultsOptimizer` (order 50): strip `fillOpacity=1`,
+  `strokeOpacity=1`, `opacity=1`, `visibility='visible'`. NÃO strip
+  `fill='black'` (alteraria render via CSS inheritance)
+- `pruneEmptyGroupsOptimizer` (order 90): remove `<g></g>`
+  recursivamente. Root document sempre preservado
+
+`edit/lib/optimize/builtin-optimizers.plugin.ts`:
+
+- `builtinOptimizersPlugin` registra os 3 via `ctx.track`. Provisionado
+  no playground
+
+**Mudanças — Playground**
+
+`playground/.../app.config.ts`: provisiona `builtinIoPlugin` +
+`builtinOptimizersPlugin`.
+
+`playground/.../playground-home.component.ts`:
+
+- Inject `ImporterRegistry` / `ExporterRegistry` / `OptimizerRegistry`
+- `viewChild` reference para hidden `<input type="file">`
+- `openImportPicker()`: click no hidden file input
+- `onImportFileChange(event)`: lê text, escolhe importer via
+  ext+mediaType, dispatcha. Em sucesso: `resetDocument` +
+  `setContentBox` + `selection.clear` + `history.clear`. Warnings
+  para console
+- `exportSvg()`: serializa via exporter, cria Blob + URL + `<a>`-link,
+  trigger download `svge-export-<ts>.svg`
+- `optimizeDocument()`: `runPipeline()` no doc atual, `setDocument`
+  se mudou. NOT via CommandBus (otimização não pertence ao undo
+  stack — futuro polish poderia ter `OptimizeCommand` para wrap-undo)
+
+`playground/.../playground-home.component.html`:
+
+- Novo fieldset "IO" com 3 botões: Import… / Export / Optimize +
+  hidden `<input type="file" accept=".svg,image/svg+xml">`
+
+**Decisões técnicas**
+
+- **IO + Optimize em `edit`, não new entry point**: ambos consomem o
+  plugin scaffolding (que vive em `edit`) e expõem APIs imperativas
+  (não componentes). Criar entry point novo só pelos dois domínios
+  adicionaria peso sem ganho — apps que não querem IO podem just NOT
+  provide o plugin
+- **Deterministic exporter > pretty-printer**: priorizar diffs limpos
+  e teste de equivalência byte-byte. Trade-off: output menos "humano"
+  (atributos em ordem fixa, não "lógica"), mas dev tools modernos
+  formatam SVG na visualização
+- **3 optimizers conservadores no built-in vs agressivos**: cada pass
+  é "safe to run on any well-formed doc". Plugins agressivos
+  (merge-adjacent-rects, circles→paths) ficam OUT do built-in para
+  evitar surpresas. Reg permite plugins de terceiros contribuirem
+- **Sanitização blocking vs warn**: `<script>` e `javascript:` são
+  HARD-blocked (security). `on*` strip + warn. Unsupported tags
+  warn-only. Política conservadora: never execute payload, always
+  best-effort import
+- **Optimize fora do undo stack v1**: optimizers podem fazer
+  centenas de mudanças. Tê-las como 1 entry no undo seria desejável
+  mas exigiria capturar deep-clone pré-execução. Por ora apenas
+  `setDocument` direto; usuário pode Ctrl+Z os edits anteriores
+
+**Cobertura**
+
+`io.spec.ts` (16 testes):
+
+- Registries: basics + Disposable + lookup helpers + validation
+- builtinIoPlugin install/uninstall
+- svgImporter: happy paths (rect, circle→ellipse, nested g),
+  sanitização (script drop, on\* strip, javascript: block, single
+  warning per unsupported tag), failures (malformed XML, wrong root)
+- svgExporter: minimal output, identity transform skip, translate
+  compact, byte-stable determinism
+- IO round-trip parse→export→parse estrutura preservada
+
+`optimize.spec.ts` (22 testes):
+
+- Registry: basics + validation + pipeline ordering + enabledIds
+  filter + defaultEnabled skip
+- precisionOptimizer: round geometry, path d, style numerics, no-op
+- dropDefaultsOptimizer: strip defaults, preserve non-defaults, no-op
+- pruneEmptyGroupsOptimizer: drop top-level empty, recursive chain
+  prune, preserve non-empty, document root protection
+- builtinOptimizersPlugin via PluginRegistry: install/uninstall + full
+  pipeline integration
+
+**Total**: +38 testes → **708 passing** em 52 arquivos. Zero regressão.
+
+**Comportamento visível**
+
+- Playground toolbar ganha fieldset "IO":
+  - **Import…** abre file picker (filtro `.svg,image/svg+xml`); carrega
+    - valida + substitui documento; warnings no console
+  - **Export** baixa o documento atual como `svge-export-<ts>.svg`
+  - **Optimize** roda os 3 passes built-in no doc atual (precision +
+    drop-defaults + prune-empty-groups)
+
+---
+
 ## 2026-05-17 — Fase 4 Bloco 4b-DnD: drag-drop reorder no layers panel
 
 **Contexto**

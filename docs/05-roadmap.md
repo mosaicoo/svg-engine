@@ -262,16 +262,25 @@
   - `<svge-theme-toggle>` Material `<mat-icon-button>` com ícone do tema CHOSEN (light_mode/dark_mode/brightness_auto) — tooltip mostra current + hint do próximo. Click chama `cycle()`
   - +8 testes (defaults+setTheme 4, resolved+DOM 2, persistence boot 2) → **632 passing**
 
-## Fase 5 — IO + extensibilidade
+## Fase 5 — IO + extensibilidade ✅ (entregue, 708 testes)
 
-- [ ] **Bloco 5-IO**: Import + Export SVG via novas categorias do D-023
-  - `ImporterRegistry` + builtin `SvgImporter` (sanitizado: remove scripts/eventos, valida `xlink:href`)
-  - `ExporterRegistry` + builtin `SvgExporter` (determinístico: ordem fixa de atributos, valores formatados)
-  - Pelo menos 1 importer/exporter extra de referência (PNG via `<canvas>`?)
-- [ ] **Bloco 5-Optimize**: `OptimizerRegistry` + pipeline básico
-  - `OptimizationPipeline` encadeável (passes ordenáveis)
-  - Builtin passes: `PathOptimizer`, `Deduper`, `Minifier`
-  - Pelo menos 1 plugin de otimização externo de referência
+- [x] **Bloco 5-IO**: Import + Export SVG (categorias 4 e 5 do D-023)
+  - Tipos `Importer` (id/name/mediaTypes/extensions/import) e `Exporter` (id/name/mediaType/extension/export). `ImportResult = { ok:true, document, warnings } | { ok:false, error }` (warnings não-fatais para sanitização)
+  - `ImporterRegistry` + `ExporterRegistry` signal-backed seguindo a forma das outras: register retorna Disposable, lookup helpers `byExtension`/`byMediaType` (extensão case-insensitive, tolera leading dot)
+  - `svgImporter` (built-in): parser via DOMParser, suporta rect/ellipse/circle (folded como ellipse rx=ry)/line/polygon/polyline/path/text/image/g recursivo. Sanitização: drop `<script>`, strip `on*` handlers, block `javascript:` hrefs em `<image>`. ONE warning per unsupported tag (não per occurrence). XXE estruturalmente impossível via `parseFromString('image/svg+xml')`. Parse de transform via parser existente; parse de style via attrs + inline CSS (CSS sobrescreve)
+  - `svgExporter` (built-in): saída byte-stable / deterministic — atributos em ordem canônica, números via `Math.round(n * 1e6) / 1e6` (6 decimais, trailing zeros strip), identity transforms OMITIDOS (default implícito), translate-only emitido compacto `translate(x,y)` em vez de matrix completa. Style emitido como presentation attrs (não inline CSS), em ordem alfabética
+  - `builtinIoPlugin` registra ambos via ctx.track. Provisionado em `app.config.ts` do playground
+  - Round-trip parse→export→parse preserva estrutura
+- [x] **Bloco 5-Optimize**: `OptimizerRegistry` + pipeline encadeável
+  - Tipo `Optimizer` (id/name/description?/order?/defaultEnabled?/optimize)
+  - `OptimizerRegistry` signal-backed. `runPipeline(doc, enabledIds?)` ordena por `order` (lower runs first, stable sort em ties), filtra por enabledIds OU `defaultEnabled !== false`, encadeia, retorna mesma ref quando nenhum pass mudou
+  - **3 builtin passes conservadores** (nunca alteram render visual):
+    - `precisionOptimizer` (order 10): arredonda numerics para 3 decimais. Cobre geometria, transform components, path `d` tokens via regex, style strokeWidth/opacity/fillOpacity/strokeOpacity
+    - `dropDefaultsOptimizer` (order 50): strip `fillOpacity=1`, `strokeOpacity=1`, `opacity=1`, `visibility='visible'`. NÃO strip `fill='black'` ou similar (mudaria render via CSS inheritance)
+    - `pruneEmptyGroupsOptimizer` (order 90): remove `<g></g>` recursivamente (cadeia de groups encadeados também). Root document preservado mesmo se vazio
+  - `builtinOptimizersPlugin` registra os 3. Provisionado no playground
+  - Playground ganha 3 botões no toolbar "IO": **Import…** (file picker `.svg`), **Export** (download `.svg`), **Optimize** (run pipeline)
+  - +38 testes (IO 16 + Optimize 22) → **708 passing** em 52 arquivos
 
 ## Fase 6 — Performance e refinamento
 

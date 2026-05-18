@@ -216,6 +216,21 @@
     </button>
   </fieldset>
   <fieldset>
+    <legend>IO</legend>
+    <button type="button" (click)="openImportPicker()" title="Import SVG file">Import…</button>
+    <input
+      #importFile
+      type="file"
+      accept=".svg,image/svg+xml"
+      hidden
+      (change)="onImportFileChange($event)"
+    />
+    <button type="button" (click)="exportSvg()" title="Download as SVG">Export</button>
+    <button type="button" (click)="optimizeDocument()" title="Run built-in optimization passes">
+      Optimize
+    </button>
+  </fieldset>
+  <fieldset>
     <legend>Theme</legend>
     <svge-theme-toggle></svge-theme-toggle>
   </fieldset>

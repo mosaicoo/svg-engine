@@ -85,3 +85,9 @@ export * from './lib/menu';
 
 // Keyboard shortcuts (Fase 4 Bloco 4g)
 export * from './lib/shortcut';
+
+// IO — SVG import + export (Fase 5-IO)
+export * from './lib/io';
+
+// Optimization pipeline (Fase 5-Optimize)
+export * from './lib/optimize';

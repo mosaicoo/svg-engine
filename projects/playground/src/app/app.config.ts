@@ -1,6 +1,8 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import {
+  builtinIoPlugin,
+  builtinOptimizersPlugin,
   builtinPalettesPlugin,
   pencilToolPlugin,
   provideSvgEnginePlugin,
@@ -17,10 +19,12 @@ export const appConfig: ApplicationConfig = {
     // becomes the natural default in the toolbar.
     provideSvgEnginePlugin(selectToolPlugin),
     provideSvgEnginePlugin(pencilToolPlugin),
-    // Built-in color palettes (Fase 4 Bloco 4d). Provides the swatches
-    // shown under the inspector's color fields out of the box. Consumers
-    // can override / remove by installing their own palettes plugin and
-    // uninstalling this one.
+    // Built-in color palettes (Fase 4 Bloco 4d).
     provideSvgEnginePlugin(builtinPalettesPlugin),
+    // Built-in SVG IO (Fase 5-IO) — sanitized importer + deterministic exporter.
+    provideSvgEnginePlugin(builtinIoPlugin),
+    // Built-in optimization passes (Fase 5-Optimize) — precision rounding,
+    // drop SVG default attrs, prune empty groups.
+    provideSvgEnginePlugin(builtinOptimizersPlugin),
   ],
 };
