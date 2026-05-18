@@ -9,3 +9,4 @@ export {
 export { WorkspaceBackground } from './workspace-background.component';
 export { GridOverlay } from './grid-overlay.component';
 export { GuidesOverlay } from './guides-overlay.component';
+export { PageOverlay } from './page-overlay.component';

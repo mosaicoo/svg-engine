@@ -11,7 +11,7 @@ import {
   type SvgNode,
 } from 'svg-engine/core';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
-import { WorkspaceBackground } from 'svg-engine/edit';
+import { PageOverlay, WorkspaceBackground } from 'svg-engine/edit';
 
 /**
  * Full-featured editor shell (Fase 4 Bloco 4a). Composes the headless
@@ -64,7 +64,15 @@ import { WorkspaceBackground } from 'svg-engine/edit';
 @Component({
   selector: 'svge-editor',
   standalone: true,
-  imports: [MatToolbar, MatIconButton, MatIcon, MatTooltip, SvgeRenderer, WorkspaceBackground],
+  imports: [
+    MatToolbar,
+    MatIconButton,
+    MatIcon,
+    MatTooltip,
+    SvgeRenderer,
+    WorkspaceBackground,
+    PageOverlay,
+  ],
   template: `
     <mat-toolbar class="editor-toolbar">
       <span class="title">{{ title() ?? 'SVGEngine' }}</span>
@@ -127,6 +135,15 @@ import { WorkspaceBackground } from 'svg-engine/edit';
           [defs]="resolvedDefs()"
           [ariaLabel]="ariaLabel() ?? 'Editable SVG document'"
         >
+          <!--
+            Page marker comes BEFORE consumer's projected overlays so
+            user-supplied content (selection, marquee, etc) renders on
+            top. Consumers can hide the page by zeroing out width/height
+            in WorkspaceService.patchPage (rejected silently, so set
+            via resetPage if needed) or just not provisioning it (the
+            shell is the only place that auto-includes it).
+          -->
+          <svg:g svgePageOverlay></svg:g>
           <ng-content />
         </svge-renderer>
       </svge-workspace-background>

@@ -6,6 +6,75 @@
 
 ---
 
+## 2026-05-18 — Workspace Settings: page config aplica no canvas via `<svge-page-overlay>`
+
+**Bug reportado**: dialog do Workspace Settings (commit 246e902) edita
+`WorkspaceService.page()` (width/height/orientation/margins) e o signal
+atualiza, mas o canvas não muda visualmente. User reportou via screenshot.
+
+**Root cause**: `WorkspaceService.page()` era estado órfão. Renderer +
+workspace-background derivam tudo de `document.viewBox`; nada lia o
+signal de page. O design-doc do `PageConfig` já previa o comportamento
+("presentation meta that the editor uses to crop / center / outline
+the page") mas o componente que faz a "outline" nunca foi escrito.
+
+**Fix escolhido**: opção (b) das 3 listadas no débito — page como overlay
+inside o canvas, distinto do viewBox. Mantém D-021 (workspace ≠ documento)
+e o comentário original do PageConfig. Convenção Illustrator/Affinity:
+você vê uma marca de "papel" no canvas; conteúdo pode existir fora
+("pasteboard"). Page sets export bounds quando export "page-only" for
+implementado no futuro (não é parte deste fix).
+
+**Entregue**:
+
+`edit/lib/workspace/page-overlay.component.ts` (novo):
+
+- Selector `g[svgePageOverlay]` (opt-in, padrão dos overlays)
+- Reads `WorkspaceService.page()` signal — computed `effectivePage` faz
+  swap de width/height quando orientation conflita com dims (portrait +
+  landscape-shaped dims → swap)
+- Renderiza `<svg:rect class="page-rect">` em (0,0) com dims efetivos —
+  fill branco semi-transparente + stroke primary, vector-effect
+  non-scaling-stroke
+- Margens > 0 → renderiza `<svg:rect class="margin-rect">` inset dashed
+  (computed `marginsRect` retorna null se margens consumirem todo o page)
+- `pointer-events: none` em ambos rects — clicks passam pra geometria
+- CSS-var hooks (`--svge-page-fill`, `--svge-page-stroke`, `--svge-page-margin-stroke`)
+  para temização sem modificar componente
+
+`ui/lib/editor/editor.component.ts`:
+
+- Shell `<svge-editor>` agora projeta `<svg:g svgePageOverlay>` ANTES
+  do `<ng-content>` (page abaixo de marquee/selection/etc — handles
+  renderizam por cima)
+
+`playground/playground-home`:
+
+- Adiciona `PageOverlay` aos imports + `<svg:g svgePageOverlay>` no
+  template, antes do grid
+
+**Testes (+7)** em `page-overlay.component.spec.ts`:
+
+- Default render: 800×600 landscape, sem margin rect
+- patchPage(width/height) reflete imediatamente nos attributes
+- portrait com landscape-shaped dims faz swap (800×600 → 600×800)
+- portrait com already-portrait dims NÃO faz swap (400×700 fica 400×700)
+- margins > 0 desenha inset rect em (left, top) com w-l-r × h-t-b
+- margins que excedem page → null (não renderiza)
+
+820 lib (+7) + 15 app = 835 totais. Build verde, lint OK.
+
+**O que NÃO mudou** (escopo restrito):
+
+- `document.viewBox` continua independente de `workspace.page()` —
+  consumer pode ter view maior ou menor que a página
+- Exporter ainda emite `document.viewBox`, não `page` — "export
+  page-only" seria nova feature (PageExportCommand, futuro)
+- Page é overlay informacional, não clip — conteúdo fora da página
+  continua renderizando e selecionável
+
+---
+
 ## 2026-05-18 — Fase 6a-6b (Performance) — baseline + viewport culling
 
 **Contexto**

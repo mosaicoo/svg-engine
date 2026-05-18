@@ -311,8 +311,7 @@
   - LayersPanel virtualization (CDK virtual-scroll requer ResizeObserver — jsdom mock pendente; refactor de specs para component-instance testing)
   - Margem de stroke-width na bbox de culling (caso ainda não-observado)
   - Web Worker para parser (descartado por dado — 99ms@16k é aceitável)
-  - **Workspace Settings — page config não aplica no canvas** (reportado 2026-05-18):
-    o dialog edita `WorkspaceService.page()` (width/height/orientation) e o signal atualiza, mas o renderer/background não consomem esse estado. Hoje o viewBox visível vem só de `document.viewBox`; `workspace.page()` fica isolado. Fix exige decisão de design: (a) page sobrescreve viewBox via comando, (b) page renderiza como overlay/border (marca da página dentro do canvas), (c) page constrange o canvas (clip). Precisa investigação antes de implementar — não é fix trivial
+  - ~~**Workspace Settings — page config não aplica no canvas**~~ ✅ **resolvido** em 2026-05-18 via `<svge-page-overlay>` (opção b — page como overlay/marca). Mudar width/height/orientation no dialog reflete imediatamente como rectângulo dentro do canvas. Margens > 0 desenham inset dashed (safe-area). Auto-incluído no `<svge-editor>` shell; opt-in via attribute selector pra consumers que compõem primitives direto. +7 specs
 - [ ] **Polish de tema light/dark** (parking lot — coletar conforme aparecer):
   - Combobox / `<select>` nativo: background em dark mode (cor padrão do browser não harmoniza com a paleta Material)
   - Outros controles que vamos descobrir ao usar a app em ambos os temas
