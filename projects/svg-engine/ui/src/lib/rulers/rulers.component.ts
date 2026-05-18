@@ -226,38 +226,59 @@ export class SvgeRulers implements AfterViewInit, OnDestroy {
   protected readonly verticalTicks = computed<readonly Tick[]>(() => this.computeTicks('y'));
 
   /**
-   * Build the tick array for one axis. Uses `getScreenCTM` when available
-   * (browser/runtime) for layout-accurate positioning; falls back to a
-   * percent-based approximation when not (jsdom tests, SSR).
+   * Build the tick array for one axis.
+   *
+   * **Range covered**: ticks span the ENTIRE ruler bar, not just the
+   * SVG content's visible viewBox. When the SVG is letterboxed inside
+   * its container, the bar areas outside the SVG content (where the
+   * checkerboard pasteboard shows) still get ticks — they represent
+   * doc coordinates accessible via pan, so showing them is correct
+   * (matches Illustrator / Affinity convention). The tick spacing is
+   * derived from the full bar's doc-coord span so it scales naturally
+   * with zoom.
+   *
+   * Uses `getScreenCTM` for layout-accurate positioning when available;
+   * falls back to a viewBox-percent approximation for jsdom / SSR.
    */
   private computeTicks(axis: 'x' | 'y'): readonly Tick[] {
     // Touch both reactive dependencies up-front so the computed re-runs
-    // when either changes. Reading them inside the conditional branches
-    // would cause inconsistent dep tracking.
+    // when either changes.
     this.layoutVersion();
     const vb = this.viewport.viewBox();
-    const start = axis === 'x' ? vb.x : vb.y;
-    const span = axis === 'x' ? vb.width : vb.height;
-    if (span <= 0 || !Number.isFinite(span)) return [];
-
-    const targetMajors = 8;
-    const rawStep = span / targetMajors;
-    const major = niceTickSpacing(rawStep);
-    const minor = major / 5;
-    const firstMinor = Math.ceil(start / minor);
-    const lastMinor = Math.floor((start + span) / minor);
+    const vbStart = axis === 'x' ? vb.x : vb.y;
+    const vbSpan = axis === 'x' ? vb.width : vb.height;
+    if (vbSpan <= 0 || !Number.isFinite(vbSpan)) return [];
 
     // Try the layout-accurate path first.
     const ctmInfo = this.computeCtmInfo(axis);
     if (ctmInfo !== null) {
+      // Doc-coord values at the bar's start (position 0) and end
+      // (position barLength). Derived by inverting the projection
+      //   positionPx = docOriginScreenPx + value * scale - barStartPx
+      // to solve for `value` at the two boundary positions. This is
+      // the KEY to filling the bar's letterbox edges with ticks —
+      // the bar's doc-coord range is WIDER than the SVG viewBox when
+      // there's letterboxing.
+      const docAtBar0 = (ctmInfo.barStartPx - ctmInfo.docOriginScreenPx) / ctmInfo.scale;
+      const docAtBarEnd =
+        (ctmInfo.barStartPx + ctmInfo.barLength - ctmInfo.docOriginScreenPx) / ctmInfo.scale;
+      const lo = Math.min(docAtBar0, docAtBarEnd);
+      const hi = Math.max(docAtBar0, docAtBarEnd);
+      const fullSpan = hi - lo;
+      if (fullSpan <= 0 || !Number.isFinite(fullSpan)) return [];
+
+      const targetMajors = 8;
+      const rawStep = fullSpan / targetMajors;
+      const major = niceTickSpacing(rawStep);
+      const minor = major / 5;
+      const firstMinor = Math.ceil(lo / minor);
+      const lastMinor = Math.floor(hi / minor);
+
       const out: Tick[] = [];
-      const limit = ctmInfo.barLength;
       for (let i = firstMinor; i <= lastMinor; i++) {
         const value = i * minor;
         const positionPx = ctmInfo.docOriginScreenPx + value * ctmInfo.scale - ctmInfo.barStartPx;
-        // Clip to ruler-bar visible range so off-screen ticks don't
-        // generate DOM nodes (and don't bleed past the bar's overflow:hidden).
-        if (positionPx < 0 || positionPx > limit) continue;
+        if (positionPx < 0 || positionPx > ctmInfo.barLength) continue;
         const isMajor = i % 5 === 0;
         out.push({
           key: `t${i}`,
@@ -270,16 +291,24 @@ export class SvgeRulers implements AfterViewInit, OnDestroy {
     }
 
     // Fallback: percent-based positioning relative to ruler-bar length.
-    // Used in jsdom / SSR where getScreenCTM is unavailable. Produces
-    // approximately-correct ticks when the SVG fills its container
-    // uniformly (no letterboxing).
+    // Used in jsdom / SSR where getScreenCTM is unavailable. Doesn't
+    // extend into letterbox areas — but since those don't exist when
+    // SVG fills its container 1:1 (the typical test scenario), this is
+    // correct for the fallback case.
+    const targetMajors = 8;
+    const rawStep = vbSpan / targetMajors;
+    const major = niceTickSpacing(rawStep);
+    const minor = major / 5;
+    const firstMinor = Math.ceil(vbStart / minor);
+    const lastMinor = Math.floor((vbStart + vbSpan) / minor);
+
     const hostRect = this.host.nativeElement.getBoundingClientRect();
     const barLength = (axis === 'x' ? hostRect.width : hostRect.height) - RULER_THICKNESS_PX;
     if (barLength <= 0) return [];
     const out: Tick[] = [];
     for (let i = firstMinor; i <= lastMinor; i++) {
       const value = i * minor;
-      const positionPx = ((value - start) / span) * barLength;
+      const positionPx = ((value - vbStart) / vbSpan) * barLength;
       if (positionPx < 0 || positionPx > barLength) continue;
       const isMajor = i % 5 === 0;
       out.push({
