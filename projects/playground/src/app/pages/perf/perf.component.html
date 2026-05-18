@@ -1,0 +1,90 @@
+<section class="perf-toolbar" aria-label="Performance harness controls">
+  <fieldset>
+    <legend>Load synthetic doc</legend>
+    @for (count of presetCounts; track count) {
+      <button
+        type="button"
+        (click)="loadSynthetic(count)"
+        [class.active]="loadedCount() === count"
+        [title]="'Load ' + count + ' nodes (50% rect / 30% ellipse / 20% path)'"
+      >
+        {{ count }}
+      </button>
+    }
+  </fieldset>
+
+  <fieldset>
+    <legend>Benchmarks</legend>
+    <button
+      type="button"
+      (click)="runPanZoomBenchmark()"
+      [disabled]="busyBenchmark() || loadedCount() === 0"
+      title="3-second programmatic pan/zoom sweep; reports avg FPS"
+    >
+      Pan/Zoom (3s)
+    </button>
+    <button
+      type="button"
+      (click)="runRoundTripBenchmark()"
+      [disabled]="loadedCount() === 0"
+      title="Export → re-import SVG; wall-clock time"
+    >
+      Export+Import
+    </button>
+    <button
+      type="button"
+      (click)="runOptimizeBenchmark()"
+      [disabled]="loadedCount() === 0"
+      title="Run all default-enabled optimizer passes"
+    >
+      Optimize
+    </button>
+    <button type="button" (click)="clearReadings()" title="Clear all measurements">Clear</button>
+  </fieldset>
+</section>
+
+<section class="perf-readouts" aria-label="Performance measurements">
+  <dl>
+    <div class="metric">
+      <dt>Live FPS</dt>
+      <dd>{{ liveFps() }}</dd>
+    </div>
+    <div class="metric">
+      <dt>Loaded nodes</dt>
+      <dd>{{ loadedCount() }}</dd>
+    </div>
+    <div class="metric" [class.pending]="resetMs() === null">
+      <dt>Reset → paint</dt>
+      <dd>{{ resetMs() === null ? '—' : resetMs() + ' ms' }}</dd>
+    </div>
+    <div class="metric" [class.pending]="panZoomFps() === null">
+      <dt>Pan/Zoom FPS</dt>
+      <dd>{{ panZoomFps() === null ? '—' : panZoomFps() }}</dd>
+    </div>
+    <div class="metric" [class.pending]="roundTripMs() === null">
+      <dt>Export+Import</dt>
+      <dd>{{ roundTripMs() === null ? '—' : roundTripMs() + ' ms' }}</dd>
+    </div>
+    <div class="metric" [class.pending]="optimizeMs() === null">
+      <dt>Optimize</dt>
+      <dd>{{ optimizeMs() === null ? '—' : optimizeMs() + ' ms' }}</dd>
+    </div>
+  </dl>
+</section>
+
+<section class="perf-canvas" aria-label="Render preview">
+  <svge-renderer
+    [tree]="tree()"
+    [viewBox]="viewBox()"
+    [ariaLabel]="'Performance harness — ' + loadedCount() + ' nodes'"
+  ></svge-renderer>
+</section>
+
+<footer class="perf-help">
+  <p>
+    <strong>How to use:</strong> pick a node count to load, then run each benchmark in turn. Results
+    stay on screen until <em>Clear</em>. Numbers depend on the browser, machine, and other tabs — to
+    compare changes, run each benchmark <em>3 times</em> and use the middle value (median) to
+    discard warm-up jitter.
+  </p>
+</footer>

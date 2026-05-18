@@ -23,15 +23,16 @@ describe('App layout', () => {
     expect(compiled.querySelector('.app-header h1')?.textContent).toContain('SVGEngine Playground');
   });
 
-  it('renders nav links to home and shell-demo', () => {
+  it('renders nav links to home, shell-demo and perf', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     const links = Array.from(
       fixture.nativeElement.querySelectorAll('.app-nav a'),
     ) as HTMLAnchorElement[];
     const hrefs = links.map((a) => a.getAttribute('href') ?? '');
-    expect(hrefs.length).toBe(2);
+    expect(hrefs.length).toBe(3);
     expect(hrefs.some((h) => h === '/' || h === '')).toBe(true);
     expect(hrefs.some((h) => h.endsWith('shell-demo'))).toBe(true);
+    expect(hrefs.some((h) => h.endsWith('perf'))).toBe(true);
   });
 });

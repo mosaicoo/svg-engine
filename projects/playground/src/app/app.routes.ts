@@ -11,6 +11,10 @@ export const routes: Routes = [
     path: 'shell-demo',
     loadComponent: () => import('./pages/shell-demo/shell-demo.component').then((m) => m.ShellDemo),
   },
+  {
+    path: 'perf',
+    loadComponent: () => import('./pages/perf/perf.component').then((m) => m.PerfPage),
+  },
   // Catch-all → redirect home
   { path: '**', redirectTo: '' },
 ];
