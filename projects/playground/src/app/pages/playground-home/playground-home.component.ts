@@ -728,6 +728,12 @@ export class PlaygroundHome implements OnDestroy {
   }
 
   protected onCanvasPointerMove(event: PointerEvent): void {
+    // Track cursor in doc coords for the ruler indicators. Done up-front
+    // (before tool routing / drag handling) because every pointermove
+    // over the canvas should update the rulers, regardless of which
+    // gesture branch handles the event.
+    const cursor = this.screenToDoc(event.clientX, event.clientY);
+    this.workspace.setRulerCursor(cursor);
     if (this.routeToActiveTool(event, 'move')) return;
     const ds = this.transform.dragState();
     if (ds !== null && ds.kind === 'move') {
@@ -840,6 +846,10 @@ export class PlaygroundHome implements OnDestroy {
 
   protected onCanvasPointerLeave(): void {
     this.selection.setHover(null);
+    // Clear ruler indicators so the triangles don't linger at the last
+    // tracked position when the cursor leaves the canvas (matches
+    // Affinity / Illustrator behavior).
+    this.workspace.setRulerCursor(null);
   }
 
   private firstChild() {

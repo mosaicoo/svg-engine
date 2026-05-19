@@ -360,3 +360,49 @@ describe('pageBoundsIn (helper)', () => {
     expect(out.height).toBe(600);
   });
 });
+
+describe('WorkspaceService — rulerCursor tracking', () => {
+  it('starts as null', () => {
+    const ws = setup();
+    expect(ws.rulerCursor()).toBeNull();
+  });
+
+  it('setRulerCursor stores a finite point as-is', () => {
+    const ws = setup();
+    ws.setRulerCursor({ x: 123.4, y: -50 });
+    expect(ws.rulerCursor()).toEqual({ x: 123.4, y: -50 });
+  });
+
+  it('setRulerCursor(null) clears the position', () => {
+    const ws = setup();
+    ws.setRulerCursor({ x: 1, y: 2 });
+    ws.setRulerCursor(null);
+    expect(ws.rulerCursor()).toBeNull();
+  });
+
+  it('coerces non-finite coordinates to null', () => {
+    const ws = setup();
+    ws.setRulerCursor({ x: Number.NaN, y: 10 });
+    expect(ws.rulerCursor()).toBeNull();
+    ws.setRulerCursor({ x: 10, y: Number.POSITIVE_INFINITY });
+    expect(ws.rulerCursor()).toBeNull();
+  });
+
+  it('is a no-op when the new value matches the current one', () => {
+    const ws = setup();
+    ws.setRulerCursor({ x: 5, y: 5 });
+    const ref = ws.rulerCursor();
+    ws.setRulerCursor({ x: 5, y: 5 });
+    // Same object reference proves the signal didn't fire (dedup).
+    expect(ws.rulerCursor()).toBe(ref);
+  });
+
+  it('is a no-op when clearing an already-null cursor', () => {
+    const ws = setup();
+    // Force-set null first to flush any test setup state.
+    ws.setRulerCursor(null);
+    expect(ws.rulerCursor()).toBeNull();
+    ws.setRulerCursor(null);
+    expect(ws.rulerCursor()).toBeNull();
+  });
+});

@@ -73,6 +73,9 @@ const RULER_THICKNESS_PX = 24;
             [attr.data-label]="t.major ? t.label : null"
           ></div>
         }
+        @if (cursorIndicatorH(); as ind) {
+          <div class="cursor-indicator h" [style.left.px]="ind.positionPx" aria-hidden="true"></div>
+        }
       </div>
       <div class="ruler ruler-v" aria-hidden="true">
         @for (t of verticalTicks(); track t.key) {
@@ -82,6 +85,9 @@ const RULER_THICKNESS_PX = 24;
             [style.top.px]="t.positionPx"
             [attr.data-label]="t.major ? t.label : null"
           ></div>
+        }
+        @if (cursorIndicatorV(); as ind) {
+          <div class="cursor-indicator v" [style.top.px]="ind.positionPx" aria-hidden="true"></div>
         }
       </div>
       <div class="corner" aria-hidden="true"></div>
@@ -171,6 +177,36 @@ const RULER_THICKNESS_PX = 24;
       transform: rotate(180deg);
       color: var(--mat-sys-on-surface, #333);
     }
+    /* Cursor-position indicator — small filled triangle pointing into
+       the canvas, following the mouse along each ruler bar. Convention
+       from Affinity / Illustrator / Photoshop: a single triangle per
+       axis (no label, no full-bar line) — minimal visual weight, clear
+       reference. Color is derived from the system primary so it sits
+       above tick marks in z-order and stays legible across themes. */
+    .cursor-indicator {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background: var(--mat-sys-primary, #1976d2);
+      pointer-events: none;
+      /* Slightly above 1 so it visually crosses major tick caps. */
+      z-index: 2;
+    }
+    /* Horizontal ruler: triangle pointing down, anchored to bar bottom,
+       centered on the cursor X. CSS triangles via clip-path keep the
+       markup tiny (no SVG nodes per frame). */
+    .cursor-indicator.h {
+      bottom: 0;
+      transform: translateX(-50%);
+      clip-path: polygon(0 0, 100% 0, 50% 100%);
+    }
+    /* Vertical ruler: triangle pointing right, anchored to bar right
+       edge, centered on the cursor Y. */
+    .cursor-indicator.v {
+      right: 0;
+      transform: translateY(-50%);
+      clip-path: polygon(0 0, 100% 50%, 0 100%);
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -224,6 +260,45 @@ export class SvgeRulers implements AfterViewInit, OnDestroy {
 
   protected readonly horizontalTicks = computed<readonly Tick[]>(() => this.computeTicks('x'));
   protected readonly verticalTicks = computed<readonly Tick[]>(() => this.computeTicks('y'));
+
+  /**
+   * Cursor-position indicator for each ruler. Computed from the live
+   * `ws.rulerCursor` signal (doc coords) projected to ruler-local CSS
+   * pixels via the same CTM the ticks use. Returns `null` when:
+   * - the pointer is outside the canvas (signal is null)
+   * - the CTM isn't available (jsdom / SSR — indicator hidden)
+   * - the projected position falls outside the ruler bar (avoids the
+   *   indicator floating in the corner square or below the bar end)
+   *
+   * Per-axis computeds (instead of one for both) so that horizontal
+   * panning doesn't recompute the vertical indicator and vice versa.
+   */
+  protected readonly cursorIndicatorH = computed<{ positionPx: number } | null>(() =>
+    this.computeCursorIndicator('x'),
+  );
+  protected readonly cursorIndicatorV = computed<{ positionPx: number } | null>(() =>
+    this.computeCursorIndicator('y'),
+  );
+
+  private computeCursorIndicator(axis: 'x' | 'y'): { positionPx: number } | null {
+    // Touch reactive deps so the computed re-fires on layout / viewport
+    // change in addition to cursor moves.
+    this.layoutVersion();
+    this.viewport.viewBox();
+    const cursor = this.ws.rulerCursor();
+    if (cursor === null) return null;
+    const ctmInfo = this.computeCtmInfo(axis);
+    if (ctmInfo === null) return null;
+    const value = axis === 'x' ? cursor.x : cursor.y;
+    if (!Number.isFinite(value)) return null;
+    const positionPx = ctmInfo.docOriginScreenPx + value * ctmInfo.scale - ctmInfo.barStartPx;
+    // Clamp to a 1-px tolerance on both ends so cursors *exactly* at
+    // the edge still render, but cursors clearly off the bar are
+    // hidden (prevents the indicator from drawing inside the corner
+    // square or past the ruler's overflow:hidden boundary).
+    if (positionPx < -0.5 || positionPx > ctmInfo.barLength + 0.5) return null;
+    return { positionPx };
+  }
 
   /**
    * Build the tick array for one axis.

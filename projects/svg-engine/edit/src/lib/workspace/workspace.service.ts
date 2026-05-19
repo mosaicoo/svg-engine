@@ -210,6 +210,18 @@ export class WorkspaceService {
   private readonly _rulers = signal<RulersConfig>(DEFAULT_RULERS);
   private readonly _guides = signal<readonly Guide[]>([]);
   private readonly _interaction = signal<InteractionConfig>(DEFAULT_INTERACTION);
+  /**
+   * Live cursor position in **document coordinates**, set by the canvas
+   * host on each pointer move and cleared (to `null`) when the pointer
+   * leaves the canvas. Read by `SvgeRulers` to draw the cursor-tracking
+   * indicator (the small triangle that follows the mouse along each
+   * ruler bar — Illustrator / Affinity / Photoshop convention).
+   *
+   * **Why a single signal instead of two (x/y)**: keeps "pointer left
+   * the canvas" expressible as `null` without sentinel coordinates,
+   * and consumers can subscribe to a single source for both axes.
+   */
+  private readonly _rulerCursor = signal<{ readonly x: number; readonly y: number } | null>(null);
   private guideCounter = 0;
 
   /** Reactive snapshot of the current background config. */
@@ -233,6 +245,13 @@ export class WorkspaceService {
    * the effective zoom factor per wheel event.
    */
   readonly interaction = this._interaction.asReadonly();
+
+  /**
+   * Reactive snapshot of the live cursor position in document coords,
+   * or `null` when the pointer is outside the canvas. Updated by the
+   * canvas host on every pointermove + cleared on pointerleave.
+   */
+  readonly rulerCursor = this._rulerCursor.asReadonly();
 
   /**
    * Convenience computed — true when the current background is the
@@ -396,6 +415,34 @@ export class WorkspaceService {
 
   resetInteraction(): void {
     this._interaction.set(DEFAULT_INTERACTION);
+  }
+
+  // ── Ruler cursor tracking ───────────────────────────────────────
+
+  /**
+   * Set the live cursor position in doc coords (or `null` to clear).
+   * No-op if the new value is structurally identical to the current
+   * one — avoids spurious change-detection on idle frames where the
+   * pointer hasn't moved between handler invocations (e.g., when an
+   * unrelated event also fires).
+   *
+   * Non-finite coordinates are coerced to `null` (clearing) — defensive
+   * against callers that pass `NaN` from an unguarded inverse-CTM call.
+   */
+  setRulerCursor(point: { readonly x: number; readonly y: number } | null): void {
+    if (point === null) {
+      if (this._rulerCursor() === null) return;
+      this._rulerCursor.set(null);
+      return;
+    }
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+      if (this._rulerCursor() === null) return;
+      this._rulerCursor.set(null);
+      return;
+    }
+    const current = this._rulerCursor();
+    if (current !== null && current.x === point.x && current.y === point.y) return;
+    this._rulerCursor.set({ x: point.x, y: point.y });
   }
 }
 
