@@ -3,5 +3,5 @@ export { ExporterRegistry, ImporterRegistry } from './io-registries.service';
 export { svgImporter } from './svg-importer';
 export { svgExporter } from './svg-exporter';
 export { builtinIoPlugin } from './builtin-io.plugin';
-export { pngExporter } from './png-exporter';
+export { pngExporter, renderPng } from './png-exporter';
 export { pngExporterPlugin } from './png-exporter.plugin';

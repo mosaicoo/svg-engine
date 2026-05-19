@@ -33,65 +33,77 @@ import { svgExporter } from './svg-exporter';
  * separation we ship it as a SEPARATE plugin ({@link pngExporterPlugin})
  * so consumers can opt in/out independently of the SVG IO plugin.
  */
+/**
+ * Render a `SvgDocument` to a PNG Blob at the requested `scale`
+ * multiplier (1, 2, 3 — or any positive number). Reused by both the
+ * `Exporter` interface implementation and the playground's
+ * "Export PNG with presets" dialog.
+ *
+ * Pipeline matches the original `pngExporter`: serialize → base64 →
+ * `<img>` load → `<canvas>` paint → `toBlob('image/png')`.
+ */
+export function renderPng(document: SvgDocument, scale = 2): Promise<Blob> {
+  if (typeof window === 'undefined' || typeof Image === 'undefined') {
+    return Promise.reject(new Error('renderPng requires a browser environment'));
+  }
+  if (!Number.isFinite(scale) || scale <= 0) {
+    return Promise.reject(new Error(`renderPng: invalid scale ${scale}`));
+  }
+  const svgText = svgExporter.export(document);
+  if (typeof svgText !== 'string') {
+    return Promise.reject(new Error('renderPng: svgExporter returned non-string'));
+  }
+  const vb = document.viewBox;
+  const canvasWidth = Math.max(1, Math.round(vb.width * scale));
+  const canvasHeight = Math.max(1, Math.round(vb.height * scale));
+
+  return new Promise<Blob>((resolve, reject) => {
+    const img = new Image();
+    let base64: string;
+    try {
+      base64 = btoa(unescape(encodeURIComponent(svgText)));
+    } catch (e) {
+      reject(new Error(`renderPng: failed to base64-encode SVG: ${stringifyError(e)}`));
+      return;
+    }
+    img.onload = () => {
+      const canvas = window.document.createElement('canvas');
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx === null) {
+        reject(new Error('renderPng: canvas 2D context unavailable'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+      canvas.toBlob((blob) => {
+        if (blob === null) {
+          reject(new Error('renderPng: canvas.toBlob returned null'));
+        } else {
+          resolve(blob);
+        }
+      }, 'image/png');
+    };
+    img.onerror = () => {
+      reject(new Error('renderPng: Image failed to load SVG payload'));
+    };
+    img.src = `data:image/svg+xml;base64,${base64}`;
+  });
+}
+
 export const pngExporter: Exporter = {
   id: 'svge.builtin.exporter.png',
   name: 'PNG (raster)',
   mediaType: 'image/png',
   extension: 'png',
-
+  /**
+   * Default export uses 2× scale — retina-quality default that matches
+   * Affinity / Figma export defaults. Callers that need a different
+   * scale (1×/3× presets, custom DPI) should use {@link renderPng}
+   * directly instead of dispatching through the `ExporterRegistry`.
+   */
   export(document: SvgDocument): Promise<Blob> {
-    if (typeof window === 'undefined' || typeof Image === 'undefined') {
-      return Promise.reject(new Error('pngExporter requires a browser environment'));
-    }
-    const svgText = svgExporter.export(document);
-    if (typeof svgText !== 'string') {
-      return Promise.reject(new Error('pngExporter: svgExporter returned non-string'));
-    }
-    // 2× canvas resolution for retina-quality output (Affinity / Figma
-    // do the same trick for raster previews). The PNG file's logical
-    // dimensions still match the SVG viewBox.
-    const dpr = 2;
-    const vb = document.viewBox;
-    const canvasWidth = Math.max(1, Math.round(vb.width * dpr));
-    const canvasHeight = Math.max(1, Math.round(vb.height * dpr));
-
-    return new Promise<Blob>((resolve, reject) => {
-      const img = new Image();
-      // Base64 wrap — works without CORS hassles since the data: URI
-      // has no origin. `btoa` for ASCII; `unescape(encodeURIComponent(...))`
-      // for UTF-8 safety (SVG can contain any Unicode in text content).
-      let base64: string;
-      try {
-        base64 = btoa(unescape(encodeURIComponent(svgText)));
-      } catch (e) {
-        reject(new Error(`pngExporter: failed to base64-encode SVG: ${stringifyError(e)}`));
-        return;
-      }
-      img.onload = () => {
-        const canvas = window.document.createElement('canvas');
-        canvas.width = canvasWidth;
-        canvas.height = canvasHeight;
-        const ctx = canvas.getContext('2d');
-        if (ctx === null) {
-          reject(new Error('pngExporter: canvas 2D context unavailable'));
-          return;
-        }
-        // Draw at full canvas dimensions; the Image element handles the
-        // SVG → raster step using the browser's native renderer.
-        ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
-        canvas.toBlob((blob) => {
-          if (blob === null) {
-            reject(new Error('pngExporter: canvas.toBlob returned null'));
-          } else {
-            resolve(blob);
-          }
-        }, 'image/png');
-      };
-      img.onerror = () => {
-        reject(new Error('pngExporter: Image failed to load SVG payload'));
-      };
-      img.src = `data:image/svg+xml;base64,${base64}`;
-    });
+    return renderPng(document, 2);
   },
 };
 

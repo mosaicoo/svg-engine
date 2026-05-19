@@ -116,6 +116,30 @@ export class IsolationService {
   }
 
   /**
+   * Drill **up** one isolation level — Affinity/Illustrator Esc
+   * convention. Moves the isolation root to the parent of the current
+   * one. When the current isolation root is a direct child of the
+   * document root, calls {@link exit} (so the user reaches the top
+   * with a final Esc). No-op when no isolation is active.
+   *
+   * Example with structure `Doc › GroupA › GroupB`:
+   * - Esc from `GroupB` → isolation = `GroupA`
+   * - Esc from `GroupA` → isolation = `null` (back to document scope)
+   */
+  exitOne(): void {
+    const current = this._isolationRootId();
+    if (current === null) return;
+    const docRoot = this.state.document().root;
+    const parent = findParent(docRoot, current);
+    if (parent === null || parent.id === docRoot.id) {
+      // Direct child of root (or stale ref) — full exit.
+      this.exit();
+      return;
+    }
+    this._isolationRootId.set(parent.id);
+  }
+
+  /**
    * Imperatively set the isolation root (or clear with `null`). Used
    * by the breadcrumb bar so clicking a parent crumb jumps directly
    * to that level instead of climbing one at a time.

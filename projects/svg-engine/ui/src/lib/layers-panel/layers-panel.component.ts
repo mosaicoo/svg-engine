@@ -1,5 +1,6 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { RenameAutoFocus } from './rename-autofocus.directive';
 import { MatIconButton } from '@angular/material/button';
 import { MatCheckbox } from '@angular/material/checkbox';
 import { MatFormField, MatPrefix, MatSuffix } from '@angular/material/form-field';
@@ -15,10 +16,12 @@ import {
   isGroupNode,
   MoveNodeInTreeCommand,
   type NodeId,
+  SetPropertyCommand,
+  type SvgMetadata,
   type SvgNode,
   type SvgNodeType,
 } from 'svg-engine/core';
-import { LayersService, SelectionService } from 'svg-engine/edit';
+import { IsolationService, LayersService, SelectionService } from 'svg-engine/edit';
 
 /**
  * Where a dragged row would land relative to the hovered row. Drives
@@ -101,6 +104,7 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
     MatPrefix,
     MatSuffix,
     NgTemplateOutlet,
+    RenameAutoFocus,
   ],
   template: `
     <!--
@@ -240,8 +244,10 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
           [attr.aria-selected]="isSelected()(node.id)"
           [attr.aria-disabled]="isLocked()(node.id)"
           (click)="onRowClick($event, node.id)"
+          (dblclick)="onRowDoubleClick($event, node)"
           (keydown.enter)="onRowKey($any($event), node.id)"
           (keydown.space)="onRowKey($any($event), node.id)"
+          (keydown.f2)="onRowRenameKey($any($event), node.id)"
           (dragstart)="onDragStart($event, node.id)"
           (dragover)="onDragOver($event, node)"
           (dragleave)="onDragLeave($event, node.id)"
@@ -265,7 +271,27 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
           }
 
           <mat-icon class="type-icon" [attr.aria-hidden]="true">{{ iconFor(node) }}</mat-icon>
-          <span class="label">{{ label(node) }}</span>
+          @if (renamingId() === node.id) {
+            <!--
+              Inline rename input — replaces the label span while the
+              row is in rename mode. Focused programmatically via
+              renameAutoFocus directive (autofocus attribute is rejected
+              by a11y lint). Enter commits, Esc cancels; blur also
+              commits (matches Affinity: a click elsewhere is "save").
+            -->
+            <input
+              svgeRenameAutoFocus
+              class="rename-input"
+              type="text"
+              [value]="label(node)"
+              (click)="$event.stopPropagation()"
+              (keydown.enter)="commitRename($event, node)"
+              (keydown.escape)="cancelRename()"
+              (blur)="commitRename($event, node)"
+            />
+          } @else {
+            <span class="label" (dblclick)="startRename($event, node.id)">{{ label(node) }}</span>
+          }
 
           <span class="actions">
             <button
@@ -489,6 +515,24 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
     .row.dim-non-match .type-icon {
       opacity: 0.55;
     }
+    /* Inline rename input — visually replaces the label span while
+       editing. Sized to match the row's text metrics so the row
+       height doesn't jump when entering/leaving rename mode. */
+    .rename-input {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 2px 4px;
+      margin: 0;
+      font: inherit;
+      color: inherit;
+      background: var(--mat-sys-surface, #fff);
+      border: 1px solid var(--mat-sys-primary, #1976d2);
+      border-radius: 3px;
+      outline: none;
+    }
+    .rename-input:focus {
+      box-shadow: 0 0 0 2px var(--mat-sys-primary, rgba(25, 118, 210, 0.35));
+    }
     /* Filter menu styles — mat-menu mounts via overlay (outside this
        component's view encapsulation) so we target it via the global
        \`.layers-filter-menu\` class set on the menu's panelClass. */
@@ -555,6 +599,7 @@ export class LayersPanel {
   private readonly selection = inject(SelectionService);
   private readonly layers = inject(LayersService);
   private readonly bus = inject(CommandBus);
+  private readonly isolation = inject(IsolationService);
 
   /**
    * Bloco 4b-DnD drag-drop reorder state.
@@ -805,7 +850,75 @@ export class LayersPanel {
   }
 
   protected label(node: SvgNode): string {
+    // Authored name (set via inline rename) wins. Falls back to a
+    // type-based default — matches the inspector convention so the
+    // user can recognize an "unnamed" node by its shape type.
+    const authored = node.metadata?.name;
+    if (typeof authored === 'string' && authored.length > 0) return authored;
     return `${node.type} ${node.id.slice(0, 6)}`;
+  }
+
+  // ── Inline rename (Affinity/Illustrator F2 + double-click on label) ──
+
+  /**
+   * Id of the row currently in rename mode (input replaces the span).
+   * `null` when no rename in progress.
+   */
+  protected readonly renamingId = signal<NodeId | null>(null);
+
+  /**
+   * Enter rename mode for a row. Triggered by:
+   *   - dblclick on the label span (event.stopPropagation prevents the
+   *     row's own dblclick from also entering Isolation Mode)
+   *   - F2 on the focused row
+   *
+   * Locked rows reject the rename — same policy as other mutations.
+   * Once entered, the template renders an `<input autofocus>` in place
+   * of the label; commit/cancel handlers manage the lifecycle.
+   */
+  protected startRename(event: Event, id: NodeId): void {
+    event.stopPropagation();
+    if (this.layers.isLocked(id)) return;
+    this.renamingId.set(id);
+  }
+
+  /** Commit the rename input's value via SetPropertyCommand on the node's metadata. */
+  protected commitRename(event: Event, node: SvgNode): void {
+    if (this.renamingId() !== node.id) return;
+    const input = event.target as HTMLInputElement | null;
+    const raw = input?.value ?? '';
+    const next = raw.trim();
+    this.renamingId.set(null);
+    const current = this.label(node);
+    if (next === current) return; // no-op (no command on the bus → no undo entry)
+    const previousMetadata: SvgMetadata = node.metadata ?? {};
+    const nextMetadata: SvgMetadata =
+      next.length === 0
+        ? // Empty name: drop the property so the type-based fallback
+          // takes over again. Built by shallow-cloning + delete; using
+          // destructuring rest would leave an unused-var lint error.
+          dropMetadataName(previousMetadata)
+        : { ...previousMetadata, name: next };
+    this.bus.dispatch(
+      new SetPropertyCommand<SvgNode, 'metadata'>(node.id, 'metadata', nextMetadata),
+    );
+  }
+
+  /** Cancel rename without dispatching (Esc, click-outside on blur is committed instead). */
+  protected cancelRename(): void {
+    this.renamingId.set(null);
+  }
+
+  /**
+   * F2 / Enter on a focused row enters rename. F2 is the Windows
+   * convention (also accepted by Affinity); Enter is the Mac
+   * convention. Both supported.
+   */
+  protected onRowRenameKey(event: KeyboardEvent, id: NodeId): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.layers.isLocked(id)) return;
+    this.renamingId.set(id);
   }
 
   protected onRowClick(event: MouseEvent, id: NodeId): void {
@@ -843,6 +956,24 @@ export class LayersPanel {
       return;
     }
     this.selection.select(id);
+  }
+
+  /**
+   * Double-click on a row enters Isolation Mode on it (only when the
+   * node is a group). Matches the canvas dblclick gesture so the panel
+   * is a redundant entry point — convenient for users who prefer the
+   * panel for navigation. No-op for non-group rows (no semantic
+   * "inside" to isolate).
+   */
+  protected onRowDoubleClick(event: MouseEvent, node: SvgNode): void {
+    event.stopPropagation();
+    if (this.layers.isLocked(node.id)) return;
+    if (node.type !== 'group') return;
+    // Don't isolate the document root itself — there's nothing "above"
+    // to drill out to, so the gesture would be a no-op anyway.
+    if (node.id === this.state.document().root.id) return;
+    this.isolation.enter(node.id);
+    this.selection.select(node.id);
   }
 
   protected onToggleVisible(event: MouseEvent, id: NodeId): void {
@@ -1050,4 +1181,15 @@ function walkTree(node: SvgNode, visit: (n: SvgNode) => void): void {
   if (isGroupNode(node)) {
     for (const child of node.children) walkTree(child, visit);
   }
+}
+
+/**
+ * Shallow-clone metadata without the `name` field. Used by the rename
+ * commit when the user submits an empty string — equivalent to "reset
+ * to default" so the type-based label fallback kicks back in.
+ */
+function dropMetadataName(metadata: SvgMetadata): SvgMetadata {
+  const clone: Record<string, unknown> = { ...metadata };
+  delete clone['name'];
+  return clone as SvgMetadata;
 }

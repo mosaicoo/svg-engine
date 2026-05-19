@@ -103,3 +103,6 @@ export * from './lib/canvas-gestures';
 
 // Isolation Mode (Illustrator/Affinity-style group isolation + breadcrumb)
 export * from './lib/isolation';
+
+// Auto-save + recovery (localStorage-backed)
+export * from './lib/autosave';

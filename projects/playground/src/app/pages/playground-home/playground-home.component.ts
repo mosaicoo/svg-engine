@@ -31,6 +31,7 @@ import {
 import {
   type AlignAxis,
   AlignmentService,
+  AutoSaveService,
   DIRECT_SELECT_TOOL_ID,
   type DistributeAxis,
   EffectRegistry,
@@ -53,6 +54,7 @@ import {
   OptimizerRegistry,
   PageOverlay,
   pageBoundsIn,
+  renderPng,
   resolveNodeIdFromEvent,
   resolveSelectableNodeId,
   RotationPivot,
@@ -161,6 +163,7 @@ export class PlaygroundHome implements OnDestroy {
   private readonly optimizers = inject(OptimizerRegistry);
   private readonly effects = inject(EffectRegistry);
   protected readonly isolation = inject(IsolationService);
+  private readonly autoSave = inject(AutoSaveService);
   private readonly dialog = inject(MatDialog);
 
   /** Reference to the hidden `<input type="file">` for SVG import. */
@@ -245,12 +248,13 @@ export class PlaygroundHome implements OnDestroy {
         event.preventDefault();
         return;
       }
-      // Esc with no active gesture exits isolation mode (Affinity /
-      // Illustrator convention). Done last so a drag/marquee cancel
-      // takes precedence — user wouldn't expect "exit isolation"
-      // while abandoning a drag.
+      // Esc with no active gesture drills UP one isolation level
+      // (Affinity / Illustrator convention). Repeated Esc walks back
+      // to the document root one step at a time, instead of exiting
+      // all the way out on a single press. Done last so a drag/marquee
+      // cancel takes precedence.
       if (this.isolation.isActive()) {
-        this.isolation.exit();
+        this.isolation.exitOne();
         event.preventDefault();
       }
     }
@@ -323,6 +327,12 @@ export class PlaygroundHome implements OnDestroy {
     // renderer pans/zooms over the actual document bounds.
     this.viewport.setContentBox(this.state.document().viewBox);
     document.addEventListener('keydown', this.onKeyDown);
+
+    // Auto-save recovery: check on bootstrap if there's an unsaved
+    // payload from a previous session. Prompt the user before
+    // overwriting; clear on decline so subsequent boots are clean.
+    this.checkAutoSaveRecovery();
+
     // Default tool: Select (passthrough — keeps native canvas behavior).
     // Activated after construction so the tool registry has had a chance
     // to receive the bootstrap-provided plugin entries.
@@ -419,6 +429,52 @@ export class PlaygroundHome implements OnDestroy {
     this.dialog.open(SvgeWorkspaceSettings, { width: '420px' });
   }
 
+  /**
+   * Check `AutoSaveService` for an unsaved payload from a previous
+   * session. If present, ask the user whether to restore it via a
+   * lightweight `confirm` (no Material dialog needed — keeps the
+   * recovery flow blocking and simple). On confirm, importa o SVG
+   * salvo via SVG importer. On decline, clears the payload so it
+   * doesn't haunt future sessions.
+   *
+   * No-op when:
+   * - localStorage is unavailable (SSR / privacy mode)
+   * - no payload was saved
+   * - payload is empty
+   */
+  private checkAutoSaveRecovery(): void {
+    const recovery = this.autoSave.readRecovery();
+    if (recovery === null) return;
+    const ageMs = Date.now() - recovery.savedAt.getTime();
+    const ageLabel = formatAge(ageMs);
+    const message = `Recuperar trabalho não salvo de ${ageLabel}?`;
+    // Defer to next microtask so the dialog opens AFTER initial CD
+    // (otherwise the confirm modal would freeze the bootstrap render).
+    queueMicrotask(() => {
+      const accept = globalThis.confirm?.(message) ?? false;
+      if (!accept) {
+        this.autoSave.clearRecovery();
+        return;
+      }
+      const importer = this.importers.byExtension('svg');
+      if (importer === null) {
+        console.warn('Auto-save recovery: no SVG importer registered.');
+        return;
+      }
+      const result = importer.import(recovery.svg);
+      if (!result.ok) {
+        console.warn('Auto-save recovery: import failed —', result.error);
+        return;
+      }
+      this.state.resetDocument(result.document);
+      this.viewport.setContentBox(result.document.viewBox);
+      this.selection.clear();
+      this.history.clear();
+      // Don't clear the payload yet — it'll get overwritten on the
+      // next document change by the AutoSave debounce, naturally.
+    });
+  }
+
   // ── Fase 5-IO + Optimize integration ───────────────────────────
 
   /**
@@ -473,12 +529,54 @@ export class PlaygroundHome implements OnDestroy {
   }
 
   /**
-   * Export the current document as PNG (Item 6 — reference plugin
-   * demonstrating async / binary exporters). Filename is
-   * `svge-export-<timestamp>.png`.
+   * Export the current document as PNG with a user-chosen scale
+   * preset (@1x / @2x / @3x). Prompts via `confirm`/`prompt` to keep
+   * the surface light; future polish can replace with a Material
+   * dialog when more options (DPI, bg color, quality) appear.
+   *
+   * Filename is `svge-export-<timestamp>@<scale>x.png`.
    */
   protected exportPng(): void {
-    void this.exportAs('image/png');
+    void this.exportPngWithPresets();
+  }
+
+  private async exportPngWithPresets(): Promise<void> {
+    // Quick preset picker via prompt. Keeping intentionally minimal —
+    // the gain is real (retina-correct export) without a new dialog.
+    const raw = globalThis.prompt?.(
+      'Exportar PNG — escolha a escala (1, 2 ou 3 — @1x, @2x, @3x retina):',
+      '2',
+    );
+    if (raw === null || raw === undefined) return; // user cancelled
+    const scale = Number.parseInt(raw, 10);
+    if (![1, 2, 3].includes(scale)) {
+      console.warn(`exportPng: invalid scale "${raw}" — accepted: 1, 2, 3`);
+      return;
+    }
+    // Export respects PAGE dimensions (not full document viewBox)
+    // matching the SVG export path — see `exportAs` for the rationale.
+    const doc = this.state.document();
+    const page = this.workspace.page();
+    const pb = pageBoundsIn(this.viewport.contentBox(), page);
+    const exportDoc = {
+      ...doc,
+      viewBox: { x: pb.x, y: pb.y, width: pb.width, height: pb.height },
+    };
+    let blob: Blob;
+    try {
+      blob = await renderPng(exportDoc, scale);
+    } catch (e) {
+      console.error('exportPng: render failed —', e);
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `svge-export-${Date.now()}@${scale}x.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   /**
@@ -1050,4 +1148,24 @@ function isEditableTarget(target: EventTarget | null): boolean {
   const tag = target.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
   return target.isContentEditable;
+}
+
+/**
+ * Format a Date age (ms) as a short human-readable string for the
+ * recovery prompt: "segundos atrás", "5 min atrás", "2 h atrás",
+ * "ontem", etc. Kept inline in the playground because no other
+ * surface needs it — promote to a util if a second consumer appears.
+ */
+function formatAge(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return 'agora';
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return 'agora há pouco';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min atrás`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h atrás`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'ontem';
+  if (days < 7) return `${days} dias atrás`;
+  return `${Math.floor(days / 7)} sem atrás`;
 }

@@ -64,7 +64,13 @@ const RULER_THICKNESS_PX = 24;
   standalone: true,
   template: `
     @if (visible()) {
-      <div class="ruler ruler-h" aria-hidden="true">
+      <!--
+        Top ruler. pointer-events: auto on the bar so the user can
+        click-drag from inside it to create a new HORIZONTAL guide
+        (Illustrator / Affinity convention). Cursor is ns-resize to
+        hint at the gesture.
+      -->
+      <div class="ruler ruler-h" (pointerdown)="onRulerPointerDown($event, 'h')">
         @for (t of horizontalTicks(); track t.key) {
           <div
             class="tick"
@@ -77,7 +83,7 @@ const RULER_THICKNESS_PX = 24;
           <div class="cursor-indicator h" [style.left.px]="ind.positionPx" aria-hidden="true"></div>
         }
       </div>
-      <div class="ruler ruler-v" aria-hidden="true">
+      <div class="ruler ruler-v" (pointerdown)="onRulerPointerDown($event, 'v')">
         @for (t of verticalTicks(); track t.key) {
           <div
             class="tick"
@@ -117,6 +123,13 @@ const RULER_THICKNESS_PX = 24;
       height: 24px;
       border-left: 0;
       overflow: hidden;
+      /* Re-enable pointer events on the bar (host has none) so
+         pointerdown can start a drag-to-create-guide gesture.
+         ns-resize cursor signals "drag down to drop a horizontal
+         guide" — same convention as Illustrator / Affinity. */
+      pointer-events: auto;
+      cursor: ns-resize;
+      touch-action: none;
     }
     .ruler-v {
       top: 24px;
@@ -125,6 +138,9 @@ const RULER_THICKNESS_PX = 24;
       width: 24px;
       border-top: 0;
       overflow: hidden;
+      pointer-events: auto;
+      cursor: ew-resize;
+      touch-action: none;
     }
     .corner {
       position: absolute;
@@ -256,6 +272,9 @@ export class SvgeRulers implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    // Drop any in-flight drag-from-ruler listeners — defensive in case
+    // the component is torn down mid-gesture (e.g., route change).
+    this.cleanupDrag();
   }
 
   protected readonly horizontalTicks = computed<readonly Tick[]>(() => this.computeTicks('x'));
@@ -298,6 +317,111 @@ export class SvgeRulers implements AfterViewInit, OnDestroy {
     // square or past the ruler's overflow:hidden boundary).
     if (positionPx < -0.5 || positionPx > ctmInfo.barLength + 0.5) return null;
     return { positionPx };
+  }
+
+  // ── Drag-from-ruler to create guide (Affinity / Illustrator) ─────
+
+  /** Id of the guide currently being dragged out of a ruler, or null. */
+  private pendingGuideId: string | null = null;
+  /** Axis of the pending guide (drives screen→doc projection axis). */
+  private pendingGuideAxis: 'h' | 'v' | null = null;
+  /** Bound document listeners — registered on pointerdown, removed on up/Esc. */
+  private boundMove: ((e: PointerEvent) => void) | null = null;
+  private boundUp: (() => void) | null = null;
+  private boundEsc: ((e: KeyboardEvent) => void) | null = null;
+
+  /**
+   * Start a drag-out-of-ruler gesture. Creates a guide at the cursor's
+   * doc position immediately (so it's visible while the user drags),
+   * captures the pointer, and registers document-level listeners that
+   * track the cursor across the canvas. On pointerup the guide stays
+   * at the released position; Esc removes it (cancel).
+   *
+   * Only fires for primary mouse button — middle/right buttons should
+   * pass through to the canvas-gestures directive (pan / context menu).
+   */
+  protected onRulerPointerDown(event: PointerEvent, axis: 'h' | 'v'): void {
+    if (event.button !== 0) return;
+    const docPoint = this.screenToDoc(event.clientX, event.clientY);
+    if (docPoint === null) return;
+    event.preventDefault();
+    const position = axis === 'h' ? docPoint.y : docPoint.x;
+    const id = this.ws.addGuide(axis, position);
+    if (id === null) return;
+    this.pendingGuideId = id;
+    this.pendingGuideAxis = axis;
+    this.boundMove = (e) => this.onDocPointerMove(e);
+    this.boundUp = () => this.onDocPointerUp();
+    this.boundEsc = (e) => this.onDocKeyDown(e);
+    // Use capture: the canvas-gestures directive listens on its own
+    // host; we want to win the move events while a guide drag is in
+    // progress.
+    document.addEventListener('pointermove', this.boundMove, { capture: true });
+    document.addEventListener('pointerup', this.boundUp, { capture: true });
+    document.addEventListener('keydown', this.boundEsc, { capture: true });
+  }
+
+  private onDocPointerMove(event: PointerEvent): void {
+    if (this.pendingGuideId === null || this.pendingGuideAxis === null) return;
+    const docPoint = this.screenToDoc(event.clientX, event.clientY);
+    if (docPoint === null) return;
+    const position = this.pendingGuideAxis === 'h' ? docPoint.y : docPoint.x;
+    this.ws.moveGuide(this.pendingGuideId, position);
+  }
+
+  private onDocPointerUp(): void {
+    this.cleanupDrag();
+  }
+
+  private onDocKeyDown(event: KeyboardEvent): void {
+    if (event.key !== 'Escape') return;
+    if (this.pendingGuideId !== null) {
+      this.ws.removeGuide(this.pendingGuideId);
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    this.cleanupDrag();
+  }
+
+  private cleanupDrag(): void {
+    if (this.boundMove !== null) {
+      document.removeEventListener('pointermove', this.boundMove, { capture: true });
+      this.boundMove = null;
+    }
+    if (this.boundUp !== null) {
+      document.removeEventListener('pointerup', this.boundUp, { capture: true });
+      this.boundUp = null;
+    }
+    if (this.boundEsc !== null) {
+      document.removeEventListener('keydown', this.boundEsc, { capture: true });
+      this.boundEsc = null;
+    }
+    this.pendingGuideId = null;
+    this.pendingGuideAxis = null;
+  }
+
+  /**
+   * Map a client (screen) pixel coordinate to the SVG's user coordinate
+   * space via `getScreenCTM` on the inner SVG element. Same approach as
+   * `GuidesOverlay.screenToDoc` — kept local to avoid coupling the UI
+   * component to edit-layer geometry helpers.
+   *
+   * Returns `null` when the SVG ref isn't available or `getScreenCTM`
+   * is unimplemented (jsdom / SSR).
+   */
+  private screenToDoc(clientX: number, clientY: number): { x: number; y: number } | null {
+    const svg = this.svgRef;
+    if (svg === null) return null;
+    if (typeof svg.getScreenCTM !== 'function') return null;
+    if (typeof svg.createSVGPoint !== 'function') return null;
+    const ctm = svg.getScreenCTM();
+    if (ctm === null) return null;
+    const inv = ctm.inverse();
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const user = pt.matrixTransform(inv);
+    return { x: user.x, y: user.y };
   }
 
   /**
