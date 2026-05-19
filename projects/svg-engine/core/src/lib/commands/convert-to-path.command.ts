@@ -1,7 +1,7 @@
 import { createPath } from '../model/node-factory';
 import type { PathNode } from '../model/path-node';
 import type { SvgNode } from '../model/svg-node';
-import { findNodeById, updateNode } from '../tree/tree-ops';
+import { findNodeById, findParent, insertNode, removeNode } from '../tree/tree-ops';
 import { generateNodeId, type NodeId } from '../types/node-id';
 import { type Command, type CommandContext, type CommandResult, fail, ok } from './command';
 
@@ -36,6 +36,8 @@ export class ConvertNodeToPathCommand implements Command {
   readonly label = 'Convert to path';
 
   private previousNode: SvgNode | null = null;
+  private previousParentId: NodeId | null = null;
+  private previousIndex = -1;
 
   constructor(private readonly nodeId: NodeId) {}
 
@@ -53,39 +55,73 @@ export class ConvertNodeToPathCommand implements Command {
     ) {
       return fail(`ConvertNodeToPathCommand: type "${target.type}" not convertible to path`);
     }
-    this.previousNode = target;
+    const parent = findParent(doc.root, this.nodeId);
+    if (parent === null) {
+      return fail(`ConvertNodeToPathCommand: node "${this.nodeId}" has no parent (root?)`);
+    }
+    const index = parent.children.findIndex((c) => c.id === this.nodeId);
+    if (index < 0) {
+      return fail(`ConvertNodeToPathCommand: index lookup failed for "${this.nodeId}"`);
+    }
     const d = nodeToPathD(target);
     if (d === null) {
       return fail(`ConvertNodeToPathCommand: failed to compute "d" for type "${target.type}"`);
     }
-    // Preserve id/transform/style/metadata; only change type + drop
-    // the type-specific geometry fields by going through createPath
-    // and then re-assigning the original metadata.
+    // Snapshot BEFORE mutation so undo restores the exact predecessor
+    // node + its z-order slot.
+    this.previousNode = target;
+    this.previousParentId = parent.id;
+    this.previousIndex = index;
+
+    // Build the replacement path. **Keep the same id** so external
+    // references (selection, layer panel expansion, animation pointers)
+    // survive the conversion.
     const fresh = createPath(d);
     const next: PathNode = {
       ...fresh,
-      id: target.id, // keep stable id — selection/references survive
+      id: target.id,
       transform: target.transform,
       style: target.style,
       metadata: target.metadata,
     };
-    const nextRoot = updateNode<SvgNode>(doc.root, this.nodeId, () => next);
-    if (nextRoot === doc.root) {
-      return fail(`ConvertNodeToPathCommand: failed to update node "${this.nodeId}"`);
+
+    // **Why remove+insert instead of updateNode**: `updateNode`
+    // explicitly forbids changing `type` (asserts to prevent
+    // accidental type swaps in mutation closures). The
+    // pair-replace is the canonical "change type" surgery and lets
+    // us put the new node back at the exact index so z-order stays
+    // intact.
+    const afterRemove = removeNode(doc.root, this.nodeId);
+    if (afterRemove === doc.root) {
+      return fail(`ConvertNodeToPathCommand: remove failed for "${this.nodeId}"`);
+    }
+    const nextRoot = insertNode(afterRemove, parent.id, next, index);
+    if (nextRoot === afterRemove) {
+      return fail(`ConvertNodeToPathCommand: insert failed for "${this.nodeId}"`);
     }
     ctx.state.setDocument({ ...doc, root: nextRoot });
     return ok();
   }
 
   undo(ctx: CommandContext): CommandResult {
-    if (this.previousNode === null) {
+    if (this.previousNode === null || this.previousParentId === null || this.previousIndex < 0) {
       return fail('ConvertNodeToPathCommand undo: nothing captured');
     }
-    const previous = this.previousNode;
     const doc = ctx.state.document();
-    const nextRoot = updateNode<SvgNode>(doc.root, this.nodeId, () => previous);
-    if (nextRoot === doc.root) {
-      return fail(`ConvertNodeToPathCommand undo: node "${this.nodeId}" not found`);
+    // Remove the path we put in, then re-insert the original node
+    // at its captured index — z-order restored exactly.
+    const afterRemove = removeNode(doc.root, this.nodeId);
+    if (afterRemove === doc.root) {
+      return fail(`ConvertNodeToPathCommand undo: remove failed for "${this.nodeId}"`);
+    }
+    const nextRoot = insertNode(
+      afterRemove,
+      this.previousParentId,
+      this.previousNode,
+      this.previousIndex,
+    );
+    if (nextRoot === afterRemove) {
+      return fail(`ConvertNodeToPathCommand undo: insert failed for "${this.nodeId}"`);
     }
     ctx.state.setDocument({ ...doc, root: nextRoot });
     return ok();

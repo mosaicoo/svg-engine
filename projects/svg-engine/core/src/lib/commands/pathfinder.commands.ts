@@ -3,7 +3,7 @@ import type { FlatRing } from '../geometry/path-flatten';
 import { flattenPathD, ringsToPathD } from '../geometry/path-flatten';
 import { createPath } from '../model/node-factory';
 import type { SvgNode } from '../model/svg-node';
-import { findNodeById, findParent, insertNode, removeNode, updateNode } from '../tree/tree-ops';
+import { findNodeById, findParent, insertNode, removeNode } from '../tree/tree-ops';
 import { generateNodeId, type NodeId } from '../types/node-id';
 import { type Command, type CommandContext, type CommandResult, fail, ok } from './command';
 import { nodeToPathD } from './convert-to-path.command';
@@ -126,16 +126,27 @@ abstract class PathfinderCommand implements Command {
 
     // Build the next tree: replace operand A's geometry, remove other
     // operands, then insert any extra result nodes as siblings.
-    let nextRoot = updateNode<SvgNode>(doc.root, operandA.id, () => newPathNodes[0]!);
+    //
+    // **Why remove+insert for operand A** (instead of updateNode):
+    // operand A may be a non-path leaf (rect/ellipse/etc) and
+    // `updateNode` rejects type changes by design. Pair-replace at
+    // the same index keeps z-order intact regardless of source type.
+    const parentA = findParent(doc.root, operandA.id);
+    if (parentA === null) return fail(`${this.label}: operand A has no parent`);
+    const aIdx = parentA.children.findIndex((c) => c.id === operandA.id);
+    if (aIdx < 0) return fail(`${this.label}: operand A index lookup failed`);
+    let nextRoot = removeNode(doc.root, operandA.id);
+    nextRoot = insertNode(nextRoot, parentA.id, newPathNodes[0]!, aIdx);
     for (let i = 1; i < inputs.length; i++) {
       nextRoot = removeNode(nextRoot, inputs[i]!.id);
     }
     if (newPathNodes.length > 1) {
+      // After the removes, operand A's index may have shifted; re-scan.
       const parent = findParent(nextRoot, operandA.id);
       if (parent !== null) {
-        const aIdx = parent.children.findIndex((c) => c.id === operandA.id);
+        const newAIdx = parent.children.findIndex((c) => c.id === operandA.id);
         for (let i = newPathNodes.length - 1; i >= 1; i--) {
-          nextRoot = insertNode(nextRoot, parent.id, newPathNodes[i]!, aIdx + i);
+          nextRoot = insertNode(nextRoot, parent.id, newPathNodes[i]!, newAIdx + i);
         }
       }
     }
