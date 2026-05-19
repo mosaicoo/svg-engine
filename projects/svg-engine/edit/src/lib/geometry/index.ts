@@ -5,4 +5,9 @@ export {
   findNearestAnchor,
   type BBoxAnchor,
 } from './bbox-anchors';
-export { findRenderedNode, getCombinedBBox, getRenderedNodeBBox } from './node-bbox';
+export {
+  findRenderedNode,
+  getCombinedBBox,
+  getRenderedNodeBBox,
+  getRenderedParentMatrix,
+} from './node-bbox';

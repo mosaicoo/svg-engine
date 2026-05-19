@@ -275,14 +275,35 @@ export function bakeScaleIntoNode(
   sx: number,
   sy: number,
   anchor: Point,
+  parentMatrix: Transform | null = null,
 ): SvgNode | null {
   if (!isIdentityOrTranslate(node.transform)) return null;
-  // Anchor arrives in document space; convert to the node's local space
-  // (pre-transform). For identity-or-translate the conversion is just a
-  // subtraction by the translation components (transform[4], transform[5]).
+  // **Ancestor transforms**: when the node is a child of one or more
+  // groups that carry their own transform, the document-space `anchor`
+  // is in the canvas frame, but the node's geometry is in its parent's
+  // local frame. We must first move the anchor into that frame BEFORE
+  // subtracting the node's own translate.
+  //
+  // For now we only support **identity-or-translate** ancestors (the
+  // common Group-then-move case). When the parent chain includes a
+  // rotation or non-uniform scale, the doc-space scale factors `sx`/`sy`
+  // don't map cleanly onto the local axes — caller should fall back to
+  // the legacy `composeAnchoredScale` path. We return `null` in that
+  // case so `ResizeNodeCommand` can take that fallback.
+  let frameAnchor: Point = anchor;
+  if (parentMatrix !== null) {
+    if (!isIdentityOrTranslate(parentMatrix)) return null;
+    // Inverse of [1,0,0,1,tx,ty] is [1,0,0,1,-tx,-ty]. Apply to anchor.
+    frameAnchor = {
+      x: anchor.x - parentMatrix[4],
+      y: anchor.y - parentMatrix[5],
+    };
+  }
+  // Anchor is now in the parent's local frame; convert to the node's
+  // local space (pre-transform) by subtracting the node's own translate.
   const localAnchor: Point = {
-    x: anchor.x - node.transform[4],
-    y: anchor.y - node.transform[5],
+    x: frameAnchor.x - node.transform[4],
+    y: frameAnchor.y - node.transform[5],
   };
   switch (node.type) {
     case 'rect':
@@ -302,16 +323,14 @@ export function bakeScaleIntoNode(
     case 'image':
       return bakeImage(node, sx, sy, localAnchor);
     case 'group':
-      // Group's own transform is identity-or-translate (checked above).
-      // Children live in the group's LOCAL coord frame (post-group-
-      // translate), so we recurse with `localAnchor` — which is the
-      // doc anchor minus the group's translate, i.e. the anchor in the
-      // group's local frame. Each child's recursive call will further
-      // subtract that child's own translate before dispatching to the
-      // per-type bake helper. Net effect: deeply-nested translates are
-      // composed correctly all the way down.
-      return bakeGroup(node, sx, sy, anchor, (child) =>
-        bakeScaleIntoNode(child, sx, sy, localAnchor),
+      // Group bake recurses with the SAME parentMatrix (children of the
+      // group live in the group's LOCAL frame, which is what `frameAnchor`
+      // represents AFTER the parent-adjust above). The recursion uses
+      // `frameAnchor` (the anchor already in the group's frame) as the
+      // doc-equivalent for each child — they'll further adjust by their
+      // own translate via this same code path.
+      return bakeGroup(node, sx, sy, frameAnchor, (child) =>
+        bakeScaleIntoNode(child, sx, sy, localAnchor, null),
       );
   }
 }

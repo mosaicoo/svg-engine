@@ -10,7 +10,11 @@ import {
 import { type BoundingBox, EditorStateService, type Point } from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
 import { allAnchors, type BBoxAnchor } from '../geometry/bbox-anchors';
-import { getCombinedBBox, getRenderedNodeBBox } from '../geometry/node-bbox';
+import {
+  getCombinedBBox,
+  getRenderedNodeBBox,
+  getRenderedParentMatrix,
+} from '../geometry/node-bbox';
 import { SelectionService } from '../selection/selection.service';
 import { TransformService } from '../transform/transform.service';
 
@@ -250,7 +254,15 @@ export class SelectionOverlay {
     const b = this._focusBBox();
     if (focus === null || b === null) return;
 
-    this.transform.startResize(focus, anchor, b);
+    // Capture the node's ancestor matrix so the resize math can adjust
+    // the doc-space anchor into the node's parent-local frame — without
+    // this, resizing a shape inside a translated/rotated group "drifts"
+    // (becomes a move). `null` means no ancestor transform / node is
+    // directly under the SVG root.
+    const svg = this.elRef.nativeElement.ownerSVGElement;
+    const parentMatrix = svg === null ? null : getRenderedParentMatrix(svg, focus);
+
+    this.transform.startResize(focus, anchor, b, parentMatrix);
     capturePointer(event);
     event.stopPropagation();
   }

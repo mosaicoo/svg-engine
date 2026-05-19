@@ -89,3 +89,4 @@ Thumbs.db
 # e guia de boas praticas compartilhados do projeto). Overrides individuais ficam
 # em .claude/settings.local.json (convencao oficial Claude Code, gitignored).
 .claude/settings.local.json
+.tmp-*

@@ -55,6 +55,19 @@ export class ResizeNodeCommand implements Command {
     private readonly anchor: Point,
     private readonly sx: number,
     private readonly sy: number,
+    /**
+     * Composed transform of the node's ANCESTORS (not including the
+     * node itself). When the node lives inside one or more groups
+     * carrying transforms, this matrix maps the node's parent-local
+     * frame → document space. Passed to `bakeScaleIntoNode` so the
+     * doc-space `anchor` is translated into the parent frame before
+     * being applied to the node's geometry — otherwise resize of a
+     * shape inside a moved group "drifts" (becomes a translate).
+     *
+     * `null` (default) ≡ no ancestor transforms / node lives at the
+     * document root. Backward compatible.
+     */
+    private readonly parentMatrix: Transform | null = null,
   ) {
     if (!Number.isFinite(sx) || !Number.isFinite(sy)) {
       throw new RangeError(
@@ -71,9 +84,10 @@ export class ResizeNodeCommand implements Command {
     }
     this.previousNode = target;
 
-    // Try the bake path first. Returns null for rotated/skewed nodes —
-    // fall back to scale-transform composition (legacy behavior).
-    const baked = bakeScaleIntoNode(target, this.sx, this.sy, this.anchor);
+    // Try the bake path first. Returns null for rotated/skewed nodes
+    // OR rotated ancestor matrices — fall back to scale-transform
+    // composition (legacy behavior).
+    const baked = bakeScaleIntoNode(target, this.sx, this.sy, this.anchor, this.parentMatrix);
     const nextRoot = updateNode<SvgNode>(doc.root, this.nodeId, () => {
       if (baked !== null) return baked;
       // Fallback path: compose scale matrix; geometry unchanged.

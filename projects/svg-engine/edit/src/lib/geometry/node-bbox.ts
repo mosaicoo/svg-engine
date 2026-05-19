@@ -133,6 +133,36 @@ function computeBBoxInRoot(el: SVGGraphicsElement, root: SVGSVGElement): Boundin
 }
 
 /**
+ * Composed transform of `nodeId`'s ANCESTORS (NOT including the node
+ * itself). Returns the matrix that maps coordinates from the node's
+ * parent-local frame into the SVG root's user space.
+ *
+ * Used by `TransformService.startResize` to give `ResizeNodeCommand`
+ * the context it needs to convert doc-space anchors into the node's
+ * parent frame — without this, resizing a shape inside a translated/
+ * rotated group "drifts" because the anchor is interpreted in the
+ * wrong coordinate system.
+ *
+ * Returns `null` when the node isn't rendered, lives directly under
+ * the SVG root (no ancestor chain to compose), or some ancestor lacks
+ * a valid transform attribute. Callers treat `null` as "no ancestor
+ * adjust needed" (identity).
+ */
+export function getRenderedParentMatrix(svgRoot: SVGSVGElement, nodeId: NodeId): Transform | null {
+  const el = findRenderedNode(svgRoot, nodeId);
+  if (el === null) return null;
+  const parent = el.parentElement;
+  if (parent === null) return null;
+  // `el.parentElement === svgRoot` returns false-positive at the type
+  // level because parentElement's static type is HTMLElement | null even
+  // though it's an SVG element here. Compare via the underlying Node
+  // identity via `isSameNode` (works across HTMLElement/SVG type silo).
+  if (parent.isSameNode(svgRoot)) return null;
+  // Walk from the parent (inclusive) up to root, composing transforms.
+  return composedAncestorMatrix(parent as unknown as SVGGraphicsElement, svgRoot);
+}
+
+/**
  * Walk up from `el` (inclusive) toward `root` composing each ancestor's
  * `transform` attribute. Returns the matrix that maps coordinates from
  * `el`'s local user space into `root`'s user space.

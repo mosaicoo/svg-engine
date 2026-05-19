@@ -67,6 +67,15 @@ export type DragState =
       /** Which axes can scale (corners both; edges one only). */
       readonly scaleAxes: { readonly x: boolean; readonly y: boolean };
       currentScale: { readonly sx: number; readonly sy: number };
+      /**
+       * Composed matrix of the node's ANCESTORS (excluding self) — maps
+       * the node's parent-local frame → document space. `null` when the
+       * node sits directly under the SVG root. Captured at gesture start
+       * via `getRenderedParentMatrix(svgRoot, nodeId)` so resize math
+       * inside a translated/rotated group works correctly. Passed to
+       * `ResizeNodeCommand` on commit.
+       */
+      readonly parentMatrix: Transform | null;
     };
 
 /**
@@ -319,6 +328,20 @@ export class TransformService {
     nodeId: NodeId,
     handle: Exclude<BBoxAnchor, 'mc'>,
     bbox: { x: number; y: number; width: number; height: number },
+    /**
+     * Composed transform of `nodeId`'s ancestors (excluding self),
+     * captured by the caller (typically `SelectionOverlay` via
+     * `getRenderedParentMatrix(svgRoot, nodeId)`). Pass `null` (or
+     * omit) when the node sits directly under the SVG root or when
+     * ancestor adjustment isn't needed.
+     *
+     * Why the caller captures this and not the service: this service
+     * has no `svgRoot` reference (kept DOM-free for headless usage);
+     * the overlay already has the SVG element to read transforms
+     * from. Backward compatible — callers that don't pass anything
+     * preserve the pre-fix behavior.
+     */
+    parentMatrix: Transform | null = null,
   ): void {
     if (this._dragState() !== null) return;
     if (this.layers.isLocked(nodeId)) return; // D-022 lock enforcement (Bloco 4b-Lock)
@@ -335,6 +358,7 @@ export class TransformService {
       handleStart: anchors[handle],
       scaleAxes: SCALE_AXES_FOR_HANDLE[handle],
       currentScale: { sx: 1, sy: 1 },
+      parentMatrix,
     });
   }
 
@@ -356,19 +380,23 @@ export class TransformService {
   updateResize(currentPoint: Point): void {
     const ds = this._dragState();
     if (ds === null || ds.kind !== 'resize') return;
-    const { anchor, handleStart, scaleAxes, startNode } = ds;
+    const { anchor, handleStart, scaleAxes, startNode, parentMatrix } = ds;
     const denomX = handleStart.x - anchor.x;
     const denomY = handleStart.y - anchor.y;
     const sx = scaleAxes.x && denomX !== 0 ? (currentPoint.x - anchor.x) / denomX : 1;
     const sy = scaleAxes.y && denomY !== 0 ? (currentPoint.y - anchor.y) / denomY : 1;
     if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
 
-    const baked = bakeScaleIntoNode(startNode, sx, sy, anchor);
+    // Pass parentMatrix so the bake can adjust the anchor into the
+    // node's parent-local frame when the node is inside a group with
+    // its own transform.
+    const baked = bakeScaleIntoNode(startNode, sx, sy, anchor, parentMatrix);
     if (baked !== null) {
       this.applyPreviewNode(ds.nodeId, baked);
     } else {
-      // Fallback (rotated/skewed): legacy scale-transform composition;
-      // stroke distortion mitigated by `vector-effect="non-scaling-stroke"`.
+      // Fallback (rotated/skewed node OR rotated parent matrix): legacy
+      // scale-transform composition; stroke distortion mitigated by
+      // `vector-effect="non-scaling-stroke"`.
       const newTransform = composeAnchoredScale(startNode.transform, sx, sy, anchor);
       this.applyPreviewTransform(ds.nodeId, newTransform);
     }
@@ -378,7 +406,7 @@ export class TransformService {
   endResize(): void {
     const ds = this._dragState();
     if (ds === null || ds.kind !== 'resize') return;
-    const { nodeId, startNode, anchor, currentScale } = ds;
+    const { nodeId, startNode, anchor, currentScale, parentMatrix } = ds;
     this._dragState.set(null);
     // Full revert to startNode (geometry + transform) — necessary because
     // `updateResize` may have baked geometry in addition to (or instead
@@ -386,7 +414,9 @@ export class TransformService {
     // final scale from this clean baseline.
     this.applyPreviewNode(nodeId, startNode);
     if (Math.abs(currentScale.sx - 1) < 1e-4 && Math.abs(currentScale.sy - 1) < 1e-4) return;
-    this.bus.dispatch(new ResizeNodeCommand(nodeId, anchor, currentScale.sx, currentScale.sy));
+    this.bus.dispatch(
+      new ResizeNodeCommand(nodeId, anchor, currentScale.sx, currentScale.sy, parentMatrix),
+    );
   }
 
   // ── Cancel + helpers ─────────────────────────────────────────────
