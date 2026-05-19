@@ -234,6 +234,27 @@ export class PlaygroundHome implements OnDestroy {
   private moveStartBBox: BoundingBox | null = null;
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
+    // Delete / Backspace — remove the currently-selected guide first
+    // (if any), else every selected SvgNode. Skipped when an editable
+    // target has focus (text input, inspector field) so the keys keep
+    // their native text-edit behaviour there.
+    if ((event.key === 'Delete' || event.key === 'Backspace') && !isEditableTarget(event.target)) {
+      if (this.workspace.selectedGuideId() !== null) {
+        this.workspace.removeSelectedGuide();
+        event.preventDefault();
+        return;
+      }
+      const ids = Array.from(this.selection.selectedIds());
+      if (ids.length > 0) {
+        // RemoveNodeCommand uses findParent/removeNode from tree-ops,
+        // so it works at any nesting depth — group OR a single leaf
+        // inside a group both remove cleanly with one dispatch each.
+        for (const id of ids) this.bus.dispatch(new RemoveNodeCommand(id));
+        this.selection.clear();
+        event.preventDefault();
+        return;
+      }
+    }
     if (event.key === 'Escape') {
       if (this.transform.isDragging()) {
         this.transform.cancelGesture();
@@ -893,6 +914,11 @@ export class PlaygroundHome implements OnDestroy {
     // (right-click context menu). Skip selection / marquee handling
     // so middle-pan doesn't accidentally start a marquee underneath.
     if (event.button !== 0) return;
+    // Clicking anywhere on the canvas body clears any active guide
+    // selection — guides are interacted with via their own pointerdown
+    // (which `stopPropagation`s), so reaching this handler means the
+    // user clicked something that isn't a guide.
+    this.workspace.selectGuide(null);
     if (this.routeToActiveTool(event, 'down')) {
       capturePointer(event);
       return;

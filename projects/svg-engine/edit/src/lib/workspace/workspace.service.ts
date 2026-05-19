@@ -240,6 +240,16 @@ export class WorkspaceService {
   readonly guides = this._guides.asReadonly();
 
   /**
+   * Currently-selected guide id (or `null` when none). Drives both the
+   * visual highlight in `GuidesOverlay` and the Delete-key removal in
+   * the playground. Distinct from `SelectionService.selectedIds`
+   * (which tracks SvgNodes only — guides are workspace state, not
+   * document content).
+   */
+  private readonly _selectedGuideId = signal<string | null>(null);
+  readonly selectedGuideId = this._selectedGuideId.asReadonly();
+
+  /**
    * Reactive snapshot of canvas-interaction prefs (currently just
    * wheel-zoom speed). Consumed by `SvgeCanvasGestures` to compute
    * the effective zoom factor per wheel event.
@@ -385,11 +395,40 @@ export class WorkspaceService {
     const filtered = this._guides().filter((g) => g.id !== id);
     if (filtered.length === this._guides().length) return;
     this._guides.set(filtered);
+    if (this._selectedGuideId() === id) this._selectedGuideId.set(null);
   }
 
   clearGuides(): void {
     if (this._guides().length === 0) return;
     this._guides.set([]);
+    this._selectedGuideId.set(null);
+  }
+
+  /**
+   * Select a guide by id (clears any previous selection). Pass `null`
+   * to clear without selecting anything new. Non-existent ids reset
+   * to `null` (defensive: avoids dangling references when a guide is
+   * deleted concurrently).
+   */
+  selectGuide(id: string | null): void {
+    if (id === null) {
+      if (this._selectedGuideId() === null) return;
+      this._selectedGuideId.set(null);
+      return;
+    }
+    if (this._selectedGuideId() === id) return;
+    if (!this._guides().some((g) => g.id === id)) {
+      this._selectedGuideId.set(null);
+      return;
+    }
+    this._selectedGuideId.set(id);
+  }
+
+  /** Remove the currently-selected guide (if any). No-op when nothing is selected. */
+  removeSelectedGuide(): void {
+    const id = this._selectedGuideId();
+    if (id === null) return;
+    this.removeGuide(id);
   }
 
   // ── Interaction ─────────────────────────────────────────────────

@@ -57,6 +57,7 @@ import { WorkspaceService } from './workspace.service';
         />
         <svg:line
           class="guide horizontal"
+          [class.selected]="selectedGuideId() === g.id"
           [attr.x1]="viewBoxLeft()"
           [attr.y1]="g.position"
           [attr.x2]="viewBoxRight()"
@@ -81,6 +82,7 @@ import { WorkspaceService } from './workspace.service';
         />
         <svg:line
           class="guide vertical"
+          [class.selected]="selectedGuideId() === g.id"
           [attr.x1]="g.position"
           [attr.y1]="viewBoxTop()"
           [attr.x2]="g.position"
@@ -95,6 +97,13 @@ import { WorkspaceService } from './workspace.service';
       stroke-width: 1;
       vector-effect: non-scaling-stroke;
       pointer-events: none;
+    }
+    /* Selected guide: thicker stroke + warm accent color so the user
+       can confirm which guide will be removed by Delete. Stays
+       non-scaling under zoom. */
+    .guide.selected {
+      stroke: #ff6f00;
+      stroke-width: 2;
     }
     /* Hit-zone is invisible but pointer-targetable. transparent (NOT
        none) so events register. Per-axis cursor: ns-resize for
@@ -163,6 +172,13 @@ export class GuidesOverlay implements AfterViewInit, OnDestroy {
   };
 
   protected readonly guides = this.ws.guides;
+
+  /**
+   * Reactive snapshot of the currently-selected guide id. Drives the
+   * `.selected` class on the visible line; consumed by the template
+   * binding `[class.selected]="selectedGuideId() === g.id"`.
+   */
+  protected readonly selectedGuideId = this.ws.selectedGuideId;
 
   /**
    * Guide line span — extends across the **entire CSS area** of the
@@ -296,6 +312,10 @@ export class GuidesOverlay implements AfterViewInit, OnDestroy {
   ): void {
     const docPoint = this.screenToDoc(event.clientX, event.clientY);
     if (docPoint === null) return;
+    // Mark this guide as the active selection so the visible line
+    // gets the .selected highlight and the Delete-key handler in
+    // the playground knows which guide to remove.
+    this.ws.selectGuide(id);
     this.dragState = {
       guideId: id,
       axis,
