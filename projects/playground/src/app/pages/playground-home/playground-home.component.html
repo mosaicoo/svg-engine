@@ -258,14 +258,19 @@
     (pointerup)="onCanvasPointerUp($event)"
     (pointercancel)="onCanvasPointerUp($event)"
     (pointerleave)="onCanvasPointerLeave()"
+    (dblclick)="onCanvasDoubleClick($event)"
   >
     @if (ws.rulers().enabled) {
       <svge-rulers class="rulers-layer"></svge-rulers>
     }
+    <!-- Isolation breadcrumb sits BETWEEN the ruler and the canvas-inner,
+         occupying space only when isolation is active. Self-hides otherwise. -->
+    <svge-isolation-breadcrumb class="isolation-bar"></svge-isolation-breadcrumb>
     <div class="canvas-inner">
       <svge-workspace-background>
         <svge-renderer
           svgeLayersFilter
+          svgeIsolationFilter
           [tree]="tree()"
           [viewBox]="viewBox()"
           [defs]="defs()"

@@ -1,1 +1,7 @@
-export { findOwningNodeId, resolveNodeIdFromEvent } from './hit-testing';
+export {
+  collectNodeAncestorIds,
+  findOwningNodeId,
+  resolveNodeIdFromEvent,
+  resolveSelectableNodeId,
+  type SelectionResolutionMode,
+} from './hit-testing';

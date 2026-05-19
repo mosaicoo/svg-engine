@@ -147,6 +147,25 @@
     pointer-events: none;
   }
 
+  // Isolation breadcrumb (Affinity-style) — overlays the top of the
+  // canvas just below the horizontal ruler. Stays out of the way when
+  // isolation is inactive: the inner @if renders nothing → zero
+  // visual footprint. When active, ~28px bar with surface background.
+  // Sits ABOVE the canvas-inner (z-index: 3 vs. canvas-inner default)
+  // so it covers the topmost row of pixels — same convention as
+  // Illustrator / Affinity.
+  .isolation-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 3;
+  }
+  &.with-rulers .isolation-bar {
+    top: 24px;
+    left: 24px;
+  }
+
   svge-workspace-background {
     display: block;
     width: 100%;

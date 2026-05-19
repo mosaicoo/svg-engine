@@ -2,6 +2,7 @@ export { type Tool, type ToolContext, type ToolPointerEvent } from './tool';
 export { ToolRegistry } from './tool-registry.service';
 export { ToolHostService } from './tool-host.service';
 export {
+  DIRECT_SELECT_TOOL_ID,
   PENCIL_TOOL_ID,
   pencilToolPlugin,
   pointsToPathD,

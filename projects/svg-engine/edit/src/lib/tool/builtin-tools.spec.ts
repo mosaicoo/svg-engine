@@ -4,6 +4,7 @@ import { PluginRegistry } from '../plugin/plugin-registry.service';
 import { provideSvgEnginePlugin } from '../plugin/provide-plugin';
 import { SelectionService } from '../selection/selection.service';
 import {
+  DIRECT_SELECT_TOOL_ID,
   PENCIL_TOOL_ID,
   pencilToolPlugin,
   pointsToPathD,
@@ -37,10 +38,13 @@ describe('selectToolPlugin + pencilToolPlugin — install via provider', () => {
     });
     const reg = TestBed.inject(ToolRegistry);
     const ids = reg.tools().map((t) => t.id);
-    expect(ids).toEqual([SELECT_TOOL_ID, PENCIL_TOOL_ID]);
+    // The select plugin now registers BOTH the group-aware Select (V)
+    // and the deep Direct Select (A) as a paired set — order is the
+    // registration order from selectToolPlugin.install().
+    expect(ids).toEqual([SELECT_TOOL_ID, DIRECT_SELECT_TOOL_ID, PENCIL_TOOL_ID]);
   });
 
-  it('shortcuts are wired (v=select, p=pencil)', () => {
+  it('shortcuts are wired (v=select, a=direct-select, p=pencil)', () => {
     TestBed.configureTestingModule({
       providers: [
         provideSvgEnginePlugin(selectToolPlugin),
@@ -49,6 +53,7 @@ describe('selectToolPlugin + pencilToolPlugin — install via provider', () => {
     });
     const reg = TestBed.inject(ToolRegistry);
     expect(reg.getByShortcut('v')?.id).toBe(SELECT_TOOL_ID);
+    expect(reg.getByShortcut('a')?.id).toBe(DIRECT_SELECT_TOOL_ID);
     expect(reg.getByShortcut('p')?.id).toBe(PENCIL_TOOL_ID);
   });
 

@@ -100,3 +100,6 @@ export * from './lib/effect';
 
 // Canvas gestures (Fase 6 UX polish — middle-mouse pan + wheel zoom)
 export * from './lib/canvas-gestures';
+
+// Isolation Mode (Illustrator/Affinity-style group isolation + breadcrumb)
+export * from './lib/isolation';

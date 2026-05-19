@@ -11,10 +11,13 @@ import type { Tool, ToolContext, ToolPointerEvent } from './tool';
 import { ToolRegistry } from './tool-registry.service';
 
 /**
- * Stable id of the builtin Select tool. Exported so consumers (the
- * playground) can branch on `activeId === SELECT_TOOL_ID` to keep
- * running their existing select-mode handlers without re-implementing
- * everything inside the tool.
+ * Stable id of the builtin Select tool — **group-aware** (Illustrator
+ * convention: black arrow / V). Clicking a leaf inside a group selects
+ * the group as a unit. To drill into the group, use the Direct Select
+ * tool (see {@link DIRECT_SELECT_TOOL_ID}) or double-click to enter
+ * isolation mode.
+ *
+ * Default tool on canvas mount.
  *
  * **Why select is a "passthrough" for now**: the existing select +
  * marquee + body-drag + snap logic in the playground is already proven.
@@ -25,6 +28,16 @@ import { ToolRegistry } from './tool-registry.service';
  * that hot-loaded plugins can reset back to a known default.
  */
 export const SELECT_TOOL_ID = 'com.svge.tool.select';
+
+/**
+ * Stable id of the builtin Direct Select tool — **deep select**
+ * (Illustrator convention: white arrow / A). Clicking a leaf selects
+ * the leaf itself, ignoring group boundaries. Matches the original
+ * SVGEngine click semantics from before isolation mode was added.
+ *
+ * Toggleable from the toolbar or the `a` shortcut.
+ */
+export const DIRECT_SELECT_TOOL_ID = 'com.svge.tool.direct-select';
 
 /** Stable id of the builtin Pencil tool. */
 export const PENCIL_TOOL_ID = 'com.svge.tool.pencil';
@@ -44,6 +57,19 @@ class SelectTool implements Tool {
   readonly label = 'Select';
   readonly cursor = 'default';
   readonly shortcut = 'v';
+}
+
+/**
+ * Builtin Direct Select tool — passthrough sibling of SelectTool that
+ * signals "deep-select mode" to the canvas. The host treats it like
+ * SelectTool except for the hit-test resolution mode (see playground
+ * `onCanvasPointerDown`).
+ */
+class DirectSelectTool implements Tool {
+  readonly id = DIRECT_SELECT_TOOL_ID;
+  readonly label = 'Direct Select';
+  readonly cursor = 'default';
+  readonly shortcut = 'a';
 }
 
 /**
@@ -115,17 +141,22 @@ class PencilTool implements Tool {
 }
 
 /**
- * Builtin Select tool plugin. Registers a single passthrough
- * {@link SelectTool} entry and tracks it for cleanup.
+ * Builtin Select tool plugin. Registers BOTH the group-aware
+ * {@link SelectTool} (V — default) and the deep
+ * {@link DirectSelectTool} (A) as a paired set. Tracking both as a
+ * single plugin keeps the toolbar layout predictable (always either
+ * "both registered" or "none") and lets a consumer disable the pair
+ * with one toggle.
  */
 export const selectToolPlugin: EditorPlugin = {
   id: 'com.svge.tools.select',
-  name: 'Select Tool (builtin)',
+  name: 'Select Tools (builtin)',
   version: '1.0.0',
   apiVersion: PLUGIN_API_VERSION,
   install(ctx) {
     const reg = ctx.injector.get(ToolRegistry);
     ctx.track(reg.register(new SelectTool()));
+    ctx.track(reg.register(new DirectSelectTool()));
   },
 };
 

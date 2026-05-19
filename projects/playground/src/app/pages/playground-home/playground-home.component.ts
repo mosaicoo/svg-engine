@@ -31,6 +31,7 @@ import {
 import {
   type AlignAxis,
   AlignmentService,
+  DIRECT_SELECT_TOOL_ID,
   type DistributeAxis,
   EffectRegistry,
   ExporterRegistry,
@@ -39,6 +40,8 @@ import {
   GridOverlay,
   GuidesOverlay,
   ImporterRegistry,
+  IsolationFilter,
+  IsolationService,
   LayersFilter,
   LayersService,
   Marquee,
@@ -51,6 +54,7 @@ import {
   PageOverlay,
   pageBoundsIn,
   resolveNodeIdFromEvent,
+  resolveSelectableNodeId,
   RotationPivot,
   SELECT_TOOL_ID,
   SelectionOverlay,
@@ -73,6 +77,7 @@ import {
   LayersPanel,
   SvgeEffectsPanel,
   SvgeInspector,
+  SvgeIsolationBreadcrumb,
   SvgeRulers,
   SvgeThemeToggle,
   SvgeWorkspaceSettings,
@@ -117,6 +122,7 @@ const DRAG_START_THRESHOLD_PX = 3;
     SnapGuides,
     WorkspaceBackground,
     LayersFilter,
+    IsolationFilter,
     LayersPanel,
     SvgeInspector,
     GridOverlay,
@@ -124,6 +130,7 @@ const DRAG_START_THRESHOLD_PX = 3;
     PageOverlay,
     SvgeCanvasGestures,
     SvgeRulers,
+    SvgeIsolationBreadcrumb,
     SvgeThemeToggle,
     SvgeEffectsPanel,
   ],
@@ -153,6 +160,7 @@ export class PlaygroundHome implements OnDestroy {
   private readonly exporters = inject(ExporterRegistry);
   private readonly optimizers = inject(OptimizerRegistry);
   private readonly effects = inject(EffectRegistry);
+  protected readonly isolation = inject(IsolationService);
   private readonly dialog = inject(MatDialog);
 
   /** Reference to the hidden `<input type="file">` for SVG import. */
@@ -234,6 +242,15 @@ export class PlaygroundHome implements OnDestroy {
       }
       if (this.marquee.isActive()) {
         this.marquee.cancel();
+        event.preventDefault();
+        return;
+      }
+      // Esc with no active gesture exits isolation mode (Affinity /
+      // Illustrator convention). Done last so a drag/marquee cancel
+      // takes precedence — user wouldn't expect "exit isolation"
+      // while abandoning a drag.
+      if (this.isolation.isActive()) {
+        this.isolation.exit();
         event.preventDefault();
       }
     }
@@ -682,6 +699,48 @@ export class PlaygroundHome implements OnDestroy {
     return out;
   }
 
+  /**
+   * Resolve the hit-tested NodeId for the active selection tool:
+   * - Direct Select (A) → deep mode (leaf selection, ignores groups)
+   * - Anything else (Select V is the default) → group-aware mode
+   *   scoped to the current isolation root
+   *
+   * Returns `null` when the click was on canvas background, on a
+   * locked-out region, or — when isolation is active — outside the
+   * isolation subtree (caller decides what to do; we treat it as
+   * "click on background" + exit isolation).
+   */
+  private resolveSelectableForCurrentTool(event: PointerEvent): NodeId | null {
+    const activeId = this.toolHost.activeId();
+    const mode = activeId === DIRECT_SELECT_TOOL_ID ? 'deep' : 'group';
+    return resolveSelectableNodeId(event, {
+      mode,
+      rootId: this.state.document().root.id,
+      isolationRootId: this.isolation.isolationRootId(),
+    });
+  }
+
+  /**
+   * Double-click on a group enters isolation on that group. Only fires
+   * when the group-aware select tool is active (Direct Select keeps
+   * dblclick free for future per-tool semantics like "edit text"
+   * or "anchor-point select").
+   *
+   * Clicking the document root itself never isolates — that would be
+   * a no-op (you're already "inside" the root).
+   */
+  protected onCanvasDoubleClick(event: MouseEvent): void {
+    if (this.toolHost.activeId() === DIRECT_SELECT_TOOL_ID) return;
+    const id = resolveNodeIdFromEvent(event);
+    if (id === null) return;
+    const rootId = this.state.document().root.id;
+    if (id === rootId) return;
+    const node = findNodeById(this.state.document().root, id);
+    if (node === null || node.type !== 'group') return;
+    this.isolation.enter(id);
+    this.selection.select(id);
+  }
+
   protected onCanvasPointerDown(event: PointerEvent): void {
     // Non-left buttons are reserved for canvas gestures (middle-mouse
     // pan via `[svgeCanvasGestures]` directive) or the browser
@@ -692,8 +751,18 @@ export class PlaygroundHome implements OnDestroy {
       capturePointer(event);
       return;
     }
-    const id = resolveNodeIdFromEvent(event);
+    const id = this.resolveSelectableForCurrentTool(event);
     if (id === null) {
+      // Clicked outside the isolation subtree (or on canvas background
+      // at the document-root level). When isolation is active, this is
+      // the conventional "exit isolation" gesture (Affinity / Illustrator).
+      if (this.isolation.isActive()) {
+        this.isolation.exit();
+        // Don't start a marquee on the exit click — feels jarring.
+        this.potentialDrag = null;
+        capturePointer(event);
+        return;
+      }
       const start = this.screenToDoc(event.clientX, event.clientY);
       if (start !== null) {
         const mode = event.shiftKey ? 'add' : 'replace';

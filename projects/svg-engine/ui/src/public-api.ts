@@ -40,6 +40,9 @@ export * from './lib/toolbar';
 // Rulers (Fase 4 Bloco 4f)
 export * from './lib/rulers';
 
+// Isolation Mode breadcrumb (Affinity / Illustrator-style)
+export * from './lib/isolation-breadcrumb';
+
 // Theme toggle + service (Fase 4 Bloco 4i — D-012 part 2)
 export * from './lib/theme-toggle';
 

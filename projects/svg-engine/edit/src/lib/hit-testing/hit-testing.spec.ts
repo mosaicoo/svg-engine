@@ -1,4 +1,10 @@
-import { findOwningNodeId, resolveNodeIdFromEvent } from './hit-testing';
+import { toNodeId } from 'svg-engine/core';
+import {
+  collectNodeAncestorIds,
+  findOwningNodeId,
+  resolveNodeIdFromEvent,
+  resolveSelectableNodeId,
+} from './hit-testing';
 
 function makeSvgTree(): {
   root: SVGSVGElement;
@@ -70,5 +76,112 @@ describe('resolveNodeIdFromEvent', () => {
     const { bg } = makeSvgTree();
     const event = { target: bg } as unknown as Event;
     expect(resolveNodeIdFromEvent(event)).toBeNull();
+  });
+});
+
+describe('collectNodeAncestorIds', () => {
+  it('returns ids deepest-first up to the document root', () => {
+    const { rect } = makeSvgTree();
+    expect(collectNodeAncestorIds(rect)).toEqual([toNodeId('inner-id'), toNodeId('outer-id')]);
+  });
+
+  it('returns an empty array when no ancestor carries data-node-id', () => {
+    const { bg } = makeSvgTree();
+    expect(collectNodeAncestorIds(bg)).toEqual([]);
+  });
+});
+
+describe('resolveSelectableNodeId — deep mode', () => {
+  it('returns the deepest id (same as resolveNodeIdFromEvent)', () => {
+    const { rect } = makeSvgTree();
+    const event = { target: rect } as unknown as Event;
+    expect(resolveSelectableNodeId(event, { mode: 'deep', rootId: toNodeId('outer-id') })).toBe(
+      'inner-id',
+    );
+  });
+});
+
+describe('resolveSelectableNodeId — group mode', () => {
+  it('returns the direct child of the document root when no isolation', () => {
+    const { rect } = makeSvgTree();
+    // Chain on `rect` is [inner-id, outer-id]; outer is the document
+    // root, so the topmost selectable is the one before it → inner-id.
+    const event = { target: rect } as unknown as Event;
+    expect(resolveSelectableNodeId(event, { mode: 'group', rootId: toNodeId('outer-id') })).toBe(
+      'inner-id',
+    );
+  });
+
+  it('returns the direct child of the isolation root when active', () => {
+    // Build a 3-level chain so isolation has somewhere to scope to.
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const root = document.createElementNS(SVG_NS, 'g');
+    root.setAttribute('data-node-id', 'root');
+    const lvl1 = document.createElementNS(SVG_NS, 'g');
+    lvl1.setAttribute('data-node-id', 'lvl1');
+    const lvl2 = document.createElementNS(SVG_NS, 'g');
+    lvl2.setAttribute('data-node-id', 'lvl2');
+    const leaf = document.createElementNS(SVG_NS, 'rect');
+    leaf.setAttribute('data-node-id', 'leaf');
+    lvl2.appendChild(leaf);
+    lvl1.appendChild(lvl2);
+    root.appendChild(lvl1);
+    const event = { target: leaf } as unknown as Event;
+    // Without isolation: returns child of root = lvl1
+    expect(resolveSelectableNodeId(event, { mode: 'group', rootId: toNodeId('root') })).toBe(
+      'lvl1',
+    );
+    // With isolation on lvl1: returns child of lvl1 = lvl2
+    expect(
+      resolveSelectableNodeId(event, {
+        mode: 'group',
+        rootId: toNodeId('root'),
+        isolationRootId: toNodeId('lvl1'),
+      }),
+    ).toBe('lvl2');
+    // With isolation on lvl2: returns child of lvl2 = leaf
+    expect(
+      resolveSelectableNodeId(event, {
+        mode: 'group',
+        rootId: toNodeId('root'),
+        isolationRootId: toNodeId('lvl2'),
+      }),
+    ).toBe('leaf');
+  });
+
+  it('returns null when the click target is not under the scope root (out of isolation)', () => {
+    // Two separate subtrees: scope is on subtreeA, click is in subtreeB.
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const subtreeA = document.createElementNS(SVG_NS, 'g');
+    subtreeA.setAttribute('data-node-id', 'subA');
+    const subtreeB = document.createElementNS(SVG_NS, 'g');
+    subtreeB.setAttribute('data-node-id', 'subB');
+    const leafB = document.createElementNS(SVG_NS, 'rect');
+    leafB.setAttribute('data-node-id', 'leafB');
+    subtreeB.appendChild(leafB);
+    const event = { target: leafB } as unknown as Event;
+    // Scope on subA; leafB's chain is [leafB, subB] — no `subA` in
+    // the chain, so the resolver returns null.
+    expect(
+      resolveSelectableNodeId(event, {
+        mode: 'group',
+        rootId: toNodeId('docRoot'),
+        isolationRootId: toNodeId('subA'),
+      }),
+    ).toBeNull();
+  });
+
+  it('returns the scope root itself when target IS the scope root element', () => {
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const scopeRoot = document.createElementNS(SVG_NS, 'g');
+    scopeRoot.setAttribute('data-node-id', 'scope');
+    const event = { target: scopeRoot } as unknown as Event;
+    expect(
+      resolveSelectableNodeId(event, {
+        mode: 'group',
+        rootId: toNodeId('docRoot'),
+        isolationRootId: toNodeId('scope'),
+      }),
+    ).toBe('scope');
   });
 });
