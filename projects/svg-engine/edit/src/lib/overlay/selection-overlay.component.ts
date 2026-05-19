@@ -16,6 +16,8 @@ import {
   getRenderedParentMatrix,
 } from '../geometry/node-bbox';
 import { SelectionService } from '../selection/selection.service';
+import { DIRECT_SELECT_TOOL_ID } from '../tool/builtin-tools';
+import { ToolHostService } from '../tool/tool-host.service';
 import { TransformService } from '../transform/transform.service';
 
 /** Pixel size of resize/rotation handles (CSS pixels, kept constant via 1/zoom factor). */
@@ -89,7 +91,7 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
         fill="none"
       ></svg:rect>
 
-      @if (singleSelection()) {
+      @if (showsTransformHandles()) {
         @for (h of resizeHandles(); track h.anchor) {
           <svg:rect
             class="handle resize"
@@ -196,6 +198,7 @@ export class SelectionOverlay {
   private readonly state = inject(EditorStateService);
   private readonly viewport = inject(ViewportService);
   private readonly transform = inject(TransformService);
+  private readonly toolHost = inject(ToolHostService);
 
   private readonly _focusBBox = signal<BoundingBox | null>(null);
   private readonly _hoverBBox = signal<BoundingBox | null>(null);
@@ -207,6 +210,21 @@ export class SelectionOverlay {
   readonly hoverBBox = this._hoverBBox.asReadonly();
 
   protected readonly singleSelection = this.selection.isSingleSelection;
+
+  /**
+   * Transform handles (resize squares + rotation circle) are shown
+   * only when **single selection** AND the active tool isn't
+   * Direct Select. Direct Select (A) hands the editing surface over
+   * to the `AnchorOverlay` — showing the bbox transform handles on
+   * top would clutter the UI with two overlapping interaction
+   * targets (the user reported this confusion in a screenshot).
+   *
+   * The bbox **outline** itself stays visible in both tools so the
+   * user can still see which node is focused.
+   */
+  protected readonly showsTransformHandles = computed(
+    () => this.singleSelection() && this.toolHost.activeId() !== DIRECT_SELECT_TOOL_ID,
+  );
 
   /** Handle size in document units (kept constant in screen pixels via 1/zoom). */
   protected readonly handleSize = computed(() => HANDLE_PX / this.viewport.zoom());
