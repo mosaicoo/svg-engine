@@ -279,20 +279,19 @@ export function bakeScaleIntoNode(
 ): SvgNode | null {
   if (!isIdentityOrTranslate(node.transform)) return null;
   // **Ancestor transforms**: when the node is a child of one or more
-  // groups that carry their own transform, the document-space `anchor`
-  // is in the canvas frame, but the node's geometry is in its parent's
-  // local frame. We must first move the anchor into that frame BEFORE
-  // subtracting the node's own translate.
+  // groups that carry their own transform, the `anchor` and `sx`/`sy`
+  // arriving here are expected to be ALREADY in the node's parent-
+  // local frame (the caller — `TransformService` — projects pointer
+  // + anchor via the inverse of the composed ancestor matrix, then
+  // derives sx/sy from local-frame deltas).
   //
-  // For now we only support **identity-or-translate** ancestors (the
-  // common Group-then-move case). When the parent chain includes a
-  // rotation or non-uniform scale, the doc-space scale factors `sx`/`sy`
-  // don't map cleanly onto the local axes — caller should fall back to
-  // the legacy `composeAnchoredScale` path. We return `null` in that
-  // case so `ResizeNodeCommand` can take that fallback.
+  // For backward compatibility, when `parentMatrix` is passed AND it
+  // is identity-or-translate, we still adjust the anchor here (legacy
+  // callers may pass doc-space). For rotated/scaled parents, callers
+  // MUST pre-project and pass `parentMatrix = null` (or identity) —
+  // otherwise the math is wrong.
   let frameAnchor: Point = anchor;
-  if (parentMatrix !== null) {
-    if (!isIdentityOrTranslate(parentMatrix)) return null;
+  if (parentMatrix !== null && isIdentityOrTranslate(parentMatrix)) {
     // Inverse of [1,0,0,1,tx,ty] is [1,0,0,1,-tx,-ty]. Apply to anchor.
     frameAnchor = {
       x: anchor.x - parentMatrix[4],

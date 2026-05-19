@@ -56,6 +56,32 @@ export function applyTransform(
   return { x: a * x + c * y + e, y: b * x + d * y + f };
 }
 
+/**
+ * Invert an affine 2D transform. Returns the matrix `M⁻¹` such that
+ * `M ⋅ M⁻¹ = identity`. Throws when the matrix is non-invertible
+ * (determinant ≈ 0 — a degenerate scale-to-zero or shear collapse).
+ *
+ * Formula (matrix in column-major `[a c e; b d f; 0 0 1]`):
+ *   det = a·d − b·c
+ *   M⁻¹ = [ d/det, −b/det, −c/det, a/det,
+ *          (c·f − d·e)/det, (b·e − a·f)/det ]
+ *
+ * Used by `TransformService.startResize` to project the doc-space
+ * pointer + anchor into the node's parent-local frame, so resize
+ * math runs in the correct coordinate system even when the parent
+ * carries a rotation or non-uniform scale.
+ */
+export function invert(transform: Transform): Transform {
+  const [a, b, c, d, e, f] = transform;
+  const det = a * d - b * c;
+  if (Math.abs(det) < 1e-12) {
+    throw new RangeError(
+      `invert: matrix is non-invertible (det=${det}); cannot project into local frame.`,
+    );
+  }
+  return [d / det, -b / det, -c / det, a / det, (c * f - d * e) / det, (b * e - a * f) / det];
+}
+
 /** Whether a transform is the identity (within floating-point epsilon). */
 export function isIdentity(transform: Transform, epsilon = 1e-9): boolean {
   const [a, b, c, d, e, f] = transform;

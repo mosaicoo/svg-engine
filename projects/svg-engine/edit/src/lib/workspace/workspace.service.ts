@@ -250,6 +250,28 @@ export class WorkspaceService {
   readonly selectedGuideId = this._selectedGuideId.asReadonly();
 
   /**
+   * Outline view mode (View › Outline in Illustrator/Affinity).
+   * When `true`, shapes render as wireframes only — fills are
+   * suppressed and only strokes show. Useful for working with
+   * dense/overlapping geometry where fills obscure structure.
+   *
+   * Implemented via the {@link OutlineFilter} directive (attached
+   * by the consumer to the renderer host); this service only owns
+   * the toggle state.
+   */
+  private readonly _outlineMode = signal<boolean>(false);
+  readonly outlineMode = this._outlineMode.asReadonly();
+
+  setOutlineMode(enabled: boolean): void {
+    if (this._outlineMode() === enabled) return;
+    this._outlineMode.set(enabled);
+  }
+
+  toggleOutlineMode(): void {
+    this.setOutlineMode(!this._outlineMode());
+  }
+
+  /**
    * Reactive snapshot of canvas-interaction prefs (currently just
    * wheel-zoom speed). Consumed by `SvgeCanvasGestures` to compute
    * the effective zoom factor per wheel event.

@@ -1,11 +1,13 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import {
+  applyTransform,
   bakeScaleIntoNode,
   CommandBus,
   composeAnchoredScale,
   composePivotRotation,
   EditorStateService,
   findNodeById,
+  invert,
   multiply,
   MoveNodeCommand,
   type NodeId,
@@ -17,6 +19,18 @@ import {
   translate,
   updateNode,
 } from 'svg-engine/core';
+
+/**
+ * Local copy of `isIdentityOrTranslate` (mirrors the one in
+ * `scale-bake.ts`) — kept here to avoid a circular dep on the core
+ * geometry module from a service that also imports `bakeScaleIntoNode`.
+ * Both versions check the same 4 matrix slots with the same epsilon.
+ */
+function isIdentityOrTranslateLocal(transform: Transform): boolean {
+  const [a, b, c, d] = transform;
+  const eps = 1e-9;
+  return Math.abs(a - 1) < eps && Math.abs(b) < eps && Math.abs(c) < eps && Math.abs(d - 1) < eps;
+}
 import { allAnchors, type BBoxAnchor } from '../geometry/bbox-anchors';
 import { LayersService } from '../layers/layers.service';
 import { SelectionService } from '../selection/selection.service';
@@ -76,6 +90,15 @@ export type DragState =
        * `ResizeNodeCommand` on commit.
        */
       readonly parentMatrix: Transform | null;
+      /**
+       * When the parent has a rotation/scale (non-identity-or-translate),
+       * `updateResize` projects anchor + pointer into the local frame and
+       * stashes the projected anchor here for `endResize` to dispatch the
+       * command with already-local coords + `parentMatrix=null` (so the
+       * command doesn't re-adjust). `null` when the parent is identity-
+       * or-translate and the legacy anchor-adjust path is in use.
+       */
+      bakeLocalAnchor: Point | null;
     };
 
 /**
@@ -359,6 +382,7 @@ export class TransformService {
       scaleAxes: SCALE_AXES_FOR_HANDLE[handle],
       currentScale: { sx: 1, sy: 1 },
       parentMatrix,
+      bakeLocalAnchor: null,
     });
   }
 
@@ -381,32 +405,60 @@ export class TransformService {
     const ds = this._dragState();
     if (ds === null || ds.kind !== 'resize') return;
     const { anchor, handleStart, scaleAxes, startNode, parentMatrix } = ds;
-    const denomX = handleStart.x - anchor.x;
-    const denomY = handleStart.y - anchor.y;
-    const sx = scaleAxes.x && denomX !== 0 ? (currentPoint.x - anchor.x) / denomX : 1;
-    const sy = scaleAxes.y && denomY !== 0 ? (currentPoint.y - anchor.y) / denomY : 1;
+
+    // **Rotated/scaled parent**: project anchor, handleStart and
+    // currentPoint into the parent-local frame BEFORE computing
+    // sx/sy. Without this, sx/sy computed in doc-space don't map
+    // onto the rotated local axes — the resize would "shear" the
+    // shape (left edge moves when right handle is dragged). See
+    // backlog item "Resize transform-aware em grupo rotacionado".
+    const useLocalFrame = parentMatrix !== null && !isIdentityOrTranslateLocal(parentMatrix);
+    let anchorEff: Point = anchor;
+    let handleStartEff: Point = handleStart;
+    let currentPointEff: Point = currentPoint;
+    if (useLocalFrame && parentMatrix !== null) {
+      let parentInv: Transform;
+      try {
+        parentInv = invert(parentMatrix);
+      } catch {
+        // Non-invertible parent — bail to legacy fallback (geometry
+        // stays unchanged this frame; preview safely no-ops).
+        return;
+      }
+      anchorEff = applyTransform(parentInv, anchor.x, anchor.y);
+      handleStartEff = applyTransform(parentInv, handleStart.x, handleStart.y);
+      currentPointEff = applyTransform(parentInv, currentPoint.x, currentPoint.y);
+    }
+
+    const denomX = handleStartEff.x - anchorEff.x;
+    const denomY = handleStartEff.y - anchorEff.y;
+    const sx = scaleAxes.x && denomX !== 0 ? (currentPointEff.x - anchorEff.x) / denomX : 1;
+    const sy = scaleAxes.y && denomY !== 0 ? (currentPointEff.y - anchorEff.y) / denomY : 1;
     if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
 
-    // Pass parentMatrix so the bake can adjust the anchor into the
-    // node's parent-local frame when the node is inside a group with
-    // its own transform.
-    const baked = bakeScaleIntoNode(startNode, sx, sy, anchor, parentMatrix);
+    // Bake uses the LOCAL anchor when in local-frame mode (parentMatrix
+    // is set to null below because we already projected); otherwise the
+    // legacy translate-only adjust in bakeScaleIntoNode handles it.
+    const bakeAnchor = useLocalFrame ? anchorEff : anchor;
+    const bakeParentMatrix = useLocalFrame ? null : parentMatrix;
+    const baked = bakeScaleIntoNode(startNode, sx, sy, bakeAnchor, bakeParentMatrix);
     if (baked !== null) {
       this.applyPreviewNode(ds.nodeId, baked);
     } else {
-      // Fallback (rotated/skewed node OR rotated parent matrix): legacy
-      // scale-transform composition; stroke distortion mitigated by
-      // `vector-effect="non-scaling-stroke"`.
+      // Fallback (rotated/skewed NODE — distinct from rotated parent):
+      // legacy scale-transform composition. Stroke distortion mitigated
+      // by `vector-effect="non-scaling-stroke"` in renderer directives.
       const newTransform = composeAnchoredScale(startNode.transform, sx, sy, anchor);
       this.applyPreviewTransform(ds.nodeId, newTransform);
     }
     ds.currentScale = { sx, sy };
+    ds.bakeLocalAnchor = useLocalFrame ? bakeAnchor : null;
   }
 
   endResize(): void {
     const ds = this._dragState();
     if (ds === null || ds.kind !== 'resize') return;
-    const { nodeId, startNode, anchor, currentScale, parentMatrix } = ds;
+    const { nodeId, startNode, anchor, currentScale, parentMatrix, bakeLocalAnchor } = ds;
     this._dragState.set(null);
     // Full revert to startNode (geometry + transform) — necessary because
     // `updateResize` may have baked geometry in addition to (or instead
@@ -414,8 +466,21 @@ export class TransformService {
     // final scale from this clean baseline.
     this.applyPreviewNode(nodeId, startNode);
     if (Math.abs(currentScale.sx - 1) < 1e-4 && Math.abs(currentScale.sy - 1) < 1e-4) return;
+    // When `bakeLocalAnchor` is set, `updateResize` ran in local-frame
+    // mode — dispatch the command with the already-projected anchor and
+    // `parentMatrix=null` so the command's own adjust path doesn't
+    // re-translate. Otherwise keep the legacy path (doc-space anchor +
+    // identity-or-translate parentMatrix handled by bakeScaleIntoNode).
+    const finalAnchor = bakeLocalAnchor ?? anchor;
+    const finalParentMatrix = bakeLocalAnchor !== null ? null : parentMatrix;
     this.bus.dispatch(
-      new ResizeNodeCommand(nodeId, anchor, currentScale.sx, currentScale.sy, parentMatrix),
+      new ResizeNodeCommand(
+        nodeId,
+        finalAnchor,
+        currentScale.sx,
+        currentScale.sy,
+        finalParentMatrix,
+      ),
     );
   }
 

@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   type ElementRef,
   inject,
   type OnDestroy,
@@ -45,6 +46,7 @@ import {
   IsolationService,
   LayersFilter,
   LayersService,
+  OutlineFilter,
   Marquee,
   type MarqueeCandidate,
   MarqueeService,
@@ -125,6 +127,7 @@ const DRAG_START_THRESHOLD_PX = 3;
     WorkspaceBackground,
     LayersFilter,
     IsolationFilter,
+    OutlineFilter,
     LayersPanel,
     SvgeInspector,
     GridOverlay,
@@ -353,6 +356,22 @@ export class PlaygroundHome implements OnDestroy {
     // payload from a previous session. Prompt the user before
     // overwriting; clear on decline so subsequent boots are clean.
     this.checkAutoSaveRecovery();
+
+    // Auto-exit isolation when the focused selection lives outside
+    // the current isolation scope. Common case: user is isolated in
+    // group A and clicks a node in group B via the Layer Panel. The
+    // Layer Panel selects directly (no hit-test scoping), so without
+    // this effect the user would see a selected-but-dimmed node and
+    // be confused. Affinity / Illustrator behavior: silently exit
+    // isolation in that case.
+    effect(() => {
+      const focus = this.selection.focusId();
+      if (focus === null) return;
+      if (!this.isolation.isActive()) return;
+      if (!this.isolation.isInScope(focus)) {
+        this.isolation.exit();
+      }
+    });
 
     // Default tool: Select (passthrough — keeps native canvas behavior).
     // Activated after construction so the tool registry has had a chance

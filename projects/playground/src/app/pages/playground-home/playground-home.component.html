@@ -200,6 +200,10 @@
       <input type="checkbox" [checked]="ws.rulers().enabled" (change)="ws.toggleRulers()" />
       Rulers
     </label>
+    <label title="Outline view (Illustrator/Affinity) — shows wireframes only">
+      <input type="checkbox" [checked]="ws.outlineMode()" (change)="ws.toggleOutlineMode()" />
+      Outline
+    </label>
     <button type="button" (click)="addHGuide()" title="Add horizontal guide at viewBox center">
       + H guide
     </button>
@@ -279,6 +283,7 @@
         <svge-renderer
           svgeLayersFilter
           svgeIsolationFilter
+          svgeOutlineFilter
           [tree]="tree()"
           [viewBox]="viewBox()"
           [defs]="defs()"

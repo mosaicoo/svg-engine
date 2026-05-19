@@ -1,5 +1,13 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { RenameAutoFocus } from './rename-autofocus.directive';
 import { MatIconButton } from '@angular/material/button';
 import { MatCheckbox } from '@angular/material/checkbox';
@@ -248,6 +256,10 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
           (keydown.enter)="onRowKey($any($event), node.id)"
           (keydown.space)="onRowKey($any($event), node.id)"
           (keydown.f2)="onRowRenameKey($any($event), node.id)"
+          (keydown.arrowup)="onRowArrowKey($any($event), 'up')"
+          (keydown.arrowdown)="onRowArrowKey($any($event), 'down')"
+          (keydown.home)="onRowArrowKey($any($event), 'home')"
+          (keydown.end)="onRowArrowKey($any($event), 'end')"
           (dragstart)="onDragStart($event, node.id)"
           (dragover)="onDragOver($event, node)"
           (dragleave)="onDragLeave($event, node.id)"
@@ -600,6 +612,7 @@ export class LayersPanel {
   private readonly layers = inject(LayersService);
   private readonly bus = inject(CommandBus);
   private readonly isolation = inject(IsolationService);
+  private readonly elRef = inject(ElementRef<HTMLElement>);
 
   /**
    * Bloco 4b-DnD drag-drop reorder state.
@@ -919,6 +932,50 @@ export class LayersPanel {
     event.stopPropagation();
     if (this.layers.isLocked(id)) return;
     this.renamingId.set(id);
+  }
+
+  /**
+   * Arrow-key navigation between rows. ↑/↓ focus prev/next visible
+   * row; Home/End jump to first/last. Selection follows focus (single-
+   * selects on each step) — same UX as Affinity layer panel. Locked
+   * rows are skipped via the natural `tabindex=-1` on them.
+   *
+   * "Visible" here means present in the DOM after search/filter — we
+   * query rendered `.row` elements rather than walking the model, so
+   * the navigation respects exactly what the user sees.
+   */
+  protected onRowArrowKey(event: KeyboardEvent, direction: 'up' | 'down' | 'home' | 'end'): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const rows = Array.from(
+      this.elRef.nativeElement.querySelectorAll('.row[tabindex="0"]'),
+    ) as HTMLElement[];
+    if (rows.length === 0) return;
+    const active = rows.indexOf(document.activeElement as HTMLElement);
+    let nextIdx: number;
+    switch (direction) {
+      case 'up':
+        nextIdx = active <= 0 ? 0 : active - 1;
+        break;
+      case 'down':
+        nextIdx = active < 0 ? 0 : Math.min(rows.length - 1, active + 1);
+        break;
+      case 'home':
+        nextIdx = 0;
+        break;
+      case 'end':
+        nextIdx = rows.length - 1;
+        break;
+    }
+    const next = rows[nextIdx];
+    if (next === undefined) return;
+    next.focus();
+    // Selection-follows-focus: extract the id from the row's nearest
+    // [data-id] / inferred mapping. Simplest: parse from the row's
+    // label/render. Since the row's [click] handler already calls
+    // onRowClick which dispatches selection, we synthesize a no-modifier
+    // click on the focused row.
+    next.click();
   }
 
   protected onRowClick(event: MouseEvent, id: NodeId): void {
