@@ -11,11 +11,13 @@ import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
 import {
   CommandBus,
-  composeTransform,
   decomposeTransform,
   EditorStateService,
   findNodeById,
   type NodeId,
+  type Point,
+  ResizeNodeCommand,
+  RotateNodeCommand,
   SetPropertyCommand,
   SetStylePropertyOnManyCommand,
   type SvgNode,
@@ -24,6 +26,7 @@ import {
 import {
   type BBoxAnchor,
   getRenderedNodeBBox,
+  getRenderedParentMatrix,
   LayersService,
   SelectionService,
   TransformService,
@@ -1104,44 +1107,139 @@ export class SvgeInspector {
     return d.scaleY.toFixed(2);
   }
 
+  /**
+   * Apply a new ABSOLUTE rotation (in degrees) to the focused node,
+   * preserving its geometric position the same way the canvas
+   * rotation-handle drag does.
+   *
+   * **Why not the previous raw `composeTransform` approach**: that
+   * variant decomposed the existing transform, swapped the rotation
+   * slot, and recomposed — but composeTransform recomposes around the
+   * matrix ORIGIN (0,0). That's wrong as soon as the node has a
+   * translation, an editor-defined pivot, or lives inside a group:
+   * the shape drifts away from its visual location with every keystroke.
+   *
+   * **New approach** (mirrors `TransformService.endRotate`): compute
+   * the DELTA between the requested absolute angle and the current
+   * decomposed rotation, then dispatch a `RotateNodeCommand(nodeId,
+   * deltaRad, pivot)`. The command applies `T(pivot)·R(Δ)·T(-pivot)·existing`
+   * — preserving everything else (translation, scale, prior rotation
+   * composed inside) and keeping the pivot point stationary.
+   *
+   * The pivot is resolved from the editor state (custom per-node pivot
+   * or the bbox center) via `TransformService.resolvePivot(bbox)`, so
+   * the inspector matches the same crosshair the user sees on canvas.
+   */
   protected setTransformRotationDeg(raw: string): void {
     const node = this.focusNode();
     if (node === null || this.layers.isLocked(node.id)) return;
     const deg = parseNumericInput(raw);
     if (deg === null) return;
-    const d = decomposeTransform(node.transform);
-    const next = composeTransform({ ...d, rotationRad: (deg * Math.PI) / 180 });
-    this.bus.dispatch(new SetPropertyCommand(node.id, 'transform', next));
+    const targetRad = (deg * Math.PI) / 180;
+    const decomposed = decomposeTransform(node.transform);
+    const deltaRad = targetRad - decomposed.rotationRad;
+    if (Math.abs(deltaRad) < 1e-6) return;
+    const pivot = this.resolveCommandPivot(node.id);
+    this.bus.dispatch(new RotateNodeCommand(node.id, deltaRad, pivot));
   }
 
+  /**
+   * Apply new ABSOLUTE scale factors to the focused node, preserving
+   * the pivot point's visual position. Mirrors `TransformService.endResize`
+   * by dispatching `ResizeNodeCommand` with an anchor (the editor's
+   * pivot, in doc coords) and the SCALE DELTA from the node's current
+   * scale to the requested values.
+   *
+   * Same drift problem as rotation: a raw `composeTransform({scaleX,
+   * scaleY})` recomposes around origin (0,0), so any node not at
+   * origin would teleport. Using `ResizeNodeCommand` with the
+   * editor's pivot (= same point the user expects the shape to be
+   * "anchored" to) keeps the shape visually in place except for the
+   * intended size change.
+   *
+   * `parentMatrix` is captured so the command's transform-aware path
+   * (added in the latest sprint) kicks in when the node lives inside
+   * a translated/rotated group.
+   */
   protected setTransformScale(rawX: string | number, rawY: string | number): void {
     const node = this.focusNode();
     if (node === null || this.layers.isLocked(node.id)) return;
     const sx = typeof rawX === 'number' ? rawX : parseNumericInput(rawX);
     const sy = typeof rawY === 'number' ? rawY : parseNumericInput(rawY);
     if (sx === null || sy === null) return;
-    const d = decomposeTransform(node.transform);
-    const next = composeTransform({ ...d, scaleX: sx, scaleY: sy });
-    this.bus.dispatch(new SetPropertyCommand(node.id, 'transform', next));
+    if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
+    if (sx === 0 || sy === 0) return; // would collapse the shape — refuse
+    const decomposed = decomposeTransform(node.transform);
+    const deltaSx = sx / decomposed.scaleX;
+    const deltaSy = sy / decomposed.scaleY;
+    if (Math.abs(deltaSx - 1) < 1e-6 && Math.abs(deltaSy - 1) < 1e-6) return;
+    const anchor = this.resolveCommandPivot(node.id);
+    const parentMatrix = this.resolveParentMatrix(node.id);
+    this.bus.dispatch(new ResizeNodeCommand(node.id, anchor, deltaSx, deltaSy, parentMatrix));
   }
 
   /**
-   * Reset rotation + scale to identity, keeping translation. Useful
-   * for "I got lost in the transforms" recovery. Translation stays
-   * because clearing it would visually teleport the shape to origin
-   * (surprising). User can edit the per-type geometry x/y to move.
+   * Resolve the pivot point in document coordinates for command
+   * dispatch — same source the canvas uses (`TransformService.resolvePivot`),
+   * so inspector and canvas behave identically when the user sets a
+   * custom pivot.
+   *
+   * Returns the rendered bbox center as a safe default when the node
+   * isn't rendered yet (avoids a `null` pivot which would crash the
+   * command).
+   */
+  private resolveCommandPivot(nodeId: NodeId): Point {
+    const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+    const bbox = svg !== null ? getRenderedNodeBBox(svg, nodeId) : null;
+    const fallbackBBox = bbox ?? { x: 0, y: 0, width: 0, height: 0 };
+    return this.transformService.resolvePivot(fallbackBBox);
+  }
+
+  /**
+   * Composed ancestor transform of the node (NOT including self) —
+   * required by `ResizeNodeCommand` so the bake math is correct for
+   * shapes inside translated/rotated groups. Mirrors what
+   * `SelectionOverlay.onResizeHandlePointerDown` does for the canvas
+   * drag path.
+   *
+   * Returns `null` (= identity) when the SVG isn't rendered yet or
+   * the node lives directly under the SVG root.
+   */
+  private resolveParentMatrix(nodeId: NodeId) {
+    const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+    if (svg === null) return null;
+    return getRenderedParentMatrix(svg, nodeId);
+  }
+
+  /**
+   * Reset rotation + scale to identity, keeping the translation
+   * components literally. Useful for "I got lost in the transforms"
+   * recovery — semantically "clear the matrix" not "preserve visual
+   * position". The user can re-arrange by editing geometry x/y or
+   * by dragging in the canvas afterwards.
+   *
+   * **Why a raw SetPropertyCommand** (different from rotation/scale
+   * fields, which dispatch RotateNodeCommand/ResizeNodeCommand):
+   * - The other field handlers apply an ABSOLUTE target via a delta;
+   *   they pivot around the editor's pivot to keep visual position
+   *   stable across keystrokes (so 30→31° doesn't teleport the shape).
+   * - "Reset", by contrast, is a single mechanical action: produce
+   *   a clean `[1, 0, 0, 1, e, f]` matrix. Anchoring it to the pivot
+   *   would generally NOT collapse rotation+scale to identity — it
+   *   would smear them into the translation. That contradicts the
+   *   user's intent here (and breaks the pre-existing reset test).
    */
   protected resetTransform(): void {
     const node = this.focusNode();
     if (node === null || this.layers.isLocked(node.id)) return;
-    const d = decomposeTransform(node.transform);
-    const next = composeTransform({
-      ...d,
-      rotationRad: 0,
-      scaleX: 1,
-      scaleY: 1,
-    });
-    // Skip dispatch when already identity-equivalent.
+    const next: import('svg-engine/core').Transform = [
+      1,
+      0,
+      0,
+      1,
+      node.transform[4],
+      node.transform[5],
+    ];
     if (
       next[0] === node.transform[0] &&
       next[1] === node.transform[1] &&
