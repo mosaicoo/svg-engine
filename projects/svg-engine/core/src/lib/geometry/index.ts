@@ -27,3 +27,11 @@ export {
   type DecomposedTransform,
 } from './transform-decompose';
 export { getNodeBBox } from './node-bbox';
+export {
+  type AnchorKind,
+  type AnchorPoint,
+  type AnchorSubpath,
+  anchorsToPathD,
+  classifyAnchorKind,
+  parsePathToAnchors,
+} from './path-anchors';
