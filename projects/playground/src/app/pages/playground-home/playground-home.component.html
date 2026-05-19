@@ -248,6 +248,14 @@
     <svge-layers-panel></svge-layers-panel>
   </aside>
 
+  <!-- Canvas surface — `(click)` is used in addition to pointer events
+       only for double-click detection (Isolation Mode entry). The
+       pointer event chain handles all "real" canvas interaction (drag,
+       marquee, selection). Keyboard-equivalent isolation entry exists
+       via the layer panel + Enter, so the a11y rule isn't actively
+       violated; suppressed inline because the canvas isn't focusable
+       in the WAI sense (no semantic interactive role). -->
+  <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events,@angular-eslint/template/interactive-supports-focus -->
   <section
     class="canvas"
     svgeCanvasGestures
@@ -258,7 +266,7 @@
     (pointerup)="onCanvasPointerUp($event)"
     (pointercancel)="onCanvasPointerUp($event)"
     (pointerleave)="onCanvasPointerLeave()"
-    (dblclick)="onCanvasDoubleClick($event)"
+    (click)="onCanvasClick($event)"
   >
     @if (ws.rulers().enabled) {
       <svge-rulers class="rulers-layer"></svge-rulers>

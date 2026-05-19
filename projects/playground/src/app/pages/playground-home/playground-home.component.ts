@@ -730,25 +730,63 @@ export class PlaygroundHome implements OnDestroy {
     });
   }
 
+  /** Last click bookkeeping for manual double-click detection — see `onCanvasClick`. */
+  private lastClickTimeMs = 0;
+  private lastClickTargetId: NodeId | null = null;
+  /** Native browser dblclick threshold (Chrome/Firefox default ≈ 500ms). */
+  private static readonly DOUBLE_CLICK_THRESHOLD_MS = 400;
+
   /**
-   * Double-click on a group enters isolation on that group. Only fires
-   * when the group-aware select tool is active (Direct Select keeps
-   * dblclick free for future per-tool semantics like "edit text"
-   * or "anchor-point select").
+   * Click handler with **manual double-click detection** for entering
+   * Isolation Mode.
    *
-   * Clicking the document root itself never isolates — that would be
-   * a no-op (you're already "inside" the root).
+   * **Why not the native `(dblclick)` event**: this component captures
+   * the pointer on pointerdown (`setPointerCapture` via `capturePointer`)
+   * to support drag/marquee gestures. Pointer capture interferes with
+   * the browser's internal multi-click counter — `click.detail` stays at
+   * 1 on the second click, so `dblclick` never fires. Manual detection
+   * via timestamp + last-target id sidesteps this entirely and behaves
+   * predictably across browsers (Chrome's native threshold is 500ms,
+   * Firefox 250-500ms; we standardize on 400ms — feels snappy without
+   * misfiring on slow clicks).
+   *
+   * **Resolution mode**: uses `group` so clicking a leaf shape inside a
+   * group resolves to that group (Illustrator/Affinity convention).
+   * The same group id must be the target of two consecutive clicks
+   * within the threshold for the gesture to register as a double-click.
+   *
+   * Only the group-aware Select (V) tool participates — Direct Select
+   * (A) leaves the gesture free for future per-tool semantics.
    */
-  protected onCanvasDoubleClick(event: MouseEvent): void {
-    if (this.toolHost.activeId() === DIRECT_SELECT_TOOL_ID) return;
-    const id = resolveNodeIdFromEvent(event);
-    if (id === null) return;
+  protected onCanvasClick(event: MouseEvent): void {
+    if (this.toolHost.activeId() === DIRECT_SELECT_TOOL_ID) {
+      this.lastClickTimeMs = 0;
+      this.lastClickTargetId = null;
+      return;
+    }
     const rootId = this.state.document().root.id;
-    if (id === rootId) return;
-    const node = findNodeById(this.state.document().root, id);
-    if (node === null || node.type !== 'group') return;
-    this.isolation.enter(id);
-    this.selection.select(id);
+    const id = resolveSelectableNodeId(event, {
+      mode: 'group',
+      rootId,
+      isolationRootId: this.isolation.isolationRootId(),
+    });
+    const now = performance.now();
+    const isSecondClickOnSameTarget =
+      id !== null &&
+      id === this.lastClickTargetId &&
+      now - this.lastClickTimeMs <= PlaygroundHome.DOUBLE_CLICK_THRESHOLD_MS;
+    if (isSecondClickOnSameTarget) {
+      this.lastClickTimeMs = 0;
+      this.lastClickTargetId = null;
+      if (id === rootId) return;
+      const node = findNodeById(this.state.document().root, id);
+      if (node === null || node.type !== 'group') return;
+      this.isolation.enter(id);
+      this.selection.select(id);
+      return;
+    }
+    this.lastClickTimeMs = now;
+    this.lastClickTargetId = id;
   }
 
   protected onCanvasPointerDown(event: PointerEvent): void {
