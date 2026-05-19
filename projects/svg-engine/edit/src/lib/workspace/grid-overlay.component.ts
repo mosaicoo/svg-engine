@@ -122,13 +122,29 @@ export class GridOverlay {
       major: boolean;
     }[] = [];
     const { spacing, majorEvery } = grid;
+    // Compute integer column/row count for the FULL page so the
+    // rightmost/bottommost line at the exact page edge is always
+    // included regardless of viewport pan. Then clip the iteration
+    // window by the viewport intersection — but using the page-derived
+    // max as the inclusive upper bound, never the viewport derived
+    // value (otherwise floating-point drift at the lateral edge can
+    // drop the boundary line, causing a visible "missing line" gap
+    // on the right/bottom edges of the page during pan).
+    const pageColMax = Math.round(pb.width / spacing);
+    const pageRowMax = Math.round(pb.height / spacing);
+    // Epsilon comparison so a column that lands within 1e-6 of pageRight
+    // (i.e., logically AT the page edge) is treated as inside, not
+    // beyond. Same reasoning for rows. Without this guard, FP drift
+    // accumulated over ~50+ multiplications can make x === pageRight
+    // resolve as x > pageRight.
+    const EDGE_EPS = 1e-6;
     const colStartIdx = Math.max(0, Math.floor((ix1 - pageLeft) / spacing));
-    const colEndIdx = Math.ceil((ix2 - pageLeft) / spacing);
+    const colEndIdx = Math.min(pageColMax, Math.ceil((ix2 - pageLeft) / spacing));
     const rowStartIdx = Math.max(0, Math.floor((iy1 - pageTop) / spacing));
-    const rowEndIdx = Math.ceil((iy2 - pageTop) / spacing);
+    const rowEndIdx = Math.min(pageRowMax, Math.ceil((iy2 - pageTop) / spacing));
     for (let col = colStartIdx; col <= colEndIdx; col++) {
       const x = pageLeft + col * spacing;
-      if (x > pageRight) break;
+      if (x - pageRight > EDGE_EPS) break;
       out.push({
         key: `v${col}`,
         x1: x,
@@ -144,7 +160,7 @@ export class GridOverlay {
     }
     for (let row = rowStartIdx; row <= rowEndIdx; row++) {
       const y = pageTop + row * spacing;
-      if (y > pageBottom) break;
+      if (y - pageBottom > EDGE_EPS) break;
       out.push({
         key: `h${row}`,
         // Horizontal lines span the FULL page width (same reasoning).

@@ -78,6 +78,22 @@ import { ViewportService } from '../viewport/viewport.service';
       display: block;
       width: 100%;
       height: 100%;
+      /* overflow: visible lets editor overlays (guides, snap guides,
+         marquee) render across the pasteboard area that the SVG
+         viewBox + preserveAspectRatio="xMidYMid meet" letterboxing
+         creates inside the host. Without this, any <line>/<rect> with
+         coordinates outside the current viewBox is clipped — which
+         makes guides stop short of the ruler edges when the SVG
+         viewBox is narrower than its CSS area (common: landscape
+         container hosting a portrait document, or any zoom level
+         where viewBox aspect ≠ container aspect).
+
+         Side-effect: document shapes living outside the viewBox also
+         become visible in the letterbox. This matches the convention
+         of every professional editor (Illustrator, Affinity, Figma) —
+         the "pasteboard" naturally shows whatever is positioned there,
+         not a hard-clipped void at the viewBox boundary. */
+      overflow: visible;
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,

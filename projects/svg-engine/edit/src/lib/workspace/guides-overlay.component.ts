@@ -1,14 +1,16 @@
 import { DOCUMENT } from '@angular/common';
 import {
+  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   computed,
   ElementRef,
   inject,
   type OnDestroy,
+  signal,
 } from '@angular/core';
 import { ViewportService } from 'svg-engine/render';
-import { pageBoundsIn, WorkspaceService } from './workspace.service';
+import { WorkspaceService } from './workspace.service';
 
 /**
  * SVG overlay that renders user-drawn guide lines (Bloco 4f) with
@@ -110,7 +112,7 @@ import { pageBoundsIn, WorkspaceService } from './workspace.service';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class GuidesOverlay implements OnDestroy {
+export class GuidesOverlay implements AfterViewInit, OnDestroy {
   private readonly ws = inject(WorkspaceService);
   private readonly viewport = inject(ViewportService);
   private readonly elRef = inject(ElementRef<SVGGElement>);
@@ -122,8 +124,35 @@ export class GuidesOverlay implements OnDestroy {
     this.document.addEventListener('keydown', this.onDocumentKeyDown);
   }
 
+  /**
+   * Bumped whenever the SVG host element resizes (ResizeObserver) so
+   * `clipBounds` re-runs with fresh CTM-derived bounds. Without this,
+   * resizing the window leaves guides anchored to the old layout.
+   */
+  private readonly layoutVersion = signal(0);
+  private resizeObserver: ResizeObserver | null = null;
+
+  ngAfterViewInit(): void {
+    // Walk to the owner <svg> and observe its size. The CTM-derived
+    // clipBounds also depends on the SVG's CSS dimensions (not just
+    // its viewBox), so layout changes that don't touch the viewport
+    // signals must still invalidate the computed.
+    const svg = this.elRef.nativeElement.ownerSVGElement;
+    if (svg !== null && typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => {
+        this.layoutVersion.update((v) => v + 1);
+      });
+      this.resizeObserver.observe(svg);
+    }
+    // Initial bump so the first frame after view-init recomputes
+    // clipBounds with the now-attached SVG.
+    this.layoutVersion.update((v) => v + 1);
+  }
+
   ngOnDestroy(): void {
     this.document.removeEventListener('keydown', this.onDocumentKeyDown);
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
   }
 
   private readonly onDocumentKeyDown = (event: KeyboardEvent): void => {
@@ -136,26 +165,102 @@ export class GuidesOverlay implements OnDestroy {
   protected readonly guides = this.ws.guides;
 
   /**
-   * Guide line span — anchored to the **page bounds** so guides stay
-   * fixed in doc coordinates regardless of pan/zoom. The browser's
-   * SVG viewBox clipping handles the offscreen portion automatically.
+   * Guide line span — extends across the **entire CSS area** of the
+   * host `<svg>`, matching the convention of professional editors
+   * (Illustrator, Affinity, Photoshop). Guides are infinite reference
+   * lines that span from ruler edge to ruler edge, including the
+   * letterbox area created by `preserveAspectRatio="xMidYMid meet"`
+   * when the viewBox aspect differs from the container aspect.
    *
-   * **History**: a previous version clipped to the intersection of
-   * viewport and page, which made guide lines shrink/grow as the
-   * user panned (the line endpoints tracked the viewport, not the
-   * page). Users perceived this as guides being "anchored to the
-   * screen" rather than to the page. Reverted to page-only bounds.
+   * **How it works**: project the four corners of the SVG element's
+   * client rect through `getScreenCTM().inverse()` to recover the doc
+   * coords that line up with the rect's pixel edges. The min/max of
+   * the projected coords define the doc-space window that EXACTLY
+   * covers the SVG's CSS area (letterbox included).
+   *
+   * **Why getScreenCTM and not viewport.viewBox()**: viewport.viewBox
+   * is the value bound to the `<svg viewBox>` attribute. When the SVG
+   * letterboxes, the rendered content area is NARROWER than the CSS
+   * area on the constrained axis. A guide using viewBox bounds would
+   * stop at the letterbox edge instead of spanning the full bar.
+   *
+   * **Pre-requisite for visibility**: the SVG must have `overflow:
+   * visible` (set in `svge-renderer.component.ts`). Without it, any
+   * geometry outside the viewBox is clipped — even with correct
+   * coordinates the guides would still stop at the viewBox edge.
+   *
+   * **Fallback**: when the SVG isn't reachable or `getScreenCTM` is
+   * unavailable (jsdom / SSR), fall back to `viewport.viewBox()` so
+   * tests don't crash and the SSR render produces something sensible.
+   *
+   * **History**:
+   * 1. Originally clipped to intersection of viewport and page.
+   * 2. Then full page bounds — lines were doc-fixed but didn't extend
+   *    into the pasteboard, breaking pro-tool convention.
+   * 3. Then `viewport.viewBox()` — extended past the page but stopped
+   *    at the SVG viewBox boundary, leaving the letterbox empty when
+   *    aspect ratios differed (user-reported bug: "laterais das guias").
+   * 4. Now: project SVG client rect via inverse CTM. Truly spans the
+   *    full ruler-bar range on both axes regardless of letterbox.
    */
   private readonly clipBounds = computed(() => {
+    // Touch reactive dependencies up-front so the computed re-runs
+    // on any of: viewport change (pan/zoom), workspace change (zoom-fit),
+    // or layout change (window resize).
+    this.layoutVersion();
+    this.viewport.viewBox();
+    const ctmBounds = this.computeClipBoundsFromCtm();
+    if (ctmBounds !== null) return ctmBounds;
+    // Fallback for jsdom / SSR / detached SVG.
     const vb = this.viewport.viewBox();
-    const page = this.ws.page();
-    if (page.width <= 0 || page.height <= 0) {
-      // Defensive fallback to full viewport when page is malformed.
-      return { left: vb.x, top: vb.y, right: vb.x + vb.width, bottom: vb.y + vb.height };
-    }
-    const pb = pageBoundsIn(this.viewport.contentBox(), page);
-    return { left: pb.x, top: pb.y, right: pb.x + pb.width, bottom: pb.y + pb.height };
+    return { left: vb.x, top: vb.y, right: vb.x + vb.width, bottom: vb.y + vb.height };
   });
+
+  /**
+   * Project the SVG element's client rect to doc coordinates via
+   * `getScreenCTM().inverse()`. Returns `null` when any precondition
+   * fails (no SVG ref, jsdom without CTM impl, detached element, etc.)
+   * — callers must apply a viewBox-based fallback.
+   *
+   * Two corner projection (TL + BR) is sufficient because the screen-
+   * to-doc CTM contains no rotation in our use case (we only ever
+   * translate + uniform scale), so the doc-space rect is axis-aligned.
+   * If the CTM ever picks up rotation, switch to projecting all four
+   * corners and using min/max — but at that point the whole "axis-
+   * aligned guide" model breaks anyway, so YAGNI.
+   */
+  private computeClipBoundsFromCtm(): {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  } | null {
+    const svg = this.elRef.nativeElement.ownerSVGElement;
+    if (svg === null) return null;
+    if (typeof svg.getScreenCTM !== 'function') return null;
+    if (typeof svg.createSVGPoint !== 'function') return null;
+    const ctm = svg.getScreenCTM() as DOMMatrix | null;
+    if (ctm === null) return null;
+    const rect = svg.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    const inv = ctm.inverse();
+    const tlPt = svg.createSVGPoint();
+    tlPt.x = rect.left;
+    tlPt.y = rect.top;
+    const tl = tlPt.matrixTransform(inv);
+    const brPt = svg.createSVGPoint();
+    brPt.x = rect.right;
+    brPt.y = rect.bottom;
+    const br = brPt.matrixTransform(inv);
+    if (!Number.isFinite(tl.x) || !Number.isFinite(br.x)) return null;
+    if (!Number.isFinite(tl.y) || !Number.isFinite(br.y)) return null;
+    return {
+      left: Math.min(tl.x, br.x),
+      top: Math.min(tl.y, br.y),
+      right: Math.max(tl.x, br.x),
+      bottom: Math.max(tl.y, br.y),
+    };
+  }
 
   protected readonly viewBoxLeft = computed(() => this.clipBounds().left);
   protected readonly viewBoxTop = computed(() => this.clipBounds().top);

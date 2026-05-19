@@ -70,6 +70,52 @@ describe('GuidesOverlay — dblclick removes', () => {
   });
 });
 
+describe('GuidesOverlay — clipBounds fallback', () => {
+  /**
+   * jsdom doesn't implement `getScreenCTM`, so `computeClipBoundsFromCtm`
+   * returns null and the overlay falls back to `viewport.viewBox()`.
+   * Guides should still render with sensible endpoints — verifying the
+   * fallback path here prevents a regression where a missing CTM
+   * silently collapses the lines to length 0.
+   */
+  it('falls back to viewport.viewBox() bounds when getScreenCTM is unavailable (jsdom)', () => {
+    const { fixture, ws, viewport } = setup();
+    // Viewport default in jsdom is contentBox = {0,0,800,600} at zoom=1.
+    const vb = viewport.viewBox();
+    ws.addGuide('h', 100);
+    ws.addGuide('v', 200);
+    fixture.detectChanges();
+    const visible = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<SVGLineElement>('line.guide'),
+    );
+    expect(visible.length).toBe(2);
+    // Horizontal guide spans the full viewBox horizontally.
+    const h = visible.find((l) => l.classList.contains('horizontal'))!;
+    expect(Number(h.getAttribute('x1'))).toBe(vb.x);
+    expect(Number(h.getAttribute('x2'))).toBe(vb.x + vb.width);
+    expect(Number(h.getAttribute('y1'))).toBe(100);
+    // Vertical guide spans the full viewBox vertically.
+    const v = visible.find((l) => l.classList.contains('vertical'))!;
+    expect(Number(v.getAttribute('y1'))).toBe(vb.y);
+    expect(Number(v.getAttribute('y2'))).toBe(vb.y + vb.height);
+    expect(Number(v.getAttribute('x1'))).toBe(200);
+  });
+
+  it('updates guide endpoints when viewport pans (still on fallback path)', () => {
+    const { fixture, ws, viewport } = setup();
+    ws.addGuide('h', 50);
+    fixture.detectChanges();
+    viewport.pan(100, 0);
+    fixture.detectChanges();
+    const h = (fixture.nativeElement as HTMLElement).querySelector<SVGLineElement>(
+      'line.guide.horizontal',
+    )!;
+    const expectedVb = viewport.viewBox();
+    expect(Number(h.getAttribute('x1'))).toBeCloseTo(expectedVb.x, 6);
+    expect(Number(h.getAttribute('x2'))).toBeCloseTo(expectedVb.x + expectedVb.width, 6);
+  });
+});
+
 describe('GuidesOverlay — drag state machine', () => {
   /**
    * jsdom doesn't implement `getScreenCTM()`. The drag handlers
