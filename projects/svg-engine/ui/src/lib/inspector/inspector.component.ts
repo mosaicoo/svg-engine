@@ -11,6 +11,7 @@ import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
 import {
   CommandBus,
+  ConvertNodeToPathCommand,
   decomposeTransform,
   EditorStateService,
   findNodeById,
@@ -328,6 +329,28 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
           </button>
         </div>
       </section>
+
+      <!--
+        Convert to Path button: visible only for non-path leaf nodes
+        (rect/ellipse/line/polygon/polyline) — gives the user access
+        to the Path Editor + Pathfinder for primitives that weren't
+        authored as paths. Group/text/image hidden (no equivalent
+        path semantic in v1).
+      -->
+      @if (canConvertToPath()) {
+        <section class="section">
+          <h3 class="section-title">Path operations</h3>
+          <button
+            type="button"
+            class="reset-btn"
+            [disabled]="isLocked()"
+            (click)="convertToPath()"
+            title="Convert this shape to an editable path"
+          >
+            Convert to Path
+          </button>
+        </section>
+      }
 
       <section class="section">
         <h3 class="section-title">Style</h3>
@@ -1249,6 +1272,37 @@ export class SvgeInspector {
       return;
     }
     this.bus.dispatch(new SetPropertyCommand(node.id, 'transform', next));
+  }
+
+  // ── Convert to Path (gateway to Path Editor + Pathfinder) ──
+
+  /**
+   * `true` when the focused node is a non-path leaf type that the
+   * `ConvertNodeToPathCommand` knows how to handle. Drives the
+   * visibility of the "Convert to Path" button in the Path
+   * operations section.
+   *
+   * Hidden for paths (no-op), groups (not handled in v1), text and
+   * image (no geometric equivalent).
+   */
+  protected readonly canConvertToPath = computed(() => {
+    const node = this.focusNode();
+    if (node === null) return false;
+    return (
+      node.type === 'rect' ||
+      node.type === 'ellipse' ||
+      node.type === 'line' ||
+      node.type === 'polygon' ||
+      node.type === 'polyline'
+    );
+  });
+
+  /** Dispatch the ConvertNodeToPathCommand for the focused node. */
+  protected convertToPath(): void {
+    const node = this.focusNode();
+    if (node === null || this.layers.isLocked(node.id)) return;
+    if (!this.canConvertToPath()) return;
+    this.bus.dispatch(new ConvertNodeToPathCommand(node.id));
   }
 
   // ── Pivot picker (Item 5 — débito 4c-Polish) ────────────────

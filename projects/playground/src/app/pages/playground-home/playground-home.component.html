@@ -172,6 +172,49 @@
     </button>
   </fieldset>
   <fieldset>
+    <legend>Pathfinder</legend>
+    <button
+      type="button"
+      [disabled]="!canPathfinder()"
+      (click)="pathfinder('union')"
+      title="Union — merge overlapping shapes into one"
+    >
+      ∪
+    </button>
+    <button
+      type="button"
+      [disabled]="!canPathfinder()"
+      (click)="pathfinder('intersect')"
+      title="Intersect — keep only the overlapping area"
+    >
+      ∩
+    </button>
+    <button
+      type="button"
+      [disabled]="!canPathfinder()"
+      (click)="pathfinder('subtract')"
+      title="Subtract — remove other shapes from the first"
+    >
+      −
+    </button>
+    <button
+      type="button"
+      [disabled]="!canPathfinder()"
+      (click)="pathfinder('exclude')"
+      title="Exclude — keep non-overlapping areas"
+    >
+      ⊕
+    </button>
+    <button
+      type="button"
+      [disabled]="!canPathfinder()"
+      (click)="pathfinder('divide')"
+      title="Divide — split into non-overlapping regions"
+    >
+      ÷
+    </button>
+  </fieldset>
+  <fieldset>
     <legend>Background</legend>
     @for (preset of bgPresets; track preset.value) {
       <button
@@ -300,6 +343,7 @@
                of the content. Order = z-order (later = topmost). -->
           <svg:g svgeGuidesOverlay></svg:g>
           <svg:g svgeSelectionOverlay></svg:g>
+          <svg:g svgeAnchorOverlay></svg:g>
           <svg:g svgeRotationPivot></svg:g>
           <svg:g svgeMarquee></svg:g>
           <svg:g svgeSnapGuides></svg:g>

@@ -104,5 +104,8 @@ export * from './lib/canvas-gestures';
 // Isolation Mode (Illustrator/Affinity-style group isolation + breadcrumb)
 export * from './lib/isolation';
 
+// Anchor / path editor (Direct Select tool — edit individual anchor points)
+export * from './lib/anchor-editor';
+
 // Auto-save + recovery (localStorage-backed)
 export * from './lib/autosave';

@@ -7,6 +7,13 @@ export {
   RemoveAnchorCommand,
 } from './anchor.commands';
 export { ConvertNodeToPathCommand, nodeToPathD } from './convert-to-path.command';
+export {
+  DivideCommand,
+  ExcludeCommand,
+  IntersectCommand,
+  SubtractCommand,
+  UnionCommand,
+} from './pathfinder.commands';
 export { GroupSelectionCommand } from './group-selection.command';
 export { InsertNodeCommand } from './insert-node.command';
 export { MoveNodeCommand } from './move-node.command';

@@ -35,3 +35,4 @@ export {
   classifyAnchorKind,
   parsePathToAnchors,
 } from './path-anchors';
+export { type FlatRing, flattenPathD, ringsToPathD } from './path-flatten';

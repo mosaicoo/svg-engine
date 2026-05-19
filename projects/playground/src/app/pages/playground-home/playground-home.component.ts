@@ -24,7 +24,13 @@ import {
   MoveNodeCommand,
   type NodeId,
   type Point,
+  ConvertNodeToPathCommand,
+  DivideCommand,
+  ExcludeCommand,
+  IntersectCommand,
   RemoveNodeCommand,
+  SubtractCommand,
+  UnionCommand,
   type ReorderDirection,
   ReorderNodeCommand,
   UngroupCommand,
@@ -32,6 +38,7 @@ import {
 import {
   type AlignAxis,
   AlignmentService,
+  AnchorOverlay,
   AutoSaveService,
   DIRECT_SELECT_TOOL_ID,
   type DistributeAxis,
@@ -121,6 +128,7 @@ const DRAG_START_THRESHOLD_PX = 3;
   imports: [
     SvgeRenderer,
     SelectionOverlay,
+    AnchorOverlay,
     RotationPivot,
     Marquee,
     SnapGuides,
@@ -833,6 +841,56 @@ export class PlaygroundHome implements OnDestroy {
     const items = this.collectSelectionBBoxes();
     if (items.length < 3) return;
     this.alignment.distribute(items, axis);
+  }
+
+  /**
+   * Pathfinder ops require ≥ 2 selected nodes. The commands themselves
+   * also reject groups/text/image — the button is enabled by count
+   * only; the command bus surfaces failures via console warn if needed.
+   */
+  protected readonly canPathfinder = computed(() => this.selection.count() >= 2);
+
+  /**
+   * Dispatch one of the 5 Pathfinder ops on the current selection.
+   * Auto-converts non-path leaves to paths first (rect/ellipse/line/
+   * polygon/polyline) so the user doesn't have to remember to convert
+   * — Affinity / Illustrator both do this implicitly.
+   */
+  protected pathfinder(op: 'union' | 'intersect' | 'subtract' | 'exclude' | 'divide'): void {
+    const ids = Array.from(this.selection.selectedIds());
+    if (ids.length < 2) return;
+    // Auto-convert non-path leaves first. Each Convert is its own
+    // undoable step — pragmatic, but means undoing the pathfinder
+    // requires N+1 Ctrl+Z. Future polish could wrap in a compound
+    // command.
+    for (const id of ids) {
+      const node = findNodeById(this.state.document().root, id);
+      if (node === null) continue;
+      if (
+        node.type === 'rect' ||
+        node.type === 'ellipse' ||
+        node.type === 'line' ||
+        node.type === 'polygon' ||
+        node.type === 'polyline'
+      ) {
+        this.bus.dispatch(new ConvertNodeToPathCommand(id));
+      }
+    }
+    // Dispatch the boolean op.
+    const Command =
+      op === 'union'
+        ? UnionCommand
+        : op === 'intersect'
+          ? IntersectCommand
+          : op === 'subtract'
+            ? SubtractCommand
+            : op === 'exclude'
+              ? ExcludeCommand
+              : DivideCommand;
+    this.bus.dispatch(new Command(ids));
+    // The first input keeps its id (operand A wins) — keep it
+    // selected to give visual feedback that the op succeeded.
+    this.selection.select(ids[0]!);
   }
 
   private collectSelectionBBoxes(): readonly NodeBBox[] {
