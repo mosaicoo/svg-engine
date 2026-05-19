@@ -123,6 +123,15 @@
   border-radius: 0.4rem;
   overflow: hidden;
   min-height: 0;
+  // Disable text/content selection on the canvas itself. Without this,
+  // a double-click anywhere triggers Chromium's "selection action menu"
+  // (search/copy/translate popup) because the browser interprets the
+  // gesture as "select the nearest text". -webkit prefix covers older
+  // WebKit-based browsers; the unprefixed property is standard.
+  // -webkit-touch-callout suppresses the long-press menu on mobile too.
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 
   // When rulers are on, leave a 24px gutter on top + left so the
   // ruler strips overlay there without covering the canvas content.
