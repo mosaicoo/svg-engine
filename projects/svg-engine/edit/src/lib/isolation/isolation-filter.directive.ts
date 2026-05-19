@@ -1,5 +1,12 @@
 import { Directive, effect, ElementRef, inject, type OnDestroy } from '@angular/core';
-import { EditorStateService, findNodeById, isGroupNode, type SvgNode } from 'svg-engine/core';
+import {
+  EditorStateService,
+  findNodeById,
+  findParent,
+  isGroupNode,
+  type NodeId,
+  type SvgNode,
+} from 'svg-engine/core';
 import { IsolationService } from './isolation.service';
 
 /** Sentinel attribute marking elements we've dimmed (for clean restore). */
@@ -93,23 +100,39 @@ export class IsolationFilter implements OnDestroy {
       collectDescendantIds(isolationNode, inScope);
     }
 
+    // **Ancestors of the isolation root must NOT be dimmed**: they
+    // wrap the isolation root in the DOM, so applying `pointer-events:
+    // none` or opacity to them would propagate to the isolation root
+    // and its descendants — breaking interaction (the user reported:
+    // double-clicking a nested group never enters the inner isolation
+    // because clicks no longer reach it).
+    //
+    // We walk the model parent chain from `rootId` up to the document
+    // root and mark every ancestor as "transparent zone" (no dim, no
+    // pe-block). Visual responsibility for "dimming" what's outside
+    // the isolation now falls entirely on siblings of the ancestor
+    // chain — which is the correct Illustrator/Affinity behavior.
+    const ancestorPath = collectAncestorIds(docRoot, rootId as NodeId);
+
     // Walk all marked nodes once. Anything in `inScope` should be
-    // restored (if we dimmed it earlier); anything out of scope should
-    // be dimmed (if not already).
+    // restored (if we dimmed it earlier); ancestors are also kept
+    // pristine (transparent); everything else (true siblings) gets
+    // dimmed.
     const all = hostEl.querySelectorAll('[data-node-id]') as NodeListOf<HTMLElement>;
     const seen = new Set<string>();
     for (const el of all) {
       const id = el.getAttribute('data-node-id');
       if (id === null) continue;
       seen.add(id);
-      if (inScope.has(id)) {
-        // In scope — restore if we previously dimmed.
+      const keepNormal = inScope.has(id) || ancestorPath.has(id);
+      if (keepNormal) {
+        // In scope OR an ancestor — restore if we previously dimmed.
         if (this.currentlyDimmed.has(id)) {
           this.restoreOne(id);
           this.currentlyDimmed.delete(id);
         }
       } else {
-        // Out of scope — dim if not already.
+        // Out of scope sibling — dim if not already.
         if (!this.currentlyDimmed.has(id)) {
           this.dimOne(id, el);
           this.currentlyDimmed.add(id);
@@ -161,6 +184,38 @@ function collectDescendantIds(parent: SvgNode, out: Set<string>): void {
     out.add(child.id);
     if (isGroupNode(child)) collectDescendantIds(child, out);
   }
+}
+
+/**
+ * Walk the parent chain from `targetId` up to (and including) the
+ * document root, returning every ancestor id encountered. Does NOT
+ * include `targetId` itself. Used by `IsolationFilter` to mark which
+ * elements wrap the isolation root in the DOM so they're never dimmed
+ * or click-blocked (which would propagate to their descendants — the
+ * isolation root itself).
+ *
+ * Safety: bails after 1000 iterations to avoid an infinite loop in
+ * the impossible case of a malformed cyclic tree.
+ */
+function collectAncestorIds(
+  docRoot: { readonly id: NodeId } & SvgNode,
+  targetId: NodeId,
+): Set<string> {
+  const out = new Set<string>();
+  let currentId: NodeId | null = targetId;
+  let safety = 1000;
+  while (currentId !== null && safety > 0) {
+    if (currentId === docRoot.id) {
+      out.add(docRoot.id);
+      return out;
+    }
+    const parent = findParent(docRoot as unknown as Parameters<typeof findParent>[0], currentId);
+    if (parent === null) return out;
+    out.add(parent.id);
+    currentId = parent.id;
+    safety -= 1;
+  }
+  return out;
 }
 
 /**
