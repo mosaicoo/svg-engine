@@ -645,12 +645,22 @@ export class PlaygroundHome implements OnDestroy {
 
   /**
    * Route a canvas pointer event to the currently active tool when it
-   * isn't the passthrough Select. Returns `true` when the tool handled
-   * the event (caller should skip the native canvas logic).
+   * isn't a passthrough selection tool. Returns `true` when the tool
+   * handled the event (caller should skip the native canvas logic).
+   *
+   * **Both Select (V) and Direct Select (A) are passthrough**: they
+   * carry no per-event handlers, only signal "use the default canvas
+   * selection behavior". The DIFFERENCE between them is the resolution
+   * mode (group vs deep) handled downstream in
+   * {@link resolveSelectableForCurrentTool} — not here. Without this
+   * dual-passthrough check the Direct Select branch would silently
+   * eat every pointerdown by routing it to a no-op tool.
    */
   private routeToActiveTool(event: PointerEvent, kind: 'down' | 'move' | 'up'): boolean {
     const tool = this.toolHost.activeTool();
-    if (tool === null || tool.id === SELECT_TOOL_ID) return false;
+    if (tool === null || tool.id === SELECT_TOOL_ID || tool.id === DIRECT_SELECT_TOOL_ID) {
+      return false;
+    }
     const docPoint = this.screenToDoc(event.clientX, event.clientY);
     if (docPoint === null) return true;
     const toolEvent: ToolPointerEvent = {
