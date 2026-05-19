@@ -345,6 +345,12 @@ export class SvgeRulers implements AfterViewInit, OnDestroy {
     const docPoint = this.screenToDoc(event.clientX, event.clientY);
     if (docPoint === null) return;
     event.preventDefault();
+    // **Stop propagation**: the rulers live INSIDE the canvas section,
+    // which has its own pointerdown handler that opens a marquee when
+    // the click misses any node. Without this stop, dragging from the
+    // ruler simultaneously creates a guide AND starts a marquee
+    // (visible as a blue selection rectangle following the drag).
+    event.stopPropagation();
     const position = axis === 'h' ? docPoint.y : docPoint.x;
     const id = this.ws.addGuide(axis, position);
     if (id === null) return;
