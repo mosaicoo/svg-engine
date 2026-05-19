@@ -284,8 +284,15 @@
           [defs]="defs()"
           [ariaLabel]="'Editable SVG document with ' + nodeCount() + ' nodes'"
         >
-          <svg:g svgePageOverlay></svg:g>
-          <svg:g svgeGridOverlay></svg:g>
+          <!-- BEHIND slot: page (the "paper") and grid render UNDER
+               the document content. Without `svgeBehind`, the page
+               rect's fill would veil shapes with semi-transparent
+               white (Illustrator/Affinity convention puts page +
+               grid as backdrop). -->
+          <svg:g svgePageOverlay svgeBehind></svg:g>
+          <svg:g svgeGridOverlay svgeBehind></svg:g>
+          <!-- FRONT slot (default): everything below renders ON TOP
+               of the content. Order = z-order (later = topmost). -->
           <svg:g svgeGuidesOverlay></svg:g>
           <svg:g svgeSelectionOverlay></svg:g>
           <svg:g svgeRotationPivot></svg:g>

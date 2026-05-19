@@ -53,12 +53,21 @@ import { ViewportService } from '../viewport/viewport.service';
       [attr.role]="'img'"
       [attr.aria-label]="ariaLabel() ?? null"
     >
+      <!--
+        BEHIND slot: overlays projected with the svgeBehind attribute
+        render UNDER the document content. Used for "background" overlays
+        like the page rect and the grid — convention from Illustrator /
+        Affinity / Figma where the page is the "paper" beneath shapes,
+        not a semi-transparent veil over them. Without this slot the
+        page rect (which carries a fill) would tint the entire content
+        area below it.
+      -->
+      <ng-content select="[svgeBehind]" />
       <svg:g svgeNode [node]="tree()"></svg:g>
       <!--
-        Overlay projection slot. Anything projected here renders **inside
-        the same <svg>** as the content, sharing viewBox, coordinate
-        system and namespace. Used by svg-engine/edit for selection
-        overlays, pivot crosshair, marquee, etc.
+        FRONT (default) slot. Anything projected here without a
+        svgeBehind attribute renders ON TOP of the content. Used for
+        selection handles, marquee, guides, snap indicators, etc.
       -->
       <ng-content />
     </svg>
