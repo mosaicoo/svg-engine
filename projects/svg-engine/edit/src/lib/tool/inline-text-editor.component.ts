@@ -9,6 +9,7 @@ import {
   viewChild,
 } from '@angular/core';
 import {
+  applyTransform,
   CommandBus,
   EditorStateService,
   findNodeById,
@@ -16,6 +17,7 @@ import {
   SetPropertyCommand,
   type TextNode,
 } from 'svg-engine/core';
+import { composeAncestorMatrix } from '../anchor-editor/compose-ancestor-matrix';
 import { InlineTextEditorService } from './text-tool.service';
 import { PLACEHOLDER_TEXT } from './text-tool.plugin';
 
@@ -154,7 +156,8 @@ export class InlineTextEditor {
         this._target.set(null);
         return;
       }
-      const node = findNodeById(this.state.document().root, id);
+      const root = this.state.document().root;
+      const node = findNodeById(root, id);
       if (node === null || node.type !== 'text') {
         // Node deleted between beginEdit and now — bail gracefully.
         this.editorSvc.endEdit();
@@ -162,11 +165,22 @@ export class InlineTextEditor {
       }
       const text = node as TextNode;
       const fontSize = text.fontSize ?? 16;
+      // **Visual position** (bug fix round 2): the editor's
+      // `<foreignObject>` is a sibling at the SVG root, so its `x`/`y`
+      // need to be in ROOT user-coords. The text node's model `(x, y)`
+      // are in node-local space (before any transforms). When the text
+      // was moved via drag (gains a `transform` on its own `<g>`) or
+      // lives inside a moved/rotated group, model coords ≠ visual
+      // position — without composing the ancestor matrix the editor
+      // appeared at the original creation spot regardless of which
+      // text the user clicked.
+      const ancestor = composeAncestorMatrix(root, id);
+      const visual = applyTransform(ancestor, text.x, text.y);
       this._target.set({
         nodeId: id,
         initialText: text.content,
-        x: text.x,
-        y: text.y,
+        x: visual.x,
+        y: visual.y,
         fontSize,
         color: text.style.fill ?? '#000000',
         // Rough estimate: 0.6em per char + padding. Cap at 800 to

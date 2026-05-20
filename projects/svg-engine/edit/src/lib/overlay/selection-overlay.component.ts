@@ -8,12 +8,17 @@ import {
   signal,
 } from '@angular/core';
 import {
+  applyTransform,
+  bbox,
   type BoundingBox,
   CommandBus,
   EditorStateService,
+  findNodeById,
   type Point,
   RotateNodeCommand,
+  type TextNode,
 } from 'svg-engine/core';
+import { composeAncestorMatrix } from '../anchor-editor/compose-ancestor-matrix';
 import { ViewportService } from 'svg-engine/render';
 import { allAnchors, type BBoxAnchor } from '../geometry/bbox-anchors';
 import {
@@ -487,11 +492,27 @@ export class SelectionOverlay {
     const ids = this.selection.selectedIds();
     const focus = this.selection.focusId();
     const hover = this.selection.hoverId();
-    this.state.document();
+    const docRoot = this.state.document().root;
 
     let focusBBox: BoundingBox | null = null;
     if (this.selection.isSingleSelection() && focus !== null) {
       focusBBox = getRenderedNodeBBox(svg, focus);
+      // **Text fallback** (bug fix #4 round 2): browsers measure
+      // `<text>` asynchronously — getBBox returns 0×0 (and we map that
+      // to null) on the same frame the node was inserted, before the
+      // font painter has run. _focusBBox=null silently disables the
+      // resize/rotation handles, so users see "handles don't work"
+      // until a later afterEveryRender catches the measured bbox.
+      // To avoid the dead window, ALWAYS estimate a bbox from the
+      // model (x/y/fontSize/content) when DOM measurement is missing.
+      // The estimate is rough but functional; once the real bbox
+      // arrives on a subsequent render, `maybeSet` swaps it in.
+      if (focusBBox === null) {
+        const node = findNodeById(docRoot, focus);
+        if (node !== null && node.type === 'text') {
+          focusBBox = estimateTextBBox(docRoot, node as TextNode, focus);
+        }
+      }
     } else if (ids.size > 1) {
       focusBBox = getCombinedBBox(svg, ids);
     }
@@ -533,6 +554,50 @@ export class SelectionOverlay {
 
 function bboxesEqual(a: BoundingBox, b: BoundingBox): boolean {
   return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
+/**
+ * Best-effort AABB for a `<text>` node when the browser hasn't measured
+ * the glyphs yet (i.e. `getBBox()` returned 0×0). Estimates width from
+ * `content.length × fontSize × 0.6` (typical average glyph width for
+ * common sans fonts) and height from `lines × fontSize × 1.2` (matches
+ * the renderer's `dy="1.2em"` multi-line spacing).
+ *
+ * **Why not waiting for fonts**: a fresh text node may still measure
+ * 0×0 on the same frame it was inserted even when fonts are cached —
+ * the SVG painter measures asynchronously. A non-null estimate keeps
+ * the resize/rotation handles functional throughout the dead window;
+ * `maybeSet` swaps in the precise DOM bbox as soon as it arrives.
+ *
+ * Composes the node's full ancestor chain (groups it lives inside) so
+ * the estimate lands on the rendered position, not on raw `(x, y)`.
+ */
+function estimateTextBBox(
+  root: import('svg-engine/core').GroupNode,
+  text: TextNode,
+  textId: import('svg-engine/core').NodeId,
+): BoundingBox {
+  const fontSize = text.fontSize ?? 16;
+  const lines = text.content.length === 0 ? [''] : text.content.split('\n');
+  const longestLineLen = lines.reduce((m, l) => Math.max(m, l.length), 0);
+  const w = Math.max(20, longestLineLen * fontSize * 0.6);
+  const h = Math.max(fontSize, lines.length * fontSize * 1.2);
+  // SVG `<text>` y is the BASELINE of the first line; the bbox top is
+  // roughly 0.8em above the baseline.
+  const localX = text.x;
+  const localY = text.y - fontSize * 0.8;
+  // Project through the ancestor chain so the estimate lands at the
+  // visual position when the text is inside a moved/rotated group.
+  const m = composeAncestorMatrix(root, textId);
+  const tl = applyTransform(m, localX, localY);
+  const tr = applyTransform(m, localX + w, localY);
+  const bl = applyTransform(m, localX, localY + h);
+  const br = applyTransform(m, localX + w, localY + h);
+  const minX = Math.min(tl.x, tr.x, bl.x, br.x);
+  const minY = Math.min(tl.y, tr.y, bl.y, br.y);
+  const maxX = Math.max(tl.x, tr.x, bl.x, br.x);
+  const maxY = Math.max(tl.y, tr.y, bl.y, br.y);
+  return bbox(minX, minY, maxX - minX, maxY - minY);
 }
 
 function capturePointer(event: PointerEvent): void {
