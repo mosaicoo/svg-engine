@@ -936,6 +936,68 @@ Modo 1 (headless puro) é garantido estruturalmente — não testável de dentro
 
 ---
 
+## D-038 — Sprint Pro-Editor: editor profissional drop-in (`<svge-shell-pro>`)
+
+- **Data**: 2026-05-20
+- **Status**: Decidida + implementada (4 phases)
+- **Contexto**: D-037 garantiu 3 modos de consumo via `<svge-editor>` (headless puro / shell completo / shell parcial / canvas-only). Mas "shell completo" era **minimal** — apenas toolbar (undo/redo/zoom) + canvas + status bar. Apps Mosaicoo que querem editor profissional **drop-in** (menu bar, context menus, tool options bar, sidebars com layers + inspector, tools palette à esquerda) tinham que compor à mão (200+ linhas de wiring). Equivalente Illustrator/Affinity/Inkscape não existia.
+
+### Decisão
+
+Criar **`<svge-shell-pro>`** como composição "tudo on por padrão", coexistindo com `<svge-editor>` (que continua intocado como "minimal drop-in"). Implementação em 4 fases incrementais:
+
+| Phase       | Entrega          | Componentes/extensões                                                                                                                                                                                    |
+| ----------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Phase 1** | Menu bar         | `<svge-menu-bar>` + `MenuContribution.parentId` (submenus) + `MenuContribution.divider` + `MENU_SLOT.*` constantes; `<svge-editor>` ganhou `[showMenuBar]` opt-in                                        |
+| **Phase 2** | Context menu     | `<svge-context-menu>` + `SvgeContextMenuService` (CDK Overlay) + `[svgeContextMenu]` diretiva + `CONTEXT_MENU_SLOT.*`; `<svge-editor>` ganhou `[showContextMenu]` + `[contextMenuSlot]` opt-in           |
+| **Phase 3** | Tool options     | `<svge-tool-options>` (NgComponentOutlet do `Tool.optionsComponent`) + extensão da interface `Tool` (campo opcional); `<svge-editor>` ganhou `[showToolOptions]` + `[toolOptionsShowPlaceholder]` opt-in |
+| **Phase 4** | Composição final | `<svge-shell-pro>` (grid: menu + toolbar + tool-options + [tools palette \| canvas \| layers+inspector] + status); `<svge-tools-palette>` auxiliar (le `ToolRegistry.tools()`)                           |
+
+### Slots de contribuição introduzidos
+
+| Categoria                   | Slots canônicos                                                                          |
+| --------------------------- | ---------------------------------------------------------------------------------------- |
+| Menu bar (top dropdowns)    | `menu.file` / `menu.edit` / `menu.view` / `menu.object` / `menu.help`                    |
+| Context menus (right-click) | `context.canvas` / `context.node` / `context.layer` / `context.anchor` / `context.guide` |
+| Toolbar items               | `toolbar.main` (já existente; plugins contribuem ícones aqui)                            |
+
+Constantes `MENU_SLOT` e `CONTEXT_MENU_SLOT` exportadas de `svg-engine/ui` para evitar string-mongering.
+
+### Invariantes preservadas
+
+- **D-017 (headless boundary)**: `<svge-shell-pro>` vive em `svg-engine/ui` — modo 1 (headless puro) intocado, zero Material.
+- **D-037 (3 modos)**: `<svge-editor>` continua exatamente como estava (defaults `showToolbar=true`, `showStatusBar=true`; novos flags `showMenuBar`/`showContextMenu`/`showToolOptions` defaultam `false` para não alterar comportamento). Modos 2/3/4 inalterados por padrão.
+- **D-020 plugin scaffolding**: novas peças usam o `MenuContributionRegistry` existente. Plugin authoring is the same; novos slots usam o mesmo `register()`.
+
+### Diferença `<svge-editor>` vs `<svge-shell-pro>`
+
+| Aspecto       | `<svge-editor>` (Bloco 4a + D-034/035/038 opt-in)     | `<svge-shell-pro>` (D-038 Phase 4)                               |
+| ------------- | ----------------------------------------------------- | ---------------------------------------------------------------- |
+| Defaults      | toolbar + canvas + status (D-037 modes 2-4)           | TUDO ativo (defaults profissionais)                              |
+| Layout        | flexbox vertical simples                              | CSS grid + sidebars dockáveis                                    |
+| Tools palette | ❌                                                    | ✅ esquerda                                                      |
+| Layers panel  | ❌                                                    | ✅ direita topo                                                  |
+| Inspector     | ❌                                                    | ✅ direita baixo                                                 |
+| Menu bar      | opt-in via `[showMenuBar]`                            | sempre on                                                        |
+| Use case      | Mosaicoo embed em painéis, canvas-only, shell minimal | Mosaicoo "editor pro" página dedicada, drop-in Illustrator-grade |
+
+### Garantias verificadas
+
+- ✅ **1016/1016 specs** passando (Phase 4 não adicionou specs novos, mas regrediu nenhum; menu-bar/context-menu/tool-options trouxeram +23 specs nas fases anteriores)
+- ✅ 6 entry points build clean
+- ✅ Playground build clean (5 rotas cobrindo modos 1-5)
+- ✅ ESLint clean
+- ✅ Nova rota `/shell-pro-demo` no playground (nav entry com ⭐)
+- ✅ Stamp Tool demo plugin valida `Tool.optionsComponent` end-to-end
+
+### Quando reabrir
+
+- Se aparecer caso de uso onde `<svge-shell-pro>` precisa flags individuais (probably algum subset da Mosaicoo querendo o pro mas sem layers panel): expor `[showLayersPanel]` / `[showInspector]` flags. Hoje a opinião do shell-pro é "vem com tudo ou usa svge-editor".
+- Se layout dockável "à la VSCode" (drag-and-drop de panels) for demandado: refatorar para `<svge-dock-layout>` + persist em localStorage.
+- D-022b ainda pendente (pivot afetar scale/resize). Independente desta sprint.
+
+---
+
 ## Decisões pendentes (em aberto)
 
 | ID provis. | Tema                                                                   |

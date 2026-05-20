@@ -6,6 +6,79 @@
 
 ---
 
+## 2026-05-20 — Sprint Pro-Editor (D-038): editor profissional drop-in (`<svge-shell-pro>`)
+
+**Contexto**
+
+Após D-037 garantir os 3 modos de consumo via `<svge-editor>`, ficou claro que o "shell completo" ainda era **minimal** (apenas toolbar undo/redo/zoom + canvas + status). Apps Mosaicoo querendo editor profissional drop-in — menu bar, context menus, tool options bar, tools palette, sidebars com layers + inspector — precisavam compor 200+ linhas à mão. Equivalente Illustrator/Affinity/Inkscape como single component não existia.
+
+**Solução** (D-038 — 4 phases incrementais, 4 commits, ~1h de trabalho)
+
+Cada phase: componente novo em `svg-engine/ui` + opt-in no `<svge-editor>` + reflexo nas 4 visões do playground + push individual.
+
+### Phase 1 — `<svge-menu-bar>` (commit `2e4bb8b`)
+
+- Material dropdowns (File / Edit / View / Object / Help) lendo `MenuContributionRegistry`.
+- `MenuContribution` ganhou `parentId?` (submenus cascading) + `divider?` — aditivos.
+- Constantes `MENU_SLOT.*` exportadas de `svg-engine/ui`.
+- `<svge-editor>` ganhou `[showMenuBar]` (default `false`).
+- `demoMenuBarPlugin` no playground com 12 items + submenu Edit > Transform.
+- +7 specs.
+
+### Phase 2 — `<svge-context-menu>` (commit `905e0a1`)
+
+- Componente + `SvgeContextMenuService` (CDK Overlay, single-instance) + `[svgeContextMenu="slot"]` diretiva.
+- Slots `context.canvas / node / layer / anchor / guide` (constantes `CONTEXT_MENU_SLOT.*`).
+- Dismiss on outside-click / Escape / item click.
+- `<svge-editor>` ganhou `[showContextMenu]` + `[contextMenuSlot]`.
+- Shell-completo + shell-canvas-only ativam por padrão (right-click é affordance universal).
+- +9 specs.
+
+### Phase 3 — `<svge-tool-options>` (commit `85eac4c`)
+
+- `Tool` interface ganhou `optionsComponent?: Type<unknown>` (aditivo, zero break).
+- `<svge-tool-options>` renderiza via `*ngComponentOutlet`, com tool label + icon ao lado.
+- `<svge-editor>` ganhou `[showToolOptions]` + `[toolOptionsShowPlaceholder]`.
+- **Stamp Tool** demo no playground (shortcut **K**): options component com radius (5/10/20/50) + color (red/blue/green) togglers; click no canvas dropa círculo com params escolhidos.
+- +7 specs.
+
+### Phase 4 — `<svge-shell-pro>` + `<svge-tools-palette>` (commit `0548814`)
+
+- `<svge-tools-palette>` (auxiliar): strip vertical lendo `ToolRegistry.tools()`.
+- `<svge-shell-pro>`: composição final grid (menu / toolbar / tool-options / [tools | canvas | layers+inspector] / status), context menu sempre ativo.
+- Coexiste com `<svge-editor>` — não substitui.
+- Nova rota `/shell-pro-demo` no playground + nav entry "Shell profissional ⭐".
+
+**Garantias verificadas**
+
+- ✅ **1016/1016 specs** (+23 do total acumulado: 7 menu-bar + 9 context-menu + 7 tool-options)
+- ✅ 6 entry points build clean em todas as fases
+- ✅ Playground build clean (5 rotas demonstrando modos 1-5)
+- ✅ ESLint clean em todos arquivos tocados
+- ✅ D-037 invariantes preservadas (modos 1-4 inalterados por padrão)
+- ✅ `<svge-editor>` zero regressão de comportamento
+
+**Estrutura final do shell-pro**
+
+```
+┌────────────────────────────────────────────────────────┐
+│ <svge-menu-bar> (File / Edit / View / Object / Help)   │
+├────────────────────────────────────────────────────────┤
+│ <svge-toolbar slot="toolbar.main">                     │
+├────────────────────────────────────────────────────────┤
+│ <svge-tool-options> (Tool.optionsComponent active tool)│
+├────┬───────────────────────────────────┬───────────────┤
+│Tool│                                   │<svge-layers-> │
+│Pal │  <svge-renderer> + overlays       │  panel        │
+│ette│  + [svgeContextMenu]              ├───────────────┤
+│    │                                   │<svge-inspect> │
+├────┴───────────────────────────────────┴───────────────┤
+│ <svge-status-bar>                                       │
+└────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## 2026-05-20 — Shell-refinement: D-034 + D-035 + D-037 (invariantes Mosaicoo)
 
 **Contexto**
