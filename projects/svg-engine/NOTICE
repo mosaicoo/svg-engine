@@ -1,0 +1,21 @@
+SVGEngine
+Copyright 2026 Mosaicoo
+
+This product includes software developed at Mosaicoo.
+
+------------------------------------------------------------------------
+Third-party dependencies (bundled or peer):
+
+  Angular (https://angular.dev) — MIT License
+    Copyright (c) Google LLC
+
+  polygon-clipping (https://github.com/mfogel/polygon-clipping) — MIT License
+    Copyright (c) 2018 Mike Fogel
+
+  tslib (https://www.typescriptlang.org/) — Apache-2.0 / 0BSD
+    Copyright (c) Microsoft Corporation
+
+  RxJS (https://rxjs.dev) — Apache-2.0
+    Copyright (c) Google LLC
+
+See LICENSE for the Apache License, Version 2.0 governing this work.

@@ -5,10 +5,14 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
+    "build:lib": "ng build svg-engine",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
+    "test:lib": "ng test svg-engine --watch=false",
     "lint": "ng lint",
-    "prepare": "husky"
+    "prepare": "husky",
+    "pack:lib": "npm run build:lib && cd dist/svg-engine && npm pack --dry-run",
+    "publish:lib": "npm run build:lib && cd dist/svg-engine && npm publish --access public"
   },
   "private": true,
   "packageManager": "npm@10.9.2",

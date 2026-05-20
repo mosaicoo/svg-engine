@@ -98,6 +98,7 @@ import {
   SvgeInspector,
   SvgeIsolationBreadcrumb,
   SvgeRulers,
+  SvgeSvgSourceDialog,
   SvgeThemeToggle,
   SvgeWorkspaceSettings,
 } from 'svg-engine/ui';
@@ -511,6 +512,22 @@ export class PlaygroundHome implements OnDestroy {
    */
   protected openWorkspaceSettings(): void {
     this.dialog.open(SvgeWorkspaceSettings, { width: '420px' });
+  }
+
+  /**
+   * Open the SVG source viewer dialog (Inkscape "XML Editor" parity).
+   * Shows the live serialized output of the current document via the
+   * registered SVG exporter; refreshes reactively as the user edits.
+   * Useful for debugging, copy-paste into external tools, and seeing
+   * the diff of a single command.
+   */
+  protected openSvgSource(): void {
+    this.dialog.open(SvgeSvgSourceDialog, {
+      width: 'auto',
+      maxWidth: '90vw',
+      autoFocus: 'first-tabbable',
+      restoreFocus: true,
+    });
   }
 
   /**

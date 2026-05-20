@@ -1,6 +1,33 @@
 {
   "name": "svg-engine",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "description": "Headless-first, plugin-extensible SVG editor library for Angular v21+. Render, manipulate and optimize SVG inside any Angular app — 6 secondary entry points (core/render/io/optimize/edit/ui), Material UI is opt-in.",
+  "keywords": [
+    "svg",
+    "svg-editor",
+    "svg-renderer",
+    "svg-optimizer",
+    "vector",
+    "vector-graphics",
+    "angular",
+    "angular-library",
+    "ng-packagr",
+    "headless",
+    "plugin",
+    "pathfinder",
+    "anchor-editor"
+  ],
+  "author": "Mosaicoo",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/mosaicoo/svg-engine#readme",
+  "bugs": {
+    "url": "https://github.com/mosaicoo/svg-engine/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mosaicoo/svg-engine.git",
+    "directory": "projects/svg-engine"
+  },
   "peerDependencies": {
     "@angular/common": "^21.2.0",
     "@angular/core": "^21.2.0",
@@ -16,6 +43,7 @@
     }
   },
   "dependencies": {
+    "polygon-clipping": "^0.15.7",
     "tslib": "^2.3.0"
   },
   "sideEffects": false

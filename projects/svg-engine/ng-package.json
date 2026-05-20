@@ -3,5 +3,7 @@
   "dest": "../../dist/svg-engine",
   "lib": {
     "entryFile": "src/public-api.ts"
-  }
+  },
+  "assets": ["LICENSE", "NOTICE"],
+  "allowedNonPeerDependencies": ["polygon-clipping"]
 }

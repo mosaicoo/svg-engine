@@ -64,6 +64,13 @@
 | `ViewportService`      | Pan, zoom, contentBox/viewBox via signals                          |
 | `NodeRendererRegistry` | Plugin extensibility (D-020): registra renderers para tipos custom |
 
+### Utilitários (`./lib/util/`)
+
+| Símbolo                              | Responsabilidade                                                                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `renderTransformAttr(transform)`     | Serializa `Transform` em SVG `transform=`, omitindo identidade                                                                             |
+| `screenToDoc(svg, clientX, clientY)` | **D-036** — projeta coords client (screen) px em doc coords via `getScreenCTM().inverse()`. Guards para jsdom/SSR; retorna `Point \| null` |
+
 ---
 
 ## Entry point `svg-engine/io` (Fase 5) ✅
@@ -154,21 +161,32 @@ Plugin wrapper (`builtinOptimizersPlugin`) fica em `svg-engine/edit`.
 | `WorkspaceService`                                                                                                        | Background + page config + grid + guides + rulers + outline (presentation meta acima do `SvgDocument`). Não persiste no SVG (D-021)                                                                                                                                                                                    |
 | `MenuContributionRegistry`/`ShortcutRegistry`/`PaletteRegistry`/`ImporterRegistry`/`ExporterRegistry`/`OptimizerRegistry` | Capability registries do D-023 categorias 4-9. Todas seguem mesmo padrão: signal-backed, `register(item): Disposable`, throw em duplicate id, lookup helpers (`bySlot`/`byCategory`/`byExtension`/`byMediaType`)                                                                                                       |
 
+### Input helpers (`./lib/pointer/`) — D-036
+
+> Consolidados em 2026-05-20 (D-036) para eliminar 7+ duplicatas inline espalhadas por overlays e gestos. Funções puras importáveis por plugins de tools/overlays terceiros.
+
+| Símbolo                               | Responsabilidade                                                                                                                                           |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `capturePointer(event: PointerEvent)` | Defensive `setPointerCapture(event.pointerId)` no `event.target`. Silent no-op quando target/method indisponíveis ou browser rejeita (Safari/Firefox edge) |
+| `releasePointer(event: PointerEvent)` | Simétrico de `capturePointer`                                                                                                                              |
+| `isEditableTarget(target)`            | Gate de "estou digitando em INPUT/TEXTAREA/SELECT/contenteditable" — usado pelo `ShortcutService` para suprimir shortcuts globais durante edição de texto  |
+
 ---
 
 ## Entry point `svg-engine/ui` (Fase 4) — Angular Material
 
 ### Componentes
 
-| Selector               | Responsabilidade                                  | Fase |
-| ---------------------- | ------------------------------------------------- | ---- |
-| `<svge-editor>`        | Composição completa: canvas + toolbar + painéis   | 4    |
-| `<svge-toolbar>`       | Barra de ferramentas extensível                   | 4    |
-| `<svge-layers-panel>`  | Lista de camadas, reordenação, visibilidade, lock | 4    |
-| `<svge-inspector>`     | Propriedades do elemento selecionado              | 4    |
-| `<svge-color-palette>` | Cores e gradientes                                | 4    |
-| `<svge-context-menu>`  | Menu contextual sobre elementos                   | 4    |
-| `<svge-theme-toggle>`  | Toggle light/dark explícito (D-012 part 2)        | 4    |
+| Selector                   | Responsabilidade                                                                                                                                                                                                                                  | Fase |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| `<svge-editor>`            | Composição completa: canvas + toolbar + painéis                                                                                                                                                                                                   | 4    |
+| `<svge-toolbar>`           | Barra de ferramentas extensível                                                                                                                                                                                                                   | 4    |
+| `<svge-layers-panel>`      | Lista de camadas, reordenação, visibilidade, lock                                                                                                                                                                                                 | 4    |
+| `<svge-inspector>`         | Propriedades do elemento selecionado                                                                                                                                                                                                              | 4    |
+| `<svge-color-palette>`     | Cores e gradientes                                                                                                                                                                                                                                | 4    |
+| `<svge-context-menu>`      | Menu contextual sobre elementos                                                                                                                                                                                                                   | 4    |
+| `<svge-theme-toggle>`      | Toggle light/dark explícito (D-012 part 2)                                                                                                                                                                                                        | 4    |
+| `<svge-svg-source-dialog>` | **(2026-05-20)** Visualizador live do SVG exportado via `svgExporter` + `ExporterRegistry`. Copy-to-clipboard com fallback `execCommand`. Reativo a mudanças no document. Inkscape "XML Editor" / Boxy SVG "Source" parity. Abrir via `MatDialog` | 6    |
 
 ## Comandos
 

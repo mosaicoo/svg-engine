@@ -213,9 +213,10 @@ a fase do roadmap implementa o conteúdo.
 
 #### Util (`./lib/util/`)
 
-| Símbolo                                             | Descrição                                                                                       |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `renderTransformAttr(t: Transform): string \| null` | serializa `Transform` em `matrix(a b c d e f)`; retorna `null` para identidade (omite atributo) |
+| Símbolo                                             | Descrição                                                                                                                                                         |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `renderTransformAttr(t: Transform): string \| null` | serializa `Transform` em `matrix(a b c d e f)`; retorna `null` para identidade (omite atributo)                                                                   |
+| `screenToDoc(svg, clientX, clientY): Point \| null` | **D-036** — projeta coordenadas client/screen px em doc coords via `getScreenCTM().inverse()`. Guards defensivos para jsdom/SSR/SVG detached. Função pura, sem DI |
 
 #### Cobertura de testes (Vitest)
 
@@ -379,6 +380,16 @@ nó. Multi-seleção: pivot é transient e reseta na mudança de composição
 
 Ver [`docs/10-guia-plugin.md`](10-guia-plugin.md) para receitas práticas.
 
+#### Input helpers (`./lib/pointer/`) — D-036
+
+> Consolidados em 2026-05-20 para eliminar 7+ duplicatas inline. Funções puras importáveis por plugins de tools/overlays.
+
+| Símbolo                                                  | Descrição                                                                                                                                                             |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `capturePointer(event: PointerEvent): void`              | Defensive `event.target.setPointerCapture(event.pointerId)` com guards uniformes (Element instance, método existe, try/catch para browser rejection — Safari/Firefox) |
+| `releasePointer(event: PointerEvent): void`              | Simétrico — `event.target.releasePointerCapture(event.pointerId)`                                                                                                     |
+| `isEditableTarget(target: EventTarget \| null): boolean` | True para INPUT/TEXTAREA/SELECT/contenteditable — usado para suprimir shortcuts globais durante edição de texto                                                       |
+
 #### Tools (Bloco 5b — `./lib/tool/`)
 
 | Símbolo                                     | Descrição                                                                                                            |
@@ -534,9 +545,10 @@ seção 2026-05-18.
 
 #### Dialog
 
-| Selector / símbolo      | Descrição                                                                                              |
-| ----------------------- | ------------------------------------------------------------------------------------------------------ |
-| `SvgeWorkspaceSettings` | Material dialog: page (width/height/orientation) + grid (enabled/spacing/majorEvery) + rulers + guides |
+| Selector / símbolo      | Descrição                                                                                                                                                                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SvgeWorkspaceSettings` | Material dialog: page (width/height/orientation) + grid (enabled/spacing/majorEvery) + rulers + guides                                                                                                                                     |
+| `SvgeSvgSourceDialog`   | **(2026-05-20)** Visualizador live de SVG exportado via `ExporterRegistry.byMediaType('image/svg+xml')` (fallback `svgExporter`). Reativo a `state.document()`. Copy-to-clipboard com fallback `execCommand`. Inkscape "XML Editor" parity |
 
 #### Services
 

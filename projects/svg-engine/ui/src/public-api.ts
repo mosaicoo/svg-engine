@@ -54,3 +54,6 @@ export * from './lib/effects-panel';
 
 // Pro-grade color picker (Sprint C-ColorPicker)
 export * from './lib/color-picker';
+
+// SVG source viewer dialog (Inkscape "XML Editor" / Boxy SVG "Source" parity)
+export * from './lib/svg-source-dialog';
