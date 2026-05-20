@@ -2,11 +2,14 @@ import { ChangeDetectionStrategy, Component, computed, ElementRef, inject } from
 import {
   type AnchorPoint,
   type AnchorRef,
+  applyTransform,
   CommandBus,
   EditorStateService,
+  invert,
   MoveAnchorCommand,
   parsePathToAnchors,
   type Point,
+  type Transform,
 } from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
 import { SelectionService } from '../selection/selection.service';
@@ -182,6 +185,13 @@ export class AnchorOverlay {
     const target = findById(doc.root, focusId);
     if (target === null || target.type !== 'path') return null;
     const subpaths = parsePathToAnchors(target.d);
+    // The anchor `d` coordinates are in the NODE-LOCAL frame (before
+    // the node's `transform` is applied). The overlay renders inside
+    // the same `<svg viewBox>` as the content, so we must transform
+    // each rendered point through the node's own transform — otherwise
+    // moving a shape leaves the anchor squares stuck at the original
+    // location (the bug user reported with the dotted-line trail).
+    const t = target.transform;
     const out: AnchorEntry[] = [];
     for (let s = 0; s < subpaths.length; s++) {
       const sub = subpaths[s]!;
@@ -196,10 +206,19 @@ export class AnchorOverlay {
         // straight-line segments having no handle visualization.
         const hasHandleIn = !pointsEqual(anchor.handleIn, anchor.point);
         const hasHandleOut = !pointsEqual(anchor.handleOut, anchor.point);
+        // Render-space anchor: node-local coords transformed through
+        // the node's own transform. Comparing rendered handle vs
+        // rendered point preserves the "flat" detection.
+        const renderedAnchor: AnchorPoint = {
+          point: applyTransform2D(t, anchor.point),
+          handleIn: applyTransform2D(t, anchor.handleIn),
+          handleOut: applyTransform2D(t, anchor.handleOut),
+          kind: anchor.kind,
+        };
         out.push({
           key: `${s}:${i}`,
           ref,
-          anchor,
+          anchor: renderedAnchor,
           hasHandleIn,
           hasHandleOut,
           isSelected: this.anchorSelection.isSelected(ref),
@@ -214,9 +233,19 @@ export class AnchorOverlay {
   private dragState: {
     readonly ref: AnchorRef;
     readonly which: 'point' | 'handleIn' | 'handleOut';
+    /** Cursor doc-space position at gesture start (for delta math). */
     readonly startDocPoint: Point;
-    /** Snapshot of original anchor position for preview math. */
+    /**
+     * Original anchor position **in NODE-LOCAL coords** (the `d`-space
+     * the parser/serializer speak). All `MoveAnchorCommand` calls
+     * receive local-space points; we project the doc-space cursor
+     * delta into local via the inverse of `nodeTransform`.
+     */
     readonly originalPos: Point;
+    /** Snapshot of the node's own transform at gesture start. */
+    readonly nodeTransform: import('svg-engine/core').Transform;
+    /** Precomputed inverse to avoid recomputing every move frame. */
+    readonly inverseNodeTransform: import('svg-engine/core').Transform;
   } | null = null;
 
   protected onPointerDown(
@@ -236,10 +265,12 @@ export class AnchorOverlay {
     }
     const docPoint = this.screenToDoc(event.clientX, event.clientY);
     if (docPoint === null) return;
-    // Stash the anchor's original coord for the moved field (point /
-    // handleIn / handleOut) so updateMove can compute the new position
-    // by ADDING the cursor delta to it, instead of teleporting to the
-    // cursor itself (which would feel offset).
+    // Capture the anchor's NODE-LOCAL position (the `d`-space the
+    // parser returns). When the node has a transform applied (move,
+    // rotation, scale), the doc-space cursor delta must be projected
+    // through the inverse of that transform to produce a valid
+    // local-space delta — otherwise moving an anchor on a translated
+    // shape "teleports" because we'd be summing local + doc.
     const anchorData = this.anchorAt(ref);
     if (anchorData === null) return;
     const originalPos =
@@ -248,10 +279,50 @@ export class AnchorOverlay {
         : which === 'handleIn'
           ? anchorData.handleIn
           : anchorData.handleOut;
-    this.dragState = { ref, which, startDocPoint: docPoint, originalPos };
+    const node = findById(this.state.document().root, ref.nodeId);
+    if (node === null) return;
+    let inverseNodeTransform: import('svg-engine/core').Transform;
+    try {
+      inverseNodeTransform = invertMatrix(node.transform);
+    } catch {
+      // Non-invertible (degenerate) transform — bail out of the drag
+      // gracefully; the user can reset the transform and try again.
+      return;
+    }
+    this.dragState = {
+      ref,
+      which,
+      startDocPoint: docPoint,
+      originalPos,
+      nodeTransform: node.transform,
+      inverseNodeTransform,
+    };
     (event.target as Element & { setPointerCapture?(id: number): void }).setPointerCapture?.(
       event.pointerId,
     );
+  }
+
+  /**
+   * Compute the new LOCAL-SPACE anchor position from the current
+   * doc-space cursor. Used by both `onPointerMove` (preview) and
+   * `onPointerUp` (commit) — kept as a method so the math has one
+   * source of truth.
+   */
+  private resolveLocalPos(docPoint: Point): Point | null {
+    if (this.dragState === null) return null;
+    // Convert both endpoints (start + current) to local space and
+    // take the delta there. Equivalent to projecting just the delta
+    // through the linear part of inverseTransform, but slightly more
+    // robust against transforms with non-trivial translation.
+    const startLocal = applyTransform2D(
+      this.dragState.inverseNodeTransform,
+      this.dragState.startDocPoint,
+    );
+    const cursorLocal = applyTransform2D(this.dragState.inverseNodeTransform, docPoint);
+    return {
+      x: this.dragState.originalPos.x + (cursorLocal.x - startLocal.x),
+      y: this.dragState.originalPos.y + (cursorLocal.y - startLocal.y),
+    };
   }
 
   protected onPointerMove(event: PointerEvent): void {
@@ -259,17 +330,11 @@ export class AnchorOverlay {
     event.stopPropagation();
     const docPoint = this.screenToDoc(event.clientX, event.clientY);
     if (docPoint === null) return;
-    const dx = docPoint.x - this.dragState.startDocPoint.x;
-    const dy = docPoint.y - this.dragState.startDocPoint.y;
-    const newPos: Point = {
-      x: this.dragState.originalPos.x + dx,
-      y: this.dragState.originalPos.y + dy,
-    };
-    // Live dispatch — the command captures previousD on FIRST execute
-    // and overwrites on subsequent calls. That's wasteful undo-wise
-    // (each frame creates one undo entry); a future polish should add
-    // a `previewMove`/`commitMove` split. For now we dispatch the
-    // final command on pointerup only, and mutate state directly here.
+    const newPos = this.resolveLocalPos(docPoint);
+    if (newPos === null) return;
+    // Preview mutates `state.document()` directly via patchPathD —
+    // single source of truth, MoveAnchorCommand isn't dispatched until
+    // pointerup so undo gets one entry per gesture.
     this.applyPreview(newPos);
   }
 
@@ -284,16 +349,18 @@ export class AnchorOverlay {
       this.dragState = null;
       return;
     }
-    const dx = docPoint.x - this.dragState.startDocPoint.x;
-    const dy = docPoint.y - this.dragState.startDocPoint.y;
-    if (Math.abs(dx) < 1e-4 && Math.abs(dy) < 1e-4) {
+    const newPos = this.resolveLocalPos(docPoint);
+    if (newPos === null) {
       this.dragState = null;
       return;
     }
-    const newPos: Point = {
-      x: this.dragState.originalPos.x + dx,
-      y: this.dragState.originalPos.y + dy,
-    };
+    if (
+      Math.abs(newPos.x - this.dragState.originalPos.x) < 1e-4 &&
+      Math.abs(newPos.y - this.dragState.originalPos.y) < 1e-4
+    ) {
+      this.dragState = null;
+      return;
+    }
     // Revert preview, then dispatch the proper command (single undo entry).
     this.revertPreview();
     this.bus.dispatch(new MoveAnchorCommand(this.dragState.ref, newPos, this.dragState.which));
@@ -551,4 +618,24 @@ function buildSeg(prev: AnchorPoint, cur: AnchorPoint): string {
 
 function fmt(n: number): string {
   return Number.isInteger(n) ? `${n}` : Number(n.toFixed(4)).toString();
+}
+
+/**
+ * Apply a 2D affine transform to a point. Thin wrapper around core's
+ * `applyTransform` exposing a Point-returning signature (so the
+ * caller can spread/destructure cleanly).
+ */
+function applyTransform2D(t: Transform, p: Point): Point {
+  const r = applyTransform(t, p.x, p.y);
+  return { x: r.x, y: r.y };
+}
+
+/**
+ * Thin wrapper around core's `invert` that surfaces the same throw
+ * semantics — kept here so the overlay's drag setup has a clear
+ * call site (and so the import block at the top stays paired:
+ * applyTransform2D + invertMatrix, both relating to drag math).
+ */
+function invertMatrix(t: Transform): Transform {
+  return invert(t);
 }

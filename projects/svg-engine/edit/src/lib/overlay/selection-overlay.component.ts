@@ -213,18 +213,33 @@ export class SelectionOverlay {
 
   /**
    * Transform handles (resize squares + rotation circle) are shown
-   * only when **single selection** AND the active tool isn't
-   * Direct Select. Direct Select (A) hands the editing surface over
-   * to the `AnchorOverlay` — showing the bbox transform handles on
-   * top would clutter the UI with two overlapping interaction
-   * targets (the user reported this confusion in a screenshot).
+   * when **single selection** is active, with one Illustrator-style
+   * exception: hide them when Direct Select (A) is active AND the
+   * focused node is a `path` — because the `AnchorOverlay` is then
+   * showing anchor points for that path, and the two overlays
+   * overlapping would clutter the canvas.
    *
-   * The bbox **outline** itself stays visible in both tools so the
-   * user can still see which node is focused.
+   * For non-path types under Direct Select (rect, ellipse, line,
+   * polygon, polyline, group, text, image) we KEEP the transform
+   * handles — Direct Select on them has no anchor surface to switch
+   * to, so removing handles would just disable editing. Matches
+   * Illustrator's behavior precisely (Direct Selection Tool on a
+   * rect still shows the bbox handles because rect has no
+   * editable nodes; convert it to a path first to get anchors).
+   *
+   * The bbox **outline** stays visible in both tools so the user
+   * can always see which node is focused.
    */
-  protected readonly showsTransformHandles = computed(
-    () => this.singleSelection() && this.toolHost.activeId() !== DIRECT_SELECT_TOOL_ID,
-  );
+  protected readonly showsTransformHandles = computed(() => {
+    if (!this.singleSelection()) return false;
+    if (this.toolHost.activeId() !== DIRECT_SELECT_TOOL_ID) return true;
+    // Direct Select active — hide handles only when the focused node
+    // is a path (the only type the anchor overlay renders).
+    const focusId = this.selection.focusId();
+    if (focusId === null) return true;
+    const node = findFocusedType(this.state.document().root, focusId);
+    return node !== 'path';
+  });
 
   /** Handle size in document units (kept constant in screen pixels via 1/zoom). */
   protected readonly handleSize = computed(() => HANDLE_PX / this.viewport.zoom());
@@ -403,3 +418,23 @@ function releasePointer(event: PointerEvent): void {
 
 /** Re-export for convenience: caller may want to reference the data attribute name. */
 export { HANDLE_DATA_ATTR };
+
+/**
+ * Returns the `type` of the focused node, walking the tree from
+ * `root`. Inlined here so `showsTransformHandles` doesn't pay the
+ * full `findNodeById` import chain — we only need the type field
+ * and the walk is the same.
+ */
+function findFocusedType(
+  node: import('svg-engine/core').SvgNode,
+  id: import('svg-engine/core').NodeId,
+): import('svg-engine/core').SvgNode['type'] | null {
+  if (node.id === id) return node.type;
+  if (node.type === 'group') {
+    for (const child of node.children) {
+      const found = findFocusedType(child, id);
+      if (found !== null) return found;
+    }
+  }
+  return null;
+}
