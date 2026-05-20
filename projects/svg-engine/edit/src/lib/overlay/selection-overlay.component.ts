@@ -19,7 +19,8 @@ import {
   type TextNode,
 } from 'svg-engine/core';
 import { composeAncestorMatrix } from '../anchor-editor/compose-ancestor-matrix';
-import { ViewportService } from 'svg-engine/render';
+import { screenToDoc, ViewportService } from 'svg-engine/render';
+import { capturePointer, releasePointer } from '../pointer';
 import { allAnchors, type BBoxAnchor } from '../geometry/bbox-anchors';
 import {
   getCombinedBBox,
@@ -525,16 +526,10 @@ export class SelectionOverlay {
   // ── Internal helpers ─────────────────────────────────────────────
 
   private screenToDoc(clientX: number, clientY: number): Point | null {
-    const svg = this.elRef.nativeElement.ownerSVGElement;
-    if (svg === null) return null;
-    const ctm = svg.getScreenCTM();
-    if (ctm === null) return null;
-    const inverse = ctm.inverse();
-    const pt = svg.createSVGPoint();
-    pt.x = clientX;
-    pt.y = clientY;
-    const userSpace = pt.matrixTransform(inverse);
-    return { x: userSpace.x, y: userSpace.y };
+    // Delegates to the canonical `screenToDoc` util in svg-engine/render
+    // (D-036). The local wrapper resolves `ownerSVGElement` from this
+    // overlay's host `<g>` so callers don't need to plumb the SVG ref.
+    return screenToDoc(this.elRef.nativeElement.ownerSVGElement, clientX, clientY);
   }
 
   /**
@@ -598,28 +593,6 @@ function estimateTextBBox(
   const maxX = Math.max(tl.x, tr.x, bl.x, br.x);
   const maxY = Math.max(tl.y, tr.y, bl.y, br.y);
   return bbox(minX, minY, maxX - minX, maxY - minY);
-}
-
-function capturePointer(event: PointerEvent): void {
-  const target = event.target as Element & { setPointerCapture?(id: number): void };
-  if (typeof target.setPointerCapture === 'function') {
-    try {
-      target.setPointerCapture(event.pointerId);
-    } catch {
-      // ignore (some browsers/elements reject capture)
-    }
-  }
-}
-
-function releasePointer(event: PointerEvent): void {
-  const target = event.target as Element & { releasePointerCapture?(id: number): void };
-  if (typeof target.releasePointerCapture === 'function') {
-    try {
-      target.releasePointerCapture(event.pointerId);
-    } catch {
-      // ignore
-    }
-  }
 }
 
 /** Re-export for convenience: caller may want to reference the data attribute name. */

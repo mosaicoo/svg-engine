@@ -1,5 +1,6 @@
 import { DOCUMENT } from '@angular/common';
 import { inject, Injectable, OnDestroy } from '@angular/core';
+import { isEditableTarget } from '../pointer/is-editable-target';
 import { ShortcutRegistry } from './shortcut-registry.service';
 
 /**
@@ -55,19 +56,4 @@ export class ShortcutService implements OnDestroy {
   ngOnDestroy(): void {
     this.stop();
   }
-}
-
-/**
- * True when the event target is an editable element where typed
- * characters should NOT trigger global shortcuts. Mirrors the
- * existing helper in the playground; lives here because the
- * `ShortcutService` is the natural owner of this policy.
- */
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (target === null) return false;
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-  if (target.isContentEditable) return true;
-  return false;
 }

@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
+import { capturePointer, releasePointer } from 'svg-engine/edit';
 import {
   formatHex,
   formatHsvAsHex,
@@ -469,9 +470,7 @@ export class SvgeColorPicker {
 
   protected onSquarePointerDown(event: PointerEvent): void {
     this.squareDragging = true;
-    (event.target as Element & { setPointerCapture?(id: number): void }).setPointerCapture?.(
-      event.pointerId,
-    );
+    capturePointer(event);
     this.updateFromSquare(event);
   }
 
@@ -482,17 +481,13 @@ export class SvgeColorPicker {
 
   protected onSquarePointerUp(event: PointerEvent): void {
     this.squareDragging = false;
-    (
-      event.target as Element & { releasePointerCapture?(id: number): void }
-    ).releasePointerCapture?.(event.pointerId);
+    releasePointer(event);
     this.commit();
   }
 
   protected onHuePointerDown(event: PointerEvent): void {
     this.hueDragging = true;
-    (event.target as Element & { setPointerCapture?(id: number): void }).setPointerCapture?.(
-      event.pointerId,
-    );
+    capturePointer(event);
     this.updateFromHue(event);
   }
 
@@ -503,9 +498,7 @@ export class SvgeColorPicker {
 
   protected onHuePointerUp(event: PointerEvent): void {
     this.hueDragging = false;
-    (
-      event.target as Element & { releasePointerCapture?(id: number): void }
-    ).releasePointerCapture?.(event.pointerId);
+    releasePointer(event);
     this.commit();
   }
 

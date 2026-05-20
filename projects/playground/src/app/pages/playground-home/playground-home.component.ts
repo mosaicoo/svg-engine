@@ -42,6 +42,7 @@ import {
   AnchorOverlay,
   AnchorSelectionService,
   AutoSaveService,
+  capturePointer,
   DIRECT_SELECT_TOOL_ID,
   type DistributeAxis,
   EffectRegistry,
@@ -51,6 +52,7 @@ import {
   GridOverlay,
   GuidesOverlay,
   ImporterRegistry,
+  isEditableTarget,
   IsolationFilter,
   IsolationService,
   LayersFilter,
@@ -67,6 +69,7 @@ import {
   PageOverlay,
   pageBoundsIn,
   PenOverlay,
+  releasePointer,
   renderPng,
   ShapeOverlay,
   resolveNodeIdFromEvent,
@@ -88,7 +91,7 @@ import {
   WorkspaceBackground,
   WorkspaceService,
 } from 'svg-engine/edit';
-import { SvgeRenderer, ViewportService } from 'svg-engine/render';
+import { screenToDoc, SvgeRenderer, ViewportService } from 'svg-engine/render';
 import {
   LayersPanel,
   SvgeEffectsPanel,
@@ -1232,58 +1235,21 @@ export class PlaygroundHome implements OnDestroy {
     }
   }
 
+  /**
+   * Thin wrapper over the canonical `screenToDoc` util (D-036). The
+   * playground talks to the canvas via a `document.querySelector` (no
+   * local SVG ref because the renderer is provided as a child component),
+   * so we resolve the `<svg>` here and delegate the math to the util.
+   */
   private screenToDoc(clientX: number, clientY: number): Point | null {
-    const svg = document.querySelector('svge-renderer svg');
-    if (svg === null) return null;
-    const svgRoot = svg as unknown as SVGSVGElement;
-    const ctm = svgRoot.getScreenCTM();
-    if (ctm === null) return null;
-    const inverse = ctm.inverse();
-    const pt = svgRoot.createSVGPoint();
-    pt.x = clientX;
-    pt.y = clientY;
-    const userSpace = pt.matrixTransform(inverse);
-    return { x: userSpace.x, y: userSpace.y };
-  }
-}
-
-function capturePointer(event: PointerEvent): void {
-  const target = event.target as Element & { setPointerCapture?(id: number): void };
-  if (typeof target.setPointerCapture === 'function') {
-    try {
-      target.setPointerCapture(event.pointerId);
-    } catch {
-      // ignore (some browsers/elements reject capture)
-    }
-  }
-}
-
-function releasePointer(event: PointerEvent): void {
-  const target = event.target as Element & { releasePointerCapture?(id: number): void };
-  if (typeof target.releasePointerCapture === 'function') {
-    try {
-      target.releasePointerCapture(event.pointerId);
-    } catch {
-      // ignore
-    }
+    const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+    return screenToDoc(svg, clientX, clientY);
   }
 }
 
 function randomPastel(): string {
   const hue = Math.floor(Math.random() * 360);
   return `hsl(${hue} 60% 75%)`;
-}
-
-/**
- * True when the event target is a text-editing element (input, textarea,
- * contenteditable). Used to gate single-key tool shortcuts so typing in
- * the inspector doesn't accidentally swap tools.
- */
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-  return target.isContentEditable;
 }
 
 /**

@@ -9,7 +9,8 @@ import {
   type OnDestroy,
   signal,
 } from '@angular/core';
-import { ViewportService } from 'svg-engine/render';
+import { screenToDoc, ViewportService } from 'svg-engine/render';
+import { capturePointer, releasePointer } from '../pointer';
 import { WorkspaceService } from './workspace.service';
 
 /**
@@ -357,9 +358,7 @@ export class GuidesOverlay implements AfterViewInit, OnDestroy {
       startPosition: position,
       startCursor: axis === 'h' ? docPoint.y : docPoint.x,
     };
-    (event.target as Element & { setPointerCapture?(id: number): void }).setPointerCapture?.(
-      event.pointerId,
-    );
+    capturePointer(event);
     event.stopPropagation();
   }
 
@@ -374,9 +373,7 @@ export class GuidesOverlay implements AfterViewInit, OnDestroy {
 
   protected onPointerUp(event: PointerEvent): void {
     if (this.dragState === null) return;
-    (
-      event.target as Element & { releasePointerCapture?(id: number): void }
-    ).releasePointerCapture?.(event.pointerId);
+    releasePointer(event);
     this.dragState = null;
     event.stopPropagation();
   }
@@ -435,20 +432,13 @@ export class GuidesOverlay implements AfterViewInit, OnDestroy {
     this.ws.moveGuide(id, position + delta);
   }
 
+  /**
+   * Convert client (screen) pixels to doc coords via the shared util
+   * (D-036). Resolves the owning `<svg>` of this overlay's host `<g>`;
+   * returns null in jsdom / SSR / detached scenarios so the drag handler
+   * no-ops cleanly.
+   */
   private screenToDoc(clientX: number, clientY: number): { x: number; y: number } | null {
-    const svg = this.elRef.nativeElement.ownerSVGElement;
-    if (svg === null) return null;
-    // jsdom doesn't implement getScreenCTM (returns nothing — not even
-    // null), and some environments may return null for detached SVGs.
-    // Defensive cast + guard against both cases.
-    const ctm =
-      typeof svg.getScreenCTM === 'function' ? (svg.getScreenCTM() as DOMMatrix | null) : null;
-    if (ctm === null) return null;
-    const inverse = ctm.inverse();
-    const pt = svg.createSVGPoint();
-    pt.x = clientX;
-    pt.y = clientY;
-    const userSpace = pt.matrixTransform(inverse);
-    return { x: userSpace.x, y: userSpace.y };
+    return screenToDoc(this.elRef.nativeElement.ownerSVGElement, clientX, clientY);
   }
 }

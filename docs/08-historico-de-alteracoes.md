@@ -6,6 +6,61 @@
 
 ---
 
+## 2026-05-20 — Consolidação de helpers compartilhados (D-036)
+
+**Contexto**
+
+Auditoria pós-D-026 (extração io/optimize) revelou outro tipo de débito acumulado, ortogonal ao estrutural: **helpers de input duplicados em paralelo entre 5 e 7 vezes**, com drift visível entre as cópias.
+
+**Diagnóstico**
+
+| Helper                     | Lugares (antes)                                                                                                        | Padrão                                                            |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `screenToDoc(x, y)`        | playground, selection-overlay, canvas-gestures, guides-overlay, anchor-overlay, rotation-pivot, rulers — **6+** cópias | Inversão de `getScreenCTM()` com guards defensivos para jsdom/SSR |
+| Pointer capture inline     | 7 cópias (mesmas + color-picker)                                                                                       | `setPointerCapture(event.pointerId)` em try/catch defensivo       |
+| Pointer release inline     | 7 cópias                                                                                                               | Simétrico                                                         |
+| `isEditableTarget(target)` | 2 cópias (privada em `shortcut.service` + file-local no playground)                                                    | Gate `<input>`/`<textarea>`/`<select>`/`contenteditable`          |
+
+Drift já presente: algumas versões usavam `?.` chaining, outras `typeof ===`, outras `'method' in target`. Algumas tinham guard de `createSVGPoint`, outras não. Cada novo overlay/gesto copiava uma versão arbitrária, perpetuando.
+
+**Solução** (D-036, registrada em `04-decisoes-tecnicas.md`)
+
+Dois módulos canônicos com exports públicos:
+
+- `svg-engine/render/lib/util/screen-to-doc.ts` — `screenToDoc(svg, clientX, clientY): Point | null`, função pura. Vive em `/render` (camada que dona o `<svg>`).
+- `svg-engine/edit/lib/pointer/` — `capturePointer(event)`, `releasePointer(event)`, `isEditableTarget(target)`. Vive em `/edit` (consumers são editor surfaces).
+
+**Sites migrados** (9 arquivos)
+
+Library:
+
+- `selection-overlay.component.ts` — removeu screenToDoc local + helpers no rodapé
+- `canvas-gestures.directive.ts` — removeu screenToDoc + inline capture/release (release usa cast `unknown as PointerEvent` porque opera sobre target/id armazenados)
+- `guides-overlay.component.ts` — removeu screenToDoc + inline capture/release
+- `anchor-overlay.component.ts` — removeu screenToDoc + inline capture/release
+- `rotation-pivot.component.ts` — removeu screenToDoc + inline capture/release
+- `color-picker.component.ts` (ui) — 4 inline capture/release → imports
+- `rulers.component.ts` (ui) — removeu screenToDoc local
+- `shortcut.service.ts` — local privada → import do canonical
+
+Playground:
+
+- `playground-home.component.ts` — removeu 4 helpers locais (~80 linhas)
+
+**Garantias verificadas**
+
+- ✅ **973/973 specs** passing (+25 novos: screen-to-doc.spec + pointer.spec)
+- ✅ Build full 6 entry points clean
+- ✅ Playground compila sem ajuste funcional (só substituiu imports)
+- ✅ ESLint clean
+
+**Outras pendências registradas neste turno**
+
+- **D-034**: `<svge-toolbar>` materializando `MenuContributionRegistry` (pendente — shell-refinement pós-Fase 6d)
+- **D-035**: `<svge-status-bar>` (cursor, zoom, tools, selection, snap, dirty, isolation breadcrumb) — mesmo timing
+
+---
+
 ## 2026-05-20 — Alinhamento estrutural: extração de `svg-engine/io` + `/optimize` (D-026)
 
 **Contexto**

@@ -9,7 +9,8 @@ import {
   signal,
 } from '@angular/core';
 import { type BoundingBox, EditorStateService, type Point } from 'svg-engine/core';
-import { ViewportService } from 'svg-engine/render';
+import { screenToDoc, ViewportService } from 'svg-engine/render';
+import { capturePointer, releasePointer } from '../pointer';
 import {
   allAnchors,
   BBOX_ANCHORS,
@@ -311,16 +312,7 @@ export class RotationPivot implements OnDestroy {
     };
     this._drag.set(drag);
 
-    const target = event.target as Element;
-    if ('setPointerCapture' in target) {
-      try {
-        (target as Element & { setPointerCapture(id: number): void }).setPointerCapture(
-          event.pointerId,
-        );
-      } catch {
-        // ignore — some browsers/elements reject capture
-      }
-    }
+    capturePointer(event);
     event.stopPropagation();
   }
 
@@ -361,14 +353,7 @@ export class RotationPivot implements OnDestroy {
     }
 
     this._drag.set(null);
-    const target = event.target as Element & { releasePointerCapture?(id: number): void };
-    if (typeof target.releasePointerCapture === 'function') {
-      try {
-        target.releasePointerCapture(event.pointerId);
-      } catch {
-        // ignore
-      }
-    }
+    releasePointer(event);
   }
 
   protected onDoubleClick(event: MouseEvent): void {
@@ -468,17 +453,13 @@ export class RotationPivot implements OnDestroy {
     this.maybeSet(this._bbox, next);
   }
 
+  /**
+   * Convert client (screen) coords to doc coords via the shared util
+   * (D-036). Resolves the overlay's owning `<svg>`; returns null when
+   * the SVG isn't reachable (jsdom / SSR / detached).
+   */
   private screenToDoc(clientX: number, clientY: number): Point | null {
-    const svg = this.elRef.nativeElement.ownerSVGElement;
-    if (svg === null) return null;
-    const ctm = svg.getScreenCTM();
-    if (ctm === null) return null;
-    const inverse = ctm.inverse();
-    const pt = svg.createSVGPoint();
-    pt.x = clientX;
-    pt.y = clientY;
-    const userSpace = pt.matrixTransform(inverse);
-    return { x: userSpace.x, y: userSpace.y };
+    return screenToDoc(this.elRef.nativeElement.ownerSVGElement, clientX, clientY);
   }
 
   private maybeSet(

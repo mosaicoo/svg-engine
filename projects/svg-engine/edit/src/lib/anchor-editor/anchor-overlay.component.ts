@@ -15,7 +15,8 @@ import {
   type Transform,
 } from 'svg-engine/core';
 import { composeAncestorMatrix } from './compose-ancestor-matrix';
-import { ViewportService } from 'svg-engine/render';
+import { screenToDoc, ViewportService } from 'svg-engine/render';
+import { capturePointer, releasePointer } from '../pointer';
 import { SelectionService } from '../selection/selection.service';
 import { DIRECT_SELECT_TOOL_ID } from '../tool/builtin-tools';
 import { ToolHostService } from '../tool/tool-host.service';
@@ -505,9 +506,7 @@ export class AnchorOverlay {
       nodeTransform,
       inverseNodeTransform,
     };
-    (event.target as Element & { setPointerCapture?(id: number): void }).setPointerCapture?.(
-      event.pointerId,
-    );
+    capturePointer(event);
   }
 
   /**
@@ -549,9 +548,7 @@ export class AnchorOverlay {
   protected onPointerUp(event: PointerEvent): void {
     if (this.dragState === null) return;
     event.stopPropagation();
-    (
-      event.target as Element & { releasePointerCapture?(id: number): void }
-    ).releasePointerCapture?.(event.pointerId);
+    releasePointer(event);
     const docPoint = this.screenToDoc(event.clientX, event.clientY);
     if (docPoint === null) {
       this.dragState = null;
@@ -717,18 +714,13 @@ export class AnchorOverlay {
 
   // ── DOM / coord helpers ─────────────────────────────────────────
 
+  /**
+   * Convert a client (screen) point to doc coords via the shared util
+   * (D-036). Resolves the overlay's owning `<svg>`; returns null in
+   * jsdom / SSR / detached scenarios so handlers no-op cleanly.
+   */
   private screenToDoc(clientX: number, clientY: number): Point | null {
-    const svg = this.elRef.nativeElement.ownerSVGElement;
-    if (svg === null) return null;
-    if (typeof svg.getScreenCTM !== 'function') return null;
-    const ctm = svg.getScreenCTM();
-    if (ctm === null) return null;
-    const inv = ctm.inverse();
-    const pt = svg.createSVGPoint();
-    pt.x = clientX;
-    pt.y = clientY;
-    const user = pt.matrixTransform(inv);
-    return { x: user.x, y: user.y };
+    return screenToDoc(this.elRef.nativeElement.ownerSVGElement, clientX, clientY);
   }
 
   private anchorAt(ref: AnchorRef): AnchorPoint | null {

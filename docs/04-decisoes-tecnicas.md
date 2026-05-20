@@ -798,17 +798,78 @@ Extrair `io/` e `optimize/` como entry points secundários próprios (`svg-engin
 
 ---
 
+## D-036 — Consolidação de helpers de input compartilhados (screenToDoc, pointer capture, isEditableTarget)
+
+- **Data**: 2026-05-20
+- **Status**: Decidida + implementada
+- **Contexto**: Auditoria de duplicação revelou que helpers de input/coordenada estavam reimplementados em paralelo em até 5–7 lugares cada:
+
+| Helper                                        | Duplicatas (antes)                                                                                                                |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `screenToDoc(clientX, clientY)` (CTM-inverse) | 5 cópias: `playground-home`, `selection-overlay`, `canvas-gestures`, `guides-overlay`, `rulers` (e `anchor-overlay` — 6 no total) |
+| `setPointerCapture` defensive pattern         | 7 cópias inline (mesmos lugares + `rotation-pivot`, `anchor-overlay`, `color-picker`)                                             |
+| `releasePointerCapture` defensive pattern     | 7 cópias inline                                                                                                                   |
+| `isEditableTarget` (event-target gate)        | 2 cópias (`shortcut.service` privada + `playground-home` file-local)                                                              |
+
+**Problema**: drift já visível entre cópias — algumas usavam `?.` chaining, outras `typeof === 'function'` + `if`, outras `'method' in target`. Algumas tinham guard de `createSVGPoint`, outras não. Cada novo gesto/overlay copiava uma das versões → potencial bug silencioso quando uma das cópias fosse atualizada e as outras não.
+
+### Decisão
+
+Consolidar em dois módulos canônicos, mantendo backward-compat zero-break:
+
+1. **`svg-engine/render/lib/util/screen-to-doc.ts`** — função pura `screenToDoc(svg, clientX, clientY): Point | null`. Vive em `/render` porque é foundational da camada que dona o `<svg>`; consumers em `/edit` e `/ui` importam de `svg-engine/render`. Cada call site passa o SVG que já tem em mãos (`ownerSVGElement` do ElementRef, `viewChild` ref, ou `document.querySelector` no playground).
+
+2. **`svg-engine/edit/lib/pointer/`** (novo módulo):
+   - `capturePointer(event)` — defensive `setPointerCapture` com guards uniformes + swallow de exceções (Safari/Firefox edge cases).
+   - `releasePointer(event)` — simétrico.
+   - `isEditableTarget(target)` — gate de `<input>` / `<textarea>` / `<select>` / `contenteditable` para shortcuts globais.
+
+   Vive em `/edit` (não `/core`) porque tudo que consome é editor surface; `/core` permanece DOM-free exceto pelo transform parser foundational.
+
+3. **Exportado em ambos public-apis**, importável diretamente por consumers terceiros (ex.: plugin escrevendo seu próprio overlay).
+
+### Garantias verificadas
+
+- ✅ 973/973 specs passando (+25 specs novos para os 2 módulos consolidados — antes 948).
+- ✅ Build full nos 6 entry points clean.
+- ✅ Playground compila sem ajustes funcionais (só substituiu imports).
+- ✅ Lint clean em todos arquivos tocados.
+- ✅ Zero mudança de comportamento — cada helper é byte-equivalente à melhor das versões anteriores.
+
+### Sites migrados (12 arquivos)
+
+| Arquivo                          | Removido                                                                                             | Substituído por                                                                     |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `playground-home.component.ts`   | `screenToDoc`, `capturePointer`, `releasePointer`, `isEditableTarget` (4 helpers locais, 80+ linhas) | imports                                                                             |
+| `selection-overlay.component.ts` | local `screenToDoc` + bottom-of-file helpers                                                         | imports                                                                             |
+| `canvas-gestures.directive.ts`   | inline capture/release + local `screenToDoc`                                                         | imports (release usa cast `unknown as PointerEvent` por usar target+id armazenados) |
+| `guides-overlay.component.ts`    | inline capture/release + local `screenToDoc`                                                         | imports                                                                             |
+| `anchor-overlay.component.ts`    | inline capture/release + local `screenToDoc`                                                         | imports                                                                             |
+| `rotation-pivot.component.ts`    | inline capture/release + local `screenToDoc`                                                         | imports                                                                             |
+| `color-picker.component.ts`      | 4 inline capture/release                                                                             | imports                                                                             |
+| `rulers.component.ts`            | local `screenToDoc`                                                                                  | imports                                                                             |
+| `shortcut.service.ts`            | local `isEditableTarget` privado                                                                     | re-export do canonical                                                              |
+
+### Quando reabrir
+
+- Se algum consumer precisar de pointer capture com semântica diferente (ex.: capturar no `document` em vez do `event.target`), o helper deve aceitar opção opcional em vez de bifurcar.
+- Se ResizeObserver / IntersectionObserver helpers virarem padrão repetido, considerar `svg-engine/edit/lib/observers/` análogo a `/pointer/`.
+
+---
+
 ## Decisões pendentes (em aberto)
 
-| ID provis. | Tema                                                                   |
-| ---------- | ---------------------------------------------------------------------- |
-| D-025?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo)      |
-| D-027?     | Migração para zoneless (revisar D-010)                                 |
-| D-028?     | Lint rule customizada para enforcer headless boundary                  |
-| D-029?     | Estratégia de testes E2E (Playwright?)                                 |
-| D-031?     | Versionamento + changelog (changesets / standard-version)              |
-| D-032?     | Multi-page (`WorkspacesRegistry`) — extensão futura de D-021           |
-| D-033?     | Estratégia de i18n no editor                                           |
-| D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3 |
+| ID provis. | Tema                                                                                                                                                                                                      |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-025?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo)                                                                                                                                         |
+| D-027?     | Migração para zoneless (revisar D-010)                                                                                                                                                                    |
+| D-028?     | Lint rule customizada para enforcer headless boundary                                                                                                                                                     |
+| D-029?     | Estratégia de testes E2E (Playwright?)                                                                                                                                                                    |
+| D-031?     | Versionamento + changelog (changesets / standard-version)                                                                                                                                                 |
+| D-032?     | Multi-page (`WorkspacesRegistry`) — extensão futura de D-021                                                                                                                                              |
+| D-033?     | Estratégia de i18n no editor                                                                                                                                                                              |
+| **D-034?** | **`<svge-toolbar>` materializando `MenuContributionRegistry`** — shell-refinement pós-Fase 6d. Hoje `<svge-editor>` tem só undo/redo+zoom; consumer terceiro recria 200+ linhas pra ter toolbar completa. |
+| **D-035?** | **`<svge-status-bar>` (não "footer")** — cursor doc-coords, zoom%, active tool, selection/node counts, snap mode, dirty flag, isolation breadcrumb. Mesmo timing que D-034.                               |
+| D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3                                                                                                                                    |
 
-> **Nota**: D-023 era "API formal de plugins" (cumprida pelo D-020 expandido em 2026-05-15). D-024 era "Versionamento + changelog" (renumerada para D-031 porque o número D-024 foi reusado para `ScriptRuntimePlugin`). D-030 era "Workspace/Página: A vs B" (cumprida pelo D-021 resolvido como Option C). D-032 entra como pendente para multi-page futuro. Sequência de IDs cumpridas em 2026-05-15: D-020, D-021, D-023, D-024. Em 2026-05-20: D-026 (alinhamento estrutural io/optimize); o número D-026 era previamente reservado para i18n — renomeado para D-033.
+> **Nota**: D-023 era "API formal de plugins" (cumprida pelo D-020 expandido em 2026-05-15). D-024 era "Versionamento + changelog" (renumerada para D-031 porque o número D-024 foi reusado para `ScriptRuntimePlugin`). D-030 era "Workspace/Página: A vs B" (cumprida pelo D-021 resolvido como Option C). D-032 entra como pendente para multi-page futuro. Sequência de IDs cumpridas em 2026-05-15: D-020, D-021, D-023, D-024. Em 2026-05-20: D-026 (alinhamento estrutural io/optimize); o número D-026 era previamente reservado para i18n — renomeado para D-033. D-036 (consolidação de helpers compartilhados) entrou no mesmo dia. D-034 e D-035 ficam pendentes para shell-refinement pós-Fase 6d.

@@ -1,6 +1,7 @@
 import { Directive, ElementRef, inject, type OnDestroy } from '@angular/core';
 import type { Point } from 'svg-engine/core';
-import { ViewportService } from 'svg-engine/render';
+import { screenToDoc, ViewportService } from 'svg-engine/render';
+import { capturePointer, releasePointer } from '../pointer';
 import { WorkspaceService, wheelZoomSensitivityFromSpeed } from '../workspace/workspace.service';
 
 /**
@@ -168,18 +169,11 @@ export class SvgeCanvasGestures implements OnDestroy {
     if (event.button !== 1) return;
     event.preventDefault();
     const target = event.target as Element;
-    if (
-      typeof (target as Element & { setPointerCapture?: unknown }).setPointerCapture === 'function'
-    ) {
-      try {
-        (target as Element & { setPointerCapture: (id: number) => void }).setPointerCapture(
-          event.pointerId,
-        );
-      } catch {
-        // Some elements / browsers refuse capture — fall back to listening
-        // on the document. Acceptable degradation.
-      }
-    }
+    // Best-effort capture via the shared util (D-036). When the browser
+    // refuses (Safari on disabled / Firefox edge cases), fall back to
+    // listening on `target` directly — the listeners below cover both
+    // captured and uncaptured paths.
+    capturePointer(event);
     this.panState = {
       pointerId: event.pointerId,
       startScreenX: event.clientX,
@@ -224,39 +218,34 @@ export class SvgeCanvasGestures implements OnDestroy {
     s.target.removeEventListener('pointermove', this.onPanMove as EventListener);
     s.target.removeEventListener('pointerup', this.onPanEnd as EventListener);
     s.target.removeEventListener('pointercancel', this.onPanEnd as EventListener);
-    if (
-      typeof (s.target as Element & { releasePointerCapture?: unknown }).releasePointerCapture ===
-      'function'
-    ) {
-      try {
-        (
-          s.target as Element & { releasePointerCapture: (id: number) => void }
-        ).releasePointerCapture(s.pointerId);
-      } catch {
-        /* already released */
-      }
-    }
+    // Synthesize an event-shape with the stored target+pointerId so the
+    // shared `releasePointer` util (D-036) can be used uniformly. The
+    // stored target is the same one we captured on `pointerdown`; the
+    // stored id is the same pointerId from that event. Cast via
+    // `unknown` because we're not constructing a real PointerEvent
+    // (which has 60+ readonly fields we don't touch); only `target`
+    // and `pointerId` are read by the util.
+    releasePointer({ target: s.target, pointerId: s.pointerId } as unknown as PointerEvent);
     this.panState = null;
   }
 
   // ── Coordinate conversion ─────────────────────────────────────────
 
   /**
-   * Convert a screen-pixel point to document coordinates by walking the
-   * inner `<svg>`'s `getScreenCTM` inverse. Returns null when the SVG
-   * isn't present yet or layout dimensions are zero (typical in jsdom
-   * tests — caller no-ops gracefully).
+   * Convert a screen-pixel point to document coordinates. Delegates to
+   * the canonical `screenToDoc` util in svg-engine/render (D-036); this
+   * wrapper resolves the inner `<svg>` from the host element so callers
+   * don't need to plumb the SVG ref.
+   *
+   * Returns null when the SVG isn't present yet (jsdom / SSR / mount
+   * race) — callers no-op gracefully.
    */
   private screenToDoc(clientX: number, clientY: number): Point | null {
-    const svg = this.host.nativeElement.querySelector('svg');
-    if (svg === null) return null;
-    if (typeof (svg as SVGSVGElement).getScreenCTM !== 'function') return null;
-    const ctm = (svg as SVGSVGElement).getScreenCTM();
-    if (ctm === null) return null;
-    const pt = (svg as SVGSVGElement).createSVGPoint();
-    pt.x = clientX;
-    pt.y = clientY;
-    const inv = pt.matrixTransform(ctm.inverse());
-    return { x: inv.x, y: inv.y };
+    // `host.nativeElement` is typed as `Element` by Angular's stricter
+    // ElementRef generic in v21; `querySelector` on plain `Element` is
+    // overload-less, so we narrow the result via a final cast instead
+    // of the generic. Same SVG ref the directive originally used.
+    const svg = this.host.nativeElement.querySelector('svg') as SVGSVGElement | null;
+    return screenToDoc(svg, clientX, clientY);
   }
 }

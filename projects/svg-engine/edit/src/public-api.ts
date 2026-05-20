@@ -68,6 +68,10 @@ export * from './lib/alignment';
 // Plugin scaffolding (Bloco 5a)
 export * from './lib/plugin';
 
+// Pointer / input helpers (D-036 consolidation — capturePointer,
+// releasePointer, isEditableTarget shared across overlays/gestures)
+export * from './lib/pointer';
+
 // Tool API + builtin tools (Bloco 5b)
 export * from './lib/tool';
 
