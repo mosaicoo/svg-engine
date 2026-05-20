@@ -30,8 +30,9 @@ import { nodeToPathD } from './convert-to-path.command';
  *   other inputs are removed. Result inherits the first node's
  *   style + metadata (Affinity convention: "operand A wins").
  * - DIVIDE returns N results (one per resulting region); they're
- *   inserted as siblings of the first input, all owning operand A's
- *   style.
+ *   inserted as siblings of the first input. Each "private" region
+ *   keeps the style of the input that originated it (Illustrator
+ *   semantic); pairwise-intersection slivers fall back to operand A.
  *
  * **Undo**: each command snapshots all affected nodes (whole subtree
  * snapshot is simplest + safe) and restores on undo.
@@ -43,6 +44,20 @@ import { nodeToPathD } from './convert-to-path.command';
  * - 1 or 0 inputs → fail (need ≥ 2 to combine)
  */
 
+/**
+ * Per-region result emitted by `runOp`. Carries the polygon rings
+ * plus an optional `styleSourceIdx` pointing to the input whose
+ * style should be inherited. When omitted (or out of range), the
+ * region inherits operand A's style — the default for ops that
+ * don't track per-region provenance (Union, Intersect, Subtract,
+ * Exclude). Divide uses it to give each "private" region the style
+ * of the input that originated it (Illustrator behavior).
+ */
+export interface PathfinderRegion {
+  readonly rings: readonly FlatRing[];
+  readonly styleSourceIdx?: number;
+}
+
 /** Common executor — all 5 ops only differ in their polygon-clipping call. */
 abstract class PathfinderCommand implements Command {
   abstract readonly label: string;
@@ -52,7 +67,7 @@ abstract class PathfinderCommand implements Command {
 
   constructor(protected readonly nodeIds: readonly NodeId[]) {}
 
-  abstract runOp(rings: readonly (readonly FlatRing[])[]): readonly (readonly FlatRing[])[];
+  abstract runOp(rings: readonly (readonly FlatRing[])[]): readonly PathfinderRegion[];
 
   execute(ctx: CommandContext): CommandResult {
     if (this.nodeIds.length < 2) {
@@ -81,18 +96,19 @@ abstract class PathfinderCommand implements Command {
       inputs.push({ id, rings });
     }
 
-    // Run the boolean op. `runOp` receives all inputs at once
-    // (polygon-clipping accepts a variadic list — subclasses pass
-    // them appropriately).
-    let resultRings: readonly (readonly FlatRing[])[];
+    // Run the boolean op. `runOp` receives all inputs at once and
+    // returns per-region results — each region carrying an optional
+    // `styleSourceIdx` so Divide can give each piece the style of
+    // its originating input.
+    let regions: readonly PathfinderRegion[];
     try {
-      resultRings = this.runOp(inputs.map((i) => i.rings));
+      regions = this.runOp(inputs.map((i) => i.rings));
     } catch (e) {
       return fail(`${this.label}: polygon op failed — ${stringifyError(e)}`);
     }
 
     // EMPTY RESULT → remove all inputs (operand A's "place" disappears).
-    if (resultRings.length === 0) {
+    if (regions.length === 0) {
       let nextRoot = doc.root;
       for (const input of inputs) {
         nextRoot = removeNode(nextRoot, input.id);
@@ -105,22 +121,44 @@ abstract class PathfinderCommand implements Command {
     const operandA = findNodeById(doc.root, inputs[0]!.id);
     if (operandA === null) return fail(`${this.label}: operand A vanished`);
 
+    // Resolve each input's style/metadata (cached for the loop below).
+    const inputStyles: { style: SvgNode['style']; metadata: SvgNode['metadata'] }[] = [];
+    for (const inp of inputs) {
+      const node = findNodeById(doc.root, inp.id);
+      if (node === null) {
+        // Shouldn't happen — we resolved all ids in the gather pass —
+        // but be defensive (and fall back to operand A's style).
+        inputStyles.push({ style: operandA.style, metadata: operandA.metadata });
+      } else {
+        inputStyles.push({ style: node.style, metadata: node.metadata });
+      }
+    }
+
     // Build the new path(s). For single-result ops (union/intersect/
-    // subtract/exclude), one path. For divide, N paths.
-    const newPathNodes: SvgNode[] = resultRings.map((ringSet, idx) => {
-      const d = ringsToPathD(ringSet);
+    // subtract/exclude), one path. For divide, N paths each potentially
+    // styled like a different input (Illustrator-style provenance).
+    const newPathNodes: SvgNode[] = regions.map((region, idx) => {
+      const d = ringsToPathD(region.rings);
       const fresh = createPath(d);
-      // Inherit operand A's style + metadata. Keep operand A's id on
-      // the FIRST result (so references survive); subsequent results
-      // get fresh ids.
+      // Style source: explicit `styleSourceIdx` from runOp wins; falls
+      // back to operand A. Out-of-range indices defensively snap to A.
+      const srcIdx =
+        typeof region.styleSourceIdx === 'number' &&
+        region.styleSourceIdx >= 0 &&
+        region.styleSourceIdx < inputStyles.length
+          ? region.styleSourceIdx
+          : 0;
+      const src = inputStyles[srcIdx]!;
+      // Keep operand A's id on the FIRST result (so refs survive);
+      // subsequent results get fresh ids.
       return {
         ...fresh,
         id: idx === 0 ? operandA.id : fresh.id,
         // The result rings are already in operand A's parent frame —
         // we baked the transform during input prep, so clear it.
         transform: [1, 0, 0, 1, 0, 0],
-        style: operandA.style,
-        metadata: operandA.metadata,
+        style: src.style,
+        metadata: idx === 0 ? operandA.metadata : src.metadata,
       };
     });
 
@@ -171,53 +209,56 @@ abstract class PathfinderCommand implements Command {
 /** UNION — A ∪ B (∪ ...). Merges overlapping shapes into one. */
 export class UnionCommand extends PathfinderCommand {
   readonly label = 'Union';
-  runOp(rings: readonly (readonly FlatRing[])[]): readonly (readonly FlatRing[])[] {
+  runOp(rings: readonly (readonly FlatRing[])[]): readonly PathfinderRegion[] {
     const args = rings.map(toPCPoly);
     const result = polygonClipping.union(args[0]!, ...args.slice(1));
-    return result.map(fromPCPoly);
+    // Single-op: all result polygons share operand A's style (default).
+    return result.map((poly) => ({ rings: fromPCPoly(poly) }));
   }
 }
 
 /** INTERSECT — A ∩ B (∩ ...). Keeps only the overlapping region. */
 export class IntersectCommand extends PathfinderCommand {
   readonly label = 'Intersect';
-  runOp(rings: readonly (readonly FlatRing[])[]): readonly (readonly FlatRing[])[] {
+  runOp(rings: readonly (readonly FlatRing[])[]): readonly PathfinderRegion[] {
     const args = rings.map(toPCPoly);
     const result = polygonClipping.intersection(args[0]!, ...args.slice(1));
-    return result.map(fromPCPoly);
+    return result.map((poly) => ({ rings: fromPCPoly(poly) }));
   }
 }
 
 /** SUBTRACT — A \ B (\ C ...). Removes other shapes' area from A. */
 export class SubtractCommand extends PathfinderCommand {
   readonly label = 'Subtract';
-  runOp(rings: readonly (readonly FlatRing[])[]): readonly (readonly FlatRing[])[] {
+  runOp(rings: readonly (readonly FlatRing[])[]): readonly PathfinderRegion[] {
     const args = rings.map(toPCPoly);
     const result = polygonClipping.difference(args[0]!, ...args.slice(1));
-    return result.map(fromPCPoly);
+    return result.map((poly) => ({ rings: fromPCPoly(poly) }));
   }
 }
 
 /** EXCLUDE — symmetric difference. Keeps non-overlapping areas. */
 export class ExcludeCommand extends PathfinderCommand {
   readonly label = 'Exclude';
-  runOp(rings: readonly (readonly FlatRing[])[]): readonly (readonly FlatRing[])[] {
+  runOp(rings: readonly (readonly FlatRing[])[]): readonly PathfinderRegion[] {
     const args = rings.map(toPCPoly);
     const result = polygonClipping.xor(args[0]!, ...args.slice(1));
-    return result.map(fromPCPoly);
+    return result.map((poly) => ({ rings: fromPCPoly(poly) }));
   }
 }
 
 /**
  * DIVIDE — splits all inputs into non-overlapping regions. Returns
- * N paths (one per resulting region), all sharing operand A's style
- * (different from Illustrator which assigns each region the style of
- * whichever input it came from — that semantic requires per-region
- * provenance tracking, future polish).
+ * N paths (one per resulting region). Each "private" region (the
+ * part of input `i` that no other input overlaps) inherits input
+ * `i`'s style — Illustrator's behaviour. Pairwise intersection
+ * regions (where the divider sliced through two operands) fall
+ * back to operand A's style: there's no single "winner" so the
+ * canvas-anchor convention applies.
  */
 export class DivideCommand extends PathfinderCommand {
   readonly label = 'Divide';
-  runOp(rings: readonly (readonly FlatRing[])[]): readonly (readonly FlatRing[])[] {
+  runOp(rings: readonly (readonly FlatRing[])[]): readonly PathfinderRegion[] {
     // Divide ≈ xor + each input's intersection with the rest.
     // Easier: compute the union, then for each region between the
     // inputs, take its difference with the union of all others.
@@ -225,25 +266,33 @@ export class DivideCommand extends PathfinderCommand {
     // after we subtract the others). polygon-clipping has no `divide`,
     // so we build it on top.
     const args = rings.map(toPCPoly);
-    const out: polygonClipping.MultiPolygon[] = [];
+    const out: PathfinderRegion[] = [];
     // For each input, subtract the others to get its "private" region
     // (the part that doesn't overlap any other input). Each such region
-    // becomes one or more result polygons.
+    // becomes one or more result polygons. Tag with `styleSourceIdx: i`
+    // so the executor applies input `i`'s style — that's the Illustrator
+    // "each piece keeps its origin colour" semantic.
     for (let i = 0; i < args.length; i++) {
       const others = args.filter((_, j) => j !== i);
       const priv: polygonClipping.MultiPolygon =
         others.length === 0 ? [args[i]!] : polygonClipping.difference(args[i]!, ...others);
-      if (priv.length > 0) out.push(priv);
+      for (const poly of priv) {
+        out.push({ rings: fromPCPoly(poly), styleSourceIdx: i });
+      }
     }
     // Also emit each pairwise intersection as a separate region — that's
-    // the part where the divider sliced through two operands.
+    // the part where the divider sliced through two operands. No
+    // `styleSourceIdx`: the executor defaults to operand A's style for
+    // these shared slivers (Illustrator gives the top operand's fill).
     for (let i = 0; i < args.length; i++) {
       for (let j = i + 1; j < args.length; j++) {
         const inter = polygonClipping.intersection(args[i]!, args[j]!);
-        if (inter.length > 0) out.push(inter);
+        for (const poly of inter) {
+          out.push({ rings: fromPCPoly(poly) });
+        }
       }
     }
-    return out.flatMap((multi) => multi.map(fromPCPoly));
+    return out;
   }
 }
 

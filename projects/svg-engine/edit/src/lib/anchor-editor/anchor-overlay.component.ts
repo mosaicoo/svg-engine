@@ -1,10 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, ElementRef, inject } from '@angular/core';
 import {
+  type AnchorKind,
   type AnchorPoint,
   type AnchorRef,
   applyTransform,
   CommandBus,
+  ConvertAnchorTypeCommand,
   EditorStateService,
+  InsertAnchorCommand,
   invert,
   MoveAnchorCommand,
   parsePathToAnchors,
@@ -21,6 +24,17 @@ import { AnchorSelectionService } from './anchor-selection.service';
 const POINT_PX = 8;
 /** Pixel size of a handle circle. */
 const HANDLE_PX = 6;
+
+/**
+ * Cycle order for the dblclick-anchor gesture. Mirrors Affinity's
+ * "Cycle node type" sequence: cusp (corner) → smooth (colinear,
+ * different lengths) → symmetric (mirror) → back to cusp.
+ */
+const CYCLE_KIND: Readonly<Record<AnchorKind, AnchorKind>> = {
+  cusp: 'smooth',
+  smooth: 'symmetric',
+  symmetric: 'cusp',
+};
 
 /**
  * Visual overlay for editing anchor points of a selected `<path>`
@@ -110,6 +124,24 @@ const HANDLE_PX = 6;
         }
       }
 
+      <!--
+        Invisible segment hit-zones for Alt+click → InsertAnchor.
+        Renders BELOW the anchor squares so a click on the anchor
+        itself wins. 'stroke: transparent' + 'stroke-width' ~10px
+        (in CSS px via 1/zoom) makes the click target generous
+        enough to be discoverable without a precise stylus. Without
+        Alt, the pointer falls through to the underlying canvas
+        (selection / marquee). Alt+click triggers the insert.
+      -->
+      @for (seg of segments(); track seg.key) {
+        <svg:path
+          class="segment-hit"
+          [attr.d]="seg.d"
+          [attr.stroke-width]="hitZoneSize()"
+          (pointerdown)="onSegmentPointerDown($event, seg.ref)"
+        />
+      }
+
       <!-- Anchor squares (interactive, on top) -->
       @for (a of anchors; track a.key) {
         <svg:rect
@@ -122,7 +154,7 @@ const HANDLE_PX = 6;
           (pointerdown)="onPointerDown($event, a.ref, 'point')"
           (pointermove)="onPointerMove($event)"
           (pointerup)="onPointerUp($event)"
-          (dblclick)="onDoubleClick($event)"
+          (dblclick)="onDoubleClick($event, a.ref)"
         />
       }
     }
@@ -154,6 +186,19 @@ const HANDLE_PX = 6;
       vector-effect: non-scaling-stroke;
       pointer-events: none;
     }
+    /*
+      Segment hit-zone: invisible stroke that catches Alt+click for
+      InsertAnchor. transparent (NOT none) so pointer events register;
+      fill:none + non-scaling-stroke keep the click region pixel-
+      consistent at all zoom levels. crosshair cursor signals to the
+      user that this is a clickable region for path editing.
+    */
+    .segment-hit {
+      stroke: transparent;
+      fill: none;
+      cursor: crosshair;
+      touch-action: none;
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -170,6 +215,12 @@ export class AnchorOverlay {
   protected readonly pointSize = computed(() => POINT_PX / this.viewport.zoom());
   protected readonly pointHalf = computed(() => this.pointSize() / 2);
   protected readonly handleHalf = computed(() => HANDLE_PX / this.viewport.zoom() / 2);
+  /**
+   * Segment hit-zone thickness in doc units, sized to approximate
+   * ~10 CSS pixels at the current zoom. Fat enough that Alt+click
+   * doesn't require pixel-perfect aim along a hair-thin curve.
+   */
+  protected readonly hitZoneSize = computed(() => 10 / this.viewport.zoom());
 
   /**
    * Resolved anchor entries to render, or `null` to render nothing.
@@ -227,6 +278,76 @@ export class AnchorOverlay {
     }
     return out;
   });
+
+  /**
+   * Per-segment SVG `d` strings for the invisible hit-zones used by
+   * Alt+click → InsertAnchor. One entry per cubic between consecutive
+   * anchors (open subpath: N-1 segments; closed: N segments including
+   * the wrap from last → first).
+   *
+   * Coordinates use the SAME render-space (post-transform) as the
+   * anchor squares — clicks on the rendered curve land on the right
+   * hit-zone regardless of node translate/rotation.
+   *
+   * Each segment carries the `ref` of its STARTING anchor; the
+   * insert command derives the next-anchor from `subpathIndex` +
+   * the closed flag (see InsertAnchorCommand).
+   */
+  protected readonly segments = computed<
+    readonly { key: string; d: string; ref: AnchorRef }[] | null
+  >(() => {
+    // Reuse the same gating logic as `anchors` — both render only
+    // when the path is selected under Direct Select. Sharing the
+    // condition would require re-parsing the path; rely on Angular
+    // signal memoization to dedup.
+    if (this.toolHost.activeId() !== DIRECT_SELECT_TOOL_ID) return null;
+    if (this.selection.count() !== 1) return null;
+    const focusId = this.selection.focusId();
+    if (focusId === null) return null;
+    const target = findById(this.state.document().root, focusId);
+    if (target === null || target.type !== 'path') return null;
+    const subpaths = parsePathToAnchors(target.d);
+    const t = target.transform;
+    const out: { key: string; d: string; ref: AnchorRef }[] = [];
+    for (let s = 0; s < subpaths.length; s++) {
+      const sub = subpaths[s]!;
+      const n = sub.anchors.length;
+      const limit = sub.closed ? n : n - 1;
+      for (let i = 0; i < limit; i++) {
+        const a = sub.anchors[i]!;
+        const b = sub.anchors[(i + 1) % n]!;
+        const p0 = applyTransform2D(t, a.point);
+        const p1 = applyTransform2D(t, a.handleOut);
+        const p2 = applyTransform2D(t, b.handleIn);
+        const p3 = applyTransform2D(t, b.point);
+        out.push({
+          key: `seg:${s}:${i}`,
+          d: `M${fmt(p0.x)} ${fmt(p0.y)} C${fmt(p1.x)} ${fmt(p1.y)} ${fmt(p2.x)} ${fmt(p2.y)} ${fmt(p3.x)} ${fmt(p3.y)}`,
+          ref: { nodeId: focusId, subpathIndex: s, anchorIndex: i },
+        });
+      }
+    }
+    return out;
+  });
+
+  /**
+   * Alt+click on a segment hit-zone inserts a new anchor at t=0.5
+   * (midpoint of the cubic between segment start and next anchor).
+   * Without Alt, the click falls through to the canvas — selection
+   * / marquee logic handles it normally.
+   *
+   * The choice of t=0.5 is a Pragmatic simplification: a more
+   * accurate version would project the click point onto the curve
+   * and insert at the closest parameter. Midpoint is enough for
+   * a v1 anchor editor and matches Sketch's behavior.
+   */
+  protected onSegmentPointerDown(event: PointerEvent, ref: AnchorRef): void {
+    if (!event.altKey) return; // pass through — canvas handles the click
+    if (event.button !== 0) return;
+    event.stopPropagation();
+    event.preventDefault();
+    this.bus.dispatch(new InsertAnchorCommand(ref, 0.5));
+  }
 
   // ── Drag state ───────────────────────────────────────────────────
 
@@ -373,12 +494,25 @@ export class AnchorOverlay {
    * Matches Affinity's "Cycle node type" behavior. The dispatched
    * `ConvertAnchorTypeCommand` snaps handles to the new constraint.
    */
-  protected onDoubleClick(event: MouseEvent): void {
+  /**
+   * Dblclick on an anchor cycles its kind in the canonical order:
+   * cusp → smooth → symmetric → cusp. Matches Affinity's "Cycle
+   * node type" gesture, which is the fastest way to convert a
+   * corner into a curve handle without leaving the canvas.
+   *
+   * Dispatches `ConvertAnchorTypeCommand` so the handles snap to
+   * the new constraint (smooth reflects, symmetric mirrors). The
+   * `kind` is read from the node-local anchor data (not the
+   * rendered/transformed entry), so the cycle is independent of
+   * the node's transform.
+   */
+  protected onDoubleClick(event: MouseEvent, ref: AnchorRef): void {
     event.stopPropagation();
-    // Implementation deferred — the ConvertAnchorTypeCommand exists
-    // (core), but cycling requires reading the current kind from the
-    // anchor and dispatching with the next one. Wired here as a stub
-    // to keep the visual hint (cursor) in place; future polish.
+    const anchorData = this.anchorAt(ref);
+    if (anchorData === null) return;
+    const nextKind = CYCLE_KIND[anchorData.kind];
+    if (nextKind === anchorData.kind) return; // safety (shouldn't happen)
+    this.bus.dispatch(new ConvertAnchorTypeCommand(ref, nextKind));
   }
 
   // ── Preview helpers (direct doc mutation, undo-safe via revert) ──

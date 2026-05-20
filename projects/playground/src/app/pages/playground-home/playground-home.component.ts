@@ -28,6 +28,7 @@ import {
   DivideCommand,
   ExcludeCommand,
   IntersectCommand,
+  RemoveAnchorCommand,
   RemoveNodeCommand,
   SubtractCommand,
   UnionCommand,
@@ -39,6 +40,7 @@ import {
   type AlignAxis,
   AlignmentService,
   AnchorOverlay,
+  AnchorSelectionService,
   AutoSaveService,
   DIRECT_SELECT_TOOL_ID,
   type DistributeAxis,
@@ -175,6 +177,7 @@ export class PlaygroundHome implements OnDestroy {
   private readonly effects = inject(EffectRegistry);
   protected readonly isolation = inject(IsolationService);
   private readonly autoSave = inject(AutoSaveService);
+  private readonly anchorSelection = inject(AnchorSelectionService);
   private readonly dialog = inject(MatDialog);
 
   /** Reference to the hidden `<input type="file">` for SVG import. */
@@ -250,6 +253,30 @@ export class PlaygroundHome implements OnDestroy {
     // target has focus (text input, inspector field) so the keys keep
     // their native text-edit behaviour there.
     if ((event.key === 'Delete' || event.key === 'Backspace') && !isEditableTarget(event.target)) {
+      // **Priority order** — finer-grained selection wins:
+      // 1. Selected anchor points → RemoveAnchorCommand each
+      //    (path stays, just loses the points)
+      // 2. Selected guide → removeSelectedGuide (single guide)
+      // 3. Selected shapes/groups → RemoveNodeCommand each
+      //
+      // Without (1), Delete on a Direct-Selected anchor would wipe
+      // out the entire path — frustrating for path editing where
+      // the user just wants to tweak one node.
+      const selectedAnchors = this.anchorSelection.selected();
+      if (selectedAnchors.length > 0) {
+        // Sort descending by (subpathIndex, anchorIndex) so each
+        // removal doesn't shift the indices of pending removals.
+        // Without this, deleting anchors 0,1,2 in order would
+        // try to delete shifted ids and silently fail / corrupt.
+        const sorted = [...selectedAnchors].sort((a, b) => {
+          if (a.subpathIndex !== b.subpathIndex) return b.subpathIndex - a.subpathIndex;
+          return b.anchorIndex - a.anchorIndex;
+        });
+        for (const ref of sorted) this.bus.dispatch(new RemoveAnchorCommand(ref));
+        this.anchorSelection.clear();
+        event.preventDefault();
+        return;
+      }
       if (this.workspace.selectedGuideId() !== null) {
         this.workspace.removeSelectedGuide();
         event.preventDefault();
