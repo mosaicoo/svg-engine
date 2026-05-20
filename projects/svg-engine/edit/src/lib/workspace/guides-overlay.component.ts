@@ -63,6 +63,7 @@ import { WorkspaceService } from './workspace.service';
           (pointermove)="onPointerMove($event)"
           (pointerup)="onPointerUp($event)"
           (dblclick)="onDoubleClick($event, g.id)"
+          (focus)="onGuideFocus(g.id)"
           (keydown)="onGuideKeyDown($event, g.id, g.axis, g.position)"
         />
         <svg:line
@@ -98,6 +99,7 @@ import { WorkspaceService } from './workspace.service';
           (pointermove)="onPointerMove($event)"
           (pointerup)="onPointerUp($event)"
           (dblclick)="onDoubleClick($event, g.id)"
+          (focus)="onGuideFocus(g.id)"
           (keydown)="onGuideKeyDown($event, g.id, g.axis, g.position)"
         />
         <svg:line
@@ -137,6 +139,19 @@ import { WorkspaceService } from './workspace.service';
     }
     .guide-hit.ew {
       cursor: ew-resize;
+    }
+    /* Suppress the browser's native focus ring. The ring is drawn as
+       a rectangle around the line's bounding box, and since the hit-
+       zone stroke is ~12 doc units thick, that rectangle becomes
+       visible as a "band" with parallel borders above and below the
+       guide — confusing and clearly not the intended visual.
+       Focus visibility is instead carried by the sibling .guide.selected
+       rule (orange #ff6f00 stroke), kept in sync with focus via the
+       (focus) handler that calls selectGuide. So keyboard users
+       still get a clear, unambiguous focus indicator. */
+    .guide-hit:focus,
+    .guide-hit:focus-visible {
+      outline: none;
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -369,6 +384,20 @@ export class GuidesOverlay implements AfterViewInit, OnDestroy {
   protected onDoubleClick(event: MouseEvent, id: string): void {
     event.stopPropagation();
     this.ws.removeGuide(id);
+  }
+
+  /**
+   * Keep the `selectedGuideId` signal in sync with keyboard focus.
+   * Pointer-down already calls `selectGuide` (so a click selects and
+   * highlights the guide). But tabbing in via the keyboard skips
+   * pointer-down — without this handler the user would have focus on
+   * a guide-hit that doesn't visually look selected, because the
+   * browser's native focus outline was suppressed (see CSS comment on
+   * `.guide-hit:focus`). The orange `.selected` highlight is now the
+   * single source of focus feedback for both pointer and keyboard.
+   */
+  protected onGuideFocus(id: string): void {
+    this.ws.selectGuide(id);
   }
 
   /**
