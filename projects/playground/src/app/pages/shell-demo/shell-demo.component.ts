@@ -44,7 +44,7 @@ import { SvgeEditor } from 'svg-engine/ui';
       </p>
     </div>
     <div class="editor-area">
-      <svge-editor [title]="title()">
+      <svge-editor [title]="title()" [showContextMenu]="true">
         <svg:g svgeSelectionOverlay></svg:g>
         <svg:g svgeRotationPivot></svg:g>
         <svg:g svgeMarquee></svg:g>

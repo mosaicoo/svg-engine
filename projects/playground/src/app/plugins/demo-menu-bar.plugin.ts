@@ -1,5 +1,5 @@
 import { type EditorPlugin, MenuContributionRegistry, PLUGIN_API_VERSION } from 'svg-engine/edit';
-import { MENU_SLOT } from 'svg-engine/ui';
+import { CONTEXT_MENU_SLOT, MENU_SLOT } from 'svg-engine/ui';
 
 /**
  * Demo plugin that contributes a handful of File / Edit / View / Help
@@ -211,6 +211,74 @@ export const demoMenuBarPlugin: EditorPlugin = {
           alert(
             'SVGEngine Playground — demo menu bar (D-038 Phase 1).\nFile/Edit/View/Object/Help slots populated via MenuContributionRegistry.',
           );
+        },
+      }),
+    );
+
+    // ── Context menu items (D-038 Phase 2) ─────────────────────────
+    // Right-click on the canvas in shell-completo / shell-parcial /
+    // shell-canvas-only opens these. Demonstrates that the same
+    // MenuContributionRegistry powers both menu bar AND context menu —
+    // plugins author once, consumers wire the slots independently.
+    ctx.track(
+      reg.register({
+        id: 'demo.ctx.canvas.paste',
+        slot: CONTEXT_MENU_SLOT.CANVAS,
+        label: 'Paste',
+        icon: 'content_paste',
+        shortcut: 'Ctrl+V',
+        order: 10,
+        run() {
+          console.info('[demo] Context > Paste');
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'demo.ctx.canvas.select-all',
+        slot: CONTEXT_MENU_SLOT.CANVAS,
+        label: 'Select All',
+        icon: 'select_all',
+        shortcut: 'Ctrl+A',
+        order: 20,
+        run() {
+          console.info('[demo] Context > Select All');
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'demo.ctx.canvas.div',
+        slot: CONTEXT_MENU_SLOT.CANVAS,
+        label: '',
+        order: 30,
+        divider: true,
+        run() {
+          /* divider */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'demo.ctx.canvas.zoom-fit',
+        slot: CONTEXT_MENU_SLOT.CANVAS,
+        label: 'Zoom to Fit',
+        icon: 'fit_screen',
+        order: 40,
+        run() {
+          console.info('[demo] Context > Zoom to Fit');
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'demo.ctx.canvas.props',
+        slot: CONTEXT_MENU_SLOT.CANVAS,
+        label: 'Workspace Settings…',
+        icon: 'settings',
+        order: 50,
+        run() {
+          console.info('[demo] Context > Workspace Settings');
         },
       }),
     );

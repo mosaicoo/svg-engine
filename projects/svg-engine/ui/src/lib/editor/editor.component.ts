@@ -12,6 +12,7 @@ import {
 } from 'svg-engine/core';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
 import { PageOverlay, SvgeCanvasGestures, WorkspaceBackground } from 'svg-engine/edit';
+import { SvgeContextMenuTrigger } from '../context-menu';
 import { SvgeMenuBar } from '../menu-bar';
 import { SvgeStatusBar } from '../status-bar';
 import { SvgeToolbar } from '../toolbar';
@@ -88,6 +89,7 @@ import { SvgeToolbar } from '../toolbar';
     SvgeToolbar,
     SvgeStatusBar,
     SvgeMenuBar,
+    SvgeContextMenuTrigger,
   ],
   template: `
     @if (showMenuBar()) {
@@ -155,7 +157,11 @@ import { SvgeToolbar } from '../toolbar';
         </button>
       </mat-toolbar>
     }
-    <div class="canvas-area" svgeCanvasGestures>
+    <div
+      class="canvas-area"
+      svgeCanvasGestures
+      [svgeContextMenu]="showContextMenu() ? contextMenuSlot() : ''"
+    >
       <svge-workspace-background>
         <svge-renderer
           [tree]="resolvedTree()"
@@ -302,6 +308,33 @@ export class SvgeEditor {
    * via the wrapper component or use `<svge-menu-bar>` directly.
    */
   readonly showMenuBar = input<boolean>(false);
+
+  /**
+   * **Sprint Pro-Editor (D-038 phase 2) — opt-in right-click context menu.**
+   *
+   * When `true`, attaches the `[svgeContextMenu]` directive to the canvas
+   * area so right-click opens a `<svge-context-menu>` reading the slot
+   * named by `[contextMenuSlot]` (default `'context.canvas'`).
+   *
+   * Default: `false` — preserves D-037 invariants (existing modes do NOT
+   * change visually; browser's native right-click menu remains in effect
+   * unless this is explicitly enabled).
+   *
+   * Plugins contribute via `MenuContributionRegistry.register({ slot:
+   * 'context.canvas', ... })` (or `CONTEXT_MENU_SLOT.CANVAS` for the
+   * canonical constants exported from `svg-engine/ui`).
+   */
+  readonly showContextMenu = input<boolean>(false);
+
+  /**
+   * **D-038 phase 2** — slot id used for the canvas right-click menu
+   * when `[showContextMenu]` is true. Default: `'context.canvas'`.
+   *
+   * Override when a single page mounts multiple `<svge-editor>`s and
+   * each needs its own context menu items (use disjoint slot names so
+   * contributions don't leak across editors).
+   */
+  readonly contextMenuSlot = input<string>('context.canvas');
 
   /**
    * D-034 — render the toolbar row (title, plugin contributions, built-in

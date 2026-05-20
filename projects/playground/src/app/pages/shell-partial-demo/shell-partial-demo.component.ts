@@ -66,6 +66,14 @@ import { SvgeEditor } from 'svg-engine/ui';
         />
         Show menu bar (D-038 Phase 1)
       </label>
+      <label>
+        <input
+          type="checkbox"
+          [checked]="showContextMenu()"
+          (change)="showContextMenu.set($any($event.target).checked)"
+        />
+        Right-click context menu (D-038 Phase 2)
+      </label>
     </header>
     <div class="editor-area">
       <svge-editor
@@ -73,6 +81,7 @@ import { SvgeEditor } from 'svg-engine/ui';
         [showMenuBar]="showMenuBar()"
         [showToolbar]="showToolbar()"
         [showStatusBar]="showStatusBar()"
+        [showContextMenu]="showContextMenu()"
       >
         @if (useCustomStatus()) {
           <div status-bar class="custom-status">
@@ -141,6 +150,7 @@ export class ShellPartialDemo {
   protected readonly showToolbar = signal(true);
   protected readonly showStatusBar = signal(true);
   protected readonly useCustomStatus = signal(false);
+  protected readonly showContextMenu = signal(false);
 
   protected readonly selectionCountLabel = computed(() => {
     // Selection count is tracked by SelectionService but we don't need

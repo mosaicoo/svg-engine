@@ -47,7 +47,12 @@ import { SvgeEditor } from 'svg-engine/ui';
       </p>
     </header>
     <div class="editor-area">
-      <svge-editor [title]="'Canvas-only embed'" [showToolbar]="false" [showStatusBar]="false">
+      <svge-editor
+        [title]="'Canvas-only embed'"
+        [showToolbar]="false"
+        [showStatusBar]="false"
+        [showContextMenu]="true"
+      >
         <svg:g svgeSelectionOverlay></svg:g>
         <svg:g svgeRotationPivot></svg:g>
         <svg:g svgeMarquee></svg:g>
