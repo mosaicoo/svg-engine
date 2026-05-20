@@ -19,6 +19,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'shell-canvas-only',
+    loadComponent: () =>
+      import('./pages/shell-canvas-only/shell-canvas-only.component').then(
+        (m) => m.ShellCanvasOnly,
+      ),
+  },
+  {
     path: 'perf',
     loadComponent: () => import('./pages/perf/perf.component').then((m) => m.PerfPage),
   },
