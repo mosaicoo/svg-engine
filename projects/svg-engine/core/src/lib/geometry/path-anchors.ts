@@ -372,6 +372,26 @@ export function parsePathToAnchors(d: string): readonly AnchorSubpath[] {
     current.anchors[lastIdx] = { ...prev, handleOut: pendingHandleOut };
   }
 
+  // **Post-pass: re-classify kinds now that both handles are known.**
+  // During the segment walk, `C/c` commands had to push the new anchor
+  // before the NEXT segment's `handleOut` was available, so they got
+  // tagged `cusp` defensively. Now that the subpath is fully wired we
+  // can apply the real heuristic — without this, dblclick→cycle in
+  // the editor reads back `cusp` after every conversion and the cycle
+  // gets stuck at `cusp ↔ smooth`, never reaching `symmetric`.
+  // We do NOT touch `S/s/Q/q/T/t` anchors that were explicitly tagged
+  // `smooth`: the classifier may demote them to `symmetric` if their
+  // handles already mirror, which is the desired "auto-promote" path.
+  for (const sub of subpaths) {
+    for (let i = 0; i < sub.anchors.length; i++) {
+      const a = sub.anchors[i]!;
+      const inferred = classifyAnchorKind(a.point, a.handleIn, a.handleOut);
+      if (inferred !== a.kind) {
+        sub.anchors[i] = { ...a, kind: inferred };
+      }
+    }
+  }
+
   return subpaths;
 }
 

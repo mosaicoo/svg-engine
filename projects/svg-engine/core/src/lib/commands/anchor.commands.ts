@@ -336,12 +336,32 @@ export class ConvertAnchorTypeCommand implements Command {
 
   execute(ctx: CommandContext): CommandResult {
     const nextKind = this.nextKind;
+    const ref = this.ref;
     const result = withPathAnchors(ctx, this.ref.nodeId, (subpaths) => {
-      const sub = subpaths[this.ref.subpathIndex];
+      const sub = subpaths[ref.subpathIndex];
       if (sub === undefined) return false;
-      const anchor = sub.anchors[this.ref.anchorIndex];
+      const anchor = sub.anchors[ref.anchorIndex];
       if (anchor === undefined) return false;
-      sub.anchors[this.ref.anchorIndex] = enforceKind(anchor, nextKind);
+      const n = sub.anchors.length;
+      // Resolve neighbours so `enforceKind` can fabricate default
+      // handles for anchors that arrived with both handles collapsed
+      // (e.g. a path that was just converted from a rect/line). Without
+      // a neighbour to point at, smooth/symmetric would be a visual
+      // no-op and the cycle would appear "broken" on straight-edge
+      // shapes — the most common user-facing case.
+      const prev =
+        ref.anchorIndex > 0
+          ? sub.anchors[ref.anchorIndex - 1]
+          : sub.closed
+            ? sub.anchors[n - 1]
+            : undefined;
+      const next =
+        ref.anchorIndex < n - 1
+          ? sub.anchors[ref.anchorIndex + 1]
+          : sub.closed
+            ? sub.anchors[0]
+            : undefined;
+      sub.anchors[ref.anchorIndex] = enforceKind(anchor, nextKind, prev, next);
       return true;
     });
     if (result === null) return fail('ConvertAnchorTypeCommand: target not found');
@@ -355,39 +375,137 @@ export class ConvertAnchorTypeCommand implements Command {
   }
 }
 
-/** Pure: produce a new anchor with handles snapped to the requested kind constraint. */
-function enforceKind(anchor: AnchorPoint, kind: AnchorKind): AnchorPoint {
-  if (kind === 'cusp') return { ...anchor, kind };
-  // smooth/symmetric: handles colinear opposite. Use handleIn as the
-  // reference direction.
-  const inDx = anchor.handleIn.x - anchor.point.x;
-  const inDy = anchor.handleIn.y - anchor.point.y;
-  const inLen = Math.hypot(inDx, inDy);
-  if (inLen < 1e-6) {
-    // No in handle — fall back to using out handle as reference.
-    const outDx = anchor.handleOut.x - anchor.point.x;
-    const outDy = anchor.handleOut.y - anchor.point.y;
-    const outLen = Math.hypot(outDx, outDy);
-    if (outLen < 1e-6) return { ...anchor, kind };
-    const inLenTarget = kind === 'symmetric' ? outLen : 0;
+/**
+ * Default ratio of neighbour-distance used as handle length when we
+ * have to invent handles from scratch (1/3 is the standard
+ * "natural curve" length used by Illustrator's Smooth tool and most
+ * Bezier auto-tangent algorithms — short enough that the curve stays
+ * close to the original line, long enough to be visibly grabbable).
+ */
+const DEFAULT_HANDLE_RATIO = 1 / 3;
+
+/**
+ * Pure: produce a new anchor with handles snapped to the requested
+ * kind constraint. When converting an anchor with both handles
+ * collapsed (a straight-edge corner from rect/polygon), we synthesize
+ * default handles pointing toward the neighbouring anchors so the
+ * user sees actual curvature on the first conversion — otherwise the
+ * dblclick cycle would be a silent no-op on most "real" paths.
+ *
+ * `prev`/`next` are the adjacent anchors in the subpath (wrap-around
+ * for closed subpaths); either may be `undefined` for endpoint
+ * anchors of open subpaths.
+ */
+function enforceKind(
+  anchor: AnchorPoint,
+  kind: AnchorKind,
+  prev: AnchorPoint | undefined,
+  next: AnchorPoint | undefined,
+): AnchorPoint {
+  const inDx0 = anchor.handleIn.x - anchor.point.x;
+  const inDy0 = anchor.handleIn.y - anchor.point.y;
+  const outDx0 = anchor.handleOut.x - anchor.point.x;
+  const outDy0 = anchor.handleOut.y - anchor.point.y;
+  const inLen0 = Math.hypot(inDx0, inDy0);
+  const outLen0 = Math.hypot(outDx0, outDy0);
+
+  if (kind === 'cusp') {
+    // Just relax the constraint — keep handles wherever they are. If
+    // they happen to still be perfectly symmetric, the next re-parse
+    // will classify the anchor as `symmetric` again (the d-string
+    // doesn't carry kind metadata). Documented limitation: to escape
+    // `symmetric` via the dblclick cycle, the user must nudge one of
+    // the handles. The cycle still works end-to-end on real edited
+    // paths where handles never line up exactly.
+    return { ...anchor, kind };
+  }
+
+  // smooth/symmetric path: need at least one handle direction.
+  // If both handles are collapsed (raw corner from rect/polygon),
+  // synthesize defaults pointing toward the neighbouring anchors.
+  if (inLen0 < 1e-6 && outLen0 < 1e-6) {
+    const synth = synthesizeHandles(anchor, prev, next);
+    if (synth === null) {
+      // Isolated anchor (no neighbours) — there's no direction to
+      // pick. Leave it as-is + flag the requested kind for callers
+      // that may render the constraint metadata.
+      return { ...anchor, kind };
+    }
+    return { ...anchor, kind, handleIn: synth.handleIn, handleOut: synth.handleOut };
+  }
+
+  // At least one handle exists. Use handleIn as reference direction
+  // when available, else mirror from handleOut.
+  if (inLen0 < 1e-6) {
+    const inLenTarget =
+      kind === 'symmetric' ? outLen0 : DEFAULT_HANDLE_RATIO * neighbourDist(anchor, prev);
+    const k = inLenTarget / outLen0;
     return {
       ...anchor,
       kind,
-      handleIn: {
-        x: anchor.point.x - outDx * (inLenTarget / outLen || 0),
-        y: anchor.point.y - outDy * (inLenTarget / outLen || 0),
-      },
+      handleIn: { x: anchor.point.x - outDx0 * k, y: anchor.point.y - outDy0 * k },
     };
   }
-  const outLen = Math.hypot(
-    anchor.handleOut.x - anchor.point.x,
-    anchor.handleOut.y - anchor.point.y,
-  );
-  const targetOutLen = kind === 'symmetric' ? inLen : outLen;
-  const k = targetOutLen / inLen;
+  const targetOutLen =
+    kind === 'symmetric'
+      ? inLen0
+      : outLen0 > 1e-6
+        ? outLen0
+        : DEFAULT_HANDLE_RATIO * neighbourDist(anchor, next);
+  const k = targetOutLen / inLen0;
   return {
     ...anchor,
     kind,
-    handleOut: { x: anchor.point.x - inDx * k, y: anchor.point.y - inDy * k },
+    handleOut: { x: anchor.point.x - inDx0 * k, y: anchor.point.y - inDy0 * k },
+  };
+}
+
+/** Distance from `anchor.point` to a neighbour, or 0 if neighbour absent. */
+function neighbourDist(anchor: AnchorPoint, neighbour: AnchorPoint | undefined): number {
+  if (neighbour === undefined) return 0;
+  return Math.hypot(neighbour.point.x - anchor.point.x, neighbour.point.y - anchor.point.y);
+}
+
+/**
+ * Build symmetric default handles for an anchor with no existing
+ * handles, oriented along the chord from `prev` to `next` (or just
+ * toward whichever neighbour exists). Length is 1/3 the neighbour
+ * distance — the Illustrator "Smooth" tool default.
+ */
+function synthesizeHandles(
+  anchor: AnchorPoint,
+  prev: AnchorPoint | undefined,
+  next: AnchorPoint | undefined,
+): { handleIn: Point; handleOut: Point } | null {
+  if (prev === undefined && next === undefined) return null;
+  // Choose a tangent direction: chord from prev → next if both exist,
+  // else simply along the segment toward the existing neighbour.
+  let dirX: number;
+  let dirY: number;
+  if (prev !== undefined && next !== undefined) {
+    dirX = next.point.x - prev.point.x;
+    dirY = next.point.y - prev.point.y;
+  } else if (next !== undefined) {
+    dirX = next.point.x - anchor.point.x;
+    dirY = next.point.y - anchor.point.y;
+  } else {
+    // prev only
+    dirX = anchor.point.x - prev!.point.x;
+    dirY = anchor.point.y - prev!.point.y;
+  }
+  const dirLen = Math.hypot(dirX, dirY);
+  if (dirLen < 1e-6) return null;
+  const ux = dirX / dirLen;
+  const uy = dirY / dirLen;
+  // Use the SHORTER neighbour distance so the handles don't overshoot
+  // an adjacent anchor on a degenerate (one-side-much-shorter) corner.
+  const distPrev = neighbourDist(anchor, prev);
+  const distNext = neighbourDist(anchor, next);
+  const refDist =
+    distPrev > 0 && distNext > 0 ? Math.min(distPrev, distNext) : Math.max(distPrev, distNext);
+  const len = refDist * DEFAULT_HANDLE_RATIO;
+  return {
+    handleIn: { x: anchor.point.x - ux * len, y: anchor.point.y - uy * len },
+    handleOut: { x: anchor.point.x + ux * len, y: anchor.point.y + uy * len },
   };
 }
