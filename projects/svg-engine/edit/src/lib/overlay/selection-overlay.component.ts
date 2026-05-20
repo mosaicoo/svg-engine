@@ -302,6 +302,21 @@ export class SelectionOverlay {
     afterEveryRender({
       read: () => this.recomputeBBoxes(),
     });
+    // **Font-ready bbox refresh** (bug fix #4 — user reported "resize
+    // do texto só funciona depois de clicar na rotação"). Text nodes
+    // measure 0×0 in `getBBox()` until the browser has loaded their
+    // font and painted the glyphs. `getRenderedNodeBBox` returns null
+    // for 0×0 geometry, which leaves `_focusBBox` null and the resize
+    // handles silently no-op (the pointerdown handler bails on null
+    // bbox). After `document.fonts.ready` resolves, every text node's
+    // bbox becomes valid; we trigger one re-compute so already-
+    // selected text re-acquires its handles. Subsequent text creations
+    // measure correctly because the font is now cached.
+    if (typeof document !== 'undefined' && document.fonts !== undefined) {
+      void document.fonts.ready.then(() => {
+        this.recomputeBBoxes();
+      });
+    }
   }
 
   // ── Resize handle interactions ───────────────────────────────────

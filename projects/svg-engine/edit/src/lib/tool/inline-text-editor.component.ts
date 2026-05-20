@@ -218,28 +218,48 @@ export class InlineTextEditor {
    *   editor) — instead inserts a literal tab character.
    */
   protected onKeyDown(event: KeyboardEvent): void {
+    // Enter (no Shift) commits + closes. stopPropagation prevents any
+    // global Enter handler (e.g. confirm-dialog) from running.
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
+      event.stopPropagation();
       this.commitAndClose();
       return;
     }
+    // Shift+Enter inserts a NEWLINE (multi-line text). Bug fix #3:
+    // the browser default would insert a <br> element, but
+    // Node.textContent (which we read on commit) does NOT convert
+    // <br> to '\n' per spec — so the model would end up with the
+    // visible-but-not-stored line break. We insert a literal '\n'
+    // via execCommand('insertText') so the editor's textContent
+    // contains the newline + the model captures it on commit. The
+    // CSS `white-space: pre-wrap` on .inline-text-editor renders the
+    // \n as a visible line break.
+    if (event.key === 'Enter' && event.shiftKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      // execCommand is technically deprecated but `insertText` remains
+      // universally supported in contentEditable and the modern
+      // InputEvent API is more invasive for this single-character case.
+      document.execCommand('insertText', false, '\n');
+      return;
+    }
+    // Escape cancels + closes. stopPropagation is CRITICAL here —
+    // bug fix #2: without it, the global Escape handler (cancel-gesture
+    // / drill-up isolation) would fire AFTER our cancel, in some
+    // browsers triggering a focus blur that races with cancelAndClose
+    // and prevented the placeholder removal from being dispatched.
     if (event.key === 'Escape') {
       event.preventDefault();
+      event.stopPropagation();
       this.cancelAndClose();
       return;
     }
-    if (event.key === 'Tab') {
-      event.preventDefault();
-      // Insert a literal tab via execCommand-style — modern alternative
-      // is `document.execCommand('insertText', false, '\t')`; we use
-      // the same primitive for compatibility with contentEditable.
-      const sel = window.getSelection?.();
-      if (sel === null || sel === undefined || sel.rangeCount === 0) return;
-      const range = sel.getRangeAt(0);
-      range.deleteContents();
-      range.insertNode(document.createTextNode('\t'));
-      range.collapse(false);
-    }
+    // Tab handling intentionally REMOVED (was inserting literal '\t'
+    // which SVG <text> renders as a single space — bug fix #3 user
+    // reported "Tab nao refletiu"). Letting Tab fall through to the
+    // browser default moves focus out of the editor and triggers blur
+    // -> commitAndClose, which is more useful UX (Tab = "I'm done").
   }
 
   /**
@@ -271,25 +291,33 @@ export class InlineTextEditor {
    * customised get removed entirely. Pre-existing text stays untouched
    * (the model still has the original content; we just didn't commit
    * the editor's transient state).
+   *
+   * **Sequencing matters** (bug fix #2): we now dispatch the removal
+   * BEFORE calling endEdit(). The previous order (endEdit first) had
+   * a subtle race — endEdit synchronously fires the signal effect that
+   * nulls `_target`, which can trigger the editor's `(blur)` handler
+   * via DOM removal, which in turn called `commitAndClose` on a stale
+   * target. With the new order we remove the node first (while
+   * everything is still consistent), then close the editor.
+   *
+   * Also widened the "should remove" condition to include "live
+   * editor text is empty" (user maybe typed then deleted) as well as
+   * the original "model still has placeholder content".
    */
   protected cancelAndClose(): void {
     const tgt = this._target();
     const isPlaceholder = this.editorSvc.isPlaceholder();
-    this.editorSvc.endEdit();
-    if (tgt === null) return;
-    // Fresh placeholder + user pressed Esc without committing → treat
-    // it like an accidental click. Removes the orphan node.
-    if (isPlaceholder) {
-      // Check the CURRENT model text — if it still matches the seeded
-      // placeholder (user never accepted via Enter), remove the node.
+    if (tgt !== null && isPlaceholder) {
+      const ref = this.editorEl();
+      const liveText = (ref?.nativeElement.textContent ?? '').trim();
       const node = findNodeById(this.state.document().root, tgt.nodeId);
-      if (
-        node !== null &&
-        node.type === 'text' &&
-        (node as TextNode).content === PLACEHOLDER_TEXT
-      ) {
+      const modelText = node !== null && node.type === 'text' ? (node as TextNode).content : '';
+      const stillPlaceholder = modelText === PLACEHOLDER_TEXT;
+      const userTypedNothing = liveText.length === 0 || liveText === PLACEHOLDER_TEXT;
+      if (stillPlaceholder || userTypedNothing) {
         this.bus.dispatch(new RemoveNodeCommand(tgt.nodeId));
       }
     }
+    this.editorSvc.endEdit();
   }
 }

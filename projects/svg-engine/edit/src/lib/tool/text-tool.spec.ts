@@ -111,6 +111,45 @@ describe('TextTool — pointer behaviour', () => {
 
     expect(textChildren(state)).toHaveLength(2);
   });
+
+  it('clicking on an existing text node opens edit on it (no new placeholder) — bug fix #1', () => {
+    const { state, host, editorSvc } = setup();
+    // Seed an existing text node in the document — the Text tool's
+    // hit-test should find it via data-node-id on the event target.
+    // We simulate the DOM target by constructing a PointerEvent with
+    // an HTML element carrying the data-node-id attribute.
+    host.routePointerDown(evtAt({ x: 30, y: 30 }));
+    editorSvc.endEdit(); // close the editor opened by the click
+    const seeded = textChildren(state);
+    expect(seeded).toHaveLength(1);
+    const existingId = seeded[0]!.id;
+
+    // Forge a pointer event whose target carries the existing node id.
+    // resolveNodeIdFromEvent walks the element's parent chain looking
+    // for `data-node-id`; matching the existing seeded id makes the
+    // tool's hit-test branch fire.
+    const target = document.createElement('div');
+    target.setAttribute('data-node-id', existingId);
+    const raw = new PointerEvent('pointerdown', { pointerId: 1, button: 0 });
+    Object.defineProperty(raw, 'target', { value: target });
+
+    host.routePointerDown({
+      raw,
+      docPoint: { x: 30, y: 30 },
+      screenX: 0,
+      screenY: 0,
+      shiftKey: false,
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+    });
+
+    // No new placeholder — same single text node, but now in edit mode
+    // with isPlaceholder=false (we are editing existing content).
+    expect(textChildren(state)).toHaveLength(1);
+    expect(editorSvc.editingId()).toBe(existingId);
+    expect(editorSvc.isPlaceholder()).toBe(false);
+  });
 });
 
 describe('InlineTextEditorService — state machine', () => {

@@ -1,4 +1,11 @@
-import { CommandBus, createText, EditorStateService, InsertNodeCommand } from 'svg-engine/core';
+import {
+  CommandBus,
+  createText,
+  EditorStateService,
+  findNodeById,
+  InsertNodeCommand,
+} from 'svg-engine/core';
+import { resolveNodeIdFromEvent } from '../hit-testing/hit-testing';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../plugin/plugin';
 import { SelectionService } from '../selection/selection.service';
 import { InlineTextEditorService } from './text-tool.service';
@@ -61,13 +68,33 @@ class TextTool implements Tool {
   }
 
   onPointerDown(event: ToolPointerEvent, ctx: ToolContext): void {
-    // Only the LEFT button creates a new text node — right-click is
-    // reserved for context menus (future polish).
+    // Only the LEFT button creates / edits — right-click is reserved
+    // for context menus (future polish).
     if (event.raw.button !== 0) return;
+
+    const state = ctx.injector.get(EditorStateService);
+    const editorSvc = ctx.injector.get(InlineTextEditorService);
+
+    // **Edit existing text under cursor** (Bug fix #1 — user reported
+    // "não é possível editar o texto"): walking the DOM via the
+    // hit-test helper. When the click hits a text node, open the
+    // inline editor on it instead of creating a yet another placeholder
+    // on top — matches Illustrator/Figma convention (Text tool over
+    // existing text → edit it).
+    const hitId = resolveNodeIdFromEvent(event.raw);
+    if (hitId !== null) {
+      const hitNode = findNodeById(state.document().root, hitId);
+      if (hitNode !== null && hitNode.type === 'text') {
+        // Existing text — open editor with placeholder=false so Esc
+        // doesn't remove the (user-authored) node on cancel.
+        editorSvc.beginEdit(hitId, false);
+        return;
+      }
+    }
+
     // Snapshot the doc-root id BEFORE dispatching — the document
     // is immutable but we want the insertion under whichever root
     // is current at click time (not at commit time).
-    const state = ctx.injector.get(EditorStateService);
     const rootId = state.document().root.id;
     // Create the placeholder text node with default font-size + style.
     // `y` is the text's baseline by SVG spec — we shift up by the
@@ -87,7 +114,7 @@ class TextTool implements Tool {
     // `placeholder=true` flag tells the editor: "if the user cancels
     // without typing, remove this node entirely (it was never real
     // content)".
-    ctx.injector.get(InlineTextEditorService).beginEdit(node.id, true);
+    editorSvc.beginEdit(node.id, true);
   }
 }
 

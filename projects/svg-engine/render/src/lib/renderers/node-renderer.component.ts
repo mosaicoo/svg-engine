@@ -80,7 +80,28 @@ import { SvgeTextDirective } from './text-renderer.directive';
         <svg:path [svgePath]="$any(node())" />
       }
       @case ('text') {
-        <svg:text [svgeText]="$any(node())">{{ textContent() }}</svg:text>
+        <!--
+          Multi-line rendering: when content has newline characters,
+          emit one tspan per line with the same x and dy=1.2em
+          relative offset for each subsequent line. SVG text does
+          not honour newline chars in plain content (renders as a
+          single space) — the tspan structure is the spec-compliant
+          way to get visible multi-line output.
+          For single-line content (no newlines), we keep the plain
+          interpolation path so existing specs/snapshots that assert
+          on a bare text element structure continue to pass.
+        -->
+        @if (textIsMultiLine()) {
+          <svg:text [svgeText]="$any(node())">
+            @for (line of textLines(); track $index) {
+              <svg:tspan [attr.x]="textX()" [attr.dy]="$index === 0 ? '0' : '1.2em'">
+                {{ line }}
+              </svg:tspan>
+            }
+          </svg:text>
+        } @else {
+          <svg:text [svgeText]="$any(node())">{{ textContent() }}</svg:text>
+        }
       }
       @case ('image') {
         <svg:image [svgeImage]="$any(node())" />
@@ -126,6 +147,38 @@ export class SvgeNodeRenderer {
   protected textContent(): string {
     const n = this.node();
     return n.type === 'text' ? (n as TextNode).content : '';
+  }
+
+  /**
+   * `true` when the text node's content contains newline characters —
+   * the renderer switches to the multi-line tspan path. Single-line
+   * text keeps the simpler plain interpolation.
+   */
+  protected textIsMultiLine(): boolean {
+    return this.textContent().includes('\n');
+  }
+
+  /**
+   * Split text content into lines for the multi-line tspan path.
+   * Returns `[]` for non-text nodes (defensive — branch is gated by
+   * `textIsMultiLine`).
+   */
+  protected textLines(): readonly string[] {
+    const c = this.textContent();
+    if (c.length === 0) return [];
+    return c.split('\n');
+  }
+
+  /**
+   * X position of the text node — every tspan inherits this value
+   * via its own `x` attribute (the default behaviour of tspan without
+   * explicit `x` is to continue from the previous tspan's end, which
+   * is NOT what we want for multi-line — we want each line to start
+   * at the same horizontal anchor).
+   */
+  protected textX(): number {
+    const n = this.node();
+    return n.type === 'text' ? (n as TextNode).x : 0;
   }
 
   /**
