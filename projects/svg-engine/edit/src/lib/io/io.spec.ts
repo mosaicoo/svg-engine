@@ -1,10 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { createGroup, createRect } from 'svg-engine/core';
+import { ExporterRegistry, ImporterRegistry, svgExporter, svgImporter } from 'svg-engine/io';
 import { PluginRegistry } from '../plugin/plugin-registry.service';
 import { builtinIoPlugin } from './builtin-io.plugin';
-import { ExporterRegistry, ImporterRegistry } from './io-registries.service';
-import { svgExporter } from './svg-exporter';
-import { svgImporter } from './svg-importer';
 
 describe('ImporterRegistry / ExporterRegistry — basics', () => {
   it('start empty; register adds; Disposable removes', () => {

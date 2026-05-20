@@ -223,17 +223,70 @@ a fase do roadmap implementa o conteúdo.
   `viewport.service`, `renderers` (smoke por tipo), `svge-renderer.component` (integração).
 - Total da library `svg-engine`: **110 testes em 10 arquivos**, todos verdes.
 
-### `svg-engine/io` (Fase 5)
+### `svg-engine/io` (Fase 5) ✅
 
-> Parse, sanitização e serialização de SVG.
+> Parse, sanitização e serialização de SVG/PNG. **Headless** — sem deps de UI.
+> **D-026 (2026-05-20)**: extraído de `svg-engine/edit` como entry point dedicado.
+> Re-exportado por `svg-engine/edit` para backward-compat (imports existentes continuam válidos).
 
-_(populado quando Fase 5 entregar)_
+#### Tipos contributivos (`./lib/io-types.ts`)
 
-### `svg-engine/optimize` (Fase 5)
+| Símbolo        | Descrição                                                                    |
+| -------------- | ---------------------------------------------------------------------------- |
+| `Importer`     | `id`/`name`/`mediaType`/`extensions` + `import(blob): Promise<ImportResult>` |
+| `Exporter`     | `id`/`name`/`mediaType`/`extension` + `export(doc): string \| Promise<Blob>` |
+| `ImportResult` | `{ document: SvgDocument; warnings?: readonly string[] }`                    |
 
-> Pipeline de otimizações de SVG.
+#### Registries (`./lib/io-registries.service.ts`)
 
-_(populado quando Fase 5 entregar)_
+| Símbolo                                      | Descrição                                                                               |
+| -------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `ImporterRegistry` (`@Injectable({ root })`) | `register(imp): Disposable`, `get(id)`, `byMediaType(mt)`, `byExtension(ext)`, `list()` |
+| `ExporterRegistry` (`@Injectable({ root })`) | API simétrica para exportadores                                                         |
+
+#### Implementações built-in
+
+| Símbolo                  | Descrição                                                                               |
+| ------------------------ | --------------------------------------------------------------------------------------- |
+| `svgImporter`            | string SVG → `SvgDocument` (rect/ellipse/line/polygon/polyline/path/text + defs/clip)   |
+| `svgExporter`            | `SvgDocument` → string SVG determinística                                               |
+| `pngExporter`            | `SvgDocument` → `Blob` PNG (via `<canvas>`); aceita `{ scale }` para retina @1x/@2x/@3x |
+| `renderPng(doc, scale?)` | função pura de rasterização (base do `pngExporter`)                                     |
+
+> **Plugin wrappers** (`builtinIoPlugin`, `pngExporterPlugin`) ficam em `svg-engine/edit` porque dependem de `EditorPlugin`.
+
+### `svg-engine/optimize` (Fase 5) ✅
+
+> Pipeline conservador de otimizações de SVG. **Headless** — sem deps de UI.
+> **D-026 (2026-05-20)**: extraído de `svg-engine/edit`.
+
+#### Tipo contributivo (`./lib/optimizer.ts`)
+
+| Símbolo     | Descrição                                                             |
+| ----------- | --------------------------------------------------------------------- |
+| `Optimizer` | `id`/`name`/`order?`/`defaultEnabled?` + `optimize(doc): SvgDocument` |
+
+#### Registry (`./lib/optimizer-registry.service.ts`)
+
+| Símbolo                                       | Descrição                                                                           |
+| --------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `OptimizerRegistry` (`@Injectable({ root })`) | `register(opt): Disposable`, `get`, `optimizers()`, `runPipeline(doc, enabledIds?)` |
+
+#### Comando
+
+| Símbolo                             | Descrição                                                                         |
+| ----------------------------------- | --------------------------------------------------------------------------------- |
+| `OptimizeCommand(reg, enabledIds?)` | dispara `runPipeline` + push 1 undo entry (skip se nada mudou — sem entrada lixo) |
+
+#### Passes built-in (conservadores)
+
+| Símbolo                     | Order | Efeito                                                                               |
+| --------------------------- | ----- | ------------------------------------------------------------------------------------ |
+| `precisionOptimizer`        | 10    | Arredonda numerics a 3 casas (rect x/y/w/h, path `d` tokens, style fields numéricos) |
+| `dropDefaultsOptimizer`     | 50    | Remove `opacity:1`/`fillOpacity:1`/`strokeOpacity:1`/`visibility:visible`            |
+| `pruneEmptyGroupsOptimizer` | 90    | Remove `<g></g>` recursivamente (document root sempre preservado)                    |
+
+> **Plugin wrapper** (`builtinOptimizersPlugin`) fica em `svg-engine/edit`.
 
 ### `svg-engine/edit` (Fase 3 Blocos 1+2+3) ⏳ em progresso
 

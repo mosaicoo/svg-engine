@@ -1,7 +1,6 @@
+import { ExporterRegistry, pngExporter } from 'svg-engine/io';
 import type { EditorPlugin, PluginContext } from '../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../plugin/plugin';
-import { ExporterRegistry } from './io-registries.service';
-import { pngExporter } from './png-exporter';
 
 /**
  * Reference plugin: registers the {@link pngExporter} (canvas-based

@@ -1,16 +1,10 @@
 import type { Injector } from '@angular/core';
-
-/**
- * Anything that needs explicit cleanup. Each `register*()` method on a
- * capability registry (Tool, Optimizer, Importer, etc.) returns a
- * `Disposable` so that {@link PluginRegistry.uninstall} can remove every
- * contribution the plugin made — without the plugin author having to
- * track them manually. Plugins call `ctx.track(d)` to opt into
- * automatic disposal.
- */
-export interface Disposable {
-  dispose(): void;
-}
+// `Disposable` lives in `/core` now (foundational shape shared by every
+// capability registry across all entry points — Tool, Importer,
+// Optimizer, Palette, ...). The re-export here keeps existing imports
+// `from 'svg-engine/edit'` working without changes (backward-compat).
+import { type Disposable } from 'svg-engine/core';
+export { type Disposable };
 
 /**
  * Current version of the plugin API surface. Bumped (semver) when

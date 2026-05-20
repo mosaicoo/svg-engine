@@ -145,16 +145,24 @@ example.
 
 ## Entry points at a glance
 
-| Package             | What's in it                                                                                                                            | Material? |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| `svg-engine/core`   | model, commands (incl. anchor + pathfinder), history, state, geometry, tree ops                                                         | ❌        |
-| `svg-engine/render` | `<svge-renderer>`, per-type directives, viewport, node-renderer registry                                                                | ❌        |
-| `svg-engine/edit`   | selection, transform, marquee, snap, alignment, anchor editor, pathfinder UI, plugin scaffolding, tools, IO, optimize, viewport culling | ❌        |
-| `svg-engine/ui`     | `<svge-editor>`, layers panel, inspector, toolbar, rulers, palette, theme toggle                                                        | ✅        |
-| `playground` (app)  | reference consumer + `/perf` benchmark harness                                                                                          | ✅        |
+| Package               | What's in it                                                                                                              | Material? |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `svg-engine/core`     | model, commands (incl. anchor + pathfinder), history, state, geometry, tree ops, `Disposable`, transform parser           | ❌        |
+| `svg-engine/render`   | `<svge-renderer>`, per-type directives, viewport, node-renderer registry                                                  | ❌        |
+| `svg-engine/io`       | `Importer`/`Exporter` registries + types, `svgImporter`, `svgExporter`, `pngExporter`, `renderPng`                        | ❌        |
+| `svg-engine/optimize` | `Optimizer` type + `OptimizerRegistry`, 3 built-in passes (precision/dropDefaults/pruneEmptyGroups), `OptimizeCommand`    | ❌        |
+| `svg-engine/edit`     | selection, transform, marquee, snap, alignment, anchor editor, pathfinder UI, plugin scaffolding, tools, viewport culling | ❌        |
+| `svg-engine/ui`       | `<svge-editor>`, layers panel, inspector, toolbar, rulers, palette, theme toggle                                          | ✅        |
+| `playground` (app)    | reference consumer + `/perf` benchmark harness                                                                            | ✅        |
 
 Each entry point is independently lazy-loadable. Consuming `core` does
-**not** drag in `render`, `edit`, or `ui`.
+**not** drag in `render`, `io`, `optimize`, `edit`, or `ui`.
+
+> **D-026 (2026-05-20)**: `svg-engine/io` and `svg-engine/optimize`
+> were extracted from `svg-engine/edit` as dedicated entry points,
+> enabling use case "B" of D-016 (optimize/convert without dragging
+> the editor in). `svg-engine/edit` re-exports their public API for
+> backward compatibility — existing imports keep working unchanged.
 
 ---
 

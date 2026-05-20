@@ -1,13 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 import { createGroup, createPath, createRect, type SvgDocument } from 'svg-engine/core';
-import { PluginRegistry } from '../plugin/plugin-registry.service';
 import {
   dropDefaultsOptimizer,
+  OptimizerRegistry,
   precisionOptimizer,
   pruneEmptyGroupsOptimizer,
-} from './builtin-optimizers';
+} from 'svg-engine/optimize';
+import { PluginRegistry } from '../plugin/plugin-registry.service';
 import { builtinOptimizersPlugin } from './builtin-optimizers.plugin';
-import { OptimizerRegistry } from './optimizer-registry.service';
 
 function doc(children: ReturnType<typeof createRect>[]): SvgDocument {
   return {

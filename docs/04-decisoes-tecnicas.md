@@ -749,17 +749,66 @@ Cycle real resultante: `cusp (corner) → smooth (curva assimétrica) → symmet
 
 ---
 
+## D-026 — Promover `io` e `optimize` a entry points dedicados (alinhamento estrutural)
+
+- **Data**: 2026-05-20
+- **Status**: Decidida + implementada (zero-break refactor)
+- **Contexto**: O plano original do produto (ver D-018) catalogava 6 entry points secundários: `core`, `render`, `io`, `optimize`, `edit`, `ui`. Durante o crescimento orgânico (Fase 4 → Fase 5 → Fase 6) os módulos `io/` e `optimize/` ficaram dobrados dentro de `svg-engine/edit` — funcionalmente corretos, mas violando a separação de responsabilidades prevista. Auditoria pós-Sprint Text-Tool detectou o desvio.
+
+### Problema
+
+- `svg-engine/edit` carrega importadores/exportadores SVG/PNG e pipeline de otimização, contrariando o use case "Caso B — apenas otimização sem editor" descrito em D-016. Um consumer que quer só otimizar/converter SVG era forçado a trazer o editor inteiro (DI tree, gestures, plugin registry).
+- O bundle do `edit` ficava maior do que o necessário para use cases não-editoriais.
+- O catálogo da documentação (06, 09) descrevia 6 entry points, mas o código entregava 4 (core/render/edit/ui). Discrepância documental.
+
+### Decisão
+
+Extrair `io/` e `optimize/` como entry points secundários próprios (`svg-engine/io`, `svg-engine/optimize`), preservando 100% da API pública via re-exports em `svg-engine/edit` para garantia de zero breaking change.
+
+**Layout pós-refactor**:
+
+- `svg-engine/io` (NOVO): `Importer`/`Exporter` types, `ImporterRegistry`/`ExporterRegistry`, `svgImporter`, `svgExporter`, `pngExporter`, `renderPng`.
+- `svg-engine/optimize` (NOVO): `Optimizer` type, `OptimizerRegistry`, 3 passes built-in (precision/dropDefaults/pruneEmptyGroups), `OptimizeCommand`.
+- `svg-engine/edit` (mantido): plugin wrappers (`builtinIoPlugin`, `pngExporterPlugin`, `builtinOptimizersPlugin`) — ficam aqui porque dependem do scaffolding `EditorPlugin` ownado por `/edit`. Os barréis `lib/io/index.ts` e `lib/optimize/index.ts` re-exportam o conteúdo dos novos entry points → imports `from 'svg-engine/edit'` continuam funcionando.
+- `svg-engine/core`: recebeu `Disposable` interface e `parseTransformAttr` (utilitários foundational que `/io` precisava sem trazer `/edit`).
+
+### Garantias verificadas
+
+- ✅ Build full (`npx ng build svg-engine`): 6 entry points compilam sem erro.
+- ✅ Suite full (`npx ng test svg-engine`): 948/948 specs passando (zero regressão).
+- ✅ Playground (`npx ng build playground`): compila sem ajuste (re-exports preservam imports existentes).
+- ✅ Lint clean em todos arquivos tocados.
+- ✅ Bundle do `edit` reduz quando consumer importa só `svg-engine/io` ou `/optimize` (tree-shaking acompanha boundary do entry point).
+
+### Razões para escolher esta hora (não adiar)
+
+- Pre-1.0: SemVer policy permite refactors estruturais (ver D-001), porém a maioria dos imports externos já é via `svg-engine/edit` — refactor late seria mais doloroso.
+- D-018 já estabelecia secondary-only — extender o catálogo para 6 alinha o código com o plano original.
+- O custo é zero (apenas movimentações + barréis re-export) e o benefício é arquitetural (use case B viável sem `/edit`).
+
+### Trade-offs aceitos
+
+- Mais entry points = mais arquivos `ng-package.json` + mais paths no `tsconfig.json` (overhead trivial).
+- Plugins wrappers ficam em `/edit` enquanto registries ficam em `/io`/`/optimize` — split intencional (plugins precisam de `EditorPlugin`, registries não).
+
+### Quando reabrir
+
+- Se `/edit` precisar de algum import circular para `/io` ou `/optimize` (não há hoje) — sinal de que o scaffolding `EditorPlugin` precisaria também sair de `/edit`.
+- Se algum consumer reportar que o re-export em `/edit/lib/io/index.ts` confunde tree-shaker (bundlers modernos lidam, mas vale monitorar).
+
+---
+
 ## Decisões pendentes (em aberto)
 
 | ID provis. | Tema                                                                   |
 | ---------- | ---------------------------------------------------------------------- |
 | D-025?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo)      |
-| D-026?     | Estratégia de i18n no editor                                           |
 | D-027?     | Migração para zoneless (revisar D-010)                                 |
 | D-028?     | Lint rule customizada para enforcer headless boundary                  |
 | D-029?     | Estratégia de testes E2E (Playwright?)                                 |
 | D-031?     | Versionamento + changelog (changesets / standard-version)              |
 | D-032?     | Multi-page (`WorkspacesRegistry`) — extensão futura de D-021           |
+| D-033?     | Estratégia de i18n no editor                                           |
 | D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3 |
 
-> **Nota**: D-023 era "API formal de plugins" (cumprida pelo D-020 expandido em 2026-05-15). D-024 era "Versionamento + changelog" (renumerada para D-031 porque o número D-024 foi reusado para `ScriptRuntimePlugin`). D-030 era "Workspace/Página: A vs B" (cumprida pelo D-021 resolvido como Option C). D-032 entra como pendente para multi-page futuro. Sequência de IDs cumpridas em 2026-05-15: D-020, D-021, D-023, D-024.
+> **Nota**: D-023 era "API formal de plugins" (cumprida pelo D-020 expandido em 2026-05-15). D-024 era "Versionamento + changelog" (renumerada para D-031 porque o número D-024 foi reusado para `ScriptRuntimePlugin`). D-030 era "Workspace/Página: A vs B" (cumprida pelo D-021 resolvido como Option C). D-032 entra como pendente para multi-page futuro. Sequência de IDs cumpridas em 2026-05-15: D-020, D-021, D-023, D-024. Em 2026-05-20: D-026 (alinhamento estrutural io/optimize); o número D-026 era previamente reservado para i18n — renomeado para D-033.

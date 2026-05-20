@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import type { SvgDocument } from 'svg-engine/core';
-import type { Disposable } from '../plugin/plugin';
+import type { Disposable } from 'svg-engine/core';
 import type { Optimizer } from './optimizer';
 
 /**

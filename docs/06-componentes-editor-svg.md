@@ -66,28 +66,53 @@
 
 ---
 
-## Entry point `svg-engine/io` (Fase 5)
+## Entry point `svg-engine/io` (Fase 5) ✅
 
-### Serviços
+> **D-026 (2026-05-20)**: extraído de `svg-engine/edit` como entry point dedicado para viabilizar use case "Caso B — apenas otimização/conversão sem editor" (ver D-016). Re-exportado por `svg-engine/edit` para backward-compat.
 
-| Serviço         | Responsabilidade                                   |
-| --------------- | -------------------------------------------------- |
-| `SvgParser`     | string SVG → árvore de `SvgNode` (com sanitização) |
-| `SvgSerializer` | árvore de `SvgNode` → string SVG (determinístico)  |
-| `SvgSanitizer`  | remove scripts/eventos, valida `xlink:href`        |
+### Tipos + registries
+
+| Símbolo            | Responsabilidade                                                                       |
+| ------------------ | -------------------------------------------------------------------------------------- |
+| `Importer`         | Interface contributiva — `mediaType`/`extensions` + `import(blob): ImportResult` async |
+| `Exporter`         | Interface contributiva — `mediaType`/`extension` + `export(doc): string \| Blob`       |
+| `ImporterRegistry` | DI service — register/get/list + lookup `byMediaType` / `byExtension`                  |
+| `ExporterRegistry` | DI service — análogo, com suporte a binary (Blob) e text (string) exporters            |
+
+### Importadores/exportadores built-in
+
+| Símbolo       | Responsabilidade                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------- |
+| `svgImporter` | parse string SVG → `SvgDocument` (rect/ellipse/line/polygon/polyline/path/group/text + defs/clip) |
+| `svgExporter` | `SvgDocument` → string SVG determinística (serializer canonical)                                  |
+| `pngExporter` | `SvgDocument` → `Blob` PNG via `<canvas>`; suporta scale @1x/@2x/@3x via opts                     |
+| `renderPng`   | Função pura de rasterização (usada pelo `pngExporter` e pelo preset retina)                       |
+
+Plugins wrappers (`builtinIoPlugin`, `pngExporterPlugin`) ficam em `svg-engine/edit` porque dependem do scaffolding `EditorPlugin`.
 
 ---
 
-## Entry point `svg-engine/optimize` (Fase 5)
+## Entry point `svg-engine/optimize` (Fase 5) ✅
 
-### Serviços
+> **D-026 (2026-05-20)**: extraído de `svg-engine/edit`. Mesma motivação que `/io`.
 
-| Serviço                | Responsabilidade                                         |
-| ---------------------- | -------------------------------------------------------- |
-| `OptimizationPipeline` | Compõe e executa passes de otimização configuráveis      |
-| `PathOptimizer`        | Reduz e simplifica `d` attribute de paths                |
-| `Deduper`              | Remove definições duplicadas (gradients, patterns, etc.) |
-| `Minifier`             | Remove whitespace e atributos default                    |
+### Tipos + registry
+
+| Símbolo             | Responsabilidade                                                                      |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| `Optimizer`         | Interface contributiva — `id`/`name`/`order`/`defaultEnabled?` + `optimize(doc): doc` |
+| `OptimizerRegistry` | DI service — register/get/list + `runPipeline(doc, enabledIds?)` ordena por `order`   |
+| `OptimizeCommand`   | `Command` que dispara o pipeline + push single undo entry (skip se nada mudou)        |
+
+### Passes built-in (conservadores)
+
+| Símbolo                     | Order | Efeito                                                                    |
+| --------------------------- | ----- | ------------------------------------------------------------------------- |
+| `precisionOptimizer`        | 10    | Arredonda numerics a 3 casas (rect x/y/w/h, path `d`, styles)             |
+| `dropDefaultsOptimizer`     | 50    | Remove `opacity:1`/`fillOpacity:1`/`strokeOpacity:1`/`visibility:visible` |
+| `pruneEmptyGroupsOptimizer` | 90    | Remove `<g></g>` recursivamente (root preservado)                         |
+
+Plugin wrapper (`builtinOptimizersPlugin`) fica em `svg-engine/edit`.
 
 ---
 

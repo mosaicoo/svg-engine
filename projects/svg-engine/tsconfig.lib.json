@@ -12,6 +12,8 @@
     "src/**/*.ts",
     "core/src/**/*.ts",
     "render/src/**/*.ts",
+    "io/src/**/*.ts",
+    "optimize/src/**/*.ts",
     "edit/src/**/*.ts",
     "ui/src/**/*.ts"
   ],

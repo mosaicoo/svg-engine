@@ -1,8 +1,6 @@
+import { ExporterRegistry, ImporterRegistry, svgExporter, svgImporter } from 'svg-engine/io';
 import type { EditorPlugin, PluginContext } from '../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../plugin/plugin';
-import { ExporterRegistry, ImporterRegistry } from './io-registries.service';
-import { svgExporter } from './svg-exporter';
-import { svgImporter } from './svg-importer';
 
 /**
  * Built-in IO plugin (Fase 5-IO). Registers the sanitized

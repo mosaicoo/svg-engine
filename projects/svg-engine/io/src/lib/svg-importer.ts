@@ -11,11 +11,11 @@ import {
   createRect,
   createText,
   generateNodeId,
+  parseTransformAttr,
   type SvgDocument,
   type SvgNode,
   type SvgStyle,
 } from 'svg-engine/core';
-import { parseTransformAttr } from '../geometry/transform-attr-parser';
 import type { Importer, ImportResult } from './io-types';
 
 /**

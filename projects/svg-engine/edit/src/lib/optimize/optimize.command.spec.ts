@@ -7,10 +7,9 @@ import {
   findNodeById,
   type SvgDocument,
 } from 'svg-engine/core';
+import { OptimizeCommand, OptimizerRegistry } from 'svg-engine/optimize';
 import { PluginRegistry } from '../plugin/plugin-registry.service';
 import { builtinOptimizersPlugin } from './builtin-optimizers.plugin';
-import { OptimizeCommand } from './optimize.command';
-import { OptimizerRegistry } from './optimizer-registry.service';
 
 function setup() {
   const state = TestBed.inject(EditorStateService);

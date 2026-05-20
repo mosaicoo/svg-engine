@@ -6,6 +6,82 @@
 
 ---
 
+## 2026-05-20 — Alinhamento estrutural: extração de `svg-engine/io` + `/optimize` (D-026)
+
+**Contexto**
+
+Auditoria pós-Sprint Text-Tool confirmou um desvio do plano original
+(D-018): o projeto deveria entregar 6 entry points secundários
+(`core`, `render`, `io`, `optimize`, `edit`, `ui`), mas o crescimento
+orgânico das Fases 4→5→6 dobrou `io/` e `optimize/` dentro de
+`svg-engine/edit`. Funcionalmente correto; estruturalmente desalinhado.
+
+**Problema concreto**
+
+- "Caso B" do D-016 (apenas otimização/conversão sem editor) era
+  impraticável: consumer precisava trazer o `/edit` inteiro (DI tree,
+  gestures, plugin registry) só pra rodar 3 passes de otimização.
+- Bundle do `/edit` carregava parsers/serializers/raster mesmo quando
+  o app só precisava do editor.
+- Documentação (06, 09, README) descrevia 6 entry points; código
+  entregava 4 (core/render/edit/ui).
+
+**Solução**
+
+Extração com **garantia de zero breaking change**:
+
+1. **Movimentações para `/core`** (utilitários foundational):
+   - `Disposable` interface (compartilhado por toda capability registry).
+   - `parseTransformAttr` (utility SVG transform → matrix usado por
+     `/io` e `/edit`).
+2. **Novo entry point `svg-engine/io`**:
+   - Types: `Importer`, `Exporter`, `ImportResult`.
+   - Registries: `ImporterRegistry`, `ExporterRegistry`.
+   - Implementações: `svgImporter`, `svgExporter`, `pngExporter`,
+     `renderPng`.
+3. **Novo entry point `svg-engine/optimize`**:
+   - Type: `Optimizer`.
+   - Registry: `OptimizerRegistry`.
+   - 3 passes built-in: `precisionOptimizer`, `dropDefaultsOptimizer`,
+     `pruneEmptyGroupsOptimizer`.
+   - `OptimizeCommand`.
+4. **Em `svg-engine/edit` ficam apenas os plugin wrappers**:
+   - `builtinIoPlugin`, `pngExporterPlugin`, `builtinOptimizersPlugin`
+     (dependem de `EditorPlugin` que mora em `/edit`).
+5. **Backward-compat preservada**: barréis em `/edit/lib/io/index.ts` e
+   `/edit/lib/optimize/index.ts` re-exportam de `svg-engine/io` /
+   `svg-engine/optimize`. Imports existentes (`from 'svg-engine/edit'`)
+   continuam funcionando sem ajuste.
+
+**Garantias verificadas**
+
+- ✅ Build full 6 entry points (`npx ng build svg-engine`) — clean.
+- ✅ Suite full (`npx ng test svg-engine`) — **948/948 specs**.
+- ✅ Playground (`npx ng build playground`) — compila sem ajuste.
+- ✅ ESLint clean em todos arquivos tocados.
+
+**Arquivos**
+
+- 5 arquivos movidos para `projects/svg-engine/io/src/lib/`.
+- 4 arquivos movidos para `projects/svg-engine/optimize/src/lib/`.
+- 2 arquivos novos em `/core/src/lib/types/` (disposable +
+  transform-parser).
+- 4 arquivos modificados no `/edit` (plugin.ts re-export Disposable,
+  autosave service import, 2 barréis index.ts).
+- `tsconfig.json` + `tsconfig.lib.json` + `tsconfig.spec.json` —
+  paths + includes para `/io` + `/optimize`.
+- D-026 registrada em `04-decisoes-tecnicas.md`; `06`, `09` e este
+  arquivo atualizados; pendente `D-026? i18n` renumerada para `D-033?`.
+
+**Por que agora (pre-1.0)**
+
+Refactor estrutural em pre-1.0 é barato (SemVer permite); late em 1.x
+seria doloroso. O custo foi puramente mecânico (movimentações +
+barréis re-export); o benefício é arquitetural (use case B viável,
+bundle do `/edit` enxuga quando consumer usa só `/io` ou `/optimize`).
+
+---
+
 ## 2026-05-19 — Path Editor: bugfixes do cycle de kinds + ancestor matrix em AnchorOverlay
 
 **Contexto**

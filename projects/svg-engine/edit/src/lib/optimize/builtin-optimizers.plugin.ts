@@ -1,11 +1,11 @@
-import type { EditorPlugin, PluginContext } from '../plugin/plugin';
-import { PLUGIN_API_VERSION } from '../plugin/plugin';
 import {
   dropDefaultsOptimizer,
+  OptimizerRegistry,
   precisionOptimizer,
   pruneEmptyGroupsOptimizer,
-} from './builtin-optimizers';
-import { OptimizerRegistry } from './optimizer-registry.service';
+} from 'svg-engine/optimize';
+import type { EditorPlugin, PluginContext } from '../plugin/plugin';
+import { PLUGIN_API_VERSION } from '../plugin/plugin';
 
 /**
  * Built-in optimizers plugin (Fase 5-Optimize). Registers the 3

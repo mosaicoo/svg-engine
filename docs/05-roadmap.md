@@ -264,6 +264,8 @@
 
 ## Fase 5 — IO + extensibilidade ✅ (entregue, 708 testes)
 
+> **2026-05-20 — Alinhamento estrutural (D-026)**: `Importer`/`Exporter`/`Optimizer` (registries + tipos + built-ins) movidos de `svg-engine/edit` para entry points dedicados `svg-engine/io` e `svg-engine/optimize`. Plugin wrappers (`builtinIoPlugin`, `pngExporterPlugin`, `builtinOptimizersPlugin`) ficam em `/edit` porque dependem do scaffolding `EditorPlugin`. Backward-compat preservada via re-exports em `/edit/lib/io` e `/edit/lib/optimize`. Build + 948 specs + playground compilam sem ajuste.
+
 - [x] **Bloco 5-IO**: Import + Export SVG (categorias 4 e 5 do D-023)
   - Tipos `Importer` (id/name/mediaTypes/extensions/import) e `Exporter` (id/name/mediaType/extension/export). `ImportResult = { ok:true, document, warnings } | { ok:false, error }` (warnings não-fatais para sanitização)
   - `ImporterRegistry` + `ExporterRegistry` signal-backed seguindo a forma das outras: register retorna Disposable, lookup helpers `byExtension`/`byMediaType` (extensão case-insensitive, tolera leading dot)

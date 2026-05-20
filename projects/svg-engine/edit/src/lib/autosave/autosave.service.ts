@@ -1,7 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import { effect, inject, Injectable } from '@angular/core';
 import { EditorStateService } from 'svg-engine/core';
-import { svgExporter } from '../io/svg-exporter';
+import { svgExporter } from 'svg-engine/io';
 
 /**
  * LocalStorage key under which the auto-saved document SVG is stored.

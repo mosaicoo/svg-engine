@@ -1,8 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { createGroup, createRect, type SvgDocument } from 'svg-engine/core';
+import { ExporterRegistry, pngExporter } from 'svg-engine/io';
 import { PluginRegistry } from '../plugin/plugin-registry.service';
-import { ExporterRegistry } from './io-registries.service';
-import { pngExporter } from './png-exporter';
 import { pngExporterPlugin } from './png-exporter.plugin';
 
 function makeMinimalDoc(): SvgDocument {
