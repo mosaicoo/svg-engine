@@ -1004,22 +1004,89 @@ Após validação manual no playground o usuário Mosaicoo reportou que `<svge-s
 2. **Tools palette com 7 chaves-inglesa** — built-in tools (select/pen/pencil/rect/ellipse/polygon/text) nunca tiveram campo `icon` definido porque ninguém renderizava ícones antes do D-038 Phase 4. **Fix**: adicionados Material icons (`arrow_selector_tool`, `ads_click`, `edit`, `draw`, `crop_square`, `radio_button_unchecked`, `pentagon`, `title`).
 3. **Toolbar vazia** entre menu bar e tool options — demo plugin registrava apenas `menu.*` e `context.*`, zero `toolbar.main`. **Fix**: 4 items demo (Save / Export SVG / Optimize / View Source).
 
-**Gap remanescente** (registrado como D-039 pendente): marquee drag-to-select, move-by-drag de seleção, multi-select Shift+click, shortcuts completos. Requerem wireup com `TransformService` + `MarqueeService` — escopo maior que justifica decisão separada.
+**Gap remanescente** (resolvido em D-039 — ver abaixo): marquee drag-to-select, move-by-drag de seleção, multi-select Shift+click, double-click → isolation, ShortcutService auto-start. **Polish ainda pendente em D-040**: dynamic context-menu slot + plugin de builtin shortcuts.
+
+---
+
+## D-039 — Shell interactions full kit (`[svgeShellInteractions]` expandido)
+
+- **Data**: 2026-05-20
+- **Status**: Decidida + implementada (Phases A-D em um único turno)
+- **Contexto**: D-038 fix pós-Phase 4 entregou a versão **mínima** do `[svgeShellInteractions]` (tool routing + click-select + Delete). Restavam 5 gaps que faziam o shell ainda parecer "viewer" em vez de "editor": drag-move, multi-select, marquee, dblclick→isolation, shortcut listener auto-start.
+
+### Decisão
+
+Expandir o `[svgeShellInteractions]` para cobrir **todo o fluxo de interação** que o `playground-home` faz à mão. Migração de ~120 linhas de lógica do playground para a diretiva — `<svge-editor>` e `<svge-shell-pro>` herdam automaticamente. `playground-home` continua intocado por ora (a migração para a diretiva é um cleanup futuro pequeno).
+
+### Fluxos cobertos (resumo da matriz)
+
+| Gesto                               | Comportamento                                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------------ |
+| Pointer-down em shape               | Select; arma `potentialDrag`                                                   |
+| Shift/Ctrl/Cmd + click              | `selection.toggle` (multi-select)                                              |
+| Pointer-down em fundo               | `marquee.start(point, mode, initialSelection)`; Shift = `'add'`                |
+| Drag > 3px em shape selecionada     | `transform.startMove` + snap via `SnapService.resolveForMove`                  |
+| Pointer-up depois de drag           | `transform.endMove` → 1 entrada de undo                                        |
+| Click em fundo                      | Clear selection (replace-mode)                                                 |
+| Double-click em group               | `isolation.enter(groupId)` (manual dblclick detection, 400ms)                  |
+| Right-click                         | Handled por `[svgeContextMenu]` (slot estático por enquanto — dynamic é D-040) |
+| Pointer-down com drawing tool ativa | Forward para `ToolHostService.routePointer*`                                   |
+| Delete / Backspace                  | `RemoveNodeCommand` por id selecionado                                         |
+| Escape                              | Hierarquia: drag → marquee → isolation → forward para tool                     |
+| Outras keys                         | `ToolHostService.routeKeyDown`                                                 |
+| Pointer-cancel                      | Cancela drag/marquee preservando estado                                        |
+| Construtor                          | `ShortcutService.start()` (idempotente) — listener keydown global ativo        |
+
+### Por que numa única diretiva (não múltiplas)
+
+Considerei separar em `[svgeToolEventRouter]` + `[svgeSelectionInteractions]` + `[svgeMarqueeInteractions]` + `[svgeKeyboardShortcuts]`. Rejeitado: cada fluxo lê estado dos outros (selection-vs-marquee, drag-vs-click threshold, escape hierarchy) — diretivas separadas duplicariam state ou exigiriam um service de coordenação. Uma diretiva única com fluxos bem-comentados é mais simples de raciocinar.
+
+### O que NÃO entrou (escopo declarado D-040)
+
+| Item                                                                        | Por que adiou                                                                                    |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Dynamic context-menu slot (`context.node` vs `context.canvas` por hit-test) | Requer refactor do `[svgeContextMenu]` em `/ui` ou cross-layer dance — escopo de design separado |
+| Plugin `builtinEditorShortcutsPlugin` registrando Ctrl+Z/Y/G/Shift+G/A/D    | Aditivo limpo via `ShortcutRegistry`; pode ser um plugin opt-in separado                         |
+
+### Garantias verificadas
+
+- ✅ **1016/1016 specs** continuam passando (sem regressão)
+- ✅ 6 entry points build clean
+- ✅ Playground build clean
+- ✅ Modos 1-5 D-037/D-038 inalterados em comportamento default — apenas ganham mais interatividade quando o consumer usa o canvas
+
+### Validação manual
+
+```
+http://localhost:4200/shell-pro-demo
+  → click em shape → seleciona (inspector direita popula)
+  → arrastar shape selecionada → move (snap ativo se SnapService.enabled)
+  → arrastar fundo vazio → marquee selection
+  → Shift+click em outras shapes → adiciona à seleção
+  → double-click em grupo → isolation mode
+  → Delete → remove selecionadas
+  → Esc → cancela drag/marquee, depois sai de isolation
+```
+
+### Quando reabrir
+
+- Se Mosaicoo demandar marquee em **deep mode** (selecionar leaves dentro de grupos): hoje hit-test é sempre `'group'` — adicionar input opcional `[svgeShellInteractionsMode]` para alternar.
+- Se aparecer apetite por isolar interações em services testáveis sem DOM (vs diretiva): refatorar para `EditorInteractionsService` + diretiva fina que delega.
 
 ---
 
 ## Decisões pendentes (em aberto)
 
-| ID provis. | Tema                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D-025?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo)                                                                                                                                                                                                                                                                                                                                                                      |
-| D-027?     | Migração para zoneless (revisar D-010)                                                                                                                                                                                                                                                                                                                                                                                                 |
-| D-028?     | Lint rule customizada para enforcer headless boundary                                                                                                                                                                                                                                                                                                                                                                                  |
-| D-029?     | Estratégia de testes E2E (Playwright?)                                                                                                                                                                                                                                                                                                                                                                                                 |
-| D-031?     | Versionamento + changelog (changesets / standard-version)                                                                                                                                                                                                                                                                                                                                                                              |
-| D-032?     | Multi-page (`WorkspacesRegistry`) — extensão futura de D-021                                                                                                                                                                                                                                                                                                                                                                           |
-| D-033?     | Estratégia de i18n no editor                                                                                                                                                                                                                                                                                                                                                                                                           |
-| **D-039?** | **Shell interactions full kit** — marquee drag-to-select / move-by-drag de seleção / multi-select Shift+click / keyboard shortcuts completos (Ctrl+G group, Ctrl+Z undo, etc). `<svge-editor>` + `<svge-shell-pro>` hoje têm apenas tool routing + click-select + Delete (via `[svgeShellInteractions]` adicionado pós D-038 Phase 4). Marquee + drag-move ficam pendentes — requerem wireup com `TransformService` + `MarqueeService` |
-| D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3                                                                                                                                                                                                                                                                                                                                                                 |
+| ID provis. | Tema                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-025?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo)                                                                                                                                                                                                                                                                                                                                                                                                            |
+| D-027?     | Migração para zoneless (revisar D-010)                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| D-028?     | Lint rule customizada para enforcer headless boundary                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| D-029?     | Estratégia de testes E2E (Playwright?)                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| D-031?     | Versionamento + changelog (changesets / standard-version)                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| D-032?     | Multi-page (`WorkspacesRegistry`) — extensão futura de D-021                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| D-033?     | Estratégia de i18n no editor                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **D-040?** | **Shell interactions polish** — items que ficaram fora de D-039 e exigem mais design: (a) dynamic context-menu slot — right-click em shape → `context.node`, no fundo → `context.canvas` (requer slot-resolver function-input no `[svgeContextMenu]`); (b) plugin `builtinEditorShortcutsPlugin` registrando Ctrl+Z/Y/G/Shift+G/A/D no `ShortcutRegistry` (hoje `[svgeShellInteractions]` apenas inicia o listener — registrar shortcuts continua sendo escolha do consumer) |
+| D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 > **Nota**: D-023 era "API formal de plugins" (cumprida pelo D-020 expandido em 2026-05-15). D-024 era "Versionamento + changelog" (renumerada para D-031 porque o número D-024 foi reusado para `ScriptRuntimePlugin`). D-030 era "Workspace/Página: A vs B" (cumprida pelo D-021 resolvido como Option C). D-032 entra como pendente para multi-page futuro. Sequência de IDs cumpridas em 2026-05-15: D-020, D-021, D-023, D-024. Em 2026-05-20: D-026 (alinhamento estrutural io/optimize); o número D-026 era previamente reservado para i18n — renomeado para D-033. D-036 (consolidação de helpers compartilhados) entrou no mesmo dia. **D-034 + D-035 + D-037** (shell-refinement) entraram em 2026-05-20 mais tarde no mesmo dia — adiamento "pós-Fase 6d" foi reduzido pois caso de uso Mosaicoo (canvas embedável em painéis menores + editor completo) demandou ambas formas garantidamente.

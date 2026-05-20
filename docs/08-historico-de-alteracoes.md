@@ -6,6 +6,67 @@
 
 ---
 
+## 2026-05-20 — D-039 Shell interactions full kit (`[svgeShellInteractions]` expandido)
+
+**Contexto**
+
+Após o fix pós-D-038 Phase 4, o `[svgeShellInteractions]` cobria só tool routing + click-select + Delete. Para o shell parecer "editor de verdade" faltavam:
+
+1. Drag-move de seleção (com snap)
+2. Multi-select Shift/Ctrl + click
+3. Marquee drag-to-select
+4. Double-click → isolation mode
+5. ShortcutService auto-start (para shortcuts plugin-contributed funcionarem)
+
+**Solução** — expandir o `[svgeShellInteractions]` em 4 phases lógicas (todas no mesmo turno, mesmo arquivo, ~120 linhas migradas do `playground-home`):
+
+**Phase A — Drag-move + multi-select**
+
+- `potentialDrag` armado em `onPointerDown` quando hit em shape
+- `onPointerMove` detecta threshold 3px → `transform.startMove` + `applySnappedMove`
+- `onPointerUp` chama `transform.endMove` (1 entrada de undo por gesto)
+- Shift/Ctrl/Cmd + click → `selection.toggle` em vez de `select` (replace)
+
+**Phase B — Marquee drag-to-select**
+
+- `onPointerDown` em fundo vazio → `marquee.start(point, mode, initialSelection)`
+- `onPointerMove` enquanto marquee ativo → `marquee.update` + `applyMarqueeSelection`
+- Shift = `'add'` mode (soma à seleção); senão `'replace'`
+- Integra com `MarqueeService` + `nodesInsideMarquee` (intersect-mode)
+
+**Phase C — Double-click → isolation**
+
+- Manual dblclick detection (timestamp + last-target-id) — necessário porque `setPointerCapture` quebra dblclick nativo do browser (bug conhecido)
+- Threshold: 400ms entre cliques, mesmo target id
+- Group target → `isolation.enter(groupId)` + `selection.select(groupId)`
+- Direct-Select tool desabilita o trigger (dblclick em anchor é outra coisa)
+
+**Phase D — ShortcutService auto-start**
+
+- Construtor da diretiva chama `shortcuts.start()` (idempotente)
+- Plugins que registram via `ShortcutRegistry` agora têm seus keys roteados automaticamente no shell — antes só funcionava se o consumer chamasse `start()` à mão
+
+**Phase E (Escape hierarchy)**
+
+- Esc segue hierarquia: drag → marquee → isolation → forward para tool ativa
+- Cobre o caso "user pressiona Esc no meio de qualquer interação"
+
+**Gap remanescente** (registrado como **D-040? pendente** em `04-decisoes-tecnicas.md`):
+
+- Dynamic context-menu slot (`context.node` vs `context.canvas` por hit-test)
+- Plugin `builtinEditorShortcutsPlugin` registrando Ctrl+Z/Y/G/Shift+G/A/D no `ShortcutRegistry`
+
+**Garantias verificadas**
+
+- ✅ 1016/1016 specs passando (sem regressão; diretiva foi inteiramente reescrita)
+- ✅ 6 entry points build clean
+- ✅ Playground build clean
+- ✅ Modos 1-5 D-037/D-038 sem regressão de comportamento default
+
+**Arquivo único modificado**: `projects/svg-engine/edit/src/lib/tool/shell-interactions.directive.ts` (rewrite de 110 → 330 linhas). Aplicado automaticamente via `<svge-editor>` e `<svge-shell-pro>` (já importavam a diretiva no D-038 fix).
+
+---
+
 ## 2026-05-20 — Fix pós D-038 Phase 4: `[svgeShellInteractions]` + tool icons + toolbar.main demo
 
 **Contexto**
