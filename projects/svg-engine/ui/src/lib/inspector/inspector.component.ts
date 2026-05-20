@@ -6,9 +6,11 @@ import {
   signal,
   type Signal,
 } from '@angular/core';
+import { MatIconButton } from '@angular/material/button';
 import { MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
+import { MatMenu, MatMenuTrigger } from '@angular/material/menu';
 import {
   CommandBus,
   ConvertNodeToPathCommand,
@@ -33,6 +35,7 @@ import {
   TransformService,
 } from 'svg-engine/edit';
 import { SvgeColorPalette } from '../color-palette/color-palette.component';
+import { SvgeColorPicker } from '../color-picker/color-picker.component';
 import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from './inspector-pipes';
 
 /**
@@ -78,7 +81,11 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
     MatLabel,
     MatInput,
     MatIcon,
+    MatIconButton,
+    MatMenu,
+    MatMenuTrigger,
     SvgeColorPalette,
+    SvgeColorPicker,
     RectFieldPipe,
     EllipseFieldPipe,
     LineFieldPipe,
@@ -405,6 +412,38 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
               [value]="styleAlpha('fillOpacity')"
               (change)="setStyleNumber('fillOpacity', $any($event.target).value)"
             />
+            <!--
+              Advanced picker trigger (Sprint C). Opens a pro-grade
+              colour picker (sat/val square + hue slider + HEX/RGB inputs
+              + recents + eyedropper) via mat-menu. The native swatch +
+              hidden color input above remain as the quick-pick path —
+              this button is purely ADDITIVE so all existing UX continues
+              to work for users who don't need the advanced controls.
+            -->
+            <button
+              mat-icon-button
+              type="button"
+              class="picker-trigger-btn"
+              [matMenuTriggerFor]="fillPickerMenu"
+              [disabled]="isLocked()"
+              aria-label="Open advanced fill colour picker"
+              title="Advanced picker (hex, RGB, eyedropper, recent colours)"
+            >
+              <mat-icon>palette</mat-icon>
+            </button>
+            <mat-menu #fillPickerMenu="matMenu" xPosition="before" yPosition="below">
+              <div
+                class="picker-host"
+                role="presentation"
+                (click)="$event.stopPropagation()"
+                (keydown)="$event.stopPropagation()"
+              >
+                <svge-color-picker
+                  [color]="styleColor('fill')"
+                  (colorChange)="setStyle('fill', $event)"
+                />
+              </div>
+            </mat-menu>
           </div>
           <div class="color-cell" [class.active-target]="activeColorTarget() === 'stroke'">
             <label
@@ -441,6 +480,30 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
               [value]="styleAlpha('strokeOpacity')"
               (change)="setStyleNumber('strokeOpacity', $any($event.target).value)"
             />
+            <button
+              mat-icon-button
+              type="button"
+              class="picker-trigger-btn"
+              [matMenuTriggerFor]="strokePickerMenu"
+              [disabled]="isLocked()"
+              aria-label="Open advanced stroke colour picker"
+              title="Advanced picker (hex, RGB, eyedropper, recent colours)"
+            >
+              <mat-icon>palette</mat-icon>
+            </button>
+            <mat-menu #strokePickerMenu="matMenu" xPosition="before" yPosition="below">
+              <div
+                class="picker-host"
+                role="presentation"
+                (click)="$event.stopPropagation()"
+                (keydown)="$event.stopPropagation()"
+              >
+                <svge-color-picker
+                  [color]="styleColor('stroke')"
+                  (colorChange)="setStyle('stroke', $event)"
+                />
+              </div>
+            </mat-menu>
           </div>
         </div>
         <!--
@@ -681,6 +744,26 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
     .alpha-input:disabled {
       opacity: 0.5;
       cursor: not-allowed;
+    }
+    /* Advanced picker trigger — small icon button to the right of the
+       alpha input. Stays unobtrusive; users discover via tooltip. */
+    .picker-trigger-btn {
+      width: 28px;
+      height: 28px;
+      line-height: 28px;
+      flex: 0 0 28px;
+      padding: 0;
+    }
+    .picker-trigger-btn .mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+    }
+    /* Inner container of the mat-menu popover — keeps the picker from
+       inheriting unwanted menu styling (padding 0, no min-width). */
+    .picker-host {
+      padding: 0;
+      cursor: default;
     }
     .field-row {
       display: flex;

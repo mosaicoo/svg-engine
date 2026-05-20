@@ -51,3 +51,6 @@ export * from './lib/workspace-settings';
 
 // Effects panel UI (Fase 6d — D-023 cat 7)
 export * from './lib/effects-panel';
+
+// Pro-grade color picker (Sprint C-ColorPicker)
+export * from './lib/color-picker';
