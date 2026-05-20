@@ -14,6 +14,7 @@ import {
   type Point,
   type Transform,
 } from 'svg-engine/core';
+import { composeAncestorMatrix } from './compose-ancestor-matrix';
 import { ViewportService } from 'svg-engine/render';
 import { SelectionService } from '../selection/selection.service';
 import { DIRECT_SELECT_TOOL_ID } from '../tool/builtin-tools';
@@ -237,12 +238,18 @@ export class AnchorOverlay {
     if (target === null || target.type !== 'path') return null;
     const subpaths = parsePathToAnchors(target.d);
     // The anchor `d` coordinates are in the NODE-LOCAL frame (before
-    // the node's `transform` is applied). The overlay renders inside
-    // the same `<svg viewBox>` as the content, so we must transform
-    // each rendered point through the node's own transform — otherwise
-    // moving a shape leaves the anchor squares stuck at the original
-    // location (the bug user reported with the dotted-line trail).
-    const t = target.transform;
+    // ANY transform is applied). The overlay renders inside the same
+    // `<svg viewBox>` as the content, so we must transform each
+    // rendered point through the COMPOSED ANCESTOR MATRIX (node's own
+    // transform + every ancestor group's transform up to the doc root).
+    //
+    // **Why the full chain** (not just node.transform): when the path
+    // lives inside a moved/rotated group, the path's visual position
+    // is `group.transform * path.transform * d`. Without composing the
+    // group's transform, the anchor squares render at the wrong place
+    // on the canvas — the user reported "arestas não estão posicionadas
+    // sobre o elemento" for shapes inside groups.
+    const t = composeAncestorMatrix(doc.root, focusId);
     const out: AnchorEntry[] = [];
     for (let s = 0; s < subpaths.length; s++) {
       const sub = subpaths[s]!;
@@ -304,10 +311,14 @@ export class AnchorOverlay {
     if (this.selection.count() !== 1) return null;
     const focusId = this.selection.focusId();
     if (focusId === null) return null;
-    const target = findById(this.state.document().root, focusId);
+    const doc = this.state.document();
+    const target = findById(doc.root, focusId);
     if (target === null || target.type !== 'path') return null;
     const subpaths = parsePathToAnchors(target.d);
-    const t = target.transform;
+    // Same composed-matrix rationale as `anchors()` — segment hit-zones
+    // must align with the rendered curve, which means we need every
+    // ancestor's transform, not just the path's own.
+    const t = composeAncestorMatrix(doc.root, focusId);
     const out: { key: string; d: string; ref: AnchorRef }[] = [];
     for (let s = 0; s < subpaths.length; s++) {
       const sub = subpaths[s]!;
@@ -400,11 +411,17 @@ export class AnchorOverlay {
         : which === 'handleIn'
           ? anchorData.handleIn
           : anchorData.handleOut;
-    const node = findById(this.state.document().root, ref.nodeId);
+    const doc = this.state.document();
+    const node = findById(doc.root, ref.nodeId);
     if (node === null) return;
+    // Compose the FULL ancestor chain (node + every group up to root)
+    // — without this, dragging an anchor on a path inside a translated
+    // group "drifts" because we'd be projecting doc-space pointer
+    // deltas through only the node's own (often identity) transform.
+    const nodeTransform = composeAncestorMatrix(doc.root, ref.nodeId);
     let inverseNodeTransform: import('svg-engine/core').Transform;
     try {
-      inverseNodeTransform = invertMatrix(node.transform);
+      inverseNodeTransform = invertMatrix(nodeTransform);
     } catch {
       // Non-invertible (degenerate) transform — bail out of the drag
       // gracefully; the user can reset the transform and try again.
@@ -415,7 +432,7 @@ export class AnchorOverlay {
       which,
       startDocPoint: docPoint,
       originalPos,
-      nodeTransform: node.transform,
+      nodeTransform,
       inverseNodeTransform,
     };
     (event.target as Element & { setPointerCapture?(id: number): void }).setPointerCapture?.(
