@@ -695,6 +695,60 @@ O script **monta uma sequência de `CommandRequest`s e devolve via postMessage**
 
 ---
 
+## D-025 — `AnchorKind` não persistido no `d` string (Bloco 6-PathEditor)
+
+- **Data**: 2026-05-19
+- **Status**: Decidida + limitação documentada
+- **Contexto**: Path/Anchor Point editor (Fase 6) introduziu `AnchorKind = 'cusp' | 'smooth' | 'symmetric'` para classificar cada ponto de um path. Decisão estrutural: como armazenar o `kind`?
+
+### Opções avaliadas
+
+**A — Inferir do `d` (escolhida)**:
+
+- Cada parse via `parsePathToAnchors` chama `classifyAnchorKind(point, handleIn, handleOut)` que decide via geometria: handles colineares e opostos com mesma length = `symmetric`; colineares com lengths diferentes = `smooth`; senão = `cusp`.
+- Vantagem: zero mudança no modelo (`PathNode.d` continua sendo um SVG path string padrão); round-trip parser→serializer→parser preserva tudo o que importa visualmente.
+- Desvantagem: dois anchors com handles idênticos SEMPRE classificam ao mesmo kind. Não há como "lembrar" que o user queria que aquele anchor fosse `cusp` se os handles estão simétricos.
+
+**B — Metadata array `anchorKinds[]` no PathNode**:
+
+- Adicionar `readonly anchorKinds?: readonly AnchorKind[]` ao `PathNode` model.
+- Vantagem: kind é fonte da verdade, persistido cleanly.
+- Desvantagem: TODOS commands de path (Move/Insert/Remove anchor) precisariam manter o array em sincronia com o `d`. Round-trip com SVGs externos (importados) seria lossy (perdem o array, voltam para inferência). Mudança breaking no modelo.
+
+### Decisão
+
+**Opção A** — inferir do `d`. Razões:
+
+- Mantém `SvgDocument` em paridade total com o SVG-spec (importável/exportável sem perda).
+- Evita acoplamento entre kind state e command pipeline (cada command só precisa pensar em handles, não em metadata).
+- Limitação resultante é controlável via UX (ver abaixo).
+
+### Limitação resultante e mitigação
+
+Cycle `cusp → smooth → symmetric → cusp` poderia ficar preso em `symmetric` porque enforceKind aplicado a um anchor já symmetric resultaria em handles idênticos → `d` idêntico → no-op silencioso pelo guard de `withPathAnchors`.
+
+**Mitigação implementada** no `enforceKind`:
+
+- `enforceKind(_, 'cusp')` COLAPSA handles para o anchor point (semântica "Convert Anchor Point" do Illustrator/Affinity). Destrutivo (curva flatten naquele anchor) mas garante que o `d` muda e o classifier devolve `cusp` no re-parse.
+- `enforceKind(_, 'smooth')` quando handles colapsados sintetiza handles ASSIMÉTRICOS (razões 0.4 in / 0.3 out da chord prev→next) — garante que o classifier devolva `smooth`, não auto-promova para `symmetric`.
+
+Cycle real resultante: `cusp (corner) → smooth (curva assimétrica) → symmetric (curva mirror) → cusp (handles colapsam)`. Cada passo produz mudança visível.
+
+**Escape valve documentada**: para escapar do estado symmetric sem destruir handles, usuário arrasta um handle manualmente — a geometria muda, o classifier vê handles desbalanceados, devolve `smooth`.
+
+### Quando reabrir esta decisão
+
+- Se um produto consumer demandar "kind persistente além de uma sessão" (ex.: salvar projeto, reabrir, esperar que cada anchor lembre seu kind exato mesmo com handles iguais): adotar Opção B com strategy de migration (`anchorKinds?` opcional, inferência como fallback).
+- Se feedback de usuários reportar que o colapso de handles em `symmetric → cusp` é destrutivo demais (perda de curva involuntária): trocar comportamento para "perturbar um handle minimamente" em vez de colapsar (mais sutil, menos lossy).
+
+### Consequências
+
+- `PathNode` model permanece intacto — zero impacto em imports/exports SVG.
+- Cobertura via `anchor-cycle.spec.ts` (4 specs) prova que o cycle funciona end-to-end com a mitigação.
+- README + guia de plugin precisam mencionar a limitação para devs que tentarem estender o Path Editor.
+
+---
+
 ## Decisões pendentes (em aberto)
 
 | ID provis. | Tema                                                                   |

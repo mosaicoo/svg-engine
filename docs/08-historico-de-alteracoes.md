@@ -6,6 +6,462 @@
 
 ---
 
+## 2026-05-19 — Path Editor: bugfixes do cycle de kinds + ancestor matrix em AnchorOverlay
+
+**Contexto**
+
+Três bugs reais reportados pelo usuário em sequência após a entrega
+inicial do Path Editor (commits 69e18c4 + 4508ef4):
+
+1. **Cycle de kinds preso em cusp ↔ smooth, nunca chegava em symmetric**
+   (cc593ca)
+2. **Cycle aparentava falhar mais: "curva → simétrico não funciona,
+   simétrico → curva funciona"** (0a555e0)
+3. **Anchors visualmente deslocados da forma quando path está dentro
+   de grupo movido** (2bfb3a8)
+
+**Bug 1 — parser sempre re-classifica como cusp**
+
+`path-anchors.ts` chamava `classifyAnchorKind(point, handleIn, null)`
+ao processar comandos `C` — o `handleOut` só era conhecido no segmento
+seguinte, então o classifier defensivamente retornava `cusp` para todo
+endpoint de cubic bezier. Resultado: depois de cada
+`ConvertAnchorTypeCommand`, o re-parse devolvia `cusp` e o cycle ficava
+preso em `cusp ↔ smooth`.
+
+**Fix**: pós-passa após o loop principal de `parsePathToAnchors`
+re-classifica cada anchor agora que `handleIn` + `handleOut` estão
+ambos finais. Sem isto, a fonte da verdade (o `d` string) "esquece"
+o kind a cada serialização → parse.
+
+**Bug 2 — cycle ficava preso em symmetric**
+
+Combinação de dois problemas:
+
+- `synthesizeHandles` (criado no fix #1) produzia handles MIRROR por
+  construção (mesma distância ao longo da chord prev→next). Resultado:
+  `cusp → smooth` em rect/line auto-promovia direto para `symmetric`
+- `enforceKind(_, 'cusp')` literalmente não mudava handles (apenas
+  trocava o `kind` field). O `d` ficava idêntico → guard
+  `nextD === path.d` em `withPathAnchors` retornava no-op silencioso
+
+**Fix dupla**:
+
+- `synthesizeHandles` agora usa razões ASSIMÉTRICAS (0.4 in, 0.3 out
+  da chord) → `cusp → smooth` produz smooth real (handles colineares-
+  opostos mas com lengths diferentes)
+- `enforceKind(_, 'cusp')` agora COLAPSA handles para o anchor point
+  (semântica "Convert Anchor Point" do Illustrator/Affinity) →
+  destrutivo mas garante mudança visível e re-classification correta
+
+Cycle resultante: `cusp (corner) → smooth (assimétrico) → symmetric
+(mirror perfeito) → cusp (handles colapsam)`. Cada step com feedback
+visual claro.
+
+**Bug 3 — AnchorOverlay ignorava ancestor chain**
+
+`anchors()` e `segments()` computeds aplicavam APENAS
+`target.transform` (transform do próprio path), ignorando todos
+transforms dos grupos ancestrais. Para path inside group com
+`translate(170, 0)`, anchor squares ficavam 170px deslocados do
+visual rendered.
+
+`SelectionOverlay` (do tool Select V) sempre funcionou certo porque
+usa `getRenderedNodeBBox` que faz `composedAncestorMatrix` (DOM-based
+walk). `AnchorOverlay` (do tool Direct Select A) tinha sido escrita
+sem esse passo.
+
+**Fix**: novo módulo `compose-ancestor-matrix.ts` em
+`edit/lib/anchor-editor/`. Walking pelo MODELO (não DOM — evita layout
+flush em cada signal recompute) compondo `root · ... · parent · target`.
+Aplicado em 3 lugares:
+
+- `anchors()` computed (rendering dos squares)
+- `segments()` computed (segment hit-zones para Alt+click)
+- `onPointerDown` (drag setup — `inverseNodeTransform` agora projeta
+  pointer doc-space → path-local corretamente)
+
+**Cobertura**
+
+`anchor-cycle.spec.ts` (novo): 4 specs end-to-end via comando real:
+
+- cycle completo em path com cusp puro (cusp → smooth → symmetric)
+- cycle em rect convertido (cusp → handles sintetizados → symmetric →
+  cusp via colapso)
+- cycle em path realista do tipo Pencil (smooth com lengths diferentes
+  → symmetric)
+- undo restaura `d` anterior
+
+`compose-ancestor-matrix.spec.ts` (novo): 6 specs:
+
+- Node direto sob root → identity
+- Group + path translate compõem corretamente
+- Semântica visual: matrix aplicada a local point lands no rendered
+- Nested groups (outer/inner/path)
+- Rotated group: (10, 0) com rotate(90°) vira (~0, ~10)
+- Unknown id → identity (defensive)
+
+`node-bbox.spec.ts`: +7 regression-coverage specs para shape dentro
+de grupo (sem transform / com transform próprio / rotated group /
+nested / getRenderedParentMatrix em 3 cenários).
+
+**Total**: +17 specs novos → **884 passing** em 65 arquivos.
+
+**Limitação documentada**
+
+O `d` string não carrega `kind` como metadata — sempre será
+inferido da geometria. Significa que dois anchors com handles
+idênticos sempre classificam ao mesmo kind no re-parse. Para escapar
+do cycle `cusp → smooth → symmetric → cusp` sem destruir handles, a
+única opção é arrastar um handle manualmente. Decisão arquitetural
+em [04 — Decisões técnicas].
+
+---
+
+## 2026-05-19 — Path Editor + Pathfinder: entrega inicial
+
+**Contexto**
+
+Duas capabilities críticas para qualquer editor vetorial profissional,
+listadas no backlog como "Capabilities maiores": Path/Anchor Point
+editor (edição de pontos individuais de um path) e Pathfinder (boolean
+operations entre shapes — union/intersect/subtract/divide/exclude).
+Entregue como duas peças coordenadas: o core (modelo + comandos) em
+69e18c4, a UI + Pathfinder em 4508ef4.
+
+**Path Editor — core (69e18c4)**
+
+`core/lib/geometry/path-anchors.ts` (novo):
+
+- Tipos `AnchorKind = 'cusp' | 'smooth' | 'symmetric'` + `AnchorPoint`
+  (point/handleIn/handleOut absolutos + kind) + `AnchorSubpath`
+  (anchors + closed flag)
+- `parsePathToAnchors(d)`: parser completo M/m/L/l/H/h/V/v/C/c/S/s/Q/q/T/t/Z/z.
+  Q/T convertidos para cubic via fórmula exata (C1 = P0 + 2/3·(QC −
+  P0); C2 = P1 + 2/3·(QC − P1)). S/T usam reflection do controle
+  anterior. Arc (A/a) → cusp no endpoint (curvatura perdida; futuro:
+  arc-to-cubic)
+- `anchorsToPathD(subpaths)`: serializer inverso. Emite L para
+  segmentos sem handles, C caso contrário. Compact via `formatNumber`
+- `classifyAnchorKind(point, handleIn, handleOut)`: heurística por
+  geometria — cross product testa colinearidade, comparação de
+  lengths discrimina smooth vs symmetric
+
+`core/lib/commands/anchor.commands.ts` (novo):
+
+- `AnchorRef`: `{nodeId, subpathIndex, anchorIndex}` — referência
+  estável durante a vida do gesto
+- `MoveAnchorCommand(ref, newPosition, which?)`: move point ou handle.
+  Smooth/symmetric anchors enforce constraint na opposite handle
+  (smooth preserva length, symmetric mirrors)
+- `InsertAnchorCommand(ref, t)`: insere via de Casteljau subdivision
+  no parâmetro `t ∈ (0, 1)` da curva entre `ref` e próximo anchor.
+  Geometria preservada exatamente (a curva original = concatenação
+  das duas novas)
+- `RemoveAnchorCommand(ref)`: remove anchor; drop subpath se
+  resultante < 2 anchors
+- `ConvertAnchorTypeCommand(ref, nextKind)`: muda kind via
+  `enforceKind` (snap dos handles à constraint)
+- Todos com undo restaurando o `d` anterior
+
+`core/lib/commands/convert-to-path.command.ts` (novo):
+
+- `ConvertNodeToPathCommand(nodeId)`: converte rect/ellipse/line/
+  polygon/polyline para path equivalente. Ellipse via 4 cubic
+  beziers com kappa (0.5522847) — aproximação visualmente perfeita
+- `nodeToPathD(node)` exportado para reuso (Pathfinder usa para
+  "virtually" converter sem dispatch)
+- Preserva transform/style/metadata; usa remove+insert pair (não
+  updateNode — type swap rejeitado por design)
+
+**Path Editor — UI (4508ef4)**
+
+`edit/lib/anchor-editor/anchor-overlay.component.ts` (novo, 554 lines):
+
+- `<svg:g svgeAnchorOverlay>` standalone, OnPush
+- Render gating: tool === DIRECT_SELECT + single selection +
+  focusNode.type === 'path' (path-only por design — outras shapes
+  precisam converter para path antes)
+- Z-stack: handle stems (linhas) → handle circles (interativos) →
+  segment hit-zones (invisíveis, Alt+click) → anchor squares
+  (interativos, top)
+- Sizing pixel-constante via `1/viewport.zoom()` + `non-scaling-stroke`
+- Preview-then-commit no drag: mutação direta de `state.document()`
+  durante move, dispatch único de `MoveAnchorCommand` no pointerup
+  (undo limpo: 1 entrada por gesto)
+- Dblclick em anchor cicla kind via `ConvertAnchorTypeCommand`
+- Alt+click em segment hit-zone dispara `InsertAnchorCommand(ref, 0.5)`
+
+`edit/lib/anchor-editor/anchor-selection.service.ts` (novo):
+
+- Multi-anchor selection: `Set<AnchorRef>` com helpers
+  add/toggle/selectOne/clear + computed `selected()` array
+
+**Pathfinder — 5 boolean ops (4508ef4)**
+
+`core/lib/commands/pathfinder.commands.ts` (novo, 260 lines):
+
+- Common base `PathfinderCommand` abstrata implementa o pipeline:
+  resolver inputs → flatten cada um para polygon rings (via
+  `path-flatten.ts`, tolerance 0.5px) → aplicar transform pré-
+  boolean (polygon-clipping não conhece transforms) → chamar
+  `runOp` abstrato → mapear regions para PathNodes
+- 5 ops concretas: `UnionCommand`, `IntersectCommand`,
+  `SubtractCommand`, `ExcludeCommand`, `DivideCommand` — diferem
+  apenas na chamada para `polygon-clipping` (Martinez algorithm)
+- Result placement: substitui geometria do primeiro selected;
+  outros inputs removidos. Divide retorna N paths inseridos como
+  irmãos do primeiro
+- Undo via snapshot do root (simples + correto)
+- `path-flatten.ts` (novo, 148 lines): flatten cubic beziers para
+  polylines via subdivisão recursiva tolerance-based (de Casteljau)
+
+**Motor escolhido**: `polygon-clipping` (Martinez algorithm) em vez
+de paper.js. Decisão: 24KB gzipped, sem dep DOM, API funcional pura
+(input/output puros polygons), bem testado. Paper.js carregaria
+~150KB e exigiria adapter para nosso modelo.
+
+`playground-home`: 6 botões novos no toolbar Pathfinder (U/∩/−/⊕/÷ +
+"Convert to Path"). Disabled-when-inválido (Pathfinder requer ≥ 2
+selecionados, Convert requer single non-path).
+
+**Cobertura**
+
+- `path-anchors`: parser/serializer round-trip + classifier (todos
+  os 9 comandos SVG + Q/T conversion)
+- `anchor.commands`: cada um dos 4 + undo
+- `convert-to-path.command`: cada tipo de shape + preservação de
+  style/transform
+- `pathfinder.commands`: cada uma das 5 ops + edge cases (disjoint
+  union, empty intersection, etc)
+- Stubbed polygon-clipping em alguns testes para isolation
+
+Trajetória de testes (aproximada — git log para precisão):
+~712 pré-Path Editor → ~830 pós-entrega.
+
+---
+
+## 2026-05-19 — Path Editor + Pathfinder: polish sprint
+
+**Contexto** (commit b825454 + 71186de + 9193d5e + d3130a2)
+
+Quatro melhorias UX entregues após a entrega inicial:
+
+**1. ConvertNodeToPath + Pathfinder: type-safe pair-replace (71186de)**
+
+Bug runtime: `updateNode: updater changed type (rect -> path)` na
+conversão. `updateNode` em `tree-ops.ts` rejeita mudança de type por
+design (defesa contra type swaps acidentais).
+
+**Fix**: ambos commands agora usam `removeNode + insertNode` pair com
+snapshot do `previousNode + parentId + index` para undo restaurar a
+posição exata. Mantém z-order intacto.
+
+**2. SelectionOverlay esconde handles em Direct Select (9193d5e + d3130a2)**
+
+Bug visual: ao ativar Direct Select, AnchorOverlay mostrava anchors
+E SelectionOverlay mostrava bbox handles simultâneos — clutter total.
+User reportou via screenshot.
+
+**Fix v1 (9193d5e)**: `showsTransformHandles` computed checks active
+tool — esconde em qualquer Direct Select.
+
+**Fix v2 (d3130a2)**: user reportou que escondeu para TODOS types.
+Correção: esconde apenas quando `focusNode.type === 'path'` — para
+rect/ellipse/etc o Direct Select mantém handles porque não há
+anchor surface alternativa (mesma convenção do Illustrator: Direct
+Selection Tool em rect mostra bbox; convert para path antes para
+editar anchors).
+
+**3. Anchors seguem transform do node (d3130a2 parte 2)**
+
+User: "quando movimento a forma as arestas de deformação ficam no
+ponto de origem". Anchors permaneciam nas coords originais do `d`
+sem aplicar `node.transform`.
+
+**Fix camada 1**: `anchors()` computed aplica `node.transform` via
+`applyTransform2D` aos pontos rendered (point + handleIn + handleOut).
+
+**Fix camada 2**: drag handlers trabalham em local-space — capturam
+`inverseNodeTransform` no pointerdown e projetam doc-space deltas
+para local-space antes de chamar `MoveAnchorCommand`.
+
+(Essa fix cobre apenas `node.transform` próprio; ancestor chain de
+grupos foi resolvido depois em 2bfb3a8 — ver entrada acima.)
+
+**4. Polish dos 4 itens (b825454)**
+
+- **Dblclick anchor → cycle kind**: `CYCLE_KIND` map + `onDoubleClick`
+  handler dispatching `ConvertAnchorTypeCommand` (Affinity-style
+  "Cycle node type")
+- **Alt+click no segmento → InsertAnchor**: invisible `<svg:path
+class="segment-hit">` com `stroke-width ~10px CSS` (1/zoom)
+  cobrindo cada cubic. Alt+click dispatcha `InsertAnchorCommand(ref,
+0.5)`. Sem Alt, pointer passa para canvas (selection/marquee)
+- **Delete em anchor selecionado**: handler de Delete/Backspace no
+  playground prioriza anchors selecionados (ordem descendente para
+  não corromper índices) > guides > shapes
+- **Pathfinder Divide: style per region**: nova interface
+  `PathfinderRegion { rings, styleSourceIdx? }`. Cada região
+  "privada" (parte exclusiva de input i) recebe style de input i;
+  intersection slivers fallback para operand A (convenção top-of-stack
+  Illustrator)
+
+**Total ao fim do polish**: ~862 passing.
+
+---
+
+## 2026-05-19 — Inspector: rotation/scale respeitam pivot
+
+**Contexto** (commit fc17129)
+
+User reportou que editar rotation ou scale via Inspector causava
+"drift" — a forma escapava para uma posição inesperada. Diferente do
+gesto via canvas (rotation/resize handles) que respeita o pivot.
+
+**Root cause**: handlers do Inspector aplicavam matrizes RAW —
+`multiply(rotate(θ), node.transform)` para rotation e
+`multiply(scale(sx, sy), node.transform)` para scale. Ignorava o
+pivot configurado em `TransformService.resolvePivot(bbox)`. Para
+qualquer pivot ≠ origem-do-canvas, a forma rodava/escalava ao redor
+de (0, 0) em vez do pivot esperado.
+
+**Fix**: handlers agora usam os mesmos commands que o canvas usa
+(`RotateNodeCommand` / `ResizeNodeCommand`):
+
+- Inspector lê `bbox` rendered + chama `transform.resolvePivot(bbox)`
+- Para scale: deriva `(sx, sy)` do delta de width/height e usa
+  resize anchor relativo ao pivot
+- Para rotation: passa `pivot` direto pro RotateNodeCommand
+
+Resultado: editar Inspector ou usar gesto produz o MESMO comportamento
+visual. Pivot persistente per-node (D-022.persist) honrado em ambos.
+
+**Cobertura**: regressão coberta indiretamente pelos specs existentes
+de RotateNodeCommand + ResizeNodeCommand (que validam pivot/anchor
+semantics). Trajetória: nenhum spec novo — fix é re-wiring para
+caminho já testado.
+
+---
+
+## 2026-05-19 — Sprint bug-fixes pre-Path Editor + Outline mode + keyboard nav
+
+**Contexto** (commit 26265d0)
+
+Sprint preparatória de bug-fixes + adição de Outline mode + keyboard
+nav no Layer Panel. Limpou débitos antes da entrega grande de Path
+Editor + Pathfinder.
+
+**Bug-fixes**
+
+- `scale-bake.ts`: corrigido ancestor matrix em
+  `bakeScaleIntoNode(parentMatrix)` para resize de shape em grupo
+  rotacionado (fix do débito reconhecido no backlog)
+- `transform.service.ts`: `startResize/updateResize/endResize`
+  passam `parentMatrix` para resize-node-command
+- `core/types/transform.ts`: novo helper exportado para invert + isolate
+  rotation component
+
+**Outline mode (View › Outline)**
+
+`workspace.service.ts`: novo signal `outline: boolean` + `toggleOutline`/
+`setOutline` APIs.
+
+`edit/lib/workspace/outline-filter.directive.ts` (novo, 121 lines):
+selector `[svgeOutlineFilter]` opt-in. Quando `outline === true`,
+aplica via DOM walk: `fill='none'`, `stroke='currentColor'`,
+`stroke-width=1` em todo `[data-node-id]` rendered. Marker attribute
+para restore. Affinity/Illustrator convention.
+
+Playground ganha checkbox "Outline" no toolbar View.
+
+**Keyboard nav no Layer Panel**
+
+`layers-panel.component.ts`: Tab/Shift+Tab/↑/↓ navegam entre rows
+(skipa locked). Enter/Space seleciona. Escape limpa focus. ARIA roles
+adequados (treeitem). Garante a11y para keyboard-only users.
+
+**Total**: ~847 passing ao fim do bloco (estimativa).
+
+---
+
+## 2026-05-19 — Delete/Backspace remove formas, grupos e guides
+
+**Contexto** (commit 85d3e45)
+
+Gap UX óbvio: usuário esperava Delete/Backspace remover seleção,
+não fazia nada.
+
+**Implementado**
+
+`playground-home`: handler global de keydown intercepta Delete +
+Backspace (com guard `isEditableTarget` para não interferir em
+input/textarea/contenteditable). Despacha `RemoveNodeCommand` para
+cada selected id em ordem decrescente (evita índice shift).
+
+`workspace.service.ts`: `selectedGuideId` + `removeSelectedGuide()`.
+
+`guides-overlay.component.ts`: click em guide seleciona (visual
+destacado), Delete remove.
+
+**Total**: +5 specs → ~852 passing.
+
+---
+
+## 2026-05-19 — Sprint UX-Polish + Auto-save + PNG presets
+
+**Contexto** (commit 4a3b6f4 + d785afc)
+
+Sprint grande consolidando 6 melhorias de UX e 2 features de
+infraestrutura. Aproxima o editor da paridade Illustrator/Affinity
+em interações esperadas.
+
+**UX-Polish (6 itens)**
+
+1. **Layer Panel dblclick em grupo entra em isolation** (sucessor
+   do dblclick-no-canvas já existente)
+2. **Esc faz drill-up de isolation um nível por vez** (em vez de
+   sair direto pro root) — convenção Affinity
+3. **Rename inline no Layer Panel** (F2 ou dblclick no label, Enter
+   confirma, Esc cancela) via `RenameNodeCommand`
+4. **Arrastar da régua cria guide** (convenção Illustrator/Affinity).
+   Pointer no ruler horizontal/vertical, drag para canvas, drop = guide
+5. **Smart guides durante drag** (linhas magenta dinâmicas mostrando
+   alinhamento com outros objects enquanto move). Engine puro em
+   `core/lib/geometry/smart-guides.ts`; overlay reativa
+6. **Auto-exit isolation quando seleção sai do scope via Layer Panel**
+
+**Auto-save no localStorage**
+
+`edit/lib/autosave/autosave.service.ts` (novo, 155 lines):
+
+- Debounced effect (default 800ms) salva `state.document()` serializado
+  via svgExporter para localStorage key `svge.autosave`
+- Strategy: salva apenas se `state.dirty()` — não polui storage com
+  documents virgens
+- `recover()`: retorna documento serializado se existe
+- `clear()`: limpa entrada
+
+Playground: `RecoveryDialog` no boot detecta save pendente + oferece
+restaurar. Mata o auto-save quando user faz Save manual ou descarta.
+
+**Export PNG presets @1x/@2x/@3x retina**
+
+Convertido o export-as-png para renderizar via OffscreenCanvas com
+scale factor escolhido pelo user (1×, 2×, 3×). Útil para retina
+displays / impressão.
+
+**Bug fix paralelo (d785afc)**
+
+`rulers.component.ts`: `pointerdown` no ruler chamava
+`stopPropagation` mas não `preventDefault` consistente — em alguns
+cenários o canvas inicia marquee durante o drag-from-ruler. Fix:
+adicionado `event.preventDefault()` no handler do ruler.
+
+**Total**: ~842 passing após o bloco.
+
+---
+
 ## 2026-05-18 — Workspace Settings: page config aplica no canvas via `<svge-page-overlay>`
 
 **Bug reportado**: dialog do Workspace Settings (commit 246e902) edita
