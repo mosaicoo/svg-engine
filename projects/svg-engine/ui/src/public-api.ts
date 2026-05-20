@@ -57,3 +57,6 @@ export * from './lib/color-picker';
 
 // SVG source viewer dialog (Inkscape "XML Editor" / Boxy SVG "Source" parity)
 export * from './lib/svg-source-dialog';
+
+// Status bar (D-035 — shell-refinement; standalone OR via <svge-editor>)
+export * from './lib/status-bar';

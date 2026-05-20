@@ -6,6 +6,49 @@
 
 ---
 
+## 2026-05-20 — Shell-refinement: D-034 + D-035 + D-037 (invariantes Mosaicoo)
+
+**Contexto**
+
+O `<svge-editor>` era um "minimal shell" (apenas undo/redo + zoom + canvas). Plugins registrados no `MenuContributionRegistry` (D-023 cat 9) não tinham onde aparecer porque o `<svge-toolbar>` (Bloco 4e) existia em paralelo mas nunca foi integrado. Drop-in shell pra consumer terceiro era enganoso. Adicionalmente, status indicators (cursor, zoom, tool ativa, selection count, snap mode, dirty flag, isolation breadcrumb) estavam todos espalhados no `playground-home.component.html` — consumer terceiro precisava reescrever esse hud.
+
+**Decisão Mosaicoo (D-037) — gate explícito**
+
+Usuário/Mosaicoo deixou claro que o produto SVGEngine será consumido em **3 modos distintos** simultaneamente no ecossistema:
+
+1. **Headless puro** — canvas + overlays montados à mão; chrome próprio (já garantido pré-D-034/D-035 via D-017)
+2. **Shell completo** — editor pronto em página dedicada
+3. **Shell parcial** — canvas dentro de painéis menores OR chrome híbrido (toolbar Mosaicoo + canvas SVGEngine + status custom)
+
+Expandir o `<svge-editor>` sem quebrar (1) era o risco — D-037 formaliza as invariantes e cobre com specs.
+
+**Solução implementada**
+
+- **D-034 — `<svge-toolbar>` integrado**: `<svge-editor>` agora inclui `<svge-toolbar slot="toolbar.main">` internamente (entre o título e os built-ins). Plugins aparecem automaticamente. Slot configurável via `[toolbarSlot]` input.
+
+- **D-035 — `<svge-status-bar>` novo**: componente em `svg-engine/ui/lib/status-bar/` lendo 8 services (state/selection/viewport/workspace/toolhost/toolregistry/snap/isolation). 7 sections opt-in via `[sections]` input. Standalone (usável fora do shell).
+
+- **D-037 — `<svge-editor>` modular**: inputs `[showToolbar]` / `[showStatusBar]` (default `true` ambos) + slots de projeção `[toolbar-extras]` e `[status-bar]` permitem qualquer mix.
+
+**Specs garantindo as invariantes**
+
+`editor.component.spec.ts` ganhou bloco "THREE MODES guarantee (D-034 + D-035)" com 6 specs cobrindo cada um dos 3 modos + slot custom de status. Modo 1 (headless puro) é garantido estruturalmente — `svg-engine/render` + `svg-engine/edit` continuam Material-free (D-017).
+
+**Playground**
+
+- `/` — headless puro (já era), permanece como está
+- `/shell-demo` — atualizado com hint mencionando os 3 modos
+- `/shell-partial-demo` — NOVA rota; 3 checkboxes interativos toggling toolbar/status/custom-status, demonstrando ao vivo o modo parcial
+
+**Garantias verificadas**
+
+- ✅ **993/993 specs** (+15 novos: 7 status-bar + 8 editor 3-modes)
+- ✅ Build full 6 entry points clean
+- ✅ Playground build clean (incluindo nova rota /shell-partial-demo)
+- ✅ ESLint clean
+
+---
+
 ## 2026-05-20 — Consolidação de helpers compartilhados (D-036)
 
 **Contexto**

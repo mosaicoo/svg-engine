@@ -268,7 +268,7 @@
 
 > **2026-05-20 — Consolidação de helpers (D-036)**: `screenToDoc` (5 cópias → 1 em `svg-engine/render/lib/util`), `capturePointer`/`releasePointer` (7 cópias inline → 1 em `svg-engine/edit/lib/pointer`), `isEditableTarget` (2 cópias → 1 canonical em `/edit/lib/pointer`, re-importada por `ShortcutService`). 8 arquivos da library + 1 do playground migrados. **973/973 specs** (+25 novos), 6 entry points clean.
 
-> **Pré-1.0 shell-refinement (após Fase 6d)**: D-034 (`<svge-toolbar>` materializando `MenuContributionRegistry`) + D-035 (`<svge-status-bar>`) ainda pendentes — registrados em `04-decisoes-tecnicas.md`. Objetivo: fechar o gap entre `playground-home` (full shell, 1300 linhas) e `<svge-editor>` (minimal shell, só undo/redo+zoom).
+> **2026-05-20 — Shell-refinement (D-034 + D-035 + D-037) ✅**: `<svge-toolbar>` integrado ao `<svge-editor>` (lê `MenuContributionRegistry` automaticamente). Novo `<svge-status-bar>` lendo 8 services com 7 sections opt-in. `<svge-editor>` ganhou inputs `[showToolbar]`/`[showStatusBar]` + slots de projeção, garantindo 3 modos de consumo (D-037 — invariantes Mosaicoo): headless puro / shell completo / shell parcial. Playground ganhou rota `/shell-partial-demo`. **993/993 specs** (+15 novos), 6 entry points clean.
 
 - [x] **Bloco 5-IO**: Import + Export SVG (categorias 4 e 5 do D-023)
   - Tipos `Importer` (id/name/mediaTypes/extensions/import) e `Exporter` (id/name/mediaType/extension/export). `ImportResult = { ok:true, document, warnings } | { ok:false, error }` (warnings não-fatais para sanitização)

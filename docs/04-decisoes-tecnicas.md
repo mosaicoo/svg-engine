@@ -857,19 +857,96 @@ Consolidar em dois módulos canônicos, mantendo backward-compat zero-break:
 
 ---
 
+## D-034 — `<svge-toolbar>` materializando `MenuContributionRegistry` (integrado ao shell)
+
+- **Data**: 2026-05-20
+- **Status**: Decidida + implementada
+- **Contexto**: O componente `<svge-toolbar>` (Bloco 4e) já existia em `svg-engine/ui/lib/toolbar/` desde o Fase 4 — lê o `MenuContributionRegistry` (D-023 categoria 9) e renderiza Material icon buttons por slot. Mas **nunca foi integrado** ao `<svge-editor>`. Resultado: o shell completo (rota `/shell-demo` do playground) mostrava apenas undo/redo/zoom hardcoded; plugins não tinham onde aparecer.
+
+### Decisão
+
+Integrar `<svge-toolbar slot="toolbar.main">` dentro do `<svge-editor>`, **adicionalmente** aos botões built-in (undo/redo/zoom). Plugins contribuem via `MenuContributionRegistry.register()` e aparecem automaticamente. Slot configurável via input `[toolbarSlot]` para isolar contribuições entre editores múltiplos no mesmo app.
+
+**Por que aditivo (não data-driven 100%)**: os built-ins (undo/redo/zoom) são guarantees do shell — disponíveis mesmo quando o consumer não registra nada. Refatorar pra serem contribuições seria puramente cosmético e quebraria o `<svge-editor>` em apps que ainda não bootstrappam `provideSvgEnginePlugin(...)`.
+
+---
+
+## D-035 — `<svge-status-bar>` (novo componente UI)
+
+- **Data**: 2026-05-20
+- **Status**: Decidida + implementada
+- **Contexto**: `playground-home` tem status indicators espalhados pelo HTML (cursor doc-coords, zoom%, tool ativa, selection count, snap mode, dirty flag, isolation breadcrumb). Consumer terceiro precisa reescrever tudo se quer um status bar próprio.
+
+### Decisão
+
+Novo componente `<svge-status-bar>` em `svg-engine/ui/lib/status-bar/`. Lê de 8 services existentes (`EditorStateService`, `SelectionService`, `ViewportService`, `WorkspaceService`, `ToolHostService` + `ToolRegistry`, `SnapService`, `IsolationService`) — só leitura, nunca muta. 7 sections opt-in via `[sections]` input:
+
+| Section     | Fonte                                             | Mostra                                 |
+| ----------- | ------------------------------------------------- | -------------------------------------- |
+| `tool`      | `ToolHostService.activeId` + `ToolRegistry.get()` | Ícone + label da tool ativa            |
+| `selection` | `SelectionService.count`/`focusId`                | "1 · abc12345" / "N selected" / "none" |
+| `cursor`    | `WorkspaceService.rulerCursor`                    | "x.x, y.y" doc-coords (1 decimal)      |
+| `zoom`      | `ViewportService.zoom`                            | "N%" arredondado                       |
+| `snap`      | `SnapService.enabled`/`mode`                      | "off" / "grid" / "objects" / "both"    |
+| `isolation` | `IsolationService.isActive`/`breadcrumbPath`      | "L2 · abc123" (condicional)            |
+| `dirty`     | `EditorStateService.dirty`                        | "●" laranja (condicional)              |
+
+Standalone usável fora do `<svge-editor>` — consumers podem montar isoladamente em sua própria UI.
+
+---
+
+## D-037 — Invariantes Mosaicoo: as 3 formas de consumir o editor
+
+- **Data**: 2026-05-20
+- **Status**: Decidida + implementada + coberto por specs
+- **Contexto**: Decisão explícita do user/Mosaicoo: o produto será consumido em **3 modos distintos** dependendo do caso de uso (canvas embedável em painéis menores, editor completo em pages dedicadas, customizações intermediárias). A decisão de expandir `<svge-editor>` com D-034/D-035 trouxe o risco de "matar" o caminho headless puro — esta D-037 formaliza as três premissas como **invariantes não-negociáveis** garantidas estruturalmente.
+
+### Os 3 modos garantidos
+
+| Modo                  | O que importa                                                                          | Material no bundle?    | Uso típico Mosaicoo                                                                                            |
+| --------------------- | -------------------------------------------------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **1. Headless puro**  | `core` + `render` + `edit` apenas (ignora `/ui`)                                       | ❌ Zero                | Painéis menores onde o consumer constrói toda a UI custom; embed em outras apps Mosaicoo que já têm seu chrome |
+| **2. Shell completo** | `<svge-editor>` sem flags (default)                                                    | ✅ Sim                 | Página dedicada de edição — drop-in completo (toolbar + canvas + status bar + plugin contributions)            |
+| **3. Shell parcial**  | `<svge-editor [showToolbar]="false">` ou `[showStatusBar]="false"` + slots de projeção | ✅ Sim (sem usar tudo) | Canvas com chrome Mosaicoo, OR shell completo com status bar custom, OR qualquer mix                           |
+
+### Como ficam garantidos
+
+- **Modo 1**: estrutural via D-017 + multi-entry-point (D-018). `svg-engine/render` + `svg-engine/edit` **não importam** `@angular/material`. Quem nunca importa de `svg-engine/ui` não recebe Material no bundle. Lint rule no D-028 (pendente) reforça via análise estática.
+- **Modo 2**: default do `<svge-editor>` (`showToolbar` e `showStatusBar` defaultam para `true`). Plugins aparecem automaticamente via `<svge-toolbar>` interno lendo `MenuContributionRegistry`.
+- **Modo 3**: inputs `[showToolbar]` e `[showStatusBar]` independentes + `<ng-content select="[toolbar-extras]">` e `<ng-content select="[status-bar]">` permitem substituições pontuais. Quando o consumer projeta `<div status-bar>...</div>`, o `<svge-status-bar>` default não renderiza (semântica do `<ng-content>` fallback).
+
+### Specs garantindo
+
+`projects/svg-engine/ui/src/lib/editor/editor.component.spec.ts` ganhou bloco "**THREE MODES guarantee (D-034 + D-035)**" com 6 specs:
+
+- MODE 2 default: toolbar + status bar + canvas renderizam
+- MODE 3a `[showToolbar]="false"`: status bar + canvas
+- MODE 3b `[showStatusBar]="false"`: toolbar + canvas
+- MODE 3c ambos false: só canvas + background
+- Toolbar contributions slot renderiza via `<svge-toolbar>` interno
+- Canvas + overlays projetados sobrevivem em todos os 3 modos
+- Slot custom `[status-bar]` substitui o default
+
+Modo 1 (headless puro) é garantido estruturalmente — não testável de dentro de `/ui` (a definição é "consumer não importa `/ui`"). O playground em si tem 3 rotas demonstrando: `/` (headless puro), `/shell-demo` (completo), `/shell-partial-demo` (parcial com checkboxes interativos).
+
+### Quando reabrir
+
+- Se aparecer caso de uso onde `<svge-editor>` precisa também esconder o canvas (improvável, mas registrar).
+- Se algum dia decidirmos consolidar `<svge-toolbar>` (built-ins + contributions) em data-driven 100% — implicaria refatorar undo/redo/zoom como contribuições registradas no boot do shell.
+
+---
+
 ## Decisões pendentes (em aberto)
 
-| ID provis. | Tema                                                                                                                                                                                                      |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D-025?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo)                                                                                                                                         |
-| D-027?     | Migração para zoneless (revisar D-010)                                                                                                                                                                    |
-| D-028?     | Lint rule customizada para enforcer headless boundary                                                                                                                                                     |
-| D-029?     | Estratégia de testes E2E (Playwright?)                                                                                                                                                                    |
-| D-031?     | Versionamento + changelog (changesets / standard-version)                                                                                                                                                 |
-| D-032?     | Multi-page (`WorkspacesRegistry`) — extensão futura de D-021                                                                                                                                              |
-| D-033?     | Estratégia de i18n no editor                                                                                                                                                                              |
-| **D-034?** | **`<svge-toolbar>` materializando `MenuContributionRegistry`** — shell-refinement pós-Fase 6d. Hoje `<svge-editor>` tem só undo/redo+zoom; consumer terceiro recria 200+ linhas pra ter toolbar completa. |
-| **D-035?** | **`<svge-status-bar>` (não "footer")** — cursor doc-coords, zoom%, active tool, selection/node counts, snap mode, dirty flag, isolation breadcrumb. Mesmo timing que D-034.                               |
-| D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3                                                                                                                                    |
+| ID provis. | Tema                                                                   |
+| ---------- | ---------------------------------------------------------------------- |
+| D-025?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo)      |
+| D-027?     | Migração para zoneless (revisar D-010)                                 |
+| D-028?     | Lint rule customizada para enforcer headless boundary                  |
+| D-029?     | Estratégia de testes E2E (Playwright?)                                 |
+| D-031?     | Versionamento + changelog (changesets / standard-version)              |
+| D-032?     | Multi-page (`WorkspacesRegistry`) — extensão futura de D-021           |
+| D-033?     | Estratégia de i18n no editor                                           |
+| D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3 |
 
-> **Nota**: D-023 era "API formal de plugins" (cumprida pelo D-020 expandido em 2026-05-15). D-024 era "Versionamento + changelog" (renumerada para D-031 porque o número D-024 foi reusado para `ScriptRuntimePlugin`). D-030 era "Workspace/Página: A vs B" (cumprida pelo D-021 resolvido como Option C). D-032 entra como pendente para multi-page futuro. Sequência de IDs cumpridas em 2026-05-15: D-020, D-021, D-023, D-024. Em 2026-05-20: D-026 (alinhamento estrutural io/optimize); o número D-026 era previamente reservado para i18n — renomeado para D-033. D-036 (consolidação de helpers compartilhados) entrou no mesmo dia. D-034 e D-035 ficam pendentes para shell-refinement pós-Fase 6d.
+> **Nota**: D-023 era "API formal de plugins" (cumprida pelo D-020 expandido em 2026-05-15). D-024 era "Versionamento + changelog" (renumerada para D-031 porque o número D-024 foi reusado para `ScriptRuntimePlugin`). D-030 era "Workspace/Página: A vs B" (cumprida pelo D-021 resolvido como Option C). D-032 entra como pendente para multi-page futuro. Sequência de IDs cumpridas em 2026-05-15: D-020, D-021, D-023, D-024. Em 2026-05-20: D-026 (alinhamento estrutural io/optimize); o número D-026 era previamente reservado para i18n — renomeado para D-033. D-036 (consolidação de helpers compartilhados) entrou no mesmo dia. **D-034 + D-035 + D-037** (shell-refinement) entraram em 2026-05-20 mais tarde no mesmo dia — adiamento "pós-Fase 6d" foi reduzido pois caso de uso Mosaicoo (canvas embedável em painéis menores + editor completo) demandou ambas formas garantidamente.

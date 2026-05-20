@@ -12,54 +12,65 @@ import {
 } from 'svg-engine/core';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
 import { PageOverlay, SvgeCanvasGestures, WorkspaceBackground } from 'svg-engine/edit';
+import { SvgeStatusBar } from '../status-bar';
+import { SvgeToolbar } from '../toolbar';
 
 /**
- * Full-featured editor shell (Fase 4 Bloco 4a). Composes the headless
- * editor surface (`WorkspaceBackground` + `SvgeRenderer` + projected
- * overlays) under a Material toolbar with the most common editor
- * actions (undo/redo, zoom, reset).
+ * Full-featured editor shell (Fase 4 Bloco 4a — expanded in Fase 6
+ * D-034/D-035 with `<svge-toolbar>` + `<svge-status-bar>` integration).
+ * Composes the headless editor surface (`WorkspaceBackground` +
+ * `SvgeRenderer` + projected overlays) under a Material toolbar with
+ * built-in undo/redo/zoom actions, optionally extended by plugin-
+ * contributed buttons from `MenuContributionRegistry`, and optionally
+ * capped by a `<svge-status-bar>` showing tool/selection/zoom/cursor/snap state.
  *
- * **Why a shell instead of forcing every consumer to build their own**:
- * the playground proved that wiring renderer + overlays + handlers is
- * 200+ lines of boilerplate. `<svge-editor>` collapses that into one
- * tag for the 80%-case consumer. Power consumers can still skip this
- * shell and compose primitives directly (the playground does that
- * intentionally to keep dogfooding honest).
+ * **THREE MODES** — guaranteed by design:
  *
- * **Headless boundary (D-017)**: this component lives in `svg-engine/ui`
- * — the *only* entry point allowed to import `@angular/material`. Other
- * entry points (`core/render/io/optimize/edit`) remain Material-free,
- * so consumers who don't want Material keep working without it.
+ * 1. **Headless puro** — consumer ignores `svg-engine/ui` entirely and
+ *    composes `<svge-renderer>` + overlays + services by hand (see
+ *    `playground-home`). Zero Material in their bundle.
  *
- * **What's IN this Bloco 4a shell** (minimum useful surface):
- * - Material toolbar with title + undo/redo + zoom in/out + reset view
- *   buttons; signals from `HistoryService` and `ViewportService` drive
- *   reactive state (button disabled, zoom %)
- * - `<svge-workspace-background>` wrapping the canvas (bg config
- *   read from `WorkspaceService` automatically — managed by the
- *   consumer or a future settings panel from 4f)
- * - `<svge-renderer>` projecting `<ng-content>` for overlays — consumer
- *   slots in selection-overlay / rotation-pivot / marquee / snap-guides
- *   exactly like with the bare renderer
- * - Sensible default sizing (host fills its container, toolbar sticks
- *   to the top, canvas takes remaining space)
+ * 2. **Shell completo** — drop in `<svge-editor>` with no flags; you
+ *    get toolbar + canvas + status bar + projected overlays. The
+ *    Mosaicoo "Editor" surface uses this.
  *
- * **What's NOT yet here** (subsequent Fase 4 blocos):
- * - 4b: `<svge-layers-panel>` slot on the side
- * - 4c: `<svge-inspector>` slot on the side
- * - 4d: `<svge-color-palette>` integration
- * - 4e: extensible toolbar contributions via `MenuContributionRegistry`
- * - 4f: workspace settings panel (page/grid/guides/rulers)
+ * 3. **Shell parcial** — flags toggle individual pieces:
  *
- * Usage:
- * ```html
- * <svge-editor [tree]="doc().root" [viewBox]="doc().viewBox">
- *   <svg:g svgeSelectionOverlay></svg:g>
- *   <svg:g svgeRotationPivot></svg:g>
- *   <svg:g svgeMarquee></svg:g>
- *   <svg:g svgeSnapGuides></svg:g>
- * </svge-editor>
- * ```
+ *    ```html
+ *    <!-- canvas only (no toolbar, no status bar) — Mosaicoo "viewer with edit" -->
+ *    <svge-editor [showToolbar]="false" [showStatusBar]="false">
+ *      <svg:g svgeSelectionOverlay></svg:g>
+ *    </svge-editor>
+ *
+ *    <!-- canvas + my own status bar (toolbar disabled) -->
+ *    <svge-editor [showToolbar]="false">
+ *      <my-status-bar status-bar></my-status-bar>
+ *      <svg:g svgeSelectionOverlay></svg:g>
+ *    </svge-editor>
+ *    ```
+ *
+ *    Custom toolbar / status-bar contributions slot in via projected
+ *    content with the `toolbar-extras` / `status-bar` selectors (see
+ *    `<ng-content>` slots in the template).
+ *
+ * **Headless boundary (D-017)** — UNCHANGED: this component lives in
+ * `svg-engine/ui`, the only entry point allowed to import
+ * `@angular/material` and `@angular/cdk`. Consumers who never import
+ * from `svg-engine/ui` get zero Material in their bundle. The three
+ * modes above only affect which subset of UI you opt into; the
+ * headless route remains fully supported.
+ *
+ * **Why opt-in flags instead of three separate components**: the
+ * canvas + overlay + background composition is identical across all
+ * three modes — the only thing that varies is what wraps it. Flags
+ * + slots let consumers tune one component; three components would
+ * mean three nearly-identical templates to maintain.
+ *
+ * **Built-in toolbar buttons**: undo, redo, zoom in/out, reset. These
+ * are intentionally hard-coded (not contributions) so the shell stays
+ * useful even without `MenuContributionRegistry` populated. Plugins
+ * add to the strip via `<svge-toolbar>` which appears next to the
+ * built-ins (when `showToolbar` is true).
  */
 @Component({
   selector: 'svge-editor',
@@ -73,61 +84,70 @@ import { PageOverlay, SvgeCanvasGestures, WorkspaceBackground } from 'svg-engine
     WorkspaceBackground,
     PageOverlay,
     SvgeCanvasGestures,
+    SvgeToolbar,
+    SvgeStatusBar,
   ],
   template: `
-    <mat-toolbar class="editor-toolbar">
-      <span class="title">{{ title() ?? 'SVGEngine' }}</span>
-      <span class="spacer"></span>
-      <button
-        mat-icon-button
-        type="button"
-        matTooltip="Undo"
-        [disabled]="!canUndo()"
-        (click)="undo()"
-        aria-label="Undo"
-      >
-        <mat-icon>undo</mat-icon>
-      </button>
-      <button
-        mat-icon-button
-        type="button"
-        matTooltip="Redo"
-        [disabled]="!canRedo()"
-        (click)="redo()"
-        aria-label="Redo"
-      >
-        <mat-icon>redo</mat-icon>
-      </button>
-      <span class="separator" aria-hidden="true">|</span>
-      <button
-        mat-icon-button
-        type="button"
-        matTooltip="Zoom out"
-        (click)="zoomOut()"
-        aria-label="Zoom out"
-      >
-        <mat-icon>zoom_out</mat-icon>
-      </button>
-      <span class="zoom-pct" aria-live="polite">{{ zoomPct() }}</span>
-      <button
-        mat-icon-button
-        type="button"
-        matTooltip="Zoom in"
-        (click)="zoomIn()"
-        aria-label="Zoom in"
-      >
-        <mat-icon>zoom_in</mat-icon>
-      </button>
-      <button
-        mat-icon-button
-        type="button"
-        matTooltip="Reset view"
-        (click)="resetView()"
-        aria-label="Reset view"
-      >
-        <mat-icon>fit_screen</mat-icon>
-      </button>
-    </mat-toolbar>
+    @if (showToolbar()) {
+      <mat-toolbar class="editor-toolbar">
+        <span class="title">{{ title() ?? 'SVGEngine' }}</span>
+        <span class="spacer"></span>
+        <!-- Plugin-contributed toolbar items (left side of built-ins). -->
+        <svge-toolbar [slot]="toolbarSlot()" />
+        <!-- Consumer-projected extras between contributions and built-ins. -->
+        <ng-content select="[toolbar-extras]" />
+        <span class="separator" aria-hidden="true">|</span>
+        <button
+          mat-icon-button
+          type="button"
+          matTooltip="Undo"
+          [disabled]="!canUndo()"
+          (click)="undo()"
+          aria-label="Undo"
+        >
+          <mat-icon>undo</mat-icon>
+        </button>
+        <button
+          mat-icon-button
+          type="button"
+          matTooltip="Redo"
+          [disabled]="!canRedo()"
+          (click)="redo()"
+          aria-label="Redo"
+        >
+          <mat-icon>redo</mat-icon>
+        </button>
+        <span class="separator" aria-hidden="true">|</span>
+        <button
+          mat-icon-button
+          type="button"
+          matTooltip="Zoom out"
+          (click)="zoomOut()"
+          aria-label="Zoom out"
+        >
+          <mat-icon>zoom_out</mat-icon>
+        </button>
+        <span class="zoom-pct" aria-live="polite">{{ zoomPct() }}</span>
+        <button
+          mat-icon-button
+          type="button"
+          matTooltip="Zoom in"
+          (click)="zoomIn()"
+          aria-label="Zoom in"
+        >
+          <mat-icon>zoom_in</mat-icon>
+        </button>
+        <button
+          mat-icon-button
+          type="button"
+          matTooltip="Reset view"
+          (click)="resetView()"
+          aria-label="Reset view"
+        >
+          <mat-icon>fit_screen</mat-icon>
+        </button>
+      </mat-toolbar>
+    }
     <div class="canvas-area" svgeCanvasGestures>
       <svge-workspace-background>
         <svge-renderer
@@ -149,6 +169,15 @@ import { PageOverlay, SvgeCanvasGestures, WorkspaceBackground } from 'svg-engine
         </svge-renderer>
       </svge-workspace-background>
     </div>
+    @if (showStatusBar()) {
+      <div class="status-area">
+        <!-- Consumer can fully replace the built-in svge-status-bar by
+             projecting a custom element with the status-bar attribute. -->
+        <ng-content select="[status-bar]">
+          <svge-status-bar />
+        </ng-content>
+      </div>
+    }
   `,
   styles: `
     :host {
@@ -190,6 +219,13 @@ import { PageOverlay, SvgeCanvasGestures, WorkspaceBackground } from 'svg-engine
     .canvas-area > * {
       position: absolute;
       inset: 0;
+    }
+    .status-area {
+      flex: 0 0 auto;
+      border-top: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+    }
+    .status-area > * {
+      width: 100%;
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -236,6 +272,45 @@ export class SvgeEditor {
 
   /** Optional aria-label for the inner `<svg>` element. */
   readonly ariaLabel = input<string | null>(null);
+
+  /**
+   * D-034 — render the toolbar row (title, plugin contributions, built-in
+   * undo/redo/zoom). Default: `true`.
+   *
+   * Set to `false` for the "canvas-only" shell variant — useful when
+   * the consuming app provides its own application chrome and just
+   * wants the editor canvas widget. Built-in keyboard shortcuts
+   * (undo via Ctrl+Z, etc.) are NOT affected; they live in the
+   * services, not in the toolbar buttons.
+   */
+  readonly showToolbar = input<boolean>(true);
+
+  /**
+   * D-035 — render the status bar (tool / selection / zoom / cursor /
+   * snap / isolation / dirty). Default: `true`.
+   *
+   * Set to `false` to suppress the built-in status bar. Consumers can
+   * either (a) skip the status bar entirely, or (b) project their own
+   * custom element via the `[status-bar]` selector:
+   *
+   * ```html
+   * <svge-editor [showStatusBar]="true">
+   *   <my-status-bar status-bar></my-status-bar>
+   * </svge-editor>
+   * ```
+   *
+   * Projection takes precedence over the default `<svge-status-bar>`
+   * because of how `<ng-content>` fallback content works.
+   */
+  readonly showStatusBar = input<boolean>(true);
+
+  /**
+   * Which `MenuContributionRegistry` slot the embedded `<svge-toolbar>`
+   * renders. Default: `'toolbar.main'`. Consumers running multiple
+   * editors with disjoint plugin sets can use distinct slot names so
+   * contributions don't leak across editors.
+   */
+  readonly toolbarSlot = input<string>('toolbar.main');
 
   /**
    * Emitted when the user clicks Undo/Redo from the toolbar — useful

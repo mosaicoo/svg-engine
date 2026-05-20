@@ -12,6 +12,13 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/shell-demo/shell-demo.component').then((m) => m.ShellDemo),
   },
   {
+    path: 'shell-partial-demo',
+    loadComponent: () =>
+      import('./pages/shell-partial-demo/shell-partial-demo.component').then(
+        (m) => m.ShellPartialDemo,
+      ),
+  },
+  {
     path: 'perf',
     loadComponent: () => import('./pages/perf/perf.component').then((m) => m.PerfPage),
   },

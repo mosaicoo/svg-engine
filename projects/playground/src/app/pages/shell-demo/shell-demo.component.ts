@@ -36,9 +36,11 @@ import { SvgeEditor } from 'svg-engine/ui';
   template: `
     <div class="hint">
       <p>
-        <strong>Shell mode:</strong> a single <code>&lt;svge-editor&gt;</code> tag composes the
-        toolbar, background, and canvas. Compare with the <a routerLink="">home page</a> (which
-        wires everything by hand).
+        <strong>Shell completo:</strong> a single <code>&lt;svge-editor&gt;</code> tag composes the
+        toolbar (with plugin contributions slot), background, canvas and status bar (D-034/D-035,
+        2026-05-20). Compare with the <a routerLink="">home page</a> (headless puro — every
+        primitive wired by hand) and <a routerLink="/shell-partial-demo">shell parcial</a> (flags
+        toggling individual pieces).
       </p>
     </div>
     <div class="editor-area">

@@ -528,20 +528,37 @@ seção 2026-05-18.
 
 #### Shell
 
-| Selector        | Componente   | Descrição                                                                                                          |
-| --------------- | ------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `<svge-editor>` | `SvgeEditor` | Drop-in shell: toolbar (undo/redo/zoom/reset) + `<svge-workspace-background>` + `<svge-renderer>` + `<ng-content>` |
+| Selector        | Componente   | Descrição                                                                                                                                                                                                                                                                                                                                                                    |
+| --------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<svge-editor>` | `SvgeEditor` | Drop-in shell modular: toolbar (built-in undo/redo/zoom + `<svge-toolbar>` plugin contributions) + `<svge-workspace-background>` + `<svge-renderer>` + status bar. **D-037 (2026-05-20) — 3 modos garantidos**: inputs `[showToolbar]`/`[showStatusBar]` (default `true`) + slots `[toolbar-extras]`/`[status-bar]` para customização. Veja D-037 para invariantes Mosaicoo. |
+
+**`SvgeEditor` API completa** (inputs / outputs adicionados em D-034/D-035):
+
+| Input / Output                                  | Tipo                  | Default                   | Descrição                                                                      |
+| ----------------------------------------------- | --------------------- | ------------------------- | ------------------------------------------------------------------------------ |
+| `[tree]`                                        | `SvgNode \| null`     | `null`                    | Override do `state.document().root`. Útil quando o consumer mantém doc próprio |
+| `[viewBox]`                                     | `BoundingBox \| null` | `null`                    | Override do `state.document().viewBox`                                         |
+| `[title]`                                       | `string \| null`      | `'SVGEngine'`             | Texto na esquerda da toolbar                                                   |
+| `[ariaLabel]`                                   | `string \| null`      | `'Editable SVG document'` | aria-label do `<svg>` interno                                                  |
+| `[showToolbar]`                                 | `boolean`             | `true`                    | **D-034** — mostrar/esconder toolbar inteira (built-ins + contribuições)       |
+| `[showStatusBar]`                               | `boolean`             | `true`                    | **D-035** — mostrar/esconder status bar                                        |
+| `[toolbarSlot]`                                 | `string`              | `'toolbar.main'`          | **D-034** — slot do `MenuContributionRegistry` lido pela toolbar interna       |
+| `(undoTriggered)` / `(redoTriggered)`           | `EventEmitter<void>`  | —                         | Disparados quando user clica nos botões built-in                               |
+| `<ng-content select="[toolbar-extras]">`        | slot                  | —                         | Conteúdo projetado entre `<svge-toolbar>` e os built-ins                       |
+| `<ng-content select="[status-bar]">` (fallback) | slot                  | `<svge-status-bar />`     | Custom status bar; quando consumer projeta, substitui o default                |
+| `<ng-content>` (default)                        | slot                  | —                         | Overlays projetados dentro do `<svge-renderer>` (selection, marquee, etc.)     |
 
 #### Panels
 
-| Selector                  | Componente         | Descrição                                                                                                               |
-| ------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `<svge-layers-panel>`     | `LayersPanel`      | Tree hierárquico com expand/collapse + visibility/lock + drag-drop reorder + click-to-select                            |
-| `<svge-inspector>`        | `SvgeInspector`    | Painel de propriedades reativo a `selection.focusId()`: geometry, style, transform decomposto, pivot picker, multi-edit |
-| `<svge-color-palette>`    | `SvgeColorPalette` | Strip de swatches; emite `colorPicked`. Renderiza `transparent` com slash icon                                          |
-| `<svge-toolbar slot="X">` | `SvgeToolbar`      | Material `<mat-icon-button>` por contribuição de `MenuContributionRegistry` no slot                                     |
-| `<svge-rulers>`           | `SvgeRulers`       | Overlay HTML top/left com ticks (nice spacing 1/2/5 × 10ⁿ)                                                              |
-| `<svge-theme-toggle>`     | `SvgeThemeToggle`  | Icon button + `ThemeService` (light/dark/system, persist em localStorage chave `svge.theme`)                            |
+| Selector                  | Componente         | Descrição                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<svge-layers-panel>`     | `LayersPanel`      | Tree hierárquico com expand/collapse + visibility/lock + drag-drop reorder + click-to-select                                                                                                                                                                                                                                                                      |
+| `<svge-inspector>`        | `SvgeInspector`    | Painel de propriedades reativo a `selection.focusId()`: geometry, style, transform decomposto, pivot picker, multi-edit                                                                                                                                                                                                                                           |
+| `<svge-color-palette>`    | `SvgeColorPalette` | Strip de swatches; emite `colorPicked`. Renderiza `transparent` com slash icon                                                                                                                                                                                                                                                                                    |
+| `<svge-toolbar slot="X">` | `SvgeToolbar`      | Material `<mat-icon-button>` por contribuição de `MenuContributionRegistry` no slot. **(2026-05-20) Integrado automaticamente ao `<svge-editor>`** quando `[showToolbar]=true` (default)                                                                                                                                                                          |
+| `<svge-status-bar>`       | `SvgeStatusBar`    | **D-035 (2026-05-20)** — Status bar reativa. Lê 8 services (state/selection/viewport/workspace/toolhost/toolregistry/snap/isolation). 7 sections opt-in via `[sections]`: `'tool' \| 'selection' \| 'cursor' \| 'zoom' \| 'snap' \| 'isolation' \| 'dirty'`. Const `STATUS_BAR_SECTIONS` exportada para conveniência. Standalone — usável fora do `<svge-editor>` |
+| `<svge-rulers>`           | `SvgeRulers`       | Overlay HTML top/left com ticks (nice spacing 1/2/5 × 10ⁿ)                                                                                                                                                                                                                                                                                                        |
+| `<svge-theme-toggle>`     | `SvgeThemeToggle`  | Icon button + `ThemeService` (light/dark/system, persist em localStorage chave `svge.theme`)                                                                                                                                                                                                                                                                      |
 
 #### Dialog
 
