@@ -11,7 +11,12 @@ import {
   type SvgNode,
 } from 'svg-engine/core';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
-import { PageOverlay, SvgeCanvasGestures, WorkspaceBackground } from 'svg-engine/edit';
+import {
+  PageOverlay,
+  SvgeCanvasGestures,
+  SvgeShellInteractions,
+  WorkspaceBackground,
+} from 'svg-engine/edit';
 import { SvgeContextMenuTrigger } from '../context-menu';
 import { SvgeMenuBar } from '../menu-bar';
 import { SvgeStatusBar } from '../status-bar';
@@ -92,6 +97,7 @@ import { SvgeToolOptions } from '../tool-options';
     SvgeMenuBar,
     SvgeContextMenuTrigger,
     SvgeToolOptions,
+    SvgeShellInteractions,
   ],
   template: `
     @if (showMenuBar()) {
@@ -165,6 +171,7 @@ import { SvgeToolOptions } from '../tool-options';
     <div
       class="canvas-area"
       svgeCanvasGestures
+      svgeShellInteractions
       [svgeContextMenu]="showContextMenu() ? contextMenuSlot() : ''"
     >
       <svge-workspace-background>

@@ -59,6 +59,7 @@ const MIN_SHAPE_EDGE_PX = 2;
 class ShapeTool implements Tool {
   readonly id: string;
   readonly label: string;
+  readonly icon: string;
   readonly cursor = 'crosshair';
   readonly shortcut: string;
 
@@ -71,6 +72,9 @@ class ShapeTool implements Tool {
     this.id = id;
     this.label = label;
     this.shortcut = shortcut;
+    // Material icon per shape kind — drives the tools-palette button face.
+    this.icon =
+      kind === 'rect' ? 'crop_square' : kind === 'ellipse' ? 'radio_button_unchecked' : 'pentagon';
   }
 
   onActivate(ctx: ToolContext): void {

@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-05-20 — Fix pós D-038 Phase 4: `[svgeShellInteractions]` + tool icons + toolbar.main demo
+
+**Contexto**
+
+Validação manual do `<svge-shell-pro>` revelou 3 problemas:
+
+1. **Shapes não criáveis nem manipuláveis** — bug arquitetural antigo: `<svge-editor>` (Bloco 4a) e `<svge-shell-pro>` (D-038 Phase 4) nunca rotearam pointer events para `ToolHostService.routePointer*`. Só `playground-home` fazia esse wireup. Tools como Stamp / Shape / Pen / Text não respondiam a clicks na rota `/shell-pro-demo` mesmo estando ativas.
+2. **Tools palette com 7 ícones de chave-inglesa** — tools built-in nunca tinham `icon` definido porque ninguém renderizava antes do D-038 Phase 4 (que introduziu `<svge-tools-palette>`).
+3. **Toolbar entre menu bar e tool options vazia** — `demoMenuBarPlugin` populava `menu.*` e `context.*` mas zero `toolbar.main`.
+
+**Solução**
+
+- **Nova diretiva `[svgeShellInteractions]`** em `svg-engine/edit/lib/tool/shell-interactions.directive.ts`:
+  - Roteia pointer events (down/move/up/cancel) para `ToolHostService.routePointer*` quando uma tool ativa NÃO é Select/Direct-Select.
+  - Click handler: usa `resolveSelectableNodeId` + `SelectionService.select(id)` para selecionar shapes; click no background limpa seleção.
+  - Document-level keydown: `Delete`/`Backspace` dispatcha `RemoveNodeCommand` por id selecionado, gated por `isEditableTarget`. Demais keys forward para `toolHost.routeKeyDown`.
+- Aplicada automaticamente no `<svge-editor>` e `<svge-shell-pro>` (sem opt-in — todas as visões shell ganham interação out-of-the-box).
+- **Icons** adicionados a 7 built-in tools: select=`arrow_selector_tool`, direct-select=`ads_click`, pencil=`edit`, pen=`draw`, rect=`crop_square`, ellipse=`radio_button_unchecked`, polygon=`pentagon`, text=`title`.
+- **Demo plugin** ganhou 4 items `toolbar.main`: Save / Export SVG / Optimize / View Source.
+
+**Gap remanescente** (registrado como **D-039? pendente** em `04-decisoes-tecnicas.md`): marquee drag-to-select, move-by-drag, multi-select Shift+click, shortcuts completos. Requerem wireup com `TransformService` + `MarqueeService` — escopo separado.
+
+**Garantias**
+
+- ✅ 1016/1016 specs passando
+- ✅ 6 entry points build clean
+- ✅ Playground build clean
+- ✅ Modos 1-4 D-037 inalterados
+- ✅ Stamp Tool no `/shell-pro-demo`: pressionar **K**, tool options bar aparece, click no canvas dropa círculo. Click em shape existente seleciona. Delete remove.
+
+---
+
 ## 2026-05-20 — Sprint Pro-Editor (D-038): editor profissional drop-in (`<svge-shell-pro>`)
 
 **Contexto**

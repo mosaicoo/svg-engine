@@ -55,6 +55,7 @@ export const PENCIL_TOOL_ID = 'com.svge.tool.pencil';
 class SelectTool implements Tool {
   readonly id = SELECT_TOOL_ID;
   readonly label = 'Select';
+  readonly icon = 'arrow_selector_tool';
   readonly cursor = 'default';
   readonly shortcut = 'v';
 }
@@ -68,6 +69,7 @@ class SelectTool implements Tool {
 class DirectSelectTool implements Tool {
   readonly id = DIRECT_SELECT_TOOL_ID;
   readonly label = 'Direct Select';
+  readonly icon = 'ads_click';
   readonly cursor = 'default';
   readonly shortcut = 'a';
 }
@@ -92,6 +94,7 @@ class DirectSelectTool implements Tool {
 class PencilTool implements Tool {
   readonly id = PENCIL_TOOL_ID;
   readonly label = 'Pencil';
+  readonly icon = 'edit';
   readonly cursor = 'crosshair';
   readonly shortcut = 'p';
 

@@ -56,6 +56,7 @@ const SNAP_TO_FIRST_PX = 8;
 class PenTool implements Tool {
   readonly id = PEN_TOOL_ID;
   readonly label = 'Pen';
+  readonly icon = 'draw';
   readonly cursor = 'crosshair';
   readonly shortcut = 'b'; // 'p' is taken by the Pencil tool
 

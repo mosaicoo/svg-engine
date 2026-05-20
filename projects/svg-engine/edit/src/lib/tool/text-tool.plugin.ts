@@ -60,6 +60,7 @@ const DEFAULT_FONT_SIZE = 16;
 class TextTool implements Tool {
   readonly id = TEXT_TOOL_ID;
   readonly label = 'Text';
+  readonly icon = 'title';
   readonly cursor = 'text';
   readonly shortcut = 't';
 

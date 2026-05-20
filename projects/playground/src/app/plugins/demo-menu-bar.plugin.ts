@@ -199,6 +199,59 @@ export const demoMenuBarPlugin: EditorPlugin = {
       }),
     );
 
+    // ── Toolbar.main slot (D-038 post-Phase 4 fix) ─────────────────
+    // Items aqui aparecem na <svge-toolbar slot="toolbar.main"> entre
+    // o título e os built-ins (undo/redo/zoom) do svge-editor.
+    ctx.track(
+      reg.register({
+        id: 'demo.toolbar.save',
+        slot: 'toolbar.main',
+        label: 'Save',
+        icon: 'save',
+        shortcut: 'Ctrl+S',
+        order: 10,
+        run() {
+          console.info('[demo] toolbar.main > Save');
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'demo.toolbar.export',
+        slot: 'toolbar.main',
+        label: 'Export SVG',
+        icon: 'download',
+        order: 20,
+        run() {
+          console.info('[demo] toolbar.main > Export SVG');
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'demo.toolbar.optimize',
+        slot: 'toolbar.main',
+        label: 'Optimize',
+        icon: 'auto_fix_high',
+        order: 30,
+        run() {
+          console.info('[demo] toolbar.main > Optimize');
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'demo.toolbar.view-source',
+        slot: 'toolbar.main',
+        label: 'View Source',
+        icon: 'code',
+        order: 40,
+        run() {
+          console.info('[demo] toolbar.main > View Source');
+        },
+      }),
+    );
+
     // ── Help menu ──────────────────────────────────────────────────
     ctx.track(
       reg.register({

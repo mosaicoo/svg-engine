@@ -30,3 +30,4 @@ export { ShapeOverlay } from './shape-overlay.component';
 export { PLACEHOLDER_TEXT, TEXT_TOOL_ID, textToolPlugin } from './text-tool.plugin';
 export { InlineTextEditorService } from './text-tool.service';
 export { InlineTextEditor } from './inline-text-editor.component';
+export { SvgeShellInteractions } from './shell-interactions.directive';

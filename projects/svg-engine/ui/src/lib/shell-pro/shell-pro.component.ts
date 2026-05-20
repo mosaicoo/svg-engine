@@ -1,6 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { type BoundingBox, EditorStateService, type SvgNode } from 'svg-engine/core';
-import { PageOverlay, SvgeCanvasGestures, WorkspaceBackground } from 'svg-engine/edit';
+import {
+  PageOverlay,
+  SvgeCanvasGestures,
+  SvgeShellInteractions,
+  WorkspaceBackground,
+} from 'svg-engine/edit';
 import { SvgeRenderer } from 'svg-engine/render';
 import { SvgeContextMenuTrigger } from '../context-menu';
 import { SvgeInspector } from '../inspector';
@@ -74,6 +79,7 @@ import { SvgeToolsPalette } from '../tools-palette';
     WorkspaceBackground,
     PageOverlay,
     SvgeCanvasGestures,
+    SvgeShellInteractions,
     SvgeContextMenuTrigger,
     SvgeMenuBar,
     SvgeToolbar,
@@ -96,7 +102,12 @@ import { SvgeToolsPalette } from '../tools-palette';
       <aside class="tools-side" aria-label="Tools palette">
         <svge-tools-palette />
       </aside>
-      <div class="canvas-cell" svgeCanvasGestures [svgeContextMenu]="contextMenuSlot()">
+      <div
+        class="canvas-cell"
+        svgeCanvasGestures
+        svgeShellInteractions
+        [svgeContextMenu]="contextMenuSlot()"
+      >
         <svge-workspace-background>
           <svge-renderer
             [tree]="resolvedTree()"
