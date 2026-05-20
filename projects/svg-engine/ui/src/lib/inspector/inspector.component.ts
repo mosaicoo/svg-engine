@@ -370,175 +370,196 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
 
       <section class="section">
         <h3 class="section-title">Style</h3>
-        <div class="grid color-grid">
-          <div class="color-cell" [class.active-target]="activeColorTarget() === 'fill'">
-            <label
-              class="field-row"
-              [class.disabled]="isLocked()"
-              (pointerdown)="setActiveColorTarget('fill')"
-            >
-              <span class="lbl">fill</span>
-              <span
-                class="swatch"
-                [class.show-checker]="swatchShowChecker('fill')"
-                [style.background-color]="swatchColorWithAlpha('fill')"
-                [title]="rawStyleColor('fill')"
-                aria-hidden="true"
-              ></span>
-              <input
-                type="color"
-                class="color-input-hidden"
-                aria-label="Pick fill color"
-                [disabled]="isLocked()"
-                [value]="styleColor('fill')"
-                (change)="setStyle('fill', $any($event.target).value)"
-              />
-            </label>
-            <!--
-              Bloco 4-Alpha: separate alpha slider per color field (Figma/
-              Affinity pattern). Native <input type="color"> is RGB-only;
-              we expose fillOpacity / strokeOpacity here so users can
-              control transparency without leaving the color row.
-            -->
-            <input
-              type="number"
-              class="alpha-input"
-              min="0"
-              max="1"
-              step="0.05"
-              aria-label="Fill alpha"
-              title="Fill alpha (0 = transparent, 1 = opaque)"
-              [disabled]="isLocked()"
-              [value]="styleAlpha('fillOpacity')"
-              (change)="setStyleNumber('fillOpacity', $any($event.target).value)"
-            />
-            <!--
-              Advanced picker trigger (Sprint C). Opens a pro-grade
-              colour picker (sat/val square + hue slider + HEX/RGB inputs
-              + recents + eyedropper) via mat-menu. The native swatch +
-              hidden color input above remain as the quick-pick path —
-              this button is purely ADDITIVE so all existing UX continues
-              to work for users who don't need the advanced controls.
-            -->
-            <button
-              mat-icon-button
-              type="button"
-              class="picker-trigger-btn"
-              [matMenuTriggerFor]="fillPickerMenu"
-              [disabled]="isLocked()"
-              aria-label="Open advanced fill colour picker"
-              title="Advanced picker (hex, RGB, eyedropper, recent colours)"
-            >
-              <mat-icon>palette</mat-icon>
-            </button>
-            <mat-menu #fillPickerMenu="matMenu" xPosition="before" yPosition="below">
-              <div
-                class="picker-host"
-                role="presentation"
-                (click)="$event.stopPropagation()"
-                (keydown)="$event.stopPropagation()"
-              >
-                <svge-color-picker
-                  [color]="styleColor('fill')"
-                  (colorChange)="setStyle('fill', $event)"
-                />
-              </div>
-            </mat-menu>
-          </div>
-          <div class="color-cell" [class.active-target]="activeColorTarget() === 'stroke'">
-            <label
-              class="field-row"
-              [class.disabled]="isLocked()"
-              (pointerdown)="setActiveColorTarget('stroke')"
-            >
-              <span class="lbl">stroke</span>
-              <span
-                class="swatch"
-                [class.show-checker]="swatchShowChecker('stroke')"
-                [style.background-color]="swatchColorWithAlpha('stroke')"
-                [title]="rawStyleColor('stroke')"
-                aria-hidden="true"
-              ></span>
-              <input
-                type="color"
-                class="color-input-hidden"
-                aria-label="Pick stroke color"
-                [disabled]="isLocked()"
-                [value]="styleColor('stroke')"
-                (change)="setStyle('stroke', $any($event.target).value)"
-              />
-            </label>
-            <input
-              type="number"
-              class="alpha-input"
-              min="0"
-              max="1"
-              step="0.05"
-              aria-label="Stroke alpha"
-              title="Stroke alpha (0 = transparent, 1 = opaque)"
-              [disabled]="isLocked()"
-              [value]="styleAlpha('strokeOpacity')"
-              (change)="setStyleNumber('strokeOpacity', $any($event.target).value)"
-            />
-            <button
-              mat-icon-button
-              type="button"
-              class="picker-trigger-btn"
-              [matMenuTriggerFor]="strokePickerMenu"
-              [disabled]="isLocked()"
-              aria-label="Open advanced stroke colour picker"
-              title="Advanced picker (hex, RGB, eyedropper, recent colours)"
-            >
-              <mat-icon>palette</mat-icon>
-            </button>
-            <mat-menu #strokePickerMenu="matMenu" xPosition="before" yPosition="below">
-              <div
-                class="picker-host"
-                role="presentation"
-                (click)="$event.stopPropagation()"
-                (keydown)="$event.stopPropagation()"
-              >
-                <svge-color-picker
-                  [color]="styleColor('stroke')"
-                  (colorChange)="setStyle('stroke', $event)"
-                />
-              </div>
-            </mat-menu>
-          </div>
-        </div>
         <!--
-          Palette swatches strip (Bloco 4d): clicking applies the picked
-          color to whichever color field (fill/stroke) was last activated
-          via pointerdown on its label. Default target is 'fill'.
+          Style section reorganised by topic (Photoshop/Figma/Affinity
+          convention): Fill, Stroke and Appearance as subsections. The
+          .color-cell + .active-target + .field-row selectors are kept
+          intact so existing specs continue to pass — only the visual
+          grouping changes (stacked rows instead of side-by-side cells).
         -->
-        <svge-color-palette class="palette-strip" (colorPicked)="onPalettePick($event)" />
+        <div class="grid color-grid">
+          <!-- ── Fill subsection ────────────────────────────────── -->
+          <div class="style-subsection" aria-labelledby="style-fill-title">
+            <h4 id="style-fill-title" class="style-subsection-title">Fill</h4>
+            <div class="color-cell" [class.active-target]="activeColorTarget() === 'fill'">
+              <label
+                class="field-row"
+                [class.disabled]="isLocked()"
+                (pointerdown)="setActiveColorTarget('fill')"
+              >
+                <span class="lbl">color</span>
+                <span
+                  class="swatch"
+                  [class.show-checker]="swatchShowChecker('fill')"
+                  [style.background-color]="swatchColorWithAlpha('fill')"
+                  [title]="rawStyleColor('fill')"
+                  aria-hidden="true"
+                ></span>
+                <input
+                  type="color"
+                  class="color-input-hidden"
+                  aria-label="Pick fill color"
+                  [disabled]="isLocked()"
+                  [value]="styleColor('fill')"
+                  (change)="setStyle('fill', $any($event.target).value)"
+                />
+              </label>
+              <!--
+                Bloco 4-Alpha: separate alpha slider per color field
+                (Figma/Affinity pattern). Native <input type="color"> is
+                RGB-only; we expose fillOpacity / strokeOpacity here so
+                users can control transparency without leaving the row.
+              -->
+              <input
+                type="number"
+                class="alpha-input"
+                min="0"
+                max="1"
+                step="0.05"
+                aria-label="Fill alpha"
+                title="Fill alpha (0 = transparent, 1 = opaque)"
+                [disabled]="isLocked()"
+                [value]="styleAlpha('fillOpacity')"
+                (change)="setStyleNumber('fillOpacity', $any($event.target).value)"
+              />
+              <!--
+                Advanced picker trigger (Sprint C). Opens the pro-grade
+                colour picker (sat/val + hue + HEX/RGB + recents +
+                eyedropper) via mat-menu. The native swatch + hidden
+                color input above remain as the quick-pick path — this
+                button is purely additive so all existing UX continues
+                to work for users who don't need the advanced controls.
+              -->
+              <button
+                mat-icon-button
+                type="button"
+                class="picker-trigger-btn"
+                [matMenuTriggerFor]="fillPickerMenu"
+                [disabled]="isLocked()"
+                aria-label="Open advanced fill colour picker"
+                title="Advanced picker (hex, RGB, eyedropper, recent colours)"
+              >
+                <mat-icon>palette</mat-icon>
+              </button>
+              <mat-menu #fillPickerMenu="matMenu" xPosition="before" yPosition="below">
+                <div
+                  class="picker-host"
+                  role="presentation"
+                  (click)="$event.stopPropagation()"
+                  (keydown)="$event.stopPropagation()"
+                >
+                  <svge-color-picker
+                    [color]="styleColor('fill')"
+                    (colorChange)="setStyle('fill', $event)"
+                  />
+                </div>
+              </mat-menu>
+            </div>
+            <!--
+              Palette swatches strip (Bloco 4d): clicking applies the
+              picked color to whichever color field (fill/stroke) was
+              last activated via pointerdown on its label. Default
+              target is 'fill', so visually it makes more sense to
+              place the palette right below the fill row.
+            -->
+            <svge-color-palette class="palette-strip" (colorPicked)="onPalettePick($event)" />
+          </div>
 
-        <div class="grid">
-          <mat-form-field appearance="outline">
-            <mat-label>stroke-width</mat-label>
-            <input
-              matInput
-              type="number"
-              min="0"
-              step="0.5"
-              [disabled]="isLocked()"
-              [value]="styleNumber('strokeWidth')"
-              (change)="setStyleNumber('strokeWidth', $any($event.target).value)"
-            />
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>opacity</mat-label>
-            <input
-              matInput
-              type="number"
-              min="0"
-              max="1"
-              step="0.05"
-              [disabled]="isLocked()"
-              [value]="styleNumber('opacity')"
-              (change)="setStyleNumber('opacity', $any($event.target).value)"
-            />
-          </mat-form-field>
+          <!-- ── Stroke subsection ──────────────────────────────── -->
+          <div class="style-subsection" aria-labelledby="style-stroke-title">
+            <h4 id="style-stroke-title" class="style-subsection-title">Stroke</h4>
+            <div class="color-cell" [class.active-target]="activeColorTarget() === 'stroke'">
+              <label
+                class="field-row"
+                [class.disabled]="isLocked()"
+                (pointerdown)="setActiveColorTarget('stroke')"
+              >
+                <span class="lbl">color</span>
+                <span
+                  class="swatch"
+                  [class.show-checker]="swatchShowChecker('stroke')"
+                  [style.background-color]="swatchColorWithAlpha('stroke')"
+                  [title]="rawStyleColor('stroke')"
+                  aria-hidden="true"
+                ></span>
+                <input
+                  type="color"
+                  class="color-input-hidden"
+                  aria-label="Pick stroke color"
+                  [disabled]="isLocked()"
+                  [value]="styleColor('stroke')"
+                  (change)="setStyle('stroke', $any($event.target).value)"
+                />
+              </label>
+              <input
+                type="number"
+                class="alpha-input"
+                min="0"
+                max="1"
+                step="0.05"
+                aria-label="Stroke alpha"
+                title="Stroke alpha (0 = transparent, 1 = opaque)"
+                [disabled]="isLocked()"
+                [value]="styleAlpha('strokeOpacity')"
+                (change)="setStyleNumber('strokeOpacity', $any($event.target).value)"
+              />
+              <button
+                mat-icon-button
+                type="button"
+                class="picker-trigger-btn"
+                [matMenuTriggerFor]="strokePickerMenu"
+                [disabled]="isLocked()"
+                aria-label="Open advanced stroke colour picker"
+                title="Advanced picker (hex, RGB, eyedropper, recent colours)"
+              >
+                <mat-icon>palette</mat-icon>
+              </button>
+              <mat-menu #strokePickerMenu="matMenu" xPosition="before" yPosition="below">
+                <div
+                  class="picker-host"
+                  role="presentation"
+                  (click)="$event.stopPropagation()"
+                  (keydown)="$event.stopPropagation()"
+                >
+                  <svge-color-picker
+                    [color]="styleColor('stroke')"
+                    (colorChange)="setStyle('stroke', $event)"
+                  />
+                </div>
+              </mat-menu>
+            </div>
+            <!-- Stroke width lives next to stroke colour — same topic. -->
+            <mat-form-field appearance="outline" class="full-width-field">
+              <mat-label>stroke-width</mat-label>
+              <input
+                matInput
+                type="number"
+                min="0"
+                step="0.5"
+                [disabled]="isLocked()"
+                [value]="styleNumber('strokeWidth')"
+                (change)="setStyleNumber('strokeWidth', $any($event.target).value)"
+              />
+            </mat-form-field>
+          </div>
+
+          <!-- ── Appearance subsection (opacity affects everything) ── -->
+          <div class="style-subsection" aria-labelledby="style-appearance-title">
+            <h4 id="style-appearance-title" class="style-subsection-title">Appearance</h4>
+            <mat-form-field appearance="outline" class="full-width-field">
+              <mat-label>opacity</mat-label>
+              <input
+                matInput
+                type="number"
+                min="0"
+                max="1"
+                step="0.05"
+                [disabled]="isLocked()"
+                [value]="styleNumber('opacity')"
+                (change)="setStyleNumber('opacity', $any($event.target).value)"
+              />
+            </mat-form-field>
+          </div>
         </div>
       </section>
     } @else if (multiEditableIds().length > 1) {
@@ -551,95 +572,107 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       </header>
       <section class="section">
         <h3 class="section-title">Style (applies to all)</h3>
+        <!-- Same Fill / Stroke / Appearance grouping as the single-
+             selection path. 'placeholder=mixed' surfaces when N
+             selected nodes don't agree on the value. -->
         <div class="grid color-grid">
-          <div class="color-cell" [class.active-target]="activeColorTarget() === 'fill'">
-            <label class="field-row" (pointerdown)="setActiveColorTarget('fill')">
-              <span class="lbl">fill</span>
-              <span
-                class="swatch"
-                [class.show-checker]="swatchShowChecker('fill')"
-                [style.background-color]="swatchColorWithAlpha('fill')"
-                [title]="rawStyleColor('fill')"
-                aria-hidden="true"
-              ></span>
+          <div class="style-subsection" aria-labelledby="multi-style-fill-title">
+            <h4 id="multi-style-fill-title" class="style-subsection-title">Fill</h4>
+            <div class="color-cell" [class.active-target]="activeColorTarget() === 'fill'">
+              <label class="field-row" (pointerdown)="setActiveColorTarget('fill')">
+                <span class="lbl">color</span>
+                <span
+                  class="swatch"
+                  [class.show-checker]="swatchShowChecker('fill')"
+                  [style.background-color]="swatchColorWithAlpha('fill')"
+                  [title]="rawStyleColor('fill')"
+                  aria-hidden="true"
+                ></span>
+                <input
+                  type="color"
+                  class="color-input-hidden"
+                  aria-label="Pick fill color (applies to all)"
+                  [value]="styleColor('fill')"
+                  (change)="setStyle('fill', $any($event.target).value)"
+                />
+              </label>
               <input
-                type="color"
-                class="color-input-hidden"
-                aria-label="Pick fill color (applies to all)"
-                [value]="styleColor('fill')"
-                (change)="setStyle('fill', $any($event.target).value)"
+                type="number"
+                class="alpha-input"
+                min="0"
+                max="1"
+                step="0.05"
+                aria-label="Fill alpha (applies to all)"
+                [value]="styleAlpha('fillOpacity')"
+                [placeholder]="hasMixedStyle('fillOpacity') ? 'mixed' : ''"
+                (change)="setStyleNumber('fillOpacity', $any($event.target).value)"
               />
-            </label>
-            <input
-              type="number"
-              class="alpha-input"
-              min="0"
-              max="1"
-              step="0.05"
-              aria-label="Fill alpha (applies to all)"
-              [value]="styleAlpha('fillOpacity')"
-              [placeholder]="hasMixedStyle('fillOpacity') ? 'mixed' : ''"
-              (change)="setStyleNumber('fillOpacity', $any($event.target).value)"
-            />
+            </div>
+            <svge-color-palette class="palette-strip" (colorPicked)="onPalettePick($event)" />
           </div>
-          <div class="color-cell" [class.active-target]="activeColorTarget() === 'stroke'">
-            <label class="field-row" (pointerdown)="setActiveColorTarget('stroke')">
-              <span class="lbl">stroke</span>
-              <span
-                class="swatch"
-                [class.show-checker]="swatchShowChecker('stroke')"
-                [style.background-color]="swatchColorWithAlpha('stroke')"
-                [title]="rawStyleColor('stroke')"
-                aria-hidden="true"
-              ></span>
+
+          <div class="style-subsection" aria-labelledby="multi-style-stroke-title">
+            <h4 id="multi-style-stroke-title" class="style-subsection-title">Stroke</h4>
+            <div class="color-cell" [class.active-target]="activeColorTarget() === 'stroke'">
+              <label class="field-row" (pointerdown)="setActiveColorTarget('stroke')">
+                <span class="lbl">color</span>
+                <span
+                  class="swatch"
+                  [class.show-checker]="swatchShowChecker('stroke')"
+                  [style.background-color]="swatchColorWithAlpha('stroke')"
+                  [title]="rawStyleColor('stroke')"
+                  aria-hidden="true"
+                ></span>
+                <input
+                  type="color"
+                  class="color-input-hidden"
+                  aria-label="Pick stroke color (applies to all)"
+                  [value]="styleColor('stroke')"
+                  (change)="setStyle('stroke', $any($event.target).value)"
+                />
+              </label>
               <input
-                type="color"
-                class="color-input-hidden"
-                aria-label="Pick stroke color (applies to all)"
-                [value]="styleColor('stroke')"
-                (change)="setStyle('stroke', $any($event.target).value)"
+                type="number"
+                class="alpha-input"
+                min="0"
+                max="1"
+                step="0.05"
+                aria-label="Stroke alpha (applies to all)"
+                [value]="styleAlpha('strokeOpacity')"
+                [placeholder]="hasMixedStyle('strokeOpacity') ? 'mixed' : ''"
+                (change)="setStyleNumber('strokeOpacity', $any($event.target).value)"
               />
-            </label>
-            <input
-              type="number"
-              class="alpha-input"
-              min="0"
-              max="1"
-              step="0.05"
-              aria-label="Stroke alpha (applies to all)"
-              [value]="styleAlpha('strokeOpacity')"
-              [placeholder]="hasMixedStyle('strokeOpacity') ? 'mixed' : ''"
-              (change)="setStyleNumber('strokeOpacity', $any($event.target).value)"
-            />
+            </div>
+            <mat-form-field appearance="outline" class="full-width-field">
+              <mat-label>stroke-width</mat-label>
+              <input
+                matInput
+                type="number"
+                min="0"
+                step="0.5"
+                [value]="styleNumber('strokeWidth')"
+                [placeholder]="hasMixedStyle('strokeWidth') ? 'mixed' : ''"
+                (change)="setStyleNumber('strokeWidth', $any($event.target).value)"
+              />
+            </mat-form-field>
           </div>
-        </div>
-        <svge-color-palette class="palette-strip" (colorPicked)="onPalettePick($event)" />
-        <div class="grid">
-          <mat-form-field appearance="outline">
-            <mat-label>stroke-width</mat-label>
-            <input
-              matInput
-              type="number"
-              min="0"
-              step="0.5"
-              [value]="styleNumber('strokeWidth')"
-              [placeholder]="hasMixedStyle('strokeWidth') ? 'mixed' : ''"
-              (change)="setStyleNumber('strokeWidth', $any($event.target).value)"
-            />
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>opacity</mat-label>
-            <input
-              matInput
-              type="number"
-              min="0"
-              max="1"
-              step="0.05"
-              [value]="styleNumber('opacity')"
-              [placeholder]="hasMixedStyle('opacity') ? 'mixed' : ''"
-              (change)="setStyleNumber('opacity', $any($event.target).value)"
-            />
-          </mat-form-field>
+
+          <div class="style-subsection" aria-labelledby="multi-style-appearance-title">
+            <h4 id="multi-style-appearance-title" class="style-subsection-title">Appearance</h4>
+            <mat-form-field appearance="outline" class="full-width-field">
+              <mat-label>opacity</mat-label>
+              <input
+                matInput
+                type="number"
+                min="0"
+                max="1"
+                step="0.05"
+                [value]="styleNumber('opacity')"
+                [placeholder]="hasMixedStyle('opacity') ? 'mixed' : ''"
+                (change)="setStyleNumber('opacity', $any($event.target).value)"
+              />
+            </mat-form-field>
+          </div>
         </div>
       </section>
     } @else if (selectionCount() > 1) {
@@ -659,7 +692,16 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       display: block;
       width: 100%;
       height: 100%;
+      /* overflow-x: hidden defends against any descendant pushing
+         content past the (typically narrow ~280-320px) sidebar width.
+         min-width: 0 lets descendant flex/grid items shrink past
+         intrinsic content width (otherwise long inputs/labels would
+         force horizontal scroll). Together these prevent the
+         "horizontal scrollbar inside inspector" symptom the user
+         reported after the Sprint C picker buttons were added. */
+      overflow-x: hidden;
       overflow-y: auto;
+      min-width: 0;
       font-size: 13px;
       background: var(--mat-sys-surface-container, #fafafa);
       padding: 0;
@@ -691,6 +733,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
     }
     .section {
       padding: 8px 16px 4px;
+      min-width: 0;
     }
     .section-title {
       font-size: 11px;
@@ -703,13 +746,57 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 4px 8px;
+      min-width: 0;
+    }
+    /* Min-width: 0 lets mat-form-field shrink past its content's
+       intrinsic width — without this, long mat-label text would push
+       the cell wider than the column and overflow the sidebar. */
+    .grid > * {
+      min-width: 0;
     }
     mat-form-field {
       width: 100%;
     }
+    /* Standalone full-width form field inside a single-column flow
+       (Style subsections). Equivalent to wrapping in a .grid with a
+       single child, but avoids the wrapper div. */
+    .full-width-field {
+      width: 100%;
+      display: block;
+      margin-top: 4px;
+    }
+    /* Color grid was 2-col (fill | stroke side-by-side). Now 1-col
+       (stacked vertically) — matches Photoshop/Figma/Affinity grouping
+       and prevents horizontal overflow when the sidebar is narrow.
+       Adding the advanced picker button per row in Sprint C pushed the
+       2-col layout past the typical 280-320px sidebar width. */
     .color-grid {
-      grid-template-columns: 1fr 1fr;
-      margin-bottom: 8px;
+      grid-template-columns: 1fr;
+      margin-bottom: 0;
+      gap: 4px;
+    }
+    /* Style subsections (Fill / Stroke / Appearance) — visual grouping
+       with a tiny header that mirrors Figma's "section within a
+       section" pattern. Keeps the colour, its alpha + strokeWidth on
+       semantically related rows. */
+    .style-subsection {
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
+      min-width: 0;
+    }
+    .style-subsection:first-of-type {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: none;
+    }
+    .style-subsection-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--mat-sys-on-surface-variant, #999);
+      margin: 0 0 4px;
+      font-weight: 500;
     }
     /* Bloco 4-Alpha: a cell groups the color row + its alpha input.
        The active-target ring (Bloco 4d palette routing) moves from the
@@ -721,12 +808,14 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       padding-left: 5px;
       margin-left: -8px;
       border-radius: 2px;
+      min-width: 0;
     }
     .color-cell.active-target {
       box-shadow: inset 3px 0 0 0 var(--mat-sys-primary, #1976d2);
     }
     .color-cell .field-row {
       flex: 1 1 auto;
+      min-width: 0;
       margin: 0;
       padding: 0;
     }
