@@ -1,13 +1,26 @@
 # SVGEngine
 
 An embeddable, headless-first SVG editor built on Angular v21 signals.
-Five lazy-loaded entry points let you pick **exactly** what you need —
-from a 30 kB read-only viewer to a full Material-styled editor.
+Four lazy-loaded entry points let you pick **exactly** what you need —
+from a 30 kB read-only viewer to a full Material-styled editor with
+path editing, boolean operations, and full keyboard accessibility.
 
 > **Status**: pre-`1.0` (APIs hardening across Fase 6). Build is green,
-> 813 tests passing. Public surface is documented in
-> [`docs/09-api-publica.md`](docs/09-api-publica.md); changes recorded
-> in [`docs/08-historico-de-alteracoes.md`](docs/08-historico-de-alteracoes.md).
+> **884 tests passing across 65 spec files**. Public surface is
+> documented in [`docs/09-api-publica.md`](docs/09-api-publica.md);
+> changes recorded in
+> [`docs/08-historico-de-alteracoes.md`](docs/08-historico-de-alteracoes.md).
+>
+> Latest milestones:
+>
+> - **Fase 6c** (acessibilidade): ARIA + keyboard nav completos em
+>   overlays e panels (anchor editor, resize/rotation handles, pivot
+>   picker, layers tree, guides, rulers)
+> - **Bloco 6-PathEditor**: Path/Anchor Point editor (cusp/smooth/
+>   symmetric cycle) + Pathfinder boolean ops (Union, Intersect,
+>   Subtract, Exclude, Divide)
+> - **Bloco 6b**: viewport culling opt-in; meta 60fps@1k atingida
+>   (1k=161fps, 2k=114fps, 5k=41fps)
 
 ---
 
@@ -132,13 +145,13 @@ example.
 
 ## Entry points at a glance
 
-| Package             | What's in it                                                                                              | Material? |
-| ------------------- | --------------------------------------------------------------------------------------------------------- | --------- |
-| `svg-engine/core`   | model, commands, history, state, geometry, tree ops                                                       | ❌        |
-| `svg-engine/render` | `<svge-renderer>`, per-type directives, viewport, node-renderer registry                                  | ❌        |
-| `svg-engine/edit`   | selection, transform, marquee, snap, alignment, plugin scaffolding, tools, IO, optimize, viewport culling | ❌        |
-| `svg-engine/ui`     | `<svge-editor>`, layers panel, inspector, toolbar, rulers, palette, theme toggle                          | ✅        |
-| `playground` (app)  | reference consumer + `/perf` benchmark harness                                                            | ✅        |
+| Package             | What's in it                                                                                                                            | Material? |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `svg-engine/core`   | model, commands (incl. anchor + pathfinder), history, state, geometry, tree ops                                                         | ❌        |
+| `svg-engine/render` | `<svge-renderer>`, per-type directives, viewport, node-renderer registry                                                                | ❌        |
+| `svg-engine/edit`   | selection, transform, marquee, snap, alignment, anchor editor, pathfinder UI, plugin scaffolding, tools, IO, optimize, viewport culling | ❌        |
+| `svg-engine/ui`     | `<svge-editor>`, layers panel, inspector, toolbar, rulers, palette, theme toggle                                                        | ✅        |
+| `playground` (app)  | reference consumer + `/perf` benchmark harness                                                                                          | ✅        |
 
 Each entry point is independently lazy-loadable. Consuming `core` does
 **not** drag in `render`, `edit`, or `ui`.
@@ -189,6 +202,77 @@ providers: [
   provideSvgEnginePlugin(selectionNudgePlugin),
 ];
 ```
+
+---
+
+## Path/Anchor editor & Pathfinder
+
+The Direct Select tool (`A`) reveals each path's anchors as draggable
+squares. Three anchor kinds with Illustrator/Affinity-equivalent
+behavior:
+
+- **Cusp** — independent handles (sharp corner)
+- **Smooth** — handles colinear, different lengths (asymmetric curve)
+- **Symmetric** — handles mirrored (perfectly round curve)
+
+```ts
+// Programmatic — same commands the UI dispatches
+import { CommandBus, ConvertAnchorTypeCommand, MoveAnchorCommand } from 'svg-engine/core';
+
+bus.dispatch(new MoveAnchorCommand(ref, { x: 100, y: 50 }, 'point'));
+bus.dispatch(new ConvertAnchorTypeCommand(ref, 'symmetric'));
+```
+
+**Gestures**: pointer-drag moves; Alt+click on a curve segment inserts
+an anchor mid-segment; double-click cycles the anchor's kind; Delete
+removes selected anchors. Every gesture also has a keyboard
+equivalent (arrow keys nudge, Enter cycles, Delete removes) — the
+overlay is fully usable without a mouse.
+
+**Pathfinder** (Martinez algorithm via `polygon-clipping`): 5 boolean
+ops applied to ≥2 selected shapes. `Divide` returns one path per
+non-overlapping region; each region inherits its originating input's
+style (intersection slivers fall back to operand A — the top-of-stack
+Illustrator convention).
+
+```ts
+import { UnionCommand, DivideCommand } from 'svg-engine/core';
+bus.dispatch(new UnionCommand([nodeAId, nodeBId, nodeCId]));
+bus.dispatch(new DivideCommand([rectId, circleId])); // each region a separate path
+```
+
+---
+
+## Accessibility (Fase 6c)
+
+Every interactive surface — overlays, panels, handles — implements
+the WAI-ARIA Authoring Practices for its role. Highlights:
+
+- **Path editor**: anchor squares and handle knobs have `role="button"`
+  - `aria-label="Anchor X of N, <kind> point"` + `aria-pressed` for
+    selection + keyboard handlers (arrow keys nudge 1/10 units, Enter
+    cycles the kind, Delete removes via the playground handler)
+- **Selection handles**: 8 resize anchors with `aria-label="Resize
+handle, top-left corner"` etc. + `aria-keyshortcuts` + arrow-key
+  handlers that route through the same `startResize/updateResize/
+endResize` API as pointer drag. Rotation handle rotates 1° per
+  arrow press (15° with Shift)
+- **Rotation pivot**: `aria-haspopup="menu"` + `aria-expanded` on the
+  crosshair; popover dots are `role="menuitemradio"` + `aria-checked`
+  for the active anchor + keyboard-activatable
+- **Layers panel**: `role="tree"` with per-row `role="treeitem"` +
+  `aria-level` + `aria-expanded` on groups + `aria-label` describing
+  state ("layer-name, locked, hidden"). ArrowRight expands, ArrowLeft
+  collapses (per Tree pattern §3.16)
+- **Guides**: `role="slider"` with `aria-valuemin/valuenow/valuemax`,
+  arrow keys move, Delete removes
+- **Toolbar / Inspector**: `role="toolbar"` / `role="region"` with
+  `aria-label`; `aria-keyshortcuts` propagated from each
+  `MenuContribution.shortcut`
+
+Decorative overlays (snap-guides, grid, page outline, marquee,
+hover/bbox outlines, handle stems) are marked `aria-hidden="true"`
+so screen-readers don't announce hundreds of unnamed graphics.
 
 ---
 

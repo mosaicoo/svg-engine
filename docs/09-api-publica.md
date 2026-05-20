@@ -12,10 +12,22 @@
 
 ## Status
 
-- **Versão**: `0.0.0` (pré-release; APIs ainda em formação durante Fases 2..5).
-- **SemVer estável**: a partir de `1.0.0` (após Fase 5 — IO + extensibilidade).
+- **Versão**: `0.0.0` (pré-release; APIs hardening durante Fase 6 — `1.0.0`
+  alvo após conclusão de 6c/6d).
+- **SemVer estável**: a partir de `1.0.0`.
 - **Política até `1.0.0`**: minor pode ter breaking se devidamente documentado.
 - **Política após `1.0.0`**: breaking = major.
+- **Cobertura atual**: 884 specs passando em 65 arquivos (`npx ng test svg-engine`).
+- **Status por fase** (Fase 5 + 6 — ver `docs/05-roadmap.md` para histórico completo):
+  - Fase 5 (IO + Optimize) ✅
+  - Fase 6a (perf baseline) ✅
+  - Fase 6b (viewport culling) ✅
+  - **Bloco 6-PathEditor** (Path/Anchor editor + Pathfinder 5 boolean ops) ✅
+  - **Fase 6c-1** (defs/clipPath no importer) ✅
+  - **Fase 6c-2** (selectionNudgePlugin + ARIA inicial) ✅
+  - **Fase 6c-final** (ARIA + keyboard nav completo em todos overlays/panels) ✅
+  - Fase 6d (EffectRegistry) ⏳ próximo
+  - Fase 6e (ScriptRuntimePlugin) — decisão A/B/C pendente
 
 ---
 
@@ -92,6 +104,44 @@ a fase do roadmap implementa o conteúdo.
 | `ResizeNodeCommand(nodeId, anchor, sx, sy)`                          | scale em torno de anchor fixo (handle oposto = âncora); rejeita scale factors não-finitos    |
 | `composePivotRotation(existing, angleRad, pivot)` (helper puro)      | retorna a matriz pós-rotação sem dispatchar; útil para preview durante drag                  |
 | `composeAnchoredScale(existing, sx, sy, anchor)` (helper puro)       | retorna a matriz pós-scale sem dispatchar; útil para preview durante drag                    |
+| `MoveNodeInTreeCommand(nodeId, newParentId, newIndex)`               | move + reparent atomic. Final-state index. Valida cycle (não move group p/ descendente)      |
+| `GroupSelectionCommand(selectedIds, groupId?)`                       | wraps seleção em novo GroupNode (parent comum). Preserva stacking + parent order             |
+| `UngroupCommand(groupId)`                                            | promove children do group p/ grand-parent (no índice original). Rejeita root + non-group     |
+| `ReorderNodeCommand(nodeId, mode)`                                   | z-order: `'forward'\|'backward'\|'toFront'\|'toBack'`                                        |
+| `RenameNodeCommand(nodeId, name)`                                    | set `metadata.name` (inline-rename no Layer Panel)                                           |
+| `SetPropertyOnManyCommand<K>(ids, K, V)`                             | mesma mudança em N nós, 1 entrada de undo                                                    |
+| `TranslateManyCommand(deltas)`                                       | translate em N nós (alignment/distribute), 1 entrada                                         |
+
+##### Path Editor (Bloco 6-PE) ✅
+
+| Símbolo                                                   | Descrição                                                                                                              |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `AnchorKind` (`'cusp' \| 'smooth' \| 'symmetric'`)        | tipo do anchor — define como handles se relacionam                                                                     |
+| `AnchorPoint` (interface)                                 | `{point, handleIn, handleOut, kind}` — handles em coords absolutos                                                     |
+| `AnchorSubpath` (interface)                               | `{anchors: readonly AnchorPoint[], closed: boolean}`                                                                   |
+| `AnchorRef` (interface)                                   | `{nodeId, subpathIndex, anchorIndex}` — referência estável durante a vida do gesto                                     |
+| `parsePathToAnchors(d: string): readonly AnchorSubpath[]` | parser de `d` para anchors. Suporta M/L/H/V/C/S/Q/T/Z. Pós-passa re-classifica kind agora que handleOut está conhecido |
+| `anchorsToPathD(subpaths): string`                        | inverso de `parsePathToAnchors`. Emite L para flat segments, C caso contrário                                          |
+| `classifyAnchorKind(point, handleIn, handleOut?)`         | heurística via cross product + length compare                                                                          |
+| `MoveAnchorCommand(ref, newPosition, which?)`             | move point ou handle. Smooth/symmetric enforce constraint na opposite handle                                           |
+| `InsertAnchorCommand(ref, t)`                             | insere anchor via de Casteljau subdivision no parâmetro t ∈ (0, 1). Geometria preservada exatamente                    |
+| `RemoveAnchorCommand(ref)`                                | remove anchor; drop subpath se < 2 anchors                                                                             |
+| `ConvertAnchorTypeCommand(ref, nextKind)`                 | muda kind via `enforceKind`. cusp colapsa handles ("Convert Anchor Point" Illustrator); smooth/symmetric snap          |
+| `ConvertNodeToPathCommand(nodeId)`                        | converte rect/ellipse/line/polygon/polyline para path equivalente. Preserve transform/style/metadata                   |
+| `nodeToPathD(node)` (helper puro)                         | exportado para reuso (Pathfinder usa para "virtually" converter sem dispatch)                                          |
+
+##### Pathfinder (Bloco 6-PE) ✅
+
+| Símbolo                                     | Descrição                                                                                                                                  |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `UnionCommand(nodeIds)`                     | A ∪ B (∪ ...). Merge das shapes; resultado herda style do primeiro                                                                         |
+| `IntersectCommand(nodeIds)`                 | A ∩ B (∩ ...). Apenas área comum                                                                                                           |
+| `SubtractCommand(nodeIds)`                  | A − B (− ...). Remove área das shapes subsequentes do primeiro                                                                             |
+| `ExcludeCommand(nodeIds)`                   | A ⊕ B. Symmetric difference (XOR)                                                                                                          |
+| `DivideCommand(nodeIds)`                    | Split em N regions. Cada região privada herda style do input originador (Illustrator-style); slivers de intersection fallback p/ operand A |
+| `PathfinderRegion` (interface)              | `{rings: readonly FlatRing[], styleSourceIdx?: number}` — emitido pelo `runOp` abstrato                                                    |
+| `flattenPathD(d, tolerance?)` (helper puro) | flatten cubic beziers em polylines via de Casteljau (tolerance default 0.5px)                                                              |
+| `ringsToPathD(rings): string`               | inverso — polygon rings de volta para `d` (M/L/Z)                                                                                          |
 
 #### Services (`./lib/state/`, `./lib/history/`, `./lib/command-bus/`)
 
@@ -367,11 +417,44 @@ Detalhes de quando culling ajuda (e quando não) em
 [`docs/08-historico-de-alteracoes.md`](08-historico-de-alteracoes.md)
 seção 2026-05-18.
 
-#### Acessibilidade (Fase 6c-2)
+#### Acessibilidade (Fase 6c)
 
 | Símbolo                                 | Descrição                                                                                        |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | `selectionNudgePlugin` (`EditorPlugin`) | Registra 8 shortcuts (Arrow* + Shift+Arrow*) para nudge keyboard-only via `TranslateManyCommand` |
+
+**Fase 6c (final)**: todos os overlays e panels com ARIA + keyboard nav completos:
+
+- **anchor-overlay**: anchor squares + handle knobs com `role="button"` + `aria-label` "Anchor X of N, <kind> point" / "In/Outgoing tangent handle" + `tabindex` + keyboard handlers (arrows nudge 1u/10u, Enter cycles kind). `:focus-visible` orange ring
+- **selection-overlay**: 8 resize handles + rotation handle com aria-label expandido ("Resize handle, top-left corner") + `aria-keyshortcuts` + keyboard arrows (resize via `startResize/updateResize/endResize`; rotation 1°/15° via `RotateNodeCommand`). Host `role="group"`
+- **rotation-pivot**: main dot `role="button"` + `aria-haspopup="menu"` + `aria-expanded` + Enter/Space toggle popover. Popover dots `role="menuitemradio"` + `aria-checked` + Enter/Space activate
+- **layers-panel**: treeitems com `aria-level` + `aria-expanded` em groups + `aria-label` ("layer-name, locked, hidden"). ArrowRight/Left expand/collapse (per Tree pattern §3.16)
+- **inspector**: host `role="region"` + `aria-label="Properties inspector"`. Botões Reset com aria-label distintos ("Reset rotation and scale" / "Reset pivot")
+- **toolbar**: host `role="toolbar"` + `aria-label="Toolbar <slot>"`. Botões com `aria-keyshortcuts` quando `MenuContribution.shortcut` existe
+- **rulers**: divs `.ruler` com `role="group"` + aria-label descritivo. Ticks `aria-hidden`
+- **guides-overlay**: sliders com `aria-valuemin/now/max` + arrow keys movem + Delete remove
+- **Decorativos**: marquee, snap-guides, grid, page, hover/bbox outlines, handle stems com `aria-hidden="true"` (não poluir SR)
+
+#### Path Editor UI (Bloco 6-PE) ✅
+
+| Selector / Símbolo                                 | Descrição                                                                                                                                                                                                                 |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `g[svgeAnchorOverlay]` (`AnchorOverlay`)           | Renderiza anchor squares + handle circles + segment hit-zones para path focado em Direct Select. Preview-then-commit no drag. Coords sempre via `composeAncestorMatrix` (segue ancestor chain). ARIA + keyboard completos |
+| `AnchorSelectionService` (`@Injectable({ root })`) | `selected()` signal, `add/toggle/selectOne/clear/isSelected`. Refs estáveis durante gesto; consumer rebase em `InsertAnchorCommand` (shift de índices)                                                                    |
+| `composeAncestorMatrix(root, targetId): Transform` | Helper puro — walking do MODELO (não DOM) compondo `root · ... · parent · target`. Usado pelo overlay para alinhar anchors com a posição visual do path quando dentro de grupos                                           |
+
+#### Isolation mode
+
+| Símbolo                                      | Descrição                                                                                                 |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `IsolationService` (`@Injectable({ root })`) | Signal `isolationRootId` + breadcrumb computed. APIs `enterIsolation(id)`, `exitIsolation()`, `drillUp()` |
+| `IsolationFilter` (`[svgeIsolationFilter]`)  | Directive opt-in: dimming + pointer-events:none em nós fora do isolation root (DOM walk reativo)          |
+
+#### Auto-save
+
+| Símbolo                                     | Descrição                                                                                                                                                |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AutoSaveService` (`@Injectable({ root })`) | Debounced effect (default 800ms) salva `state.document()` serializado via svgExporter para localStorage key `svge.autosave`. APIs `recover()`, `clear()` |
 
 ### `svg-engine/ui` (Fase 4) ✅
 

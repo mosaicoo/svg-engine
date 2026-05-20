@@ -307,11 +307,11 @@
   - **Polish (b825454 + bugfixes)**: 4 melhorias UX (cycle kind, Alt+insert, Delete prioriza anchors, Divide style per region); 3 bugfixes encadeados (parser classifyKind, synthesizeHandles assimétrico, enforceKind cusp colapsa, AnchorOverlay ancestor matrix)
   - **Limitação documentada**: o `d` string não persiste `kind` como metadata; sempre será inferido da geometria. Cycle preso em symmetric requer arrastar handle para escapar — entrada nova em [04 — Decisões técnicas]
   - **Total**: +30 specs novos → **884 passing** em 65 arquivos
-- [ ] **Bloco 6c — Acessibilidade + Docs** (próximo)
-  - Suporte a `<defs>` e `<clipPath>` no svgImporter (resolve warnings vistos no Paranagua/Gransol)
-  - Audit ARIA + navegação por teclado nos overlays e panels
-  - README + `docs/09-api-publica.md` preenchidos
-  - Guia "como escrever um plugin" referenciando D-020/D-023
+- [ ] **Bloco 6c — Acessibilidade + Docs** (em andamento)
+  - [x] **6c-1**: Suporte a `<defs>` e `<clipPath>` no svgImporter — `SvgDocument.defs?: string` opaque fragment + sanitização (script/on\*/javascript:); exporter round-trip verbatim; renderer injeta via `insertAdjacentHTML`. Resolve warnings vistos em Paranagua/Gransol
+  - [ ] Audit ARIA + navegação por teclado nos overlays e panels
+  - [ ] README + `docs/09-api-publica.md` preenchidos
+  - [ ] Guia "como escrever um plugin" referenciando D-020/D-023
 - [ ] **Bloco 6d — EffectRegistry** (D-023 cat 7)
 - [ ] **Bloco 6e — ScriptRuntimePlugin** (D-024)
 - [ ] **Débitos reconhecidos**:

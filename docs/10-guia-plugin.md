@@ -354,9 +354,49 @@ Algumas necessidades parecem plugin mas não são:
 - **Carregar código de usuário final em runtime** (não TypeScript
   compilado) — esse é o `ScriptRuntimePlugin` futuro (D-024).
   Scripts != plugins.
+- **Adicionar edição de anchors a um tipo custom** — Path Editor
+  (Bloco 6-PE) é built-in para o tipo `path` (e shapes convertidos via
+  `ConvertNodeToPathCommand`). Para um tipo custom que precise de
+  anchors, primeiro converta para path; um `AnchorOverlayRegistry`
+  pluggable seria nova categoria (não existe; abrir issue se precisar).
+- **Adicionar boolean op custom no Pathfinder** — as 5 ops
+  (Union/Intersect/Subtract/Exclude/Divide) cobrem os casos clássicos
+  e são built-in. Para uma op derivada (ex.: "Trim"), você escreve um
+  command próprio compondo dispatches dos 5 — não há `PathfinderOpRegistry`.
 
 Se sua necessidade não cabe nas 9 categorias do D-023 + não é uma
 das exclusões acima, abra issue propondo uma nova categoria.
+
+---
+
+## Acessibilidade em contribuições custom (Fase 6c)
+
+Plugins que adicionam UI interativa **devem seguir o padrão de a11y
+estabelecido** pelos overlays/panels built-in (ARIA + keyboard). O
+critério é simples:
+
+- **Tools custom**: seu `onPointerDown/Move/Up` precisa ter equivalente
+  via `onKeyDown` quando o gesto produz mutação. Ex.: um tool de "place
+  shape on click" deveria também aceitar Enter no canvas focado para
+  inserir no centro do viewport. `ToolPointerEvent` carrega
+  `event.modifierKey` flags; faça o mesmo no key handler.
+- **Renderers custom**: nó renderizado deve aceitar `tabindex="0"` +
+  ter `role="button"` (ou `img` se decorativo) + ter `aria-label`
+  descritivo (ex.: "Star, 5 points"). Veja o padrão usado nos
+  built-in renderers — todos os shapes hardcoded são `<svg:rect>`,
+  `<svg:path>` etc nativos que herdam acessibilidade do SVG painter.
+- **Menu contributions**: o `aria-keyshortcuts` é propagado
+  automaticamente quando você seta `MenuContribution.shortcut`. Ex.:
+  `{shortcut: 'CmdOrCtrl+K'}` vira `aria-keyshortcuts="Control+K Meta+K"`.
+
+A library exemplifica todos os padrões — verifique:
+
+- `selection-overlay.component.ts` (resize handles com `role="button"`
+  - `aria-label="Resize handle, top-left corner"` + arrow-key handlers)
+- `anchor-overlay.component.ts` (squares + handle circles + keyboard
+  handler que mapeia arrows para `MoveAnchorCommand`)
+- `layers-panel.component.ts` (tree pattern completo com `aria-level`,
+  `aria-expanded`, ArrowRight/Left expand/collapse)
 
 ---
 
