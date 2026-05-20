@@ -347,6 +347,11 @@
           <svg:g svgeRotationPivot></svg:g>
           <svg:g svgeMarquee></svg:g>
           <svg:g svgeSnapGuides></svg:g>
+          <!-- Pen tool overlay: rubber band + in-progress anchors during
+               path creation. Hidden when not actively drawing. Render
+               LAST so it sits on top of all other overlays — the user
+               needs to see exactly where the next anchor will land. -->
+          <svg:g svgePenOverlay></svg:g>
         </svge-renderer>
       </svge-workspace-background>
     </div>

@@ -7,6 +7,7 @@ import {
   builtinOptimizersPlugin,
   builtinPalettesPlugin,
   pencilToolPlugin,
+  penToolPlugin,
   pngExporterPlugin,
   provideSvgEnginePlugin,
   selectionNudgePlugin,
@@ -26,6 +27,10 @@ export const appConfig: ApplicationConfig = {
     // becomes the natural default in the toolbar.
     provideSvgEnginePlugin(selectToolPlugin),
     provideSvgEnginePlugin(pencilToolPlugin),
+    // Pen tool (Sprint B-PenTool) — vector path creation via clicks
+    // (cusp) and click-drag (smooth handles). Sucessor natural do
+    // Pencil tool para edição precisa.
+    provideSvgEnginePlugin(penToolPlugin),
     // Built-in color palettes (Fase 4 Bloco 4d).
     provideSvgEnginePlugin(builtinPalettesPlugin),
     // Built-in SVG IO (Fase 5-IO) — sanitized importer + deterministic exporter.
