@@ -26,6 +26,11 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'shell-pro-demo',
+    loadComponent: () =>
+      import('./pages/shell-pro-demo/shell-pro-demo.component').then((m) => m.ShellProDemo),
+  },
+  {
     path: 'perf',
     loadComponent: () => import('./pages/perf/perf.component').then((m) => m.PerfPage),
   },

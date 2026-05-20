@@ -69,3 +69,10 @@ export * from './lib/context-menu';
 
 // Tool options bar (Sprint Pro-Editor — D-038 phase 3; standalone OR via <svge-editor>)
 export * from './lib/tool-options';
+
+// Tools palette (Sprint Pro-Editor — D-038 phase 4 helper; standalone)
+export * from './lib/tools-palette';
+
+// Professional shell composing menu + toolbar + tool-options + tools-palette
+// + canvas + context-menu + layers + inspector + status — D-038 phase 4
+export * from './lib/shell-pro';
