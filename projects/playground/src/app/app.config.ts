@@ -12,6 +12,8 @@ import {
   provideSvgEnginePlugin,
   selectionNudgePlugin,
   selectToolPlugin,
+  shapeToolsPlugin,
+  textToolPlugin,
 } from 'svg-engine/edit';
 
 import { routes } from './app.routes';
@@ -31,6 +33,15 @@ export const appConfig: ApplicationConfig = {
     // (cusp) and click-drag (smooth handles). Sucessor natural do
     // Pencil tool para edição precisa.
     provideSvgEnginePlugin(penToolPlugin),
+    // Shape tools (Sprint Shapes+Text): Rectangle (R), Ellipse (E),
+    // Polygon (Y). Substituem os botões "Add Rect/Ellipse/Triangle"
+    // one-shot da toolbar — agora cada tool é persistente (Illustrator
+    // convention). Shift constrain square/circle/regular; Alt center.
+    provideSvgEnginePlugin(shapeToolsPlugin),
+    // Text tool (T): click cria text node placeholder + abre inline
+    // editor (foreignObject + contentEditable). Enter commita; Esc
+    // cancela e remove placeholder se nada foi digitado.
+    provideSvgEnginePlugin(textToolPlugin),
     // Built-in color palettes (Fase 4 Bloco 4d).
     provideSvgEnginePlugin(builtinPalettesPlugin),
     // Built-in SVG IO (Fase 5-IO) — sanitized importer + deterministic exporter.
