@@ -91,23 +91,31 @@ interface DragState {
           [attr.x2]="p.x"
           [attr.y2]="p.y + armLen()"
         ></svg:line>
-        <!-- Central handle (pointer target) -->
+        <!-- Central handle (pointer target). Keyboard: Enter/Space
+             opens the picker popover; double-click resets to center. -->
         <svg:circle
           class="dot"
           [class.custom]="hasCustomPivot()"
           [attr.cx]="p.x"
           [attr.cy]="p.y"
           [attr.r]="dotRadius()"
+          role="button"
+          tabindex="0"
+          focusable="true"
+          aria-label="Rotation pivot. Enter to open anchor picker, drag to move, double-click to reset."
+          aria-haspopup="menu"
+          [attr.aria-expanded]="popoverOpen() ? 'true' : 'false'"
+          aria-keyshortcuts="Enter Space Escape"
           (pointerdown)="onPointerDown($event)"
           (pointermove)="onPointerMove($event)"
           (pointerup)="onPointerUp($event)"
           (dblclick)="onDoubleClick($event)"
-          aria-label="Rotation pivot"
+          (keydown)="onMainKeyDown($event)"
         ></svg:circle>
       </svg:g>
 
       @if (popoverOpen() && currentBBox(); as b) {
-        <svg:g class="popover" aria-label="Pivot anchor picker">
+        <svg:g class="popover" role="menu" aria-label="Pivot anchor picker">
           @for (a of popoverAnchors(b); track a.anchor) {
             <svg:circle
               class="popover-dot"
@@ -116,7 +124,12 @@ interface DragState {
               [attr.cy]="a.y"
               [attr.r]="popoverDotRadius()"
               [attr.data-svge-anchor]="a.anchor"
+              role="menuitemradio"
+              tabindex="0"
+              focusable="true"
+              [attr.aria-checked]="isCurrentAnchor(a.anchor, b) ? 'true' : 'false'"
               [attr.aria-label]="'Snap pivot to ' + a.anchor"
+              (keydown)="onPopoverDotKeyDown($event, a.anchor)"
             ></svg:circle>
           }
         </svg:g>
@@ -137,6 +150,9 @@ interface DragState {
       vector-effect: non-scaling-stroke;
       cursor: grab;
       touch-action: none;
+      /* Same convention as the resize handles: native outline off,
+         keyboard-only :focus-visible orange ring. */
+      outline: none;
     }
     .dot:active {
       cursor: grabbing;
@@ -144,15 +160,26 @@ interface DragState {
     .dot.custom {
       fill: #d32f2f;
     }
+    .dot:focus-visible {
+      stroke: #ff6f00;
+      stroke-width: 2.5;
+      filter: drop-shadow(0 0 2px rgba(255, 111, 0, 0.6));
+    }
     .popover-dot {
       fill: #ffffff;
       stroke: #1976d2;
       stroke-width: 1;
       vector-effect: non-scaling-stroke;
       cursor: pointer;
+      outline: none;
     }
     .popover-dot.active {
       fill: #1976d2;
+    }
+    .popover-dot:focus-visible {
+      stroke: #ff6f00;
+      stroke-width: 2;
+      filter: drop-shadow(0 0 2px rgba(255, 111, 0, 0.6));
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -348,6 +375,52 @@ export class RotationPivot implements OnDestroy {
     this.transform.resetPivot();
     this._popoverOpen.set(false);
     event.stopPropagation();
+  }
+
+  // ── Keyboard accessibility (Fase 6c a11y audit) ──────────────────
+
+  /**
+   * Keyboard counterpart of the click-to-open / dblclick-to-reset
+   * gestures on the central pivot dot.
+   *
+   * - **Enter / Space**: toggle the anchor-picker popover (same as a
+   *   click without drag). When opening, focus is left on the main dot —
+   *   user presses Tab to enter the popover (browser-native focus order).
+   * - **Escape**: handled by the existing window-level keydown handler
+   *   (`onKeyDown` at the class level) — kept centralised so the same
+   *   logic cancels drag OR closes popover.
+   */
+  protected onMainKeyDown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      event.stopPropagation();
+      this._popoverOpen.update((v) => !v);
+    }
+  }
+
+  /**
+   * Keyboard activator for the popover anchor dots. The pointer path
+   * uses window-level capture-phase delegation (`onWindowDown`) for
+   * historical reasons (see class-level comment about prior Angular
+   * binding race condition). For keyboard, we route through the same
+   * `setPivotToAnchor` logic but via per-element `(keydown)`:
+   *
+   * - **Enter / Space**: snap the pivot to this anchor + close popover
+   *   (matches what a click on the dot does).
+   *
+   * Arrow keys are NOT implemented for navigation inside the popover —
+   * native browser Tab order suffices (focus moves to the next dot in
+   * DOM order). A more elaborate roving-tabindex pattern would be
+   * appropriate if the picker grows beyond 9 fixed options.
+   */
+  protected onPopoverDotKeyDown(event: KeyboardEvent, anchor: BBoxAnchor): void {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    event.stopPropagation();
+    const bbox = this._bbox();
+    if (bbox === null) return;
+    this.transform.setPivotAnchor(anchor, bbox);
+    this._popoverOpen.set(false);
   }
 
   protected popoverAnchors(

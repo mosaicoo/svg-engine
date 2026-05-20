@@ -25,6 +25,12 @@ import { MarqueeService } from '../marquee/marquee.service';
   // eslint-disable-next-line @angular-eslint/component-selector
   selector: 'g[svgeMarquee]',
   standalone: true,
+  // Decorative SVG layer — pointer-events disabled, no semantic info
+  // for assistive tech (the act of marquee-selecting is announced via
+  // the resulting selection change in the SelectionService). Hide the
+  // host group from the accessibility tree so SR users don't hear
+  // "graphic" noise during drag.
+  host: { 'aria-hidden': 'true' },
   template: `
     @if (rect(); as r) {
       <svg:rect

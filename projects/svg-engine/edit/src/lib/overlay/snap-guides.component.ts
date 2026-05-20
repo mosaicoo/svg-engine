@@ -23,6 +23,10 @@ import { SnapService } from '../snap/snap.service';
   // eslint-disable-next-line @angular-eslint/component-selector
   selector: 'g[svgeSnapGuides]',
   standalone: true,
+  // Decorative-only feedback during a drag gesture (snap alignment
+  // lines). Hidden from accessibility tree — the resulting snapped
+  // position is communicated via the drag itself.
+  host: { 'aria-hidden': 'true' },
   template: `
     @for (g of lines(); track $index) {
       @if (g.axis === 'x') {

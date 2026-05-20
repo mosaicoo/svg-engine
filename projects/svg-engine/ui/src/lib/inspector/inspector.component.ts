@@ -83,6 +83,13 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
     EllipseFieldPipe,
     LineFieldPipe,
   ],
+  // role="region" announces the inspector as a top-level landmark; the
+  // aria-label gives it an accessible name distinct from the other
+  // panels (layers, toolbar). SR users can jump straight to "Properties".
+  host: {
+    role: 'region',
+    'aria-label': 'Properties inspector',
+  },
   template: `
     @if (focusNode(); as node) {
       <header class="inspector-header" data-mode="single">
@@ -298,6 +305,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
             class="reset-btn"
             [disabled]="isLocked()"
             (click)="resetTransform()"
+            aria-label="Reset rotation and scale to defaults, keeping translation"
             title="Reset rotation + scale (keeps translation)"
           >
             Reset
@@ -323,6 +331,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
             type="button"
             class="reset-btn"
             (click)="resetPivot()"
+            aria-label="Reset pivot to bounding-box center"
             title="Reset pivot to bbox center"
           >
             Reset

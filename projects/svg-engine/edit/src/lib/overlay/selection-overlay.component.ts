@@ -7,7 +7,13 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { type BoundingBox, EditorStateService, type Point } from 'svg-engine/core';
+import {
+  type BoundingBox,
+  CommandBus,
+  EditorStateService,
+  type Point,
+  RotateNodeCommand,
+} from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
 import { allAnchors, type BBoxAnchor } from '../geometry/bbox-anchors';
 import {
@@ -69,10 +75,17 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
   // eslint-disable-next-line @angular-eslint/component-selector
   selector: 'g[svgeSelectionOverlay]',
   standalone: true,
+  // role="group" + a name announce the entire handle cluster as one
+  // logical widget. Hover outline is decorative (aria-hidden inside).
+  host: {
+    role: 'group',
+    'aria-label': 'Selection transform handles',
+  },
   template: `
     @if (hoverBBox(); as h) {
       <svg:rect
         class="hover-outline"
+        aria-hidden="true"
         [attr.x]="h.x"
         [attr.y]="h.y"
         [attr.width]="h.width"
@@ -84,6 +97,7 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
     @if (focusBBox(); as b) {
       <svg:rect
         class="bbox"
+        aria-hidden="true"
         [attr.x]="b.x"
         [attr.y]="b.y"
         [attr.width]="b.width"
@@ -100,19 +114,26 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
             [attr.width]="handleSize()"
             [attr.height]="handleSize()"
             [attr.data-svge-handle]="h.anchor"
-            [attr.aria-label]="'Resize handle, ' + h.anchor"
+            [attr.aria-label]="
+              'Resize handle, ' +
+              anchorLabel(h.anchor) +
+              '. Arrow keys to resize 1 unit, Shift+arrow for 10 units.'
+            "
+            aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
             role="button"
             tabindex="0"
             focusable="true"
             (pointerdown)="onResizeHandlePointerDown($event, h.anchor)"
             (pointermove)="onHandlePointerMove($event)"
             (pointerup)="onHandlePointerUp($event)"
+            (keydown)="onResizeHandleKeyDown($event, h.anchor)"
           ></svg:rect>
         }
 
         @if (rotationHandle(); as r) {
           <svg:line
             class="rotation-stem"
+            aria-hidden="true"
             [attr.x1]="r.stemX1"
             [attr.y1]="r.stemY1"
             [attr.x2]="r.x"
@@ -124,13 +145,15 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
             [attr.cy]="r.y"
             [attr.r]="handleHalf()"
             [attr.data-svge-handle]="'rotation'"
-            aria-label="Rotation handle"
+            aria-label="Rotation handle. Left/right arrows rotate by 1 degree, Shift+arrow rotates by 15 degrees."
+            aria-keyshortcuts="ArrowLeft ArrowRight"
             role="button"
             tabindex="0"
             focusable="true"
             (pointerdown)="onRotationHandlePointerDown($event)"
             (pointermove)="onHandlePointerMove($event)"
             (pointerup)="onHandlePointerUp($event)"
+            (keydown)="onRotationHandleKeyDown($event)"
           ></svg:circle>
         }
       }
@@ -199,6 +222,7 @@ export class SelectionOverlay {
   private readonly viewport = inject(ViewportService);
   private readonly transform = inject(TransformService);
   private readonly toolHost = inject(ToolHostService);
+  private readonly bus = inject(CommandBus);
 
   private readonly _focusBBox = signal<BoundingBox | null>(null);
   private readonly _hoverBBox = signal<BoundingBox | null>(null);
@@ -313,6 +337,108 @@ export class SelectionOverlay {
     this.transform.startRotate(focus, pivot, start);
     capturePointer(event);
     event.stopPropagation();
+  }
+
+  // ── Keyboard accessibility (Fase 6c a11y audit) ─────────────────
+
+  /**
+   * Arrow-key resize for keyboard users (no mouse). Reuses the same
+   * gesture API (`startResize → updateResize → endResize`) as pointer
+   * drag so the math, the locked-node filter, the parent-matrix
+   * adjustment, and the single-undo-entry guarantee are all identical.
+   *
+   * Each key press fires one full gesture (one undo entry). Arrow
+   * keys nudge the handle by 1 doc unit; Shift+Arrow by 10 (matches
+   * Illustrator's `Keyboard Increment` × 1/10 ratio for fine vs coarse).
+   * Enter/Space are intentionally no-ops — there's no atomic "select
+   * handle" gesture; the focus itself is the affordance.
+   */
+  protected onResizeHandleKeyDown(event: KeyboardEvent, anchor: ResizeAnchor): void {
+    const step = event.shiftKey ? 10 : 1;
+    let dx = 0;
+    let dy = 0;
+    switch (event.key) {
+      case 'ArrowLeft':
+        dx = -step;
+        break;
+      case 'ArrowRight':
+        dx = step;
+        break;
+      case 'ArrowUp':
+        dy = -step;
+        break;
+      case 'ArrowDown':
+        dy = step;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const focus = this.selection.focusId();
+    const bbox = this._focusBBox();
+    if (focus === null || bbox === null) return;
+    const svg = this.elRef.nativeElement.ownerSVGElement;
+    const parentMatrix = svg === null ? null : getRenderedParentMatrix(svg, focus);
+    // Synthesize cursor positions: start at the handle's current
+    // position, end one step further along (dx, dy). The gesture
+    // service computes sx/sy from the delta and pivots on the
+    // opposite anchor automatically.
+    const anchors = allAnchors(bbox);
+    const start = anchors[anchor];
+    const target = { x: start.x + dx, y: start.y + dy };
+    this.transform.startResize(focus, anchor, bbox, parentMatrix);
+    this.transform.updateResize(target);
+    this.transform.endResize();
+  }
+
+  /**
+   * Arrow-key rotation for keyboard users. Left/right rotate by 1°
+   * (Shift = 15° — same step Illustrator uses for `Cmd+Shift+arrow`).
+   * Dispatches `RotateNodeCommand` directly with the resolved pivot —
+   * doesn't go through the start/update/end gesture API because
+   * keyboard rotation is single-step (no continuous drag preview).
+   */
+  protected onRotationHandleKeyDown(event: KeyboardEvent): void {
+    const stepDeg = event.shiftKey ? 15 : 1;
+    let deltaDeg: number;
+    switch (event.key) {
+      case 'ArrowLeft':
+        deltaDeg = -stepDeg;
+        break;
+      case 'ArrowRight':
+        deltaDeg = stepDeg;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const focus = this.selection.focusId();
+    const bbox = this._focusBBox();
+    if (focus === null || bbox === null) return;
+    const pivot = this.transform.resolvePivot(bbox);
+    const angleRad = (deltaDeg * Math.PI) / 180;
+    this.bus.dispatch(new RotateNodeCommand(focus, angleRad, pivot));
+  }
+
+  /**
+   * Human-readable expansion of the 8 resize-anchor codes. The codes
+   * (`tl`, `tc`, ...) are the engine's canonical short names; screen
+   * readers should hear "top-left", "middle-right", etc.
+   */
+  protected anchorLabel(a: ResizeAnchor): string {
+    const labels: Record<ResizeAnchor, string> = {
+      tl: 'top-left corner',
+      tc: 'top-center',
+      tr: 'top-right corner',
+      ml: 'middle-left',
+      mr: 'middle-right',
+      bl: 'bottom-left corner',
+      bc: 'bottom-center',
+      br: 'bottom-right corner',
+    };
+    return labels[a];
   }
 
   // ── Shared move/up handlers (active for any drag started above) ─

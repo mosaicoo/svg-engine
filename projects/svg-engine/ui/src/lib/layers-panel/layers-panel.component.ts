@@ -251,6 +251,13 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
           [style.padding-left.px]="8 + depth * 16"
           [attr.aria-selected]="isSelected()(node.id)"
           [attr.aria-disabled]="isLocked()(node.id)"
+          [attr.aria-level]="depth + 1"
+          [attr.aria-expanded]="isGroup(node) ? expanded().has(node.id) : null"
+          [attr.aria-label]="
+            label(node) +
+            (isLocked()(node.id) ? ', locked' : '') +
+            (!isVisible()(node.id) ? ', hidden' : '')
+          "
           (click)="onRowClick($event, node.id)"
           (dblclick)="onRowDoubleClick($event, node)"
           (keydown.enter)="onRowKey($any($event), node.id)"
@@ -258,6 +265,8 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
           (keydown.f2)="onRowRenameKey($any($event), node.id)"
           (keydown.arrowup)="onRowArrowKey($any($event), 'up')"
           (keydown.arrowdown)="onRowArrowKey($any($event), 'down')"
+          (keydown.arrowright)="onRowExpandKey($any($event), node, 'open')"
+          (keydown.arrowleft)="onRowExpandKey($any($event), node, 'close')"
           (keydown.home)="onRowArrowKey($any($event), 'home')"
           (keydown.end)="onRowArrowKey($any($event), 'end')"
           (dragstart)="onDragStart($event, node.id)"
@@ -1049,6 +1058,29 @@ export class LayersPanel {
     if (set.has(id)) set.delete(id);
     else set.add(id);
     this.expanded.set(set);
+  }
+
+  /**
+   * Tree-convention keyboard handler (Fase 6c a11y audit): ArrowRight
+   * expands a group row; ArrowLeft collapses. Required to satisfy the
+   * `role="tree"` ARIA pattern (WAI-ARIA Authoring Practices §3.16),
+   * which screen readers honor for navigation. No-op on non-group rows
+   * (a leaf can't expand) and on already-correct state (closed +
+   * ArrowLeft = no-op, open + ArrowRight = no-op).
+   */
+  protected onRowExpandKey(event: KeyboardEvent, node: SvgNode, direction: 'open' | 'close'): void {
+    if (!isGroupNode(node)) return;
+    const set = new Set(this.expanded());
+    const isOpen = set.has(node.id);
+    if (direction === 'open' && !isOpen) {
+      event.preventDefault();
+      set.add(node.id);
+      this.expanded.set(set);
+    } else if (direction === 'close' && isOpen) {
+      event.preventDefault();
+      set.delete(node.id);
+      this.expanded.set(set);
+    }
   }
 
   // ── Drag-drop reorder (Bloco 4b-DnD) ────────────────────────────

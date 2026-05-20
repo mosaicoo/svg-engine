@@ -47,13 +47,23 @@ import { WorkspaceService } from './workspace.service';
           [attr.y2]="g.position"
           [attr.stroke-width]="hitZoneDocUnits()"
           role="slider"
-          [attr.aria-label]="'Horizontal guide at y=' + g.position"
+          tabindex="0"
+          focusable="true"
+          [attr.aria-label]="
+            'Horizontal guide at y=' +
+            g.position +
+            '. Arrow keys move 1 unit, Shift for 10, Delete removes.'
+          "
           [attr.aria-valuenow]="g.position"
+          [attr.aria-valuemin]="viewBoxTop()"
+          [attr.aria-valuemax]="viewBoxBottom()"
           aria-orientation="horizontal"
+          aria-keyshortcuts="ArrowUp ArrowDown Delete"
           (pointerdown)="onPointerDown($event, g.id, g.axis, g.position)"
           (pointermove)="onPointerMove($event)"
           (pointerup)="onPointerUp($event)"
           (dblclick)="onDoubleClick($event, g.id)"
+          (keydown)="onGuideKeyDown($event, g.id, g.axis, g.position)"
         />
         <svg:line
           class="guide horizontal"
@@ -72,13 +82,23 @@ import { WorkspaceService } from './workspace.service';
           [attr.y2]="viewBoxBottom()"
           [attr.stroke-width]="hitZoneDocUnits()"
           role="slider"
-          [attr.aria-label]="'Vertical guide at x=' + g.position"
+          tabindex="0"
+          focusable="true"
+          [attr.aria-label]="
+            'Vertical guide at x=' +
+            g.position +
+            '. Arrow keys move 1 unit, Shift for 10, Delete removes.'
+          "
           [attr.aria-valuenow]="g.position"
+          [attr.aria-valuemin]="viewBoxLeft()"
+          [attr.aria-valuemax]="viewBoxRight()"
           aria-orientation="vertical"
+          aria-keyshortcuts="ArrowLeft ArrowRight Delete"
           (pointerdown)="onPointerDown($event, g.id, g.axis, g.position)"
           (pointermove)="onPointerMove($event)"
           (pointerup)="onPointerUp($event)"
           (dblclick)="onDoubleClick($event, g.id)"
+          (keydown)="onGuideKeyDown($event, g.id, g.axis, g.position)"
         />
         <svg:line
           class="guide vertical"
@@ -349,6 +369,41 @@ export class GuidesOverlay implements AfterViewInit, OnDestroy {
   protected onDoubleClick(event: MouseEvent, id: string): void {
     event.stopPropagation();
     this.ws.removeGuide(id);
+  }
+
+  /**
+   * Keyboard accessibility for guides (Fase 6c a11y audit):
+   *
+   * - **ArrowUp/Down** on a horizontal guide moves it 1 doc unit
+   *   (Shift = 10). Equivalent for ArrowLeft/Right on vertical guides.
+   * - **Delete / Backspace** removes the focused guide (alternative
+   *   to the existing dblclick gesture).
+   *
+   * `role="slider"` already announces value via aria-valuenow + min/max,
+   * so screen-reader users get continuous feedback during the move.
+   */
+  protected onGuideKeyDown(
+    event: KeyboardEvent,
+    id: string,
+    axis: 'h' | 'v',
+    position: number,
+  ): void {
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.ws.removeGuide(id);
+      return;
+    }
+    const step = event.shiftKey ? 10 : 1;
+    let delta: number;
+    if (axis === 'h' && event.key === 'ArrowUp') delta = -step;
+    else if (axis === 'h' && event.key === 'ArrowDown') delta = step;
+    else if (axis === 'v' && event.key === 'ArrowLeft') delta = -step;
+    else if (axis === 'v' && event.key === 'ArrowRight') delta = step;
+    else return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.ws.moveGuide(id, position + delta);
   }
 
   private screenToDoc(clientX: number, clientY: number): { x: number; y: number } | null {

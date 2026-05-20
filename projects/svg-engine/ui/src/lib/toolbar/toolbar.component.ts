@@ -27,12 +27,22 @@ import { MenuContributionRegistry, type MenuContribution } from 'svg-engine/edit
   selector: 'svge-toolbar',
   standalone: true,
   imports: [MatIconButton, MatIcon, MatTooltip],
+  // role="toolbar" announces the strip semantically so assistive tech
+  // knows the buttons inside belong to one logical group. The
+  // `slot()` is part of the aria-label so screen readers can
+  // distinguish multiple toolbars on the same page (e.g.
+  // "toolbar.main" vs "toolbar.shape").
+  host: {
+    role: 'toolbar',
+    '[attr.aria-label]': '"Toolbar " + slot()',
+  },
   template: `
     @for (item of items(); track item.id) {
       <button
         mat-icon-button
         type="button"
         [attr.aria-label]="item.label"
+        [attr.aria-keyshortcuts]="item.shortcut ?? null"
         [matTooltip]="tooltipFor(item)"
         matTooltipPosition="below"
         [disabled]="isDisabled(item)"

@@ -70,10 +70,16 @@ const RULER_THICKNESS_PX = 24;
         (Illustrator / Affinity convention). Cursor is ns-resize to
         hint at the gesture.
       -->
-      <div class="ruler ruler-h" (pointerdown)="onRulerPointerDown($event, 'h')">
+      <div
+        class="ruler ruler-h"
+        role="group"
+        aria-label="Horizontal ruler. Drag down to create a horizontal guide."
+        (pointerdown)="onRulerPointerDown($event, 'h')"
+      >
         @for (t of horizontalTicks(); track t.key) {
           <div
             class="tick"
+            aria-hidden="true"
             [class.major]="t.major"
             [style.left.px]="t.positionPx"
             [attr.data-label]="t.major ? t.label : null"
@@ -83,10 +89,16 @@ const RULER_THICKNESS_PX = 24;
           <div class="cursor-indicator h" [style.left.px]="ind.positionPx" aria-hidden="true"></div>
         }
       </div>
-      <div class="ruler ruler-v" (pointerdown)="onRulerPointerDown($event, 'v')">
+      <div
+        class="ruler ruler-v"
+        role="group"
+        aria-label="Vertical ruler. Drag right to create a vertical guide."
+        (pointerdown)="onRulerPointerDown($event, 'v')"
+      >
         @for (t of verticalTicks(); track t.key) {
           <div
             class="tick"
+            aria-hidden="true"
             [class.major]="t.major"
             [style.top.px]="t.positionPx"
             [attr.data-label]="t.major ? t.label : null"

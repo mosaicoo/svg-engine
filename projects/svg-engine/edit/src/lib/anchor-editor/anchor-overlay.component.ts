@@ -71,17 +71,28 @@ const CYCLE_KIND: Readonly<Record<AnchorKind, AnchorKind>> = {
   // eslint-disable-next-line @angular-eslint/component-selector
   selector: 'g[svgeAnchorOverlay]',
   standalone: true,
+  // role="application" tells screen readers this is a custom widget that
+  // captures keyboard input (don't apply default browse-mode key handling).
+  // aria-label gives a name to the entire path-editor overlay.
+  host: {
+    role: 'application',
+    'aria-label':
+      'Path anchor editor — use arrow keys to nudge selected anchor or handle, Enter to cycle anchor type, Delete to remove anchor',
+  },
   template: `
     @if (anchors(); as anchors) {
       <!--
         Handle stems first (rendered behind squares so a drag on the
         square wins hit-testing). Each stem is two short lines from
-        the anchor point to its in/out tangent control.
+        the anchor point to its in/out tangent control. Decorative —
+        aria-hidden so SR users don't hear "graphic" noise for every
+        tangent line.
       -->
       @for (a of anchors; track a.key) {
         @if (a.hasHandleIn) {
           <svg:line
             class="handle-stem"
+            aria-hidden="true"
             [attr.x1]="a.anchor.point.x"
             [attr.y1]="a.anchor.point.y"
             [attr.x2]="a.anchor.handleIn.x"
@@ -91,6 +102,7 @@ const CYCLE_KIND: Readonly<Record<AnchorKind, AnchorKind>> = {
         @if (a.hasHandleOut) {
           <svg:line
             class="handle-stem"
+            aria-hidden="true"
             [attr.x1]="a.anchor.point.x"
             [attr.y1]="a.anchor.point.y"
             [attr.x2]="a.anchor.handleOut.x"
@@ -99,28 +111,42 @@ const CYCLE_KIND: Readonly<Record<AnchorKind, AnchorKind>> = {
         }
       }
 
-      <!-- Handle circles (interactive) -->
+      <!-- Handle circles (interactive — tangent control points). -->
       @for (a of anchors; track a.key) {
         @if (a.hasHandleIn) {
           <svg:circle
             class="handle-knob"
+            role="button"
+            tabindex="0"
+            focusable="true"
+            [attr.aria-label]="
+              'Incoming tangent handle, anchor ' + (a.index + 1) + ' of ' + a.total
+            "
             [attr.cx]="a.anchor.handleIn.x"
             [attr.cy]="a.anchor.handleIn.y"
             [attr.r]="handleHalf()"
             (pointerdown)="onPointerDown($event, a.ref, 'handleIn')"
             (pointermove)="onPointerMove($event)"
             (pointerup)="onPointerUp($event)"
+            (keydown)="onKeyDown($event, a.ref, 'handleIn')"
           />
         }
         @if (a.hasHandleOut) {
           <svg:circle
             class="handle-knob"
+            role="button"
+            tabindex="0"
+            focusable="true"
+            [attr.aria-label]="
+              'Outgoing tangent handle, anchor ' + (a.index + 1) + ' of ' + a.total
+            "
             [attr.cx]="a.anchor.handleOut.x"
             [attr.cy]="a.anchor.handleOut.y"
             [attr.r]="handleHalf()"
             (pointerdown)="onPointerDown($event, a.ref, 'handleOut')"
             (pointermove)="onPointerMove($event)"
             (pointerup)="onPointerUp($event)"
+            (keydown)="onKeyDown($event, a.ref, 'handleOut')"
           />
         }
       }
@@ -133,21 +159,40 @@ const CYCLE_KIND: Readonly<Record<AnchorKind, AnchorKind>> = {
         enough to be discoverable without a precise stylus. Without
         Alt, the pointer falls through to the underlying canvas
         (selection / marquee). Alt+click triggers the insert.
+
+        aria-hidden because Alt+click on a curve segment has no
+        comparable keyboard surface (continuous along the curve);
+        the keyboard alternative is to focus an anchor and use Enter
+        to cycle kind / arrow keys to refine geometry.
       -->
       @for (seg of segments(); track seg.key) {
         <svg:path
           class="segment-hit"
+          aria-hidden="true"
           [attr.d]="seg.d"
           [attr.stroke-width]="hitZoneSize()"
           (pointerdown)="onSegmentPointerDown($event, seg.ref)"
         />
       }
 
-      <!-- Anchor squares (interactive, on top) -->
+      <!-- Anchor squares (interactive, on top). -->
       @for (a of anchors; track a.key) {
         <svg:rect
           class="anchor-point"
+          role="button"
+          tabindex="0"
+          focusable="true"
           [class.selected]="a.isSelected"
+          [attr.aria-pressed]="a.isSelected ? 'true' : 'false'"
+          [attr.aria-label]="
+            'Anchor ' +
+            (a.index + 1) +
+            ' of ' +
+            a.total +
+            ', ' +
+            a.anchor.kind +
+            ' point. Enter to cycle type, arrow keys to nudge, Shift+arrow for 10 units.'
+          "
           [attr.x]="a.anchor.point.x - pointHalf()"
           [attr.y]="a.anchor.point.y - pointHalf()"
           [attr.width]="pointSize()"
@@ -156,6 +201,7 @@ const CYCLE_KIND: Readonly<Record<AnchorKind, AnchorKind>> = {
           (pointermove)="onPointerMove($event)"
           (pointerup)="onPointerUp($event)"
           (dblclick)="onDoubleClick($event, a.ref)"
+          (keydown)="onKeyDown($event, a.ref, 'point')"
         />
       }
     }
@@ -168,10 +214,20 @@ const CYCLE_KIND: Readonly<Record<AnchorKind, AnchorKind>> = {
       vector-effect: non-scaling-stroke;
       cursor: move;
       touch-action: none;
+      /* Default outline removed; :focus-visible below provides the
+         keyboard-only focus indicator (same convention as the resize
+         handles on SelectionOverlay — orange contrast against the
+         default primary-blue stroke). */
+      outline: none;
     }
     .anchor-point.selected {
       fill: #ff6f00;
       stroke: #ff6f00;
+    }
+    .anchor-point:focus-visible {
+      stroke: #ff6f00;
+      stroke-width: 2;
+      filter: drop-shadow(0 0 2px rgba(255, 111, 0, 0.6));
     }
     .handle-knob {
       fill: #1976d2;
@@ -180,6 +236,12 @@ const CYCLE_KIND: Readonly<Record<AnchorKind, AnchorKind>> = {
       vector-effect: non-scaling-stroke;
       cursor: move;
       touch-action: none;
+      outline: none;
+    }
+    .handle-knob:focus-visible {
+      stroke: #ff6f00;
+      stroke-width: 2;
+      filter: drop-shadow(0 0 2px rgba(255, 111, 0, 0.6));
     }
     .handle-stem {
       stroke: #90caf9;
@@ -251,6 +313,11 @@ export class AnchorOverlay {
     // sobre o elemento" for shapes inside groups.
     const t = composeAncestorMatrix(doc.root, focusId);
     const out: AnchorEntry[] = [];
+    // Compute total anchor count up-front for the aria-label "X of N"
+    // string — flat across subpaths, matches what the user sees on screen.
+    let totalAnchors = 0;
+    for (const sub of subpaths) totalAnchors += sub.anchors.length;
+    let globalIdx = 0;
     for (let s = 0; s < subpaths.length; s++) {
       const sub = subpaths[s]!;
       for (let i = 0; i < sub.anchors.length; i++) {
@@ -280,7 +347,10 @@ export class AnchorOverlay {
           hasHandleIn,
           hasHandleOut,
           isSelected: this.anchorSelection.isSelected(ref),
+          index: globalIdx,
+          total: totalAnchors,
         });
+        globalIdx++;
       }
     }
     return out;
@@ -506,12 +576,6 @@ export class AnchorOverlay {
   }
 
   /**
-   * Double-click on an anchor cycles its kind:
-   *   cusp → smooth → symmetric → cusp
-   * Matches Affinity's "Cycle node type" behavior. The dispatched
-   * `ConvertAnchorTypeCommand` snaps handles to the new constraint.
-   */
-  /**
    * Dblclick on an anchor cycles its kind in the canonical order:
    * cusp → smooth → symmetric → cusp. Matches Affinity's "Cycle
    * node type" gesture, which is the fastest way to convert a
@@ -525,6 +589,83 @@ export class AnchorOverlay {
    */
   protected onDoubleClick(event: MouseEvent, ref: AnchorRef): void {
     event.stopPropagation();
+    this.cycleKind(ref);
+  }
+
+  /**
+   * Keyboard accessibility for the path editor (Fase 6c a11y audit).
+   *
+   * Arrow keys nudge the focused anchor point / handle by 1 doc unit;
+   * Shift+Arrow nudges by 10 doc units (matches Illustrator's
+   * `Increment` preference). Enter on an anchor square cycles its
+   * kind (mirror of the dblclick gesture). All movement dispatches
+   * `MoveAnchorCommand` directly — same undo behavior as a pointer
+   * gesture (one undo entry per keystroke).
+   *
+   * The handler **does not** support Delete: removal of focused
+   * anchors is already handled at the playground level via a global
+   * keydown listener that walks `AnchorSelectionService.selected()`.
+   * Adding it here would double-fire.
+   *
+   * Pointer-based interactions (pointerdown/dblclick) remain the
+   * primary path for sighted/mouse users; this handler is the
+   * accessibility-only entry point and shares the same command bus,
+   * so behavior is identical end-to-end.
+   */
+  protected onKeyDown(
+    event: KeyboardEvent,
+    ref: AnchorRef,
+    which: 'point' | 'handleIn' | 'handleOut',
+  ): void {
+    // Enter cycles kind, but only on the anchor point itself —
+    // pressing Enter while focused on a handle is a no-op (kind is a
+    // property of the anchor, not its handles individually).
+    if (event.key === 'Enter' && which === 'point') {
+      event.preventDefault();
+      this.cycleKind(ref);
+      return;
+    }
+    const step = event.shiftKey ? 10 : 1;
+    let dx = 0;
+    let dy = 0;
+    switch (event.key) {
+      case 'ArrowLeft':
+        dx = -step;
+        break;
+      case 'ArrowRight':
+        dx = step;
+        break;
+      case 'ArrowUp':
+        dy = -step;
+        break;
+      case 'ArrowDown':
+        dy = step;
+        break;
+      default:
+        return; // not a key we care about — let the browser handle it
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const anchorData = this.anchorAt(ref);
+    if (anchorData === null) return;
+    const current =
+      which === 'point'
+        ? anchorData.point
+        : which === 'handleIn'
+          ? anchorData.handleIn
+          : anchorData.handleOut;
+    const next = { x: current.x + dx, y: current.y + dy };
+    this.bus.dispatch(new MoveAnchorCommand(ref, next, which));
+  }
+
+  /**
+   * Shared between `onDoubleClick` (pointer) and `onKeyDown` (Enter).
+   * Reads the current kind from the node-local anchor data and
+   * dispatches `ConvertAnchorTypeCommand` with the next kind in the
+   * cycle. The classifier post-pass in `parsePathToAnchors` ensures
+   * the kind round-trips correctly across the re-parse.
+   */
+  private cycleKind(ref: AnchorRef): void {
     const anchorData = this.anchorAt(ref);
     if (anchorData === null) return;
     const nextKind = CYCLE_KIND[anchorData.kind];
@@ -608,6 +749,10 @@ interface AnchorEntry {
   readonly hasHandleIn: boolean;
   readonly hasHandleOut: boolean;
   readonly isSelected: boolean;
+  /** 0-based global anchor index (across all subpaths) — for aria-label "X of N". */
+  readonly index: number;
+  /** Total anchor count across all subpaths — pairs with `index`. */
+  readonly total: number;
 }
 
 function pointsEqual(a: Point, b: Point, eps = 1e-6): boolean {

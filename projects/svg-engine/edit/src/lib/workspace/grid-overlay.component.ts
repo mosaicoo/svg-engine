@@ -35,6 +35,10 @@ import { pageBoundsIn, WorkspaceService } from './workspace.service';
   // eslint-disable-next-line @angular-eslint/component-selector
   selector: 'g[svgeGridOverlay]',
   standalone: true,
+  // Decorative reference grid — pointer-events: none + no interaction.
+  // Hidden from accessibility tree so SR users don't hear hundreds of
+  // unnamed "graphic" elements when zooming over a dense grid.
+  host: { 'aria-hidden': 'true' },
   template: `
     @if (visible()) {
       @for (line of lines(); track line.key) {

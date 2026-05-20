@@ -47,6 +47,10 @@ import { pageBoundsIn, WorkspaceService } from './workspace.service';
   // eslint-disable-next-line @angular-eslint/component-selector
   selector: 'g[svgePageOverlay]',
   standalone: true,
+  // Decorative page marker — pointer-events: none, purely visual
+  // reference. Page dimensions are surfaced semantically via the
+  // Inspector's page section (when implemented).
+  host: { 'aria-hidden': 'true' },
   template: `
     @if (pageBounds(); as p) {
       <!--
