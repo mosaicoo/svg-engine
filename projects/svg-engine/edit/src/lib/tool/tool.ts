@@ -1,4 +1,4 @@
-import type { Injector } from '@angular/core';
+import type { Injector, Type } from '@angular/core';
 import type { Point } from 'svg-engine/core';
 
 /**
@@ -82,4 +82,35 @@ export interface Tool {
   onPointerCancel?(event: ToolPointerEvent, ctx: ToolContext): void;
 
   onKeyDown?(event: KeyboardEvent, ctx: ToolContext): void;
+
+  /**
+   * **Sprint Pro-Editor (D-038 phase 3) — context-sensitive options UI.**
+   *
+   * Optional Angular component class rendered by `<svge-tool-options>`
+   * whenever this tool is active. Use it to expose per-tool parameters
+   * (corner radius for Rectangle, stroke width for Pen, font size for
+   * Text, etc.) in a tool-options bar above the canvas.
+   *
+   * **Component contract**:
+   * - MUST be standalone.
+   * - Reads/writes tool-specific state via the same injector tools use
+   *   (`inject(MyToolStateService)`); the options bar mounts via
+   *   `*ngComponentOutlet` so it shares the host's DI context.
+   * - SHOULD render compact controls (Material `<mat-form-field>`,
+   *   `<mat-button-toggle-group>`, etc.) suited to a horizontal bar.
+   * - Re-mounted whenever the active tool changes — keep startup work
+   *   light (`computed` for read paths, no async init in the constructor).
+   *
+   * **When `undefined`**: `<svge-tool-options>` falls back to a hidden
+   * state (empty bar) or a "No options" placeholder per its `[empty]`
+   * input. Tools that don't expose parameters (Select, Hand, etc.)
+   * naturally omit this field.
+   *
+   * **Headless boundary (D-017)**: this field is typed as `Type<unknown>`
+   * (Angular's generic class type) — the component itself is rendered
+   * only in `svg-engine/ui` consumers via `<svge-tool-options>`. Tools
+   * that want to ship options should put the options component in a
+   * UI-bound module the consumer imports (not in `svg-engine/edit`).
+   */
+  readonly optionsComponent?: Type<unknown>;
 }

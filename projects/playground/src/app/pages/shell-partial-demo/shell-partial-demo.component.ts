@@ -74,6 +74,14 @@ import { SvgeEditor } from 'svg-engine/ui';
         />
         Right-click context menu (D-038 Phase 2)
       </label>
+      <label>
+        <input
+          type="checkbox"
+          [checked]="showToolOptions()"
+          (change)="showToolOptions.set($any($event.target).checked)"
+        />
+        Tool options bar (D-038 Phase 3 — press K for Stamp Tool)
+      </label>
     </header>
     <div class="editor-area">
       <svge-editor
@@ -82,6 +90,8 @@ import { SvgeEditor } from 'svg-engine/ui';
         [showToolbar]="showToolbar()"
         [showStatusBar]="showStatusBar()"
         [showContextMenu]="showContextMenu()"
+        [showToolOptions]="showToolOptions()"
+        [toolOptionsShowPlaceholder]="true"
       >
         @if (useCustomStatus()) {
           <div status-bar class="custom-status">
@@ -151,6 +161,7 @@ export class ShellPartialDemo {
   protected readonly showStatusBar = signal(true);
   protected readonly useCustomStatus = signal(false);
   protected readonly showContextMenu = signal(false);
+  protected readonly showToolOptions = signal(false);
 
   protected readonly selectionCountLabel = computed(() => {
     // Selection count is tracked by SelectionService but we don't need

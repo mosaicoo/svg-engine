@@ -17,6 +17,7 @@ import {
 } from 'svg-engine/edit';
 
 import { demoMenuBarPlugin } from './plugins/demo-menu-bar.plugin';
+import { stampToolPlugin } from './plugins/stamp-tool.plugin';
 import { routes } from './app.routes';
 
 export const appConfig: ApplicationConfig = {
@@ -64,5 +65,10 @@ export const appConfig: ApplicationConfig = {
     // File/Edit/View/Help slots so the <svge-menu-bar> showcase has
     // content. Real consumers wire their own.
     provideSvgEnginePlugin(demoMenuBarPlugin),
+    // Stamp tool (D-038 Phase 3 showcase) — demonstrates
+    // Tool.optionsComponent flowing through <svge-tool-options>.
+    // Press K to activate; the options bar shows radius + color
+    // togglers; click on the canvas to drop a styled circle.
+    provideSvgEnginePlugin(stampToolPlugin),
   ],
 };

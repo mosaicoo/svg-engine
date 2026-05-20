@@ -66,3 +66,6 @@ export * from './lib/menu-bar';
 
 // Context menu (Sprint Pro-Editor — D-038 phase 2; directive + service + component)
 export * from './lib/context-menu';
+
+// Tool options bar (Sprint Pro-Editor — D-038 phase 3; standalone OR via <svge-editor>)
+export * from './lib/tool-options';

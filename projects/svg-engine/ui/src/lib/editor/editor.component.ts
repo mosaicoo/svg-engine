@@ -16,6 +16,7 @@ import { SvgeContextMenuTrigger } from '../context-menu';
 import { SvgeMenuBar } from '../menu-bar';
 import { SvgeStatusBar } from '../status-bar';
 import { SvgeToolbar } from '../toolbar';
+import { SvgeToolOptions } from '../tool-options';
 
 /**
  * Full-featured editor shell (Fase 4 Bloco 4a — expanded in Fase 6
@@ -90,6 +91,7 @@ import { SvgeToolbar } from '../toolbar';
     SvgeStatusBar,
     SvgeMenuBar,
     SvgeContextMenuTrigger,
+    SvgeToolOptions,
   ],
   template: `
     @if (showMenuBar()) {
@@ -156,6 +158,9 @@ import { SvgeToolbar } from '../toolbar';
           <mat-icon>fit_screen</mat-icon>
         </button>
       </mat-toolbar>
+    }
+    @if (showToolOptions()) {
+      <svge-tool-options [showPlaceholder]="toolOptionsShowPlaceholder()" />
     }
     <div
       class="canvas-area"
@@ -335,6 +340,29 @@ export class SvgeEditor {
    * contributions don't leak across editors).
    */
   readonly contextMenuSlot = input<string>('context.canvas');
+
+  /**
+   * **Sprint Pro-Editor (D-038 phase 3) — opt-in tool options bar.**
+   *
+   * When `true`, renders a `<svge-tool-options>` row BELOW the toolbar
+   * and ABOVE the canvas. The bar renders the active tool's
+   * `optionsComponent` (if any). Default: `false` — preserves D-037.
+   *
+   * Tools declare their options UI via the optional `optionsComponent`
+   * field on the `Tool` interface. Tools without one yield a
+   * collapsed (or "No options" placeholder, depending on
+   * `[toolOptionsShowPlaceholder]`) bar so the layout stays predictable.
+   */
+  readonly showToolOptions = input<boolean>(false);
+
+  /**
+   * Forwarded to `<svge-tool-options [showPlaceholder]>`. When `true`,
+   * the bar shows a "No options for this tool" placeholder instead of
+   * collapsing when the active tool lacks an options component.
+   * Default: `false` (collapse — Mosaicoo preference: chrome should
+   * disappear when not earning its keep).
+   */
+  readonly toolOptionsShowPlaceholder = input<boolean>(false);
 
   /**
    * D-034 — render the toolbar row (title, plugin contributions, built-in
