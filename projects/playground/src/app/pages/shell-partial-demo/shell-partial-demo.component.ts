@@ -58,10 +58,19 @@ import { SvgeEditor } from 'svg-engine/ui';
         />
         Replace with custom status bar
       </label>
+      <label>
+        <input
+          type="checkbox"
+          [checked]="showMenuBar()"
+          (change)="showMenuBar.set($any($event.target).checked)"
+        />
+        Show menu bar (D-038 Phase 1)
+      </label>
     </header>
     <div class="editor-area">
       <svge-editor
         [title]="title()"
+        [showMenuBar]="showMenuBar()"
         [showToolbar]="showToolbar()"
         [showStatusBar]="showStatusBar()"
       >
@@ -128,6 +137,7 @@ export class ShellPartialDemo {
   private readonly bus = inject(CommandBus);
 
   protected readonly title = signal('Shell parcial — modular');
+  protected readonly showMenuBar = signal(false);
   protected readonly showToolbar = signal(true);
   protected readonly showStatusBar = signal(true);
   protected readonly useCustomStatus = signal(false);

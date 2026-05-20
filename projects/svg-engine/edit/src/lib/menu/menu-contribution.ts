@@ -61,6 +61,37 @@ export interface MenuContribution {
   readonly order?: number;
   readonly disabled?: Signal<boolean> | null;
   readonly visible?: Signal<boolean> | null;
-  /** Activated by the UI (click / keyboard). MUST NOT throw. */
+  /**
+   * **Sprint Pro-Editor (2026-05-20 D-038)** — optional parent contribution id.
+   * When set, this item is rendered as a **submenu child** of the parent
+   * (instead of as a sibling in the same slot). Used by `<svge-menu-bar>`
+   * to build cascading menus like "Edit > Transform > Rotate 90°".
+   *
+   * **Semantics**:
+   * - `parentId === undefined` → top-level entry in the slot (default).
+   * - `parentId === '<existing-id>'` → nested under that contribution.
+   *   The parent must exist in the **same slot** and **same registry**.
+   * - The parent's `run()` is ignored when it has children — its row
+   *   becomes a submenu trigger. To keep run+children both meaningful,
+   *   add a child with the same label/icon and an explicit `run()`.
+   *
+   * **Multi-level nesting** is supported (Edit > Transform > Move > Right).
+   * Loops in the parent chain are detected by `<svge-menu-bar>` at render
+   * time and bail out gracefully (the offending leaf is not rendered).
+   *
+   * **Why parent-pointer instead of nested arrays**: keeps the registry
+   * shape flat + signal-friendly. Plugins can contribute leaves without
+   * knowing about each other; the tree is reconstructed by `bySlot()`
+   * consumers (the menu bar component).
+   */
+  readonly parentId?: string;
+  /**
+   * **Sprint Pro-Editor** — used for dividers between groups within a
+   * menu. When `true`, this contribution renders as a horizontal rule
+   * (no click handler, no icon). `label` is then optional and used as
+   * an accessibility label / section heading.
+   */
+  readonly divider?: boolean;
+  /** Activated by the UI (click / keyboard). MUST NOT throw. NOT called for dividers. */
   run(): void;
 }

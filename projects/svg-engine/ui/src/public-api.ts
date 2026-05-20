@@ -60,3 +60,6 @@ export * from './lib/svg-source-dialog';
 
 // Status bar (D-035 — shell-refinement; standalone OR via <svge-editor>)
 export * from './lib/status-bar';
+
+// Menu bar (Sprint Pro-Editor — D-038 phase 1; standalone OR via <svge-editor>)
+export * from './lib/menu-bar';

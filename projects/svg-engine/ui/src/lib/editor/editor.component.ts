@@ -12,6 +12,7 @@ import {
 } from 'svg-engine/core';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
 import { PageOverlay, SvgeCanvasGestures, WorkspaceBackground } from 'svg-engine/edit';
+import { SvgeMenuBar } from '../menu-bar';
 import { SvgeStatusBar } from '../status-bar';
 import { SvgeToolbar } from '../toolbar';
 
@@ -86,8 +87,14 @@ import { SvgeToolbar } from '../toolbar';
     SvgeCanvasGestures,
     SvgeToolbar,
     SvgeStatusBar,
+    SvgeMenuBar,
   ],
   template: `
+    @if (showMenuBar()) {
+      <div class="menu-area">
+        <svge-menu-bar />
+      </div>
+    }
     @if (showToolbar()) {
       <mat-toolbar class="editor-toolbar">
         <span class="title">{{ title() ?? 'SVGEngine' }}</span>
@@ -187,6 +194,12 @@ import { SvgeToolbar } from '../toolbar';
       height: 100%;
       min-height: 0;
     }
+    .menu-area {
+      flex: 0 0 auto;
+      padding: 2px 0.5rem;
+      border-bottom: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+      background: var(--mat-sys-surface, transparent);
+    }
     .editor-toolbar {
       flex: 0 0 auto;
     }
@@ -272,6 +285,23 @@ export class SvgeEditor {
 
   /** Optional aria-label for the inner `<svg>` element. */
   readonly ariaLabel = input<string | null>(null);
+
+  /**
+   * **Sprint Pro-Editor (D-038 phase 1) — opt-in menu bar.**
+   *
+   * When `true`, renders a `<svge-menu-bar>` ABOVE the toolbar.
+   * Default: `false` — preserves D-037 invariants (existing modes
+   * "Shell completo" / "Shell parcial" / "Canvas-only" all keep their
+   * current visible shape; this input must be EXPLICITLY enabled).
+   *
+   * Plugins contribute menu items via `MenuContributionRegistry.register()`
+   * with slot `'menu.file' | 'menu.edit' | 'menu.view' | 'menu.object' |
+   * 'menu.help'` (see `MENU_SLOT` constants exported from `svg-engine/ui`).
+   * Submenus via the `parentId` field. Empty slots render an empty
+   * dropdown — consumers wanting to hide a slot pass a filtered `[slots]`
+   * via the wrapper component or use `<svge-menu-bar>` directly.
+   */
+  readonly showMenuBar = input<boolean>(false);
 
   /**
    * D-034 — render the toolbar row (title, plugin contributions, built-in

@@ -16,6 +16,7 @@ import {
   textToolPlugin,
 } from 'svg-engine/edit';
 
+import { demoMenuBarPlugin } from './plugins/demo-menu-bar.plugin';
 import { routes } from './app.routes';
 
 export const appConfig: ApplicationConfig = {
@@ -59,5 +60,9 @@ export const appConfig: ApplicationConfig = {
     // drop-shadow, grayscale, sepia. Shipped separately so apps that
     // don't surface effects in their UI can drop this plugin.
     provideSvgEnginePlugin(builtinEffectsPlugin),
+    // Demo menu bar items (D-038 Phase 1) — playground-only. Populates
+    // File/Edit/View/Help slots so the <svge-menu-bar> showcase has
+    // content. Real consumers wire their own.
+    provideSvgEnginePlugin(demoMenuBarPlugin),
   ],
 };
