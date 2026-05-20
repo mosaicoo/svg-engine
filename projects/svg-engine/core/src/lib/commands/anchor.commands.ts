@@ -376,21 +376,40 @@ export class ConvertAnchorTypeCommand implements Command {
 }
 
 /**
- * Default ratio of neighbour-distance used as handle length when we
- * have to invent handles from scratch (1/3 is the standard
- * "natural curve" length used by Illustrator's Smooth tool and most
- * Bezier auto-tangent algorithms — short enough that the curve stays
- * close to the original line, long enough to be visibly grabbable).
+ * Default handle-length ratios used when synthesising fresh handles
+ * for a corner-to-curve conversion. INTENTIONALLY asymmetric (0.4
+ * vs 0.3 of the neighbour distance) so the synthesised pair is
+ * `smooth` rather than `symmetric` — that way the **next** dblclick
+ * (smooth → symmetric) produces a visible change instead of being
+ * a silent no-op.
+ *
+ * The "1/3 of the neighbour distance" baseline is Illustrator's Smooth
+ * tool default — long enough to be visibly grabbable, short enough that
+ * the curve doesn't overshoot.
  */
+const HANDLE_IN_RATIO = 0.4;
+const HANDLE_OUT_RATIO = 0.3;
+/** Used by the existing-handle fallback when synthesising one side only. */
 const DEFAULT_HANDLE_RATIO = 1 / 3;
 
 /**
  * Pure: produce a new anchor with handles snapped to the requested
- * kind constraint. When converting an anchor with both handles
- * collapsed (a straight-edge corner from rect/polygon), we synthesize
- * default handles pointing toward the neighbouring anchors so the
- * user sees actual curvature on the first conversion — otherwise the
- * dblclick cycle would be a silent no-op on most "real" paths.
+ * kind constraint.
+ *
+ * **cusp**: collapses both handles into the anchor point (Illustrator
+ * "Convert Anchor Point" semantic). Destructive — the curve flattens
+ * at this anchor — but it's the only way to make the dblclick cycle
+ * symmetric→cusp produce a visible change, since the `d` string
+ * doesn't carry kind metadata and would otherwise re-classify the
+ * same handles as symmetric on every re-parse.
+ *
+ * **smooth**: reflects handleOut along handleIn's direction while
+ * preserving handleOut's CURRENT length (asymmetric on purpose).
+ * Falls back to synthesised handles when both sides are collapsed.
+ *
+ * **symmetric**: handleOut mirrors handleIn exactly (same length,
+ * opposite direction). Falls back to synthesised handles when both
+ * sides are collapsed.
  *
  * `prev`/`next` are the adjacent anchors in the subpath (wrap-around
  * for closed subpaths); either may be `undefined` for endpoint
@@ -410,21 +429,23 @@ function enforceKind(
   const outLen0 = Math.hypot(outDx0, outDy0);
 
   if (kind === 'cusp') {
-    // Just relax the constraint — keep handles wherever they are. If
-    // they happen to still be perfectly symmetric, the next re-parse
-    // will classify the anchor as `symmetric` again (the d-string
-    // doesn't carry kind metadata). Documented limitation: to escape
-    // `symmetric` via the dblclick cycle, the user must nudge one of
-    // the handles. The cycle still works end-to-end on real edited
-    // paths where handles never line up exactly.
-    return { ...anchor, kind };
+    // Collapse handles into the anchor point — destructive but the
+    // only way to make symmetric→cusp produce a visible change (the
+    // d-string doesn't carry kind metadata, so otherwise the parser
+    // would keep classifying the same handles as symmetric and the
+    // cycle would never advance).
+    //
+    // If handles were already collapsed, the d stays identical and
+    // the command no-ops via the `nextD === path.d` guard — fine,
+    // a cusp with no handles can't be made "more cusp".
+    return { ...anchor, kind, handleIn: anchor.point, handleOut: anchor.point };
   }
 
   // smooth/symmetric path: need at least one handle direction.
   // If both handles are collapsed (raw corner from rect/polygon),
   // synthesize defaults pointing toward the neighbouring anchors.
   if (inLen0 < 1e-6 && outLen0 < 1e-6) {
-    const synth = synthesizeHandles(anchor, prev, next);
+    const synth = synthesizeHandles(anchor, prev, next, kind);
     if (synth === null) {
       // Isolated anchor (no neighbours) — there's no direction to
       // pick. Leave it as-is + flag the requested kind for callers
@@ -467,15 +488,22 @@ function neighbourDist(anchor: AnchorPoint, neighbour: AnchorPoint | undefined):
 }
 
 /**
- * Build symmetric default handles for an anchor with no existing
- * handles, oriented along the chord from `prev` to `next` (or just
- * toward whichever neighbour exists). Length is 1/3 the neighbour
- * distance — the Illustrator "Smooth" tool default.
+ * Build default handles for an anchor whose existing handles are
+ * collapsed (cusp with no tangent info). Direction is the chord from
+ * `prev` to `next` (or just toward whichever neighbour exists).
+ *
+ * **Length policy** — controlled by `kind`:
+ * - `symmetric`: both sides 1/3 · min(distPrev, distNext) → mirrors.
+ * - `smooth`: in-side 0.4 · distPrev, out-side 0.3 · distNext →
+ *   intentionally asymmetric so the classifier reads `smooth`, not
+ *   `symmetric`. Lets the cycle smooth → symmetric still produce a
+ *   visible change on shapes that started as corners.
  */
 function synthesizeHandles(
   anchor: AnchorPoint,
   prev: AnchorPoint | undefined,
   next: AnchorPoint | undefined,
+  kind: AnchorKind,
 ): { handleIn: Point; handleOut: Point } | null {
   if (prev === undefined && next === undefined) return null;
   // Choose a tangent direction: chord from prev → next if both exist,
@@ -497,15 +525,29 @@ function synthesizeHandles(
   if (dirLen < 1e-6) return null;
   const ux = dirX / dirLen;
   const uy = dirY / dirLen;
-  // Use the SHORTER neighbour distance so the handles don't overshoot
-  // an adjacent anchor on a degenerate (one-side-much-shorter) corner.
   const distPrev = neighbourDist(anchor, prev);
   const distNext = neighbourDist(anchor, next);
-  const refDist =
-    distPrev > 0 && distNext > 0 ? Math.min(distPrev, distNext) : Math.max(distPrev, distNext);
-  const len = refDist * DEFAULT_HANDLE_RATIO;
+
+  if (kind === 'symmetric') {
+    // Mirrored: both sides use the SHORTER neighbour distance so the
+    // handles don't overshoot an adjacent anchor on a degenerate
+    // (one-side-much-shorter) corner.
+    const refDist =
+      distPrev > 0 && distNext > 0 ? Math.min(distPrev, distNext) : Math.max(distPrev, distNext);
+    const len = refDist * DEFAULT_HANDLE_RATIO;
+    return {
+      handleIn: { x: anchor.point.x - ux * len, y: anchor.point.y - uy * len },
+      handleOut: { x: anchor.point.x + ux * len, y: anchor.point.y + uy * len },
+    };
+  }
+
+  // smooth: deliberately asymmetric so the next cycle step (→symmetric)
+  // is detectable. Fall back to whichever neighbour distance is known
+  // when the other is missing.
+  const lenIn = (distPrev > 0 ? distPrev : distNext) * HANDLE_IN_RATIO;
+  const lenOut = (distNext > 0 ? distNext : distPrev) * HANDLE_OUT_RATIO;
   return {
-    handleIn: { x: anchor.point.x - ux * len, y: anchor.point.y - uy * len },
-    handleOut: { x: anchor.point.x + ux * len, y: anchor.point.y + uy * len },
+    handleIn: { x: anchor.point.x - ux * lenIn, y: anchor.point.y - uy * lenIn },
+    handleOut: { x: anchor.point.x + ux * lenOut, y: anchor.point.y + uy * lenOut },
   };
 }

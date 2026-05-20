@@ -1,5 +1,10 @@
 import { toNodeId } from 'svg-engine/core';
-import { findRenderedNode, getCombinedBBox, getRenderedNodeBBox } from './node-bbox';
+import {
+  findRenderedNode,
+  getCombinedBBox,
+  getRenderedNodeBBox,
+  getRenderedParentMatrix,
+} from './node-bbox';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -75,6 +80,93 @@ describe('getRenderedNodeBBox', () => {
     const svg = buildSvg();
     makeG(svg, 'a', '0,0,0,0');
     expect(getRenderedNodeBBox(svg, toNodeId('a'))).toBeNull();
+    svg.remove();
+  });
+});
+
+describe('getRenderedNodeBBox — shapes inside groups (regression coverage)', () => {
+  it('shape inside translated group: bbox reflects group translation', () => {
+    const svg = buildSvg();
+    const group = makeG(svg, 'g1', '0,0,0,0', 'translate(100, 50)');
+    makeG(group, 'shape', '10,10,30,20');
+    expect(getRenderedNodeBBox(svg, toNodeId('shape'))).toEqual({
+      x: 110,
+      y: 60,
+      width: 30,
+      height: 20,
+    });
+    svg.remove();
+  });
+
+  it('shape with own transform inside translated group: bbox composes both', () => {
+    const svg = buildSvg();
+    const group = makeG(svg, 'g1', '0,0,0,0', 'translate(100, 50)');
+    makeG(group, 'shape', '0,0,10,10', 'translate(5, 5)');
+    // shape-local (0..10) + own translate(5,5) → (5..15) + group translate(100,50) → (105..115, 55..65)
+    expect(getRenderedNodeBBox(svg, toNodeId('shape'))).toEqual({
+      x: 105,
+      y: 55,
+      width: 10,
+      height: 10,
+    });
+    svg.remove();
+  });
+
+  it('shape inside rotated group: bbox is correct AABB of rotated corners', () => {
+    const svg = buildSvg();
+    const group = makeG(svg, 'g1', '0,0,0,0', 'rotate(90)');
+    makeG(group, 'shape', '10,0,20,10');
+    // After rotate(90) around origin: (x,y) → (-y, x)
+    // Corners (10,0), (30,0), (30,10), (10,10) → (0,10), (0,30), (-10,30), (-10,10)
+    // AABB: x=-10, y=10, w=10, h=20
+    const bb = getRenderedNodeBBox(svg, toNodeId('shape'))!;
+    expect(bb.x).toBeCloseTo(-10, 4);
+    expect(bb.y).toBeCloseTo(10, 4);
+    expect(bb.width).toBeCloseTo(10, 4);
+    expect(bb.height).toBeCloseTo(20, 4);
+    svg.remove();
+  });
+
+  it('shape inside nested groups: bbox composes the whole chain', () => {
+    const svg = buildSvg();
+    const outer = makeG(svg, 'outer', '0,0,0,0', 'translate(100, 0)');
+    const inner = makeG(outer, 'inner', '0,0,0,0', 'translate(0, 50)');
+    makeG(inner, 'shape', '0,0,20,20');
+    expect(getRenderedNodeBBox(svg, toNodeId('shape'))).toEqual({
+      x: 100,
+      y: 50,
+      width: 20,
+      height: 20,
+    });
+    svg.remove();
+  });
+});
+
+describe('getRenderedParentMatrix — ancestor-only matrix for ResizeNodeCommand', () => {
+  it('returns null when the node is directly under the svg root', () => {
+    const svg = buildSvg();
+    makeG(svg, 'shape', '0,0,10,10', 'translate(5, 5)');
+    expect(getRenderedParentMatrix(svg, toNodeId('shape'))).toBeNull();
+    svg.remove();
+  });
+
+  it('returns the parent group transform when shape lives inside a translated group', () => {
+    const svg = buildSvg();
+    const group = makeG(svg, 'g1', '0,0,0,0', 'translate(100, 50)');
+    makeG(group, 'shape', '0,0,10,10');
+    // Identity 2x3 = [1,0,0,1,0,0]; translate(100, 50) → [1,0,0,1,100,50]
+    expect(getRenderedParentMatrix(svg, toNodeId('shape'))).toEqual([1, 0, 0, 1, 100, 50]);
+    svg.remove();
+  });
+
+  it('composes nested group transforms (outer + inner) — shape transform NOT included', () => {
+    const svg = buildSvg();
+    const outer = makeG(svg, 'outer', '0,0,0,0', 'translate(100, 0)');
+    const inner = makeG(outer, 'inner', '0,0,0,0', 'translate(0, 50)');
+    makeG(inner, 'shape', '0,0,10,10', 'translate(7, 7)');
+    // Parent matrix should NOT include shape's own (7,7) — only the
+    // ancestor chain. translate(100,0) * translate(0,50) = translate(100,50).
+    expect(getRenderedParentMatrix(svg, toNodeId('shape'))).toEqual([1, 0, 0, 1, 100, 50]);
     svg.remove();
   });
 });
