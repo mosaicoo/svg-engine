@@ -6,6 +6,69 @@
 
 ---
 
+## 2026-05-21 — Playground routes renomeadas (slugs EN, labels PT) + nova rota `/svg-viewer` (read-only puro)
+
+**Contexto**
+
+Após D-041 formalizar o vocabulário canônico, os slugs antigos (`/shell-demo`, `/shell-partial-demo`, `/shell-canvas-only`, `/shell-pro-demo`, `/raw-primitives`, `/perf`) ainda descreviam **categoria arquitetural, não atividade real**. Quem chegava no playground precisava abrir cada componente para entender o que cada rota fazia. Além disso, o "Modo 4 / view-only" mencionado em D-037 **não tinha rota demo** — `/shell-canvas-only` era o mais próximo mas ainda permitia editar.
+
+**Decisão de naming**
+
+Convenção: **slugs em inglês** (URLs duráveis, padrão npm/GitHub) + **labels em PT-BR** (público do playground é em PT). Cada nome descreve **o que a rota faz**, não a categoria.
+
+**Renames executados (`git mv` preserva history)**
+
+| URL antiga            | URL nova             | Classe antiga      | Classe nova        | Folder antigo         | Folder novo          |
+| --------------------- | -------------------- | ------------------ | ------------------ | --------------------- | -------------------- |
+| `/raw-primitives`     | `/custom-editor`     | `PlaygroundHome`   | `CustomEditor`     | `playground-home/`    | `custom-editor/`     |
+| `/shell-demo`         | `/basic-editor`      | `ShellDemo`        | `BasicEditor`      | `shell-demo/`         | `basic-editor/`      |
+| `/shell-partial-demo` | `/modular-editor`    | `ShellPartialDemo` | `ModularEditor`    | `shell-partial-demo/` | `modular-editor/`    |
+| `/shell-canvas-only`  | `/embeddable-canvas` | `ShellCanvasOnly`  | `EmbeddableCanvas` | `shell-canvas-only/`  | `embeddable-canvas/` |
+| `/shell-pro-demo`     | `/pro-editor`        | `ShellProDemo`     | `ProEditor`        | `shell-pro-demo/`     | `pro-editor/`        |
+| `/perf`               | `/benchmark`         | `PerfPage`         | `Benchmark`        | `perf/`               | `benchmark/`         |
+
+URLs antigas **redirecionam** para os novos slugs em `app.routes.ts` — bookmarks/screenshots/links externos continuam funcionando. Selectors (`app-pg-*`) também renomeados para coerência.
+
+**Nova rota: `/svg-viewer`**
+
+Fecha o gap "viewer puro / render-only" mencionado em D-037 mas sem demo. Único componente que importa **apenas** `<svge-renderer>` (de `svg-engine/render`) + `svgImporter` (de `svg-engine/io`). **Zero dependência de `svg-engine/edit`**, zero Material no funcional (apenas tokens CSS via fallback).
+
+Features do `SvgViewer`:
+
+- Textarea para colar markup SVG (parsing reativo a cada keystroke)
+- `<input type="file" accept=".svg,image/svg+xml">` para carregar arquivo do disco
+- Botão "Carregar exemplo" com SVG de teste
+- Botão "Limpar"
+- Tratamento de erro de parsing inline + warnings da importação em `<details>` colapsável
+
+**Por que isso importa**
+
+1. **Comunica intenção**: dev entrando no projeto sabe imediatamente o que cada rota faz pelo nome (não precisa abrir o componente)
+2. **Slugs duráveis**: nomes em inglês alinham com convenção npm/GitHub para URLs
+3. **Sem rename de UI lib**: zero código de `svg-engine/*` mudado — só renomeações no `playground` + atualização de 4 docstrings em `svg-engine/{ui,render,edit}/...` que mencionavam `playground-home` como exemplo histórico
+4. **Demonstra menor footprint**: `/svg-viewer` prova concretamente que dá pra usar só `render+io` sem trazer Material/CDK
+
+**Arquivos**
+
+- `projects/playground/src/app/pages/{custom-editor,basic-editor,modular-editor,embeddable-canvas,pro-editor,benchmark}/` — folders renomeados via `git mv`, classes + selectors + filenames atualizados
+- `projects/playground/src/app/pages/svg-viewer/svg-viewer.component.ts` — novo (~260 LOC)
+- `projects/playground/src/app/app.routes.ts` — 7 rotas canônicas + 6 redirects de URLs antigas + catch-all
+- `projects/playground/src/app/app.html` — nav com slugs EN + labels PT
+- `projects/playground/src/app/app.ts` — docstring atualizada com mapa de rotas
+- `docs/01-visao-geral.md` — tabela "Rotas do playground" adicionada
+- `docs/04-decisoes-tecnicas.md` D-041 — tabela "Rotas do playground" + de-para
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+- `projects/svg-engine/{ui/editor,render/util/screen-to-doc,edit/pointer/is-editable-target,edit/tool/shell-interactions}.ts` — 4 docstrings que mencionavam `playground-home` como exemplo histórico atualizadas para referenciar `custom-editor`
+
+**Garantias**
+
+- ✅ Bookmarks antigos continuam funcionando (redirects em `app.routes.ts`)
+- ✅ Specs da library (`ng test svg-engine`) intocadas
+- ✅ Build do playground intocado (zero break)
+- ✅ Git mv preserva history dos arquivos (`git log --follow` continua mostrando histórico completo)
+
+---
+
 ## 2026-05-21 — D-041 Posicionamento Canvas-first + vocabulário canônico + rota `/raw-primitives`
 
 **Contexto**

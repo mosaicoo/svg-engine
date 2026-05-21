@@ -1249,7 +1249,7 @@ Em uma frase: **"Vendemos uma engine. A UI profissional é cortesia."**
 
 5. **Performance** (D-???? perf budget futuro): mede-se contra o Canvas headless puro (Modo 1), não contra o shell completo. Overhead do shell é aceitável; do headless não.
 
-6. **A `playground` é showcase + sandbox + benchmark, não produto.** A rota `/raw-primitives` (anteriormente `/playground-home`) é o exemplo canônico de "consumer construindo UI própria sobre o Canvas headless" e deve ser preservada como referência mesmo se outras rotas mudarem.
+6. **A `playground` é showcase + sandbox + benchmark, não produto.** A rota `/custom-editor` é o exemplo canônico de "consumer construindo editor completo sobre o Canvas headless sem usar `<svge-editor>`" e deve ser preservada como referência mesmo se outras rotas mudarem.
 
 ### De-para conceitual (alinhamento terminológico)
 
@@ -1261,7 +1261,20 @@ Em uma frase: **"Vendemos uma engine. A UI profissional é cortesia."**
 | **SVG Engine Professional** | entry point `svg-engine/ui` — em particular `<svge-shell-pro>` (editor drop-in completo) e `<svge-editor [shell]="true">` (editor padrão) |
 | **Shell parcial**           | Modo 3 (D-037) — composição manual de componentes de `svg-engine/ui`                                                                      |
 | **Playground**              | app `projects/playground/` — sandbox + showcase + benchmark, **não** produto                                                              |
-| **Raw primitives example**  | rota `/raw-primitives` (alias de `/`) — demonstra Modo 1 (headless puro com UI construída pelo consumer)                                  |
+
+### Rotas do playground (slugs EN / labels PT)
+
+Convenção: cada rota tem **nome que descreve a atividade**, não a categoria arquitetural. URLs antigas redirecionam para os novos slugs (compatibilidade com bookmarks).
+
+| Rota canônica        | Componente         | Atividade real                                                                             | URL antiga (redireciona)              |
+| -------------------- | ------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------- |
+| `/custom-editor`     | `CustomEditor`     | Editor 100% custom — canvas headless + painéis `ui` sem `<svge-editor>`/`<svge-shell-pro>` | `/raw-primitives`, `/playground-home` |
+| `/basic-editor`      | `BasicEditor`      | `<svge-editor>` drop-in básico (toolbar+canvas+statusbar)                                  | `/shell-demo`                         |
+| `/modular-editor`    | `ModularEditor`    | `<svge-editor>` com 6 checkboxes ligando/desligando peças                                  | `/shell-partial-demo`                 |
+| `/embeddable-canvas` | `EmbeddableCanvas` | `<svge-editor>` com tudo off — canvas + edição sem chrome                                  | `/shell-canvas-only`                  |
+| `/pro-editor`        | `ProEditor`        | `<svge-shell-pro>` profissional completo (Illustrator-grade)                               | `/shell-pro-demo`                     |
+| `/svg-viewer`        | `SvgViewer`        | `<svge-renderer>` puro read-only — bundle mínimo (só `render` + `io`), zero `edit`         | (novo em D-041 — fecha gap do D-037)  |
+| `/benchmark`         | `Benchmark`        | Performance harness — FPS + render-to-paint latency                                        | `/perf`                               |
 
 ### Por que **não** quebrar em dois pacotes npm (`svg-engine` + `svg-engine-professional`)
 

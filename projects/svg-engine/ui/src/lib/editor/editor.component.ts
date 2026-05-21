@@ -37,8 +37,9 @@ import { SvgeToolOptions } from '../tool-options';
  * **THREE MODES** — guaranteed by design:
  *
  * 1. **Headless puro** — consumer ignores `svg-engine/ui` entirely and
- *    composes `<svge-renderer>` + overlays + services by hand (see
- *    `playground-home`). Zero Material in their bundle.
+ *    composes `<svge-renderer>` + overlays + services by hand (see the
+ *    `custom-editor` route — `projects/playground/src/app/pages/custom-editor/`).
+ *    Zero Material in their bundle.
  *
  * 2. **Shell completo** — drop in `<svge-editor>` with no flags; you
  *    get toolbar + canvas + status bar + projected overlays. The

@@ -7,7 +7,7 @@ import type { Point } from 'svg-engine/core';
  *
  * **Why a shared util**: this is the single most duplicated helper
  * across the codebase. Until this util, the same 10-line block lived
- * in 5 different files (`playground-home`, `selection-overlay`,
+ * in 5 different files (`custom-editor` (ex-`playground-home`), `selection-overlay`,
  * `canvas-gestures.directive`, `guides-overlay`, `rulers`) — every new
  * pointer-driven component had to re-implement the CTM dance with the
  * same defensive guards (jsdom missing `getScreenCTM`/`createSVGPoint`,

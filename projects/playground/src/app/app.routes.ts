@@ -1,51 +1,75 @@
 import { Routes } from '@angular/router';
 
 /**
- * Playground routes — sandbox/showcase para os 4 modos (D-037).
+ * Playground routes — sandbox/showcase para os 4 modos de consumo (D-037).
  *
- * Convenção (D-041): `/raw-primitives` é o **nome canônico** do exemplo
- * Modo 1 (Canvas headless puro com UI construída pelo consumer). A
- * raiz `/` redireciona para `/raw-primitives` por compatibilidade com
- * bookmarks antigos.
+ * **Convenção D-041**: slugs em inglês (URLs); labels em PT-BR (nav).
+ * Cada rota tem **nome que descreve a atividade**, não a categoria
+ * arquitetural. Detalhes em `docs/01-visao-geral.md` → "Vocabulário
+ * canônico" e D-041 em `docs/04-decisoes-tecnicas.md`.
+ *
+ * **Compatibilidade**: URLs antigas (`/raw-primitives`, `/shell-demo`,
+ * `/shell-partial-demo`, `/shell-canvas-only`, `/shell-pro-demo`,
+ * `/perf`) redirecionam para os novos slugs para que bookmarks
+ * antigos continuem funcionando.
  */
 export const routes: Routes = [
+  // Raiz → editor custom (mantém comportamento anterior: a "tela cheia"
+  // do playground é o exemplo mais completo, demonstrando que se pode
+  // construir um editor profissional sem o shell).
   {
     path: '',
     pathMatch: 'full',
-    redirectTo: 'raw-primitives',
+    redirectTo: 'custom-editor',
   },
+
+  // ── Rotas canônicas ────────────────────────────────────────────
   {
-    path: 'raw-primitives',
+    path: 'custom-editor',
     loadComponent: () =>
-      import('./pages/playground-home/playground-home.component').then((m) => m.PlaygroundHome),
+      import('./pages/custom-editor/custom-editor.component').then((m) => m.CustomEditor),
   },
   {
-    path: 'shell-demo',
-    loadComponent: () => import('./pages/shell-demo/shell-demo.component').then((m) => m.ShellDemo),
-  },
-  {
-    path: 'shell-partial-demo',
+    path: 'basic-editor',
     loadComponent: () =>
-      import('./pages/shell-partial-demo/shell-partial-demo.component').then(
-        (m) => m.ShellPartialDemo,
+      import('./pages/basic-editor/basic-editor.component').then((m) => m.BasicEditor),
+  },
+  {
+    path: 'modular-editor',
+    loadComponent: () =>
+      import('./pages/modular-editor/modular-editor.component').then((m) => m.ModularEditor),
+  },
+  {
+    path: 'embeddable-canvas',
+    loadComponent: () =>
+      import('./pages/embeddable-canvas/embeddable-canvas.component').then(
+        (m) => m.EmbeddableCanvas,
       ),
   },
   {
-    path: 'shell-canvas-only',
-    loadComponent: () =>
-      import('./pages/shell-canvas-only/shell-canvas-only.component').then(
-        (m) => m.ShellCanvasOnly,
-      ),
+    path: 'pro-editor',
+    loadComponent: () => import('./pages/pro-editor/pro-editor.component').then((m) => m.ProEditor),
   },
   {
-    path: 'shell-pro-demo',
-    loadComponent: () =>
-      import('./pages/shell-pro-demo/shell-pro-demo.component').then((m) => m.ShellProDemo),
+    path: 'svg-viewer',
+    loadComponent: () => import('./pages/svg-viewer/svg-viewer.component').then((m) => m.SvgViewer),
   },
   {
-    path: 'perf',
-    loadComponent: () => import('./pages/perf/perf.component').then((m) => m.PerfPage),
+    path: 'benchmark',
+    loadComponent: () => import('./pages/benchmark/benchmark.component').then((m) => m.Benchmark),
   },
-  // Catch-all → redirect home
-  { path: '**', redirectTo: '' },
+
+  // ── Redirects de URLs antigas (D-041 rename) ───────────────────
+  // Mantidos para preservar bookmarks/screenshots/links externos.
+  // Podem ser removidos em uma major futura quando o ecossistema
+  // tiver migrado para os slugs novos.
+  { path: 'raw-primitives', redirectTo: 'custom-editor', pathMatch: 'full' },
+  { path: 'shell-demo', redirectTo: 'basic-editor', pathMatch: 'full' },
+  { path: 'shell-partial-demo', redirectTo: 'modular-editor', pathMatch: 'full' },
+  { path: 'shell-canvas-only', redirectTo: 'embeddable-canvas', pathMatch: 'full' },
+  { path: 'shell-pro-demo', redirectTo: 'pro-editor', pathMatch: 'full' },
+  { path: 'perf', redirectTo: 'benchmark', pathMatch: 'full' },
+
+  // Catch-all → editor custom
+  { path: '**', redirectTo: 'custom-editor' },
 ];

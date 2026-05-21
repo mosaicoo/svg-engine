@@ -33,17 +33,17 @@ import { SvgeEditor } from 'svg-engine/ui';
  * canvas com mínimo wiring.
  */
 @Component({
-  selector: 'app-pg-shell-canvas-only',
+  selector: 'app-pg-embeddable-canvas',
   standalone: true,
   imports: [SvgeEditor, SelectionOverlay, RotationPivot, Marquee, SnapGuides, RouterLink],
   template: `
     <header class="bar">
       <p>
-        <strong>Shell canvas-only:</strong>
-        <code>&lt;svge-editor [showToolbar]="false" [showStatusBar]="false"&gt;</code> — modo 4 da
-        matriz Mosaicoo. Comparar com <a routerLink="/">/</a> (headless puro, zero Material) e
-        <a routerLink="/shell-partial-demo">/shell-partial-demo</a> (mesmo modo, checkboxes
-        interativos).
+        <strong>Canvas embedável:</strong>
+        <code>&lt;svge-editor [showToolbar]="false" [showStatusBar]="false"&gt;</code> — Modo 4
+        (D-037). Comparar com <a routerLink="/svg-viewer">/svg-viewer</a> (read-only puro, só
+        renderer + io) e <a routerLink="/modular-editor">/modular-editor</a> (mesma ideia mas com
+        checkboxes interativos).
       </p>
     </header>
     <div class="editor-area">
@@ -96,7 +96,7 @@ import { SvgeEditor } from 'svg-engine/ui';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ShellCanvasOnly {
+export class EmbeddableCanvas {
   private readonly state = inject(EditorStateService);
   private readonly bus = inject(CommandBus);
 

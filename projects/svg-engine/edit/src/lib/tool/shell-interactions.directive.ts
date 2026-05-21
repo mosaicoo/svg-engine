@@ -55,7 +55,7 @@ const DOUBLE_CLICK_THRESHOLD_MS = 400;
  * **Replaces** the previous minimal directive (which only did tool routing
  * + click-select + Delete) introduced as the D-038 post-Phase 4 fix.
  * Migrates ~120 lines of interaction logic that used to live in
- * `playground-home.component.ts`.
+ * `custom-editor.component.ts` (ex-`playground-home`).
  *
  * **What's still consumer-owned** (NOT in this directive):
  * - Built-in shortcut REGISTRATIONS (Ctrl+Z, Ctrl+G, etc.) — directive

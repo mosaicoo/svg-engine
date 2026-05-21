@@ -23,15 +23,16 @@ import { SvgeEditor } from 'svg-engine/ui';
  * via the `[status-bar]` projection slot.
  */
 @Component({
-  selector: 'app-pg-shell-partial-demo',
+  selector: 'app-pg-modular-editor',
   standalone: true,
   imports: [SvgeEditor, SelectionOverlay, RotationPivot, Marquee, SnapGuides, RouterLink],
   template: `
     <header class="bar">
       <p>
-        <strong>Shell parcial</strong> — flags individuais controlam toolbar / status bar / canvas.
-        Compare com <a routerLink="/shell-demo">/shell-demo</a> (shell completo) e
-        <a routerLink="/">/</a> (headless puro, sem &lt;svge-editor&gt;).
+        <strong>Editor modular</strong> — flags individuais controlam toolbar / status bar / canvas.
+        Compare com <a routerLink="/basic-editor">/basic-editor</a> (drop-in básico sem flags) e
+        <a routerLink="/custom-editor">/custom-editor</a> (editor customizado, sem
+        &lt;svge-editor&gt;).
       </p>
       <label>
         <input
@@ -151,7 +152,7 @@ import { SvgeEditor } from 'svg-engine/ui';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ShellPartialDemo {
+export class ModularEditor {
   private readonly state = inject(EditorStateService);
   private readonly bus = inject(CommandBus);
 

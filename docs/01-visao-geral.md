@@ -54,7 +54,24 @@ Para alinhamento entre time, doc e marketing, usamos este vocabulário:
 | **SVG Engine Professional** | entry point `svg-engine/ui` — em particular `<svge-shell-pro>` (drop-in completo) e `<svge-editor>` (configurável) |
 | **Shell parcial**           | Modo 3 (D-037) — composição manual de componentes de `svg-engine/ui`                                               |
 | **Playground**              | app `projects/playground/` — sandbox + showcase + benchmark, **não** produto                                       |
-| **Raw primitives example**  | rota `/raw-primitives` (alias de `/`) — demonstra Modo 1 (Canvas headless com UI construída pelo consumer)         |
+
+### Rotas do playground (slugs EN / labels PT — D-041)
+
+Cada rota tem **nome que descreve a atividade**, não a categoria arquitetural:
+
+| Rota                 | Atividade                                                                                                               | Modo D-037            |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `/custom-editor`     | Editor completo **construído à mão**: canvas headless + painéis de `ui` wireados sem `<svge-editor>`/`<svge-shell-pro>` | Modo 1+3 misto        |
+| `/basic-editor`      | `<svge-editor>` drop-in **mínimo** (toolbar+canvas+statusbar)                                                           | Modo 2 minimal        |
+| `/modular-editor`    | `<svge-editor>` com **6 checkboxes** ligando/desligando partes individuais                                              | Configurador Modo 2/4 |
+| `/embeddable-canvas` | `<svge-editor>` com **tudo off** — só área de edição (sem chrome) mas ainda permite editar                              | Modo 4                |
+| `/pro-editor`        | `<svge-shell-pro>` editor **profissional completo** (Illustrator/Affinity-grade)                                        | Modo 2 pro            |
+| `/svg-viewer`        | `<svge-renderer>` puro **read-only** — textarea/arquivo SVG, sem `edit`, **bundle mínimo**                              | Render-only           |
+| `/benchmark`         | Harness de **performance** (FPS + render-to-paint latency)                                                              | Bench                 |
+
+**URLs antigas redirecionam para os novos slugs** (`/raw-primitives`,
+`/shell-demo`, `/shell-partial-demo`, `/shell-canvas-only`,
+`/shell-pro-demo`, `/perf`) — bookmarks continuam funcionando.
 
 ## Quatro casos de uso explícitos (D-037)
 

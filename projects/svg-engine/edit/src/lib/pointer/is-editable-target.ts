@@ -3,7 +3,7 @@
  * characters should NOT trigger global shortcuts / tool key bindings.
  *
  * **Why centralized**: this gate was independently re-implemented in
- * `ShortcutService` (was private) and in `playground-home` (was a
+ * `ShortcutService` (was private) and in `custom-editor` (ex-`playground-home`, was a
  * file-local function). The two copies were structurally identical
  * but lived apart, risking drift if one added a case (e.g., a future
  * `[contenteditable=plaintext-only]` quirk) and the other didn't.

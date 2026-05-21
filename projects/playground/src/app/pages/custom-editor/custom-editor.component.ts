@@ -110,17 +110,18 @@ type ShapeKind = 'rect' | 'ellipse' | 'path';
 const DRAG_START_THRESHOLD_PX = 3;
 
 /**
- * Playground "home" page — full editor harness using the headless
- * primitives directly (D-018 dogfooding). Now also embeds the Material
- * panels (`<svge-layers-panel>` left, `<svge-inspector>` right) as
- * sidebars so the panels are reachable end-to-end without needing the
- * `<svge-editor>` shell.
+ * Playground **editor customizado** page — full editor harness using
+ * the headless primitives directly (D-018 dogfooding) + Material panels
+ * (`<svge-layers-panel>` left, `<svge-inspector>` right) wireados à
+ * mão, **sem** usar `<svge-editor>` ou `<svge-shell-pro>`.
  *
- * **Why panels here, not in the shell**: the shell (`<svge-editor>`,
- * Bloco 4a) is the "easy mode" composition for consumers. The home
- * playground deliberately uses primitives so we keep proving the
- * headless boundary works in raw form. A separate `/shell-demo` route
- * (created with this same refactor) demonstrates the shell.
+ * **Por que painéis aqui, não no shell**: o shell (`<svge-editor>`,
+ * Bloco 4a) é a composição "fácil" para consumers. Esta rota
+ * deliberadamente usa primitives para provar que dá pra montar um
+ * editor profissional sem o shell — útil para consumers que querem
+ * controle total do layout. As rotas
+ * `/basic-editor`, `/modular-editor` e `/pro-editor` demonstram as
+ * variantes que usam o shell.
  *
  * Wireing summary (unchanged from previous iterations — just relocated
  * from `App`):
@@ -132,7 +133,7 @@ const DRAG_START_THRESHOLD_PX = 3;
  *   the overlay handles.
  */
 @Component({
-  selector: 'app-pg-home',
+  selector: 'app-pg-custom-editor',
   standalone: true,
   imports: [
     SvgeRenderer,
@@ -159,11 +160,11 @@ const DRAG_START_THRESHOLD_PX = 3;
     SvgeThemeToggle,
     SvgeEffectsPanel,
   ],
-  templateUrl: './playground-home.component.html',
-  styleUrl: './playground-home.component.scss',
+  templateUrl: './custom-editor.component.html',
+  styleUrl: './custom-editor.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PlaygroundHome implements OnDestroy {
+export class CustomEditor implements OnDestroy {
   private readonly bus = inject(CommandBus);
   private readonly state = inject(EditorStateService);
   private readonly history = inject(HistoryService);
@@ -1023,7 +1024,7 @@ export class PlaygroundHome implements OnDestroy {
     const isSecondClickOnSameTarget =
       id !== null &&
       id === this.lastClickTargetId &&
-      now - this.lastClickTimeMs <= PlaygroundHome.DOUBLE_CLICK_THRESHOLD_MS;
+      now - this.lastClickTimeMs <= CustomEditor.DOUBLE_CLICK_THRESHOLD_MS;
     if (isSecondClickOnSameTarget) {
       this.lastClickTimeMs = 0;
       this.lastClickTargetId = null;

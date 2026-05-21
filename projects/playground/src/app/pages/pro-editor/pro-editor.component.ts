@@ -41,7 +41,7 @@ import { SvgeShellPro } from 'svg-engine/ui';
  * - Layers + Inspector painéis à direita.
  */
 @Component({
-  selector: 'app-pg-shell-pro-demo',
+  selector: 'app-pg-pro-editor',
   standalone: true,
   imports: [
     SvgeShellPro,
@@ -55,11 +55,12 @@ import { SvgeShellPro } from 'svg-engine/ui';
   template: `
     <header class="bar">
       <p>
-        <strong>Shell profissional</strong> — composição completa estilo Illustrator/Affinity (D-038
-        Phase 4): menu bar + toolbar + tool options + tools palette + canvas + context menu + layers
-        + inspector + status bar. Compare com <a routerLink="/shell-demo">/shell-demo</a> (shell
-        completo mas minimal), <a routerLink="/shell-partial-demo">/shell-partial-demo</a> (toggling
-        individual) e <a routerLink="/">/</a> (headless puro).
+        <strong>Editor profissional</strong> — composição completa estilo Illustrator/Affinity
+        (D-038 Phase 4): menu bar + toolbar + tool options + tools palette + canvas + context menu +
+        layers + inspector + status bar. Compare com
+        <a routerLink="/basic-editor">/basic-editor</a> (drop-in básico),
+        <a routerLink="/modular-editor">/modular-editor</a> (configurador interativo) e
+        <a routerLink="/custom-editor">/custom-editor</a> (editor customizado sem shell).
       </p>
     </header>
     <div class="editor-area">
@@ -102,7 +103,7 @@ import { SvgeShellPro } from 'svg-engine/ui';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ShellProDemo {
+export class ProEditor {
   private readonly state = inject(EditorStateService);
   private readonly bus = inject(CommandBus);
 

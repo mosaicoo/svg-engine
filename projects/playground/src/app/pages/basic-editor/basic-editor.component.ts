@@ -30,17 +30,18 @@ import { SvgeEditor } from 'svg-engine/ui';
  *   custom toolbar buttons.
  */
 @Component({
-  selector: 'app-pg-shell-demo',
+  selector: 'app-pg-basic-editor',
   standalone: true,
   imports: [SvgeEditor, SelectionOverlay, RotationPivot, Marquee, SnapGuides, RouterLink],
   template: `
     <div class="hint">
       <p>
-        <strong>Shell completo:</strong> a single <code>&lt;svge-editor&gt;</code> tag composes the
-        toolbar (with plugin contributions slot), background, canvas and status bar (D-034/D-035,
-        2026-05-20). Compare with the <a routerLink="">home page</a> (headless puro — every
-        primitive wired by hand) and <a routerLink="/shell-partial-demo">shell parcial</a> (flags
-        toggling individual pieces).
+        <strong>Editor básico:</strong> uma única tag <code>&lt;svge-editor&gt;</code> compõe a
+        toolbar (com slot de contribuição de plugin), background, canvas e status bar (D-034/D-035,
+        2026-05-20). Compare com <a routerLink="/custom-editor">/custom-editor</a> (editor
+        customizado, cada primitive wireada à mão) e
+        <a routerLink="/modular-editor">/modular-editor</a> (flags interativas ligando/desligando
+        peças).
       </p>
     </div>
     <div class="editor-area">
@@ -89,7 +90,7 @@ import { SvgeEditor } from 'svg-engine/ui';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ShellDemo {
+export class BasicEditor {
   private readonly state = inject(EditorStateService);
   private readonly bus = inject(CommandBus);
 

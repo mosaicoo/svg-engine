@@ -3,14 +3,18 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 /**
  * Playground root layout. Renders a thin header with route navigation
- * and a `<router-outlet />` that hosts the actual page content
- * (`PlaygroundHome` at `'raw-primitives'` — Modo 1 D-037, `ShellDemo`
- * at `'shell-demo'`, etc.).
+ * and a `<router-outlet />` that hosts the actual page content.
  *
- * Convenção (D-041): `/raw-primitives` é o nome canônico para o
- * exemplo Modo 1; `/` redireciona para lá. O nome do componente
- * (`PlaygroundHome`) é histórico — folder rename é polish opcional.
+ * Routes (D-041, slugs EN / labels PT):
+ * - `/custom-editor`   → CustomEditor       (sem `<svge-editor>` — Modo 1+3 misto)
+ * - `/basic-editor`    → BasicEditor        (`<svge-editor>` drop-in básico — Modo 2)
+ * - `/modular-editor`  → ModularEditor      (configurador com 6 checkboxes)
+ * - `/embeddable-canvas` → EmbeddableCanvas (canvas com edição sem chrome — Modo 4)
+ * - `/pro-editor`      → ProEditor          (`<svge-shell-pro>` completo — Modo 2 pro)
+ * - `/svg-viewer`      → SvgViewer          (read-only puro — só render+io)
+ * - `/benchmark`       → Benchmark          (perf harness)
  *
+ * URLs antigas redirecionam para os slugs novos (compatibilidade).
  * Pages are route components — see `app.routes.ts`.
  */
 @Component({

@@ -56,14 +56,14 @@ import { createSyntheticDoc } from './synth-doc';
  * a single component change.
  */
 @Component({
-  selector: 'app-pg-perf',
+  selector: 'app-pg-benchmark',
   standalone: true,
   imports: [SvgeRenderer, SvgeViewportCullingDirective],
-  templateUrl: './perf.component.html',
-  styleUrl: './perf.component.scss',
+  templateUrl: './benchmark.component.html',
+  styleUrl: './benchmark.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PerfPage implements OnDestroy {
+export class Benchmark implements OnDestroy {
   private readonly state = inject(EditorStateService);
   private readonly history = inject(HistoryService);
   private readonly selection = inject(SelectionService);
