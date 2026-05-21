@@ -55,7 +55,14 @@ export const PENCIL_TOOL_ID = 'com.svge.tool.pencil';
 class SelectTool implements Tool {
   readonly id = SELECT_TOOL_ID;
   readonly label = 'Select';
-  readonly icon = 'arrow_selector_tool';
+  // `near_me` is in the legacy Material Icons font (loaded via Google
+  // Fonts `family=Material+Icons` link). Earlier attempt used
+  // `arrow_selector_tool` which is part of Material Symbols (newer
+  // variable-font set) — NOT in the classic Icons file — so it
+  // rendered as a blank circle in apps that haven't opted into
+  // Symbols. `near_me` is the closest "selection arrow" glyph that
+  // ships with the baseline classic icons.
+  readonly icon = 'near_me';
   readonly cursor = 'default';
   readonly shortcut = 'v';
 }

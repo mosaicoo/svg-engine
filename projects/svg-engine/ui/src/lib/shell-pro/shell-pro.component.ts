@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import { type BoundingBox, EditorStateService, type SvgNode } from 'svg-engine/core';
 import {
   GridOverlay,
+  GuidesOverlay,
   IsolationService,
   OutlineFilter,
   PageOverlay,
@@ -84,6 +85,7 @@ import { SvgeToolsPalette } from '../tools-palette';
     WorkspaceBackground,
     PageOverlay,
     GridOverlay,
+    GuidesOverlay,
     OutlineFilter,
     SvgeRulers,
     SvgeCanvasGestures,
@@ -141,6 +143,16 @@ import { SvgeToolsPalette } from '../tools-palette';
             -->
             <svg:g svgeGridOverlay svgeBehind></svg:g>
             <ng-content />
+            <!--
+              Guides overlay — renders horizontal/vertical reference
+              lines from WorkspaceService.guides(). Stays in the FRONT
+              projection slot (above content + page + grid) so dragged
+              guides remain visible. Without this, drag-from-ruler
+              creates the state but nothing draws it — the visual
+              bug previously isolated to custom-editor which had this
+              line baked into its template.
+            -->
+            <svg:g svgeGuidesOverlay></svg:g>
           </svge-renderer>
         </svge-workspace-background>
         <!--

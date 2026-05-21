@@ -13,6 +13,7 @@ import {
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
 import {
   GridOverlay,
+  GuidesOverlay,
   IsolationService,
   OutlineFilter,
   PageOverlay,
@@ -98,6 +99,7 @@ import { SvgeToolOptions } from '../tool-options';
     WorkspaceBackground,
     PageOverlay,
     GridOverlay,
+    GuidesOverlay,
     OutlineFilter,
     SvgeRulers,
     SvgeCanvasGestures,
@@ -226,6 +228,17 @@ import { SvgeToolOptions } from '../tool-options';
           -->
           <svg:g svgeGridOverlay svgeBehind></svg:g>
           <ng-content />
+          <!--
+            Guides overlay — renders horizontal/vertical reference
+            lines from WorkspaceService.guides(). Stays in the FRONT
+            projection slot (above content) so guides remain visible
+            over the artwork. Without this, dragging a guide from a
+            ruler creates the state in the service but nothing draws
+            it — the user sees "nothing happen". Custom-editor route
+            had this baked into its template; shells inherited the gap
+            until this D-043 follow-up.
+          -->
+          <svg:g svgeGuidesOverlay></svg:g>
         </svge-renderer>
       </svge-workspace-background>
       <!--
