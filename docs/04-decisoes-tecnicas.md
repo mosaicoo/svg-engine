@@ -1142,6 +1142,89 @@ http://localhost:4200/shell-pro-demo
 
 ---
 
+## D-031 — Versionamento + changelog automatizados (standard-version)
+
+- **Data**: 2026-05-20
+- **Status**: Decidida + implementada
+- **Contexto**: A library `svg-engine` já é instalável-ready (D-018 multi-entry, D-026 io/optimize promovidos, README publicável, metadata completa). Para destravar `npm publish` falta: versionamento determinístico, changelog auto-gerado, e workflow CI que produza tarball/publish a partir de uma tag. O histórico de commits já segue Conventional Commits (`feat(scope):`, `fix(scope):`, `docs:`, `refactor:`, `perf:`), tornando viável geração automática.
+
+### Decisão
+
+Adotar **[`standard-version`](https://github.com/conventional-changelog/standard-version)** (devDep, single-package model) + **GitHub Actions release workflow** (publish on tag).
+
+**Por que `standard-version` e não `changesets`**:
+
+- O workspace é **single-package**: a library `svg-engine` é o único artefato publicado (D-018 garante multi-entry-point sob 1 versão única). `changesets` brilha em mono-repos com múltiplos pacotes versionados independentemente — overhead desnecessário aqui.
+- `standard-version` lê commits do git diretamente (zero discipline overhead — basta manter conventional-commits, já feito).
+- Bump + CHANGELOG + tag em **um único comando** (`npm run release`).
+- Dry-run nativo (`npm run release:dry`) — preview sem efeitos colaterais.
+- Suporte a `--release-as patch|minor|major` para override manual.
+
+### Implementação (componentes entregues)
+
+**1. `.versionrc.json`** (raiz do workspace)
+
+- `bumpFiles` + `packageFiles` apontam **apenas** para `projects/svg-engine/package.json` (root permanece `private: true / 0.0.0` — não é publicável e não deve versionar).
+- `types` filtra histórico no CHANGELOG: `feat`/`fix`/`perf`/`refactor`/`docs`/`revert` aparecem; `test`/`build`/`ci`/`chore`/`style` ficam ocultos.
+- `commitUrlFormat` / `compareUrlFormat` / `issueUrlFormat` produzem links absolutos para `mosaicoo/svg-engine`.
+- `tagPrefix: 'v'` (padrão npm).
+- `releaseCommitMessageFormat: 'chore(release): {{currentTag}}'` (limpa o histórico).
+
+**2. Scripts npm** (no `package.json` raiz)
+
+| Script          | Comando                               | Uso                                        |
+| --------------- | ------------------------------------- | ------------------------------------------ |
+| `release`       | `standard-version`                    | Bump baseado em commits + CHANGELOG + tag  |
+| `release:dry`   | `standard-version --dry-run`          | Preview sem escrever nada                  |
+| `release:patch` | `standard-version --release-as patch` | Forçar patch                               |
+| `release:minor` | `standard-version --release-as minor` | Forçar minor                               |
+| `release:major` | `standard-version --release-as major` | Forçar major                               |
+| `release:first` | `standard-version --first-release`    | Primeira release (não bumpa, só CHANGELOG) |
+
+**3. Workflow `.github/workflows/release.yml`**
+
+- Trigger: `push tag v*` (gerado automaticamente por `standard-version`).
+- Steps: `npm ci` → lint → test (svg-engine) → `ng build svg-engine` → `npm pack` (dry-run + artifact) → upload tarball → **publish condicional**.
+- **`NPM_TOKEN` opcional**: workflow detecta presença via `env.HAS_NPM_TOKEN`. Sem o secret, termina pacificamente após upload do tarball (artifact retention 90 dias). Adicionar o secret depois habilita publish automático — "ready when you add token".
+- `npm publish --access public --provenance` (Sigstore provenance via GitHub OIDC — sem custo, eleva confiança do consumidor).
+
+### Fluxo end-to-end
+
+```
+# 1. Desenvolvedor commit-a usando conventional-commits (já é a norma):
+git commit -m "feat(edit): nova ferramenta"
+
+# 2. Quando quiser cortar release:
+npm run release:dry              # preview
+npm run release                  # bump + CHANGELOG + tag local
+
+# 3. Push da tag dispara o workflow:
+git push --follow-tags origin main
+
+# 4. CI builda, testa, packsta, e (se NPM_TOKEN setado) publica no npm.
+```
+
+### Fora de escopo (NÃO entrou)
+
+- **Decisão do registry definitivo** — npm público / GitHub Packages / registry Mosaicoo privado. Continua como **D-025?** pendente. O workflow default aponta para `registry.npmjs.org` mas é trocável em uma linha.
+- **GitHub Releases auto-criadas** — `standard-version` cria tag local; subir para "GitHub Release" com release-notes formatados é opcional (`action-gh-release` ou `release-please`). Pode entrar depois sem regressão.
+- **Pre-releases (`alpha`/`beta`/`rc`)** — `standard-version --prerelease alpha` já funciona; documentação intencionalmente deferida até primeira demanda real.
+
+### Garantias
+
+- ✅ Build da library e specs **inalterados** — `standard-version` é dev-only, não toca runtime.
+- ✅ Histórico Conventional Commits já existente é **retroativamente válido** (CHANGELOG do `--first-release` cobre tudo desde o início).
+- ✅ Root `package.json` permanece `private: true` — workflow rejeitaria push do root acidentalmente.
+- ✅ Pre-commit gate (D-014) e CI base (D-015) intocados — release.yml é workflow **adicional**, não substitui ci.yml.
+
+### Quando reabrir
+
+- Quando a decisão D-025? (registry) for fechada — atualizar `registry-url` + remover comentário "pending decision" do workflow.
+- Se o workspace virar mono-repo (múltiplos pacotes publicáveis), revisitar para `changesets`.
+- Se a equipe quiser **GitHub Releases** com release-notes auto-formatadas, adicionar `softprops/action-gh-release` ao workflow (não-bloqueante).
+
+---
+
 ## Decisões pendentes (em aberto)
 
 | ID provis. | Tema                                                                   |
@@ -1150,9 +1233,8 @@ http://localhost:4200/shell-pro-demo
 | D-027?     | Migração para zoneless (revisar D-010)                                 |
 | D-028?     | Lint rule customizada para enforcer headless boundary                  |
 | D-029?     | Estratégia de testes E2E (Playwright?)                                 |
-| D-031?     | Versionamento + changelog (changesets / standard-version)              |
 | D-032?     | Multi-page (`WorkspacesRegistry`) — extensão futura de D-021           |
 | D-033?     | Estratégia de i18n no editor                                           |
 | D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3 |
 
-> **Nota**: D-023 era "API formal de plugins" (cumprida pelo D-020 expandido em 2026-05-15). D-024 era "Versionamento + changelog" (renumerada para D-031 porque o número D-024 foi reusado para `ScriptRuntimePlugin`). D-030 era "Workspace/Página: A vs B" (cumprida pelo D-021 resolvido como Option C). D-032 entra como pendente para multi-page futuro. Sequência de IDs cumpridas em 2026-05-15: D-020, D-021, D-023, D-024. Em 2026-05-20: D-026 (alinhamento estrutural io/optimize); o número D-026 era previamente reservado para i18n — renomeado para D-033. D-036 (consolidação de helpers compartilhados) entrou no mesmo dia. **D-034 + D-035 + D-037** (shell-refinement) entraram em 2026-05-20 mais tarde no mesmo dia — adiamento "pós-Fase 6d" foi reduzido pois caso de uso Mosaicoo (canvas embedável em painéis menores + editor completo) demandou ambas formas garantidamente.
+> **Nota**: D-023 era "API formal de plugins" (cumprida pelo D-020 expandido em 2026-05-15). D-024 era "Versionamento + changelog" (renumerada para D-031 porque o número D-024 foi reusado para `ScriptRuntimePlugin`). D-030 era "Workspace/Página: A vs B" (cumprida pelo D-021 resolvido como Option C). D-032 entra como pendente para multi-page futuro. Sequência de IDs cumpridas em 2026-05-15: D-020, D-021, D-023, D-024. Em 2026-05-20: D-026 (alinhamento estrutural io/optimize); o número D-026 era previamente reservado para i18n — renomeado para D-033. D-036 (consolidação de helpers compartilhados) entrou no mesmo dia. **D-034 + D-035 + D-037** (shell-refinement) entraram em 2026-05-20 mais tarde no mesmo dia — adiamento "pós-Fase 6d" foi reduzido pois caso de uso Mosaicoo (canvas embedável em painéis menores + editor completo) demandou ambas formas garantidamente. **D-038 + D-039 + D-040** (Sprint Pro-Editor + interactions + polish) entraram em 2026-05-20 fechando o ciclo do shell profissional. **D-031** (release tooling) também entrou em 2026-05-20 — destrava `npm publish` via `standard-version` + workflow `release.yml` condicional ao secret `NPM_TOKEN`; a decisão de registry definitivo (D-025?) permanece pendente.

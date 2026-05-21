@@ -6,6 +6,60 @@
 
 ---
 
+## 2026-05-20 — D-031 Release tooling: `standard-version` + workflow publish-on-tag
+
+**Contexto**
+
+A library `svg-engine` já estava "instalável-ready" (D-018 multi-entry, D-026 io/optimize, README publicável, metadata completa). Faltava o **último elo da cadeia para publish**: como cortar uma release de forma determinística, gerar changelog automático e disparar `npm publish` via CI. O histórico já estava em Conventional Commits (`feat(scope):`, `fix(scope):`, `docs:`, `refactor:`, `perf:`) — viabilizando geração 100% automatizada.
+
+**Decisão**
+
+Adotar **`standard-version` (9.5.0)** como devDependency + **GitHub Actions release workflow** disparado por tag `v*`.
+
+`standard-version` foi escolhido sobre `changesets` porque o workspace é single-package (D-018 garante multi-entry sob uma versão única) — `changesets` brilha em monorepos com múltiplos pacotes independentes, overhead desnecessário aqui.
+
+**Componentes entregues**
+
+1. `.versionrc.json` na raiz — `bumpFiles` + `packageFiles` apontam **apenas** para `projects/svg-engine/package.json` (root permanece `private: true / 0.0.0`). `types` filtra histórico (`feat`/`fix`/`perf`/`refactor`/`docs`/`revert` no CHANGELOG; `test`/`build`/`ci`/`chore`/`style` ocultos). `commitUrlFormat` / `compareUrlFormat` apontam para `mosaicoo/svg-engine`. `tagPrefix: 'v'`. `releaseCommitMessageFormat: 'chore(release): {{currentTag}}'`.
+
+2. Scripts npm: `release`, `release:dry`, `release:patch|minor|major`, `release:first`.
+
+3. `.github/workflows/release.yml` — trigger `push tag v*`, steps `npm ci` → lint → test (svg-engine) → `ng build svg-engine` → `npm pack` (dry-run + artifact) → upload tarball → **publish condicional** ao `NPM_TOKEN` secret. Sem o secret, o workflow termina pacificamente após upload do tarball (artifact retention 90 dias). Adicionar o secret depois habilita publish automático — "ready when you add token". Inclui `--access public --provenance` (Sigstore provenance via OIDC).
+
+**Fluxo end-to-end**
+
+```
+git commit -m "feat(edit): nova ferramenta"   # já é a norma do projeto
+npm run release:dry                            # preview
+npm run release                                # bump + CHANGELOG + tag local
+git push --follow-tags origin main             # dispara workflow
+# CI builda, testa, packsta, publica (se NPM_TOKEN setado)
+```
+
+**Fora de escopo**
+
+- Decisão do registry definitivo (npm público / GitHub Packages / Mosaicoo privado) — continua como **D-025?** pendente. Workflow default `registry.npmjs.org`, trocável em uma linha.
+- GitHub Releases auto-criadas com release-notes formatadas — opcional, pode entrar depois.
+- Pre-releases (`--prerelease alpha`) — já suportado pelo `standard-version`, documentação deferida.
+
+**Garantias verificadas**
+
+- ✅ Build da library e specs **inalterados** (standard-version é dev-only, não toca runtime)
+- ✅ Histórico Conventional Commits retroativamente válido para `--first-release`
+- ✅ Root `package.json` permanece `private: true`
+- ✅ Pre-commit gate (D-014) e CI base (D-015) intocados — release.yml é workflow adicional
+
+**Arquivos**
+
+- `.versionrc.json` — novo
+- `package.json` — scripts `release*` adicionados + devDep `standard-version: 9.5.0`
+- `.github/workflows/release.yml` — novo
+- `docs/04-decisoes-tecnicas.md` — D-031 aceito + nota de pendentes atualizada
+- `docs/05-roadmap.md` — entrada D-031 ✅
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+
+---
+
 ## 2026-05-20 — D-040 Shell interactions polish: dynamic context-menu + builtin shortcuts
 
 **Contexto**

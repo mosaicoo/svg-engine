@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/conventional-changelog/standard-version/master/schema.json",
+  "header": "# Changelog\n\nAll notable changes to **svg-engine** (Angular SVG editor library) are documented here.\n\nThis file is **auto-generated** from [Conventional Commits](https://www.conventionalcommits.org) by [standard-version](https://github.com/conventional-changelog/standard-version). Manual edits will be overwritten on next release.\n\nThe versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n",
+  "bumpFiles": [
+    {
+      "filename": "projects/svg-engine/package.json",
+      "type": "json"
+    }
+  ],
+  "packageFiles": [
+    {
+      "filename": "projects/svg-engine/package.json",
+      "type": "json"
+    }
+  ],
+  "infile": "CHANGELOG.md",
+  "tagPrefix": "v",
+  "types": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Bug Fixes" },
+    { "type": "perf", "section": "Performance" },
+    { "type": "refactor", "section": "Refactor" },
+    { "type": "docs", "section": "Documentation", "hidden": false },
+    { "type": "test", "section": "Tests", "hidden": true },
+    { "type": "build", "section": "Build", "hidden": true },
+    { "type": "ci", "section": "CI", "hidden": true },
+    { "type": "chore", "section": "Chores", "hidden": true },
+    { "type": "style", "section": "Style", "hidden": true },
+    { "type": "revert", "section": "Reverts", "hidden": false }
+  ],
+  "commitUrlFormat": "https://github.com/mosaicoo/svg-engine/commit/{{hash}}",
+  "compareUrlFormat": "https://github.com/mosaicoo/svg-engine/compare/{{previousTag}}...{{currentTag}}",
+  "issueUrlFormat": "https://github.com/mosaicoo/svg-engine/issues/{{id}}",
+  "releaseCommitMessageFormat": "chore(release): {{currentTag}}"
+}

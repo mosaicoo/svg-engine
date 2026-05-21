@@ -12,7 +12,13 @@
     "lint": "ng lint",
     "prepare": "husky",
     "pack:lib": "npm run build:lib && cd dist/svg-engine && npm pack --dry-run",
-    "publish:lib": "npm run build:lib && cd dist/svg-engine && npm publish --access public"
+    "publish:lib": "npm run build:lib && cd dist/svg-engine && npm publish --access public",
+    "release": "standard-version",
+    "release:dry": "standard-version --dry-run",
+    "release:patch": "standard-version --release-as patch",
+    "release:minor": "standard-version --release-as minor",
+    "release:major": "standard-version --release-as major",
+    "release:first": "standard-version --first-release"
   },
   "private": true,
   "packageManager": "npm@10.9.2",
@@ -43,6 +49,7 @@
     "lint-staged": "^16.4.0",
     "ng-packagr": "^21.2.0",
     "prettier": "^3.8.1",
+    "standard-version": "9.5.0",
     "typescript": "~5.9.2",
     "typescript-eslint": "8.59.2",
     "vitest": "^4.0.8"

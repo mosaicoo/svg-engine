@@ -276,6 +276,8 @@
 
 > **2026-05-20 — D-040 Shell interactions polish ✅**: 2 entregas independentes. (1) `[svgeContextMenuResolver]` function input no `[svgeContextMenu]` — right-click em shape → `context.node`, no fundo → `context.canvas`. (2) `builtinEditorShortcutsPlugin` opt-in registrando Ctrl+Z/Y/Shift+Z/G/Shift+G/A no ShortcutRegistry. Playground instala por padrão.
 
+> **2026-05-20 — D-031 Release tooling ✅**: `standard-version` (9.5.0) wired ao workspace gerando bump + CHANGELOG + tag a partir de Conventional Commits. `.versionrc.json` aponta `projects/svg-engine/package.json` como única fonte de versão (root permanece `private: true / 0.0.0`). Scripts npm: `release`, `release:dry`, `release:patch|minor|major`, `release:first`. Workflow `.github/workflows/release.yml` (trigger `push tag v*`) executa lint + test + build + `npm pack` (artifact upload sempre) + `npm publish --access public --provenance` condicional ao secret `NPM_TOKEN`. Sem o secret o workflow termina pacificamente — "ready when you add token". Registry-url default `npmjs.org` (a escolha definitiva pertence a D-025?, pendente).
+
 - [x] **Bloco 5-IO**: Import + Export SVG (categorias 4 e 5 do D-023)
   - Tipos `Importer` (id/name/mediaTypes/extensions/import) e `Exporter` (id/name/mediaType/extension/export). `ImportResult = { ok:true, document, warnings } | { ok:false, error }` (warnings não-fatais para sanitização)
   - `ImporterRegistry` + `ExporterRegistry` signal-backed seguindo a forma das outras: register retorna Disposable, lookup helpers `byExtension`/`byMediaType` (extensão case-insensitive, tolera leading dot)
