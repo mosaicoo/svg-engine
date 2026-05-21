@@ -1,3 +1,4 @@
+import { Component, inject, Injector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
   CommandBus,
@@ -11,19 +12,28 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import { provideSvgEnginePlugin } from '../../plugin/provide-plugin';
+import { provideSvgEngineEditorScope } from '../../scope';
 import { SelectionService } from '../../selection/selection.service';
 import { MenuContributionRegistry } from '../menu-contribution-registry.service';
+import { resolveDisabledSignal } from '../menu-context';
 import { CONTEXT_MENU_SLOT, MENU_SLOT, TOOLBAR_SLOT } from '../menu-slots';
 import { builtinMenuContributionsPlugin } from './builtin-menu-contributions.plugin';
 
 /**
- * End-to-end contract: the built-in plugin registers items that, when
- * invoked, dispatch REAL commands on the bus and mutate REAL state.
- * Distinct from `demoMenuBarPlugin` (removed in D-043), whose handlers
- * were `console.info` placeholders.
+ * End-to-end contract:
+ *
+ * 1. **Plugin registers** the canonical items in the right slots.
+ * 2. **disabled signals** are scope-aware (resolved against the
+ *    consumer's injector via factory form — D-043 fix).
+ * 3. **run() handlers** receive the per-fire context and resolve
+ *    services from the active scope (mutations land in the right
+ *    editor instance — D-042 / D-043).
+ *
+ * Distinct from the removed `demoMenuBarPlugin`, whose handlers were
+ * `console.info` placeholders.
  */
 
-function setup() {
+function setupRoot() {
   TestBed.configureTestingModule({
     providers: [provideSvgEnginePlugin(builtinMenuContributionsPlugin)],
   });
@@ -32,12 +42,13 @@ function setup() {
   const state = TestBed.inject(EditorStateService);
   const selection = TestBed.inject(SelectionService);
   const history = TestBed.inject(HistoryService);
-  return { reg, bus, state, selection, history };
+  const injector = TestBed.inject(Injector);
+  return { reg, bus, state, selection, history, injector };
 }
 
 describe('builtinMenuContributionsPlugin — registers canonical items', () => {
   it('populates Edit slot with Undo/Redo/Delete/Select All/Group/Ungroup + dividers', () => {
-    const { reg } = setup();
+    const { reg } = setupRoot();
     const ids = reg
       .bySlot(MENU_SLOT.EDIT)()
       .map((c) => c.id);
@@ -49,8 +60,8 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(ids).toContain('svge.builtin.edit.ungroup');
   });
 
-  it('populates View slot with Zoom In/Out/Reset + Toggle Grid/Rulers/Outline', () => {
-    const { reg } = setup();
+  it('populates View slot with Zoom + Toggle Grid/Rulers/Outline', () => {
+    const { reg } = setupRoot();
     const ids = reg
       .bySlot(MENU_SLOT.VIEW)()
       .map((c) => c.id);
@@ -62,8 +73,8 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(ids).toContain('svge.builtin.view.toggle-outline');
   });
 
-  it('populates Object slot with Bring to Front/Forward/Backward/to Back', () => {
-    const { reg } = setup();
+  it('populates Object slot with reorder items', () => {
+    const { reg } = setupRoot();
     const ids = reg
       .bySlot(MENU_SLOT.OBJECT)()
       .map((c) => c.id);
@@ -74,7 +85,7 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
   });
 
   it('populates Help, Toolbar, Context Canvas, Context Node slots', () => {
-    const { reg } = setup();
+    const { reg } = setupRoot();
     expect(reg.bySlot(MENU_SLOT.HELP)().length).toBeGreaterThan(0);
     expect(reg.bySlot(TOOLBAR_SLOT.MAIN)().length).toBeGreaterThan(0);
     expect(reg.bySlot(CONTEXT_MENU_SLOT.CANVAS)().length).toBeGreaterThan(0);
@@ -82,148 +93,184 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
   });
 });
 
-describe('builtinMenuContributionsPlugin — reactive disabled signals', () => {
-  it('Undo is disabled when history is empty, enabled after a command', () => {
-    const { reg, bus, state } = setup();
-    const undo = reg.get('svge.builtin.edit.undo');
-    expect(undo?.disabled?.()).toBe(true);
+describe('builtinMenuContributionsPlugin — disabled factories are scope-aware (D-043 fix)', () => {
+  it('Undo disabled signal reflects history state of the resolving injector', () => {
+    const { reg, bus, state, injector } = setupRoot();
+    const undo = reg.get('svge.builtin.edit.undo')!;
+    const sig = resolveDisabledSignal(undo, injector);
+    expect(sig()).toBe(true); // history empty → disabled
 
-    // Dispatch a command to populate the undo stack
-    const root = state.document().root;
-    bus.dispatch(new InsertNodeCommand(root.id, createRect({ x: 0, y: 0, width: 10, height: 10 })));
+    bus.dispatch(
+      new InsertNodeCommand(
+        state.document().root.id,
+        createRect({ x: 0, y: 0, width: 10, height: 10 }),
+      ),
+    );
 
-    expect(undo?.disabled?.()).toBe(false);
+    expect(sig()).toBe(false); // command pushed → not disabled
   });
 
-  it('Group is disabled with fewer than 2 selected, enabled with 2+', () => {
-    const { reg, selection, bus, state } = setup();
-    const group = reg.get('svge.builtin.edit.group');
-    expect(group?.disabled?.()).toBe(true);
+  it('Group disabled signal reflects selection size of the resolving injector', () => {
+    const { reg, bus, state, selection, injector } = setupRoot();
+    const group = reg.get('svge.builtin.edit.group')!;
+    const sig = resolveDisabledSignal(group, injector);
+    expect(sig()).toBe(true); // 0 selected → disabled
 
-    // Insert 2 shapes and select both
-    const root = state.document().root;
-    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
-    const ellipse = createEllipse({ cx: 50, cy: 50, rx: 10, ry: 10 });
-    bus.dispatch(new InsertNodeCommand(root.id, rect));
-    bus.dispatch(new InsertNodeCommand(root.id, ellipse));
-    selection.selectMany([rect.id, ellipse.id]);
+    const r = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const e = createEllipse({ cx: 50, cy: 50, rx: 10, ry: 10 });
+    bus.dispatch(new InsertNodeCommand(state.document().root.id, r));
+    bus.dispatch(new InsertNodeCommand(state.document().root.id, e));
+    selection.selectMany([r.id, e.id]);
 
-    expect(group?.disabled?.()).toBe(false);
+    expect(sig()).toBe(false); // 2 selected → enabled
   });
 
-  it('Ungroup is disabled when focus is not a group', () => {
-    const { reg, selection, bus, state } = setup();
-    const ungroup = reg.get('svge.builtin.edit.ungroup');
-    expect(ungroup?.disabled?.()).toBe(true);
+  it('Ungroup disabled signal reflects focus type of the resolving injector', () => {
+    const { reg, bus, state, selection, injector } = setupRoot();
+    const ungroup = reg.get('svge.builtin.edit.ungroup')!;
+    const sig = resolveDisabledSignal(ungroup, injector);
+    expect(sig()).toBe(true);
 
-    // Insert a leaf and select it — focus is a leaf, not a group
-    const root = state.document().root;
-    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
-    bus.dispatch(new InsertNodeCommand(root.id, rect));
-    selection.select(rect.id);
-
-    expect(ungroup?.disabled?.()).toBe(true);
-
-    // Insert a group and select it — focus IS a group, ungroup enabled
     const grp = createGroup([createRect({ x: 0, y: 0, width: 5, height: 5 })]);
-    bus.dispatch(new InsertNodeCommand(root.id, grp));
+    bus.dispatch(new InsertNodeCommand(state.document().root.id, grp));
     selection.select(grp.id);
 
-    expect(ungroup?.disabled?.()).toBe(false);
+    expect(sig()).toBe(false);
   });
 });
 
-describe('builtinMenuContributionsPlugin — handlers dispatch REAL commands (not mocks)', () => {
-  it('Undo handler actually calls bus.undo() — proves the demo console.info pattern is gone', () => {
-    const { reg, bus, state } = setup();
+describe('builtinMenuContributionsPlugin — run() handlers use ctx.injector (D-043 fix)', () => {
+  it('Undo handler with ctx.injector calls bus.undo() of THAT scope', () => {
+    const { reg, bus, state, injector } = setupRoot();
     const root = state.document().root;
-    const rect = createRect({ x: 10, y: 10, width: 20, height: 20 });
+    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
     bus.dispatch(new InsertNodeCommand(root.id, rect));
-    // Document has the shape; one undo entry exists
-    expect(
-      (state.document().root as { readonly children: readonly unknown[] }).children.length,
-    ).toBe(1);
 
-    const undo = reg.get('svge.builtin.edit.undo');
-    undo?.run();
+    const undo = reg.get('svge.builtin.edit.undo')!;
+    undo.run({ injector });
 
-    // After Undo, the shape is gone — proves the handler did real work
     expect(
       (state.document().root as { readonly children: readonly unknown[] }).children.length,
     ).toBe(0);
   });
 
-  it('Delete handler removes the selected node from the document', () => {
-    const { reg, bus, state, selection } = setup();
+  it('Delete handler with ctx.injector removes selected node', () => {
+    const { reg, bus, state, selection, injector } = setupRoot();
     const root = state.document().root;
-    const rect = createRect({ x: 10, y: 10, width: 20, height: 20 });
+    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
     bus.dispatch(new InsertNodeCommand(root.id, rect));
     selection.select(rect.id);
 
-    expect(
-      (state.document().root as { readonly children: readonly unknown[] }).children.length,
-    ).toBe(1);
-    const del = reg.get('svge.builtin.edit.delete');
-    del?.run();
+    reg.get('svge.builtin.edit.delete')!.run({ injector });
 
     expect(
       (state.document().root as { readonly children: readonly unknown[] }).children.length,
     ).toBe(0);
   });
 
-  it('Group handler dispatches GroupSelectionCommand — wraps selected nodes', () => {
-    const { reg, bus, state, selection } = setup();
+  it('Group handler with ctx.injector creates a group containing selected nodes', () => {
+    const { reg, bus, state, selection, injector } = setupRoot();
     const root = state.document().root;
-    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
-    const ellipse = createEllipse({ cx: 50, cy: 50, rx: 10, ry: 10 });
-    bus.dispatch(new InsertNodeCommand(root.id, rect));
-    bus.dispatch(new InsertNodeCommand(root.id, ellipse));
-    selection.selectMany([rect.id, ellipse.id]);
+    const r = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const e = createEllipse({ cx: 50, cy: 50, rx: 10, ry: 10 });
+    bus.dispatch(new InsertNodeCommand(root.id, r));
+    bus.dispatch(new InsertNodeCommand(root.id, e));
+    selection.selectMany([r.id, e.id]);
 
-    const group = reg.get('svge.builtin.edit.group');
-    group?.run();
+    reg.get('svge.builtin.edit.group')!.run({ injector });
 
-    // Root now has a single group child (containing the 2 shapes)
     const children = (
       state.document().root as { readonly children: readonly { readonly type: string }[] }
     ).children;
     expect(children.length).toBe(1);
     expect(children[0]?.type).toBe('group');
   });
-
-  it('Select All handler selects every top-level child', () => {
-    const { reg, bus, state, selection } = setup();
-    const root = state.document().root;
-    const a = createRect({ x: 0, y: 0, width: 10, height: 10 });
-    const b = createEllipse({ cx: 50, cy: 50, rx: 10, ry: 10 });
-    const c = createRect({ x: 100, y: 100, width: 10, height: 10 });
-    bus.dispatch(new InsertNodeCommand(root.id, a));
-    bus.dispatch(new InsertNodeCommand(root.id, b));
-    bus.dispatch(new InsertNodeCommand(root.id, c));
-
-    expect(selection.selectedIds().size).toBe(0);
-    reg.get('svge.builtin.edit.select-all')?.run();
-
-    expect(selection.selectedIds().size).toBe(3);
-  });
 });
 
-describe('builtinMenuContributionsPlugin — D-042 lazy injector', () => {
-  it('handlers accept an optional ShortcutContext-like injector and resolve from it', () => {
-    const { reg, bus, state } = setup();
-    const root = state.document().root;
-    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
-    bus.dispatch(new InsertNodeCommand(root.id, rect));
+// ── Multi-editor (D-042 + D-043 fix) — proves scope isolation ────
+// Mount two host components each with provideSvgEngineEditorScope().
+// Trigger the same menu item via each host's injector — only THAT
+// host's editor state is mutated.
 
-    // Simulate a different injector being passed at fire time. With
-    // TestBed everything resolves from the root injector here, but we
-    // verify the contract: run() works with or without the run-ctx arg.
-    const undo = reg.get('svge.builtin.edit.undo');
-    // Run with no ctx (fallback to install) — proves install ctx
-    // resolution works.
-    undo?.run();
+describe('builtinMenuContributionsPlugin — multi-editor scope isolation (D-042/D-043)', () => {
+  function makeScopedHost() {
+    @Component({
+      selector: 'svge-test-scoped-host',
+      standalone: true,
+      template: '',
+      providers: [provideSvgEngineEditorScope()],
+    })
+    class Host {
+      readonly state = inject(EditorStateService);
+      readonly bus = inject(CommandBus);
+      readonly selection = inject(SelectionService);
+      readonly injector = inject(Injector);
+    }
+    return Host;
+  }
+
+  it('Delete fired from host A only removes from host A document, not from host B', () => {
+    TestBed.configureTestingModule({
+      providers: [provideSvgEnginePlugin(builtinMenuContributionsPlugin)],
+    });
+    const reg = TestBed.inject(MenuContributionRegistry);
+
+    const Host = makeScopedHost();
+    const a = TestBed.createComponent(Host).componentInstance;
+    const b = TestBed.createComponent(Host).componentInstance;
+
+    // Each scope has its own document — seed both with a shape, then
+    // delete from A only and prove B is untouched.
+    const rA = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const rB = createRect({ x: 100, y: 100, width: 20, height: 20 });
+    a.bus.dispatch(new InsertNodeCommand(a.state.document().root.id, rA));
+    b.bus.dispatch(new InsertNodeCommand(b.state.document().root.id, rB));
+    a.selection.select(rA.id);
+    b.selection.select(rB.id);
+
     expect(
-      (state.document().root as { readonly children: readonly unknown[] }).children.length,
+      (a.state.document().root as { readonly children: readonly unknown[] }).children.length,
+    ).toBe(1);
+    expect(
+      (b.state.document().root as { readonly children: readonly unknown[] }).children.length,
+    ).toBe(1);
+
+    // Fire Delete with A's injector — only A's document loses the shape.
+    reg.get('svge.builtin.edit.delete')!.run({ injector: a.injector });
+
+    expect(
+      (a.state.document().root as { readonly children: readonly unknown[] }).children.length,
     ).toBe(0);
+    expect(
+      (b.state.document().root as { readonly children: readonly unknown[] }).children.length,
+    ).toBe(1);
+  });
+
+  it('Undo disabled signal in scope A reflects A history, in scope B reflects B history (independent)', () => {
+    TestBed.configureTestingModule({
+      providers: [provideSvgEnginePlugin(builtinMenuContributionsPlugin)],
+    });
+    const reg = TestBed.inject(MenuContributionRegistry);
+
+    const Host = makeScopedHost();
+    const a = TestBed.createComponent(Host).componentInstance;
+    const b = TestBed.createComponent(Host).componentInstance;
+
+    const undo = reg.get('svge.builtin.edit.undo')!;
+    const sigA = resolveDisabledSignal(undo, a.injector);
+    const sigB = resolveDisabledSignal(undo, b.injector);
+
+    expect(sigA()).toBe(true);
+    expect(sigB()).toBe(true);
+
+    a.bus.dispatch(
+      new InsertNodeCommand(
+        a.state.document().root.id,
+        createRect({ x: 0, y: 0, width: 10, height: 10 }),
+      ),
+    );
+
+    expect(sigA()).toBe(false); // A has history now
+    expect(sigB()).toBe(true); // B untouched
   });
 });

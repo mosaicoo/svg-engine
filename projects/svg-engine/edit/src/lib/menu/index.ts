@@ -1,4 +1,10 @@
-export { type MenuContribution, type MenuSlot } from './menu-contribution';
+export {
+  type MenuContribution,
+  type MenuContributionContext,
+  type MenuContributionDisabled,
+  type MenuSlot,
+} from './menu-contribution';
+export { makeDisabledResolver, resolveDisabledSignal, runContribution } from './menu-context';
 export { MenuContributionRegistry } from './menu-contribution-registry.service';
 export {
   MENU_SLOT,

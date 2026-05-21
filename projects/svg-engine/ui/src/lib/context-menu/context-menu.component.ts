@@ -1,7 +1,20 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  Injector,
+  input,
+  output,
+} from '@angular/core';
 import { MatDivider } from '@angular/material/divider';
 import { MatIcon } from '@angular/material/icon';
-import { type MenuContribution, MenuContributionRegistry } from 'svg-engine/edit';
+import {
+  makeDisabledResolver,
+  MenuContributionRegistry,
+  runContribution,
+  type MenuContribution,
+} from 'svg-engine/edit';
 
 /**
  * Context menu **content component** — Sprint Pro-Editor Phase 2.
@@ -162,14 +175,24 @@ export class SvgeContextMenu {
       .filter((c) => c.parentId === undefined);
   });
 
+  /**
+   * D-043 fix: consumer injector — passed to factory-form `disabled`
+   * resolvers AND to `run()` so handlers reach the active editor
+   * scope. The context menu is opened via `SvgeContextMenuService`
+   * (CDK overlay) which inherits the injector from where it was
+   * called — so `this.injector` is the consumer's injector, not the
+   * overlay-root injector. That's what we want.
+   */
+  private readonly injector = inject(Injector);
+  private readonly disabledFor = makeDisabledResolver(this.injector);
+
   protected isDisabled(item: MenuContribution): boolean {
-    return item.disabled == null ? false : item.disabled();
+    return this.disabledFor(item)();
   }
 
   protected runItem(item: MenuContribution): void {
-    if (item.divider) return;
     try {
-      item.run();
+      runContribution(item, this.injector);
     } finally {
       // Dismiss regardless of run() outcome so a broken contribution
       // doesn't leave a stuck menu on screen.

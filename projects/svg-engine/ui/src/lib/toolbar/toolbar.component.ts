@@ -1,8 +1,20 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  Injector,
+  input,
+} from '@angular/core';
 import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatTooltip } from '@angular/material/tooltip';
-import { MenuContributionRegistry, type MenuContribution } from 'svg-engine/edit';
+import {
+  makeDisabledResolver,
+  MenuContributionRegistry,
+  runContribution,
+  type MenuContribution,
+} from 'svg-engine/edit';
 
 /**
  * Renders all visible {@link MenuContribution}s for a given slot as a
@@ -46,7 +58,7 @@ import { MenuContributionRegistry, type MenuContribution } from 'svg-engine/edit
         [matTooltip]="tooltipFor(item)"
         matTooltipPosition="below"
         [disabled]="isDisabled(item)"
-        (click)="item.run()"
+        (click)="invoke(item)"
       >
         @if (item.icon) {
           <mat-icon>{{ item.icon }}</mat-icon>
@@ -72,6 +84,21 @@ import { MenuContributionRegistry, type MenuContribution } from 'svg-engine/edit
 })
 export class SvgeToolbar {
   private readonly registry = inject(MenuContributionRegistry);
+  /**
+   * D-043 fix: consumer injector — passed to `disabled` factories AND
+   * to `run()` so contribution handlers resolve services from the
+   * **active editor scope**, not from the plugin's install-time
+   * (root) closure. In single-editor apps this is the root injector
+   * anyway; in route-scoped (D-042) editors it's the per-route one.
+   */
+  private readonly injector = inject(Injector);
+  /**
+   * Memoized resolver: factory-form `disabled` signals are
+   * instantiated once per (contribution × this component) instead of
+   * once per change-detection cycle. See {@link makeDisabledResolver}
+   * for the full contract.
+   */
+  private readonly disabledFor = makeDisabledResolver(this.injector);
 
   /** Which slot to render. See `MenuSlot` for conventions. */
   readonly slot = input.required<string>();
@@ -84,7 +111,11 @@ export class SvgeToolbar {
   protected readonly items = computed(() => this.registry.bySlot(this.slot())());
 
   protected isDisabled(item: MenuContribution): boolean {
-    return item.disabled == null ? false : item.disabled();
+    return this.disabledFor(item)();
+  }
+
+  protected invoke(item: MenuContribution): void {
+    runContribution(item, this.injector);
   }
 
   protected tooltipFor(item: MenuContribution): string {

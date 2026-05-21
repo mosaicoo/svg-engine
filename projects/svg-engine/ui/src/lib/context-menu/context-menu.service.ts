@@ -1,6 +1,6 @@
 import { Overlay, type OverlayRef } from '@angular/cdk/overlay';
 import { ComponentPortal } from '@angular/cdk/portal';
-import { inject, Injectable, type OnDestroy } from '@angular/core';
+import { inject, Injectable, type Injector, type OnDestroy } from '@angular/core';
 import { SvgeContextMenu } from './context-menu.component';
 
 /**
@@ -42,8 +42,21 @@ export class SvgeContextMenuService implements OnDestroy {
    *
    * @param slot Registry slot id (e.g., `'context.canvas'`).
    * @param position Viewport coordinates — typically `event.clientX/Y`.
+   * @param parentInjector Optional **D-043 fix**: when supplied, the
+   *   rendered `<svge-context-menu>` is attached with this injector as
+   *   its parent. The component's `inject(Injector)` then returns the
+   *   active editor scope (D-042 route-scoped) instead of the overlay
+   *   root injector. Without this, menu contribution handlers that
+   *   call `injector.get(SelectionService)` would hit the root
+   *   service and operate on the wrong document. Callers pass the
+   *   trigger directive's own injector (which is the host
+   *   component's scope).
    */
-  open(slot: string, position: { readonly x: number; readonly y: number }): void {
+  open(
+    slot: string,
+    position: { readonly x: number; readonly y: number },
+    parentInjector?: Injector,
+  ): void {
     this.close();
 
     // Global positioning is the simplest match for free-floating menus
@@ -67,7 +80,13 @@ export class SvgeContextMenuService implements OnDestroy {
       panelClass: 'svge-context-menu-panel',
     });
 
-    const portal = new ComponentPortal(SvgeContextMenu);
+    // D-043 fix: passing `parentInjector` as the 3rd arg makes the
+    // rendered SvgeContextMenu's `inject(Injector)` resolve to the
+    // caller's scope (typically the editor route's injector), so
+    // contribution handlers reach the active editor's services.
+    // Fallback to undefined preserves the original behavior for
+    // single-editor callers that don't pass anything.
+    const portal = new ComponentPortal(SvgeContextMenu, null, parentInjector);
     const componentRef = overlayRef.attach(portal);
     componentRef.setInput('slot', slot);
 

@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   inject,
+  Injector,
   input,
   type Signal,
 } from '@angular/core';
@@ -10,7 +11,12 @@ import { MatButton } from '@angular/material/button';
 import { MatDivider } from '@angular/material/divider';
 import { MatIcon } from '@angular/material/icon';
 import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
-import { type MenuContribution, MenuContributionRegistry } from 'svg-engine/edit';
+import {
+  makeDisabledResolver,
+  MenuContributionRegistry,
+  runContribution,
+  type MenuContribution,
+} from 'svg-engine/edit';
 
 /**
  * Top-level menu bar — Sprint Pro-Editor (2026-05-20). Renders a row of
@@ -199,13 +205,20 @@ export class SvgeMenuBar {
       .filter((c) => c.parentId === parentId);
   }
 
+  /**
+   * D-043 fix: consumer injector — passed to factory-form `disabled`
+   * resolvers AND to `run()` so handlers reach the active editor
+   * scope (per-route in D-042 multi-editor apps).
+   */
+  private readonly injector = inject(Injector);
+  private readonly disabledFor = makeDisabledResolver(this.injector);
+
   protected isDisabled(item: MenuContribution): boolean {
-    return item.disabled == null ? false : item.disabled();
+    return this.disabledFor(item)();
   }
 
   protected runItem(item: MenuContribution): void {
-    if (item.divider) return;
-    item.run();
+    runContribution(item, this.injector);
   }
 
   /** Fallback humanizer for slots without an explicit label. */

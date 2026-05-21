@@ -1,4 +1,47 @@
-import type { Signal } from '@angular/core';
+import type { Injector, Signal } from '@angular/core';
+
+/**
+ * Per-fire context passed to {@link MenuContribution.run} and to
+ * factory-style `disabled` resolvers — D-043 fix follow-up.
+ *
+ * Lets handlers resolve services from the **active editor's injector**
+ * rather than from a closure captured at plugin install time. Critical
+ * for multi-editor apps using {@link provideSvgEngineEditorScope}: a
+ * Delete handler must operate on **this editor's** `SelectionService`,
+ * not on the root one.
+ *
+ * **Fields**:
+ * - `injector`: the {@link Injector} of the dispatching UI component
+ *   (`<svge-menu-bar>`, `<svge-toolbar>`, `<svge-context-menu>`).
+ *   In a route-scoped editor, that's the per-editor injector. In a
+ *   single-editor app it's effectively the root injector — equivalent
+ *   to the install-time closure pattern.
+ *
+ * **Why mirror `ShortcutContext`**: keeps the multi-editor contract
+ * uniform across contribution surfaces (shortcuts, menus, toolbars,
+ * context menus). Plugin authors only learn the pattern once.
+ */
+export interface MenuContributionContext {
+  readonly injector: Injector;
+}
+
+/**
+ * Factory form of the `disabled` field — produces a reactive
+ * {@link Signal} resolved from the **consumer's** injector. UI
+ * components (`<svge-menu-bar>` etc.) memoize the result per-id so the
+ * factory runs once per consumer instance and per contribution, not
+ * once per change-detection cycle.
+ *
+ * **Why a factory and not just a Signal**: signals capture references
+ * to the services they read from. A signal created at plugin install
+ * time captures **root** services — in multi-editor / route-scoped
+ * apps that's the wrong scope. The factory defers signal creation to
+ * the point where the consumer's injector is known.
+ */
+export type MenuContributionDisabled =
+  | Signal<boolean>
+  | ((injector: Injector) => Signal<boolean>)
+  | null;
 
 /**
  * Where a menu contribution wants to appear. The string is opaque to
@@ -38,12 +81,19 @@ export type MenuSlot = string;
  *   (Bloco 4g). Kept as a hint here so the toolbar can show it now.
  * - `order`: sort key within the slot (lower = first). Defaults to 100.
  *   Spacing of 100 leaves room for inserts (`50`, `150`, etc.).
- * - `disabled`: reactive signal — UI checks each render. When `null`,
- *   the item is never disabled. Computed signals are encouraged so
- *   contributions reflect selection / document state automatically.
+ * - `disabled`: reactive **signal OR factory** — UI checks each render.
+ *   When `null`, the item is never disabled. Factory form
+ *   `(injector) => Signal<boolean>` lets the disabled signal resolve
+ *   services from the consumer's injector (multi-editor scope-aware,
+ *   per D-042/D-043 follow-up). Signal form remains supported for
+ *   single-editor apps.
  * - `visible`: reactive signal — `false` removes the item entirely.
  *   When `null`, always visible.
- * - `run`: callback fired when the user activates the item.
+ * - `run`: callback fired when the user activates the item. Receives
+ *   an optional {@link MenuContributionContext} from the dispatching
+ *   UI component (post-D-043 fix); use it to resolve services from
+ *   the active editor scope. Handlers that ignore `ctx` keep working
+ *   in single-editor apps.
  *
  * **Why signals instead of plain booleans / functions**: signal-driven
  * UI updates are the standard pattern across the codebase (Tool,
@@ -59,7 +109,7 @@ export interface MenuContribution {
   readonly tooltip?: string;
   readonly shortcut?: string;
   readonly order?: number;
-  readonly disabled?: Signal<boolean> | null;
+  readonly disabled?: MenuContributionDisabled;
   readonly visible?: Signal<boolean> | null;
   /**
    * **Sprint Pro-Editor (2026-05-20 D-038)** — optional parent contribution id.
@@ -92,6 +142,12 @@ export interface MenuContribution {
    * an accessibility label / section heading.
    */
   readonly divider?: boolean;
-  /** Activated by the UI (click / keyboard). MUST NOT throw. NOT called for dividers. */
-  run(): void;
+  /**
+   * Activated by the UI (click / keyboard). MUST NOT throw. NOT called
+   * for dividers. The optional {@link MenuContributionContext} carries
+   * the dispatching component's injector — use it to resolve services
+   * from the active editor scope (D-043 fix). Handlers may ignore it
+   * in single-editor apps.
+   */
+  run(ctx?: MenuContributionContext): void;
 }

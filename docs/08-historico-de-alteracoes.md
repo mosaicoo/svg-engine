@@ -6,7 +6,84 @@
 
 ---
 
-## 2026-05-21 — D-043 UI controls full-functionality — `builtinMenuContributionsPlugin` substitui demoMenuBarPlugin
+## 2026-05-21 — Fix REAL de D-043: MenuContribution context per-fire + disabled como factory (corrige tentativa anterior)
+
+**Bug reportado**: Após o commit anterior de D-043, usuário testou `/pro-editor` e reportou: menus + submenus + context menu sem ação; itens aparecendo todos disabled. **Mesma natureza** do bug do PageOverlay (svgeBehind via host binding não funcionava) — minha implementação tinha furo arquitetural não testado em multi-editor real.
+
+**Diagnóstico**
+
+O `builtinMenuContributionsPlugin` registra contribuições via `MenuContributionRegistry` (registry app-wide, root). Captura `SelectionService` / `CommandBus` / etc. de `ctx.injector` (= **ROOT** injector). Com D-042 (`provideSvgEngineEditorScope()` em cada rota do playground), o `SelectionService` da rota é DIFERENTE da root. Resultado:
+
+1. **Disabled signals stale**: `hasSelection = computed(() => selection_ROOT.hasSelection())` — root nunca é tocada → sempre `false` → todos os itens com `disabled: noSelection` aparecem disabled
+2. **Run handlers errados**: `MenuContribution.run()` não recebia contexto runtime → handlers caem no fallback root → operam em ROOT services em vez do scope ativo
+
+Spec anterior (12 testes) só verificava em scope único (root) → passou apesar do furo. **Mesmo problema didático do spec anti-svgeBehind que só checava attribute presence**.
+
+**Fix arquitetural** (mesmo padrão de D-042 ShortcutContext)
+
+1. **Interface `MenuContribution` recebe duas adições**:
+   - `MenuContributionContext { injector: Injector }` — passado ao `run(ctx?)`
+   - `disabled` agora aceita `Signal<boolean>` OR `(injector: Injector) => Signal<boolean>` (factory)
+   - Factory permite a signal ser criada per-consumer com o injector certo
+
+2. **Helpers `menu-context.ts`** em `svg-engine/edit/lib/menu/`:
+   - `resolveDisabledSignal(contribution, injector)` — discrimina Signal vs factory via `Function.length`
+   - `makeDisabledResolver(injector)` — memoiza por id (factory roda 1× por consumer, não por CD cycle)
+   - `runContribution(contribution, injector)` — envolve `run({injector})` + skip de divider
+
+3. **3 consumer components atualizados** para injetar `Injector` e passar via helpers:
+   - `<svge-toolbar>` — `isDisabled` usa resolver; `(click)` chama `invoke()` que passa ctx
+   - `<svge-menu-bar>` — idem; topo + submenus
+   - `<svge-context-menu>` — idem
+   - **`SvgeContextMenuService.open(slot, position, parentInjector?)`** ganha 3º arg; `ComponentPortal` recebe o injector como pai → `inject(Injector)` dentro do `<svge-context-menu>` resolve para o scope do trigger (não para root do overlay)
+   - **`SvgeContextMenuTrigger`** passa `this.injector` no `service.open()`
+
+4. **`builtinMenuContributionsPlugin` refatorado**: todos os `disabled` agora são factories; todos os `run(runCtx)` usam `fromCtx(token, runCtx)` resolvendo do scope ativo
+
+5. **Spec multi-editor adicionado** (5 testes novos): monta 2 hosts com `provideSvgEngineEditorScope()` separados, prova que:
+   - Delete fired from host A only mutates host A's document, NOT host B's
+   - Undo disabled signal in scope A reflects A's history independently from B's
+   - Factory `disabled` é per-scope (não compartilhado)
+
+Caso de controle inverso: o spec antigo (12 testes) refeito para usar `resolveDisabledSignal()` + `run({injector})` — passa, comprovando que single-editor continua funcionando.
+
+**Status bar (esclarecimento ao reporte do usuário)**
+
+O usuário também reportou "itens do rodapé não possuem funcionalidade". Verificado: `<svge-status-bar>` é **by design display-only** (linhas 62-64 do componente declaram isso explicitamente: "All sections are passive — they only read state, never mutate."). Não é bug — é decisão arquitetural de D-035. Para ações no rodapé o consumer registra contribuições em algum slot e renderiza com `<svge-toolbar>` em vez do status bar.
+
+**Ícones (esclarecimento ao reporte do usuário)**
+
+`group_work` e `workspaces` reportados como "ausentes em botões". Ambos são icons standard do Material Icons font (carregado via `<link>` em `index.html`). Provável causa: cache de build anterior ao deploy do D-043 commit. Com fresh build (este commit), devem aparecer. Se persistir, próximo passo é trocar por `merge` / `call_split` (semanticamente equivalentes e visualmente mais óbvios).
+
+**Garantias verificadas**
+
+- ✅ **1038/1038 specs** passando (1026 anteriores + 12 do plugin existing + 5 novos multi-editor)
+- ✅ 6 entry points + playground build clean
+- ✅ Zero breaking (interface aceita Signal OU factory — back-compat com qualquer plugin que use signal form)
+- ✅ D-017 headless boundary intacta
+- ✅ D-042 multi-editor scope safe — spec prova com 2 hosts isolados
+
+**Lesson learned forte** (registrada também pela tentativa anterior do svgeBehind)
+
+Quando uma decisão arquitetural envolve **resolução de DI cross-scope** ou **content projection**, o spec **precisa testar o cenário multi-instance real**, não o cenário single-scope. Spec single-scope passa mesmo quando o multi-scope quebra. Caso contrário ilude.
+
+**Arquivos**
+
+- `projects/svg-engine/edit/src/lib/menu/menu-contribution.ts` — `MenuContributionContext`, `MenuContributionDisabled` types; `run(ctx?)` opcional
+- `projects/svg-engine/edit/src/lib/menu/menu-context.ts` — **novo** helpers compartilhados
+- `projects/svg-engine/edit/src/lib/menu/index.ts` — re-exporta novos types + helpers
+- `projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts` — refatorado para factory + ctx
+- `projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.spec.ts` — spec reescrito + 5 testes multi-editor
+- `projects/svg-engine/ui/src/lib/toolbar/toolbar.component.ts` — usa `makeDisabledResolver` + `runContribution`
+- `projects/svg-engine/ui/src/lib/menu-bar/menu-bar.component.ts` — idem
+- `projects/svg-engine/ui/src/lib/context-menu/context-menu.component.ts` — idem
+- `projects/svg-engine/ui/src/lib/context-menu/context-menu.service.ts` — `open(...)` aceita `parentInjector` propagado ao `ComponentPortal`
+- `projects/svg-engine/ui/src/lib/context-menu/context-menu-trigger.directive.ts` — passa `this.injector` ao `service.open()`
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+
+---
+
+## 2026-05-21 — D-043 UI controls full-functionality — `builtinMenuContributionsPlugin` substitui demoMenuBarPlugin (TENTATIVA ANTERIOR — vide nota corretiva acima)
 
 **Pedido do usuário**: "todos os controles definidos na UI do svg-engine estejam totalmente funcionais e suportem integralmente as ações disponíveis na engine". Diagnosticada como **mocks no demoMenuBarPlugin**: todos os `run()` faziam `console.info(...)`. Menus visuais profissionais mas nenhum botão fazia ação real.
 

@@ -1,4 +1,4 @@
-import { computed, type ProviderToken } from '@angular/core';
+import { computed, type Injector, type ProviderToken, type Signal } from '@angular/core';
 import {
   CommandBus,
   EditorStateService,
@@ -17,78 +17,55 @@ import { PLUGIN_API_VERSION } from '../../plugin/plugin';
 import { SelectionService } from '../../selection/selection.service';
 import { WorkspaceService } from '../../workspace/workspace.service';
 import { MenuContributionRegistry } from '../menu-contribution-registry.service';
+import type { MenuContributionContext } from '../menu-contribution';
 import { CONTEXT_MENU_SLOT, MENU_SLOT, TOOLBAR_SLOT } from '../menu-slots';
 
 /**
  * **`builtinMenuContributionsPlugin`** — **D-043** (UI controls full-functionality sprint).
  *
  * Populates `MenuContributionRegistry` with **canonical, fully-wired**
- * File / Edit / View / Object / Help / toolbar / context items so the
- * default shell composition (`<svge-editor>` and `<svge-shell-pro>`)
- * has **real, working** actions out of the box — replacing the
- * playground `demoMenuBarPlugin` which only had `console.info(...)`
- * mocks.
+ * Edit / View / Object / Help / toolbar / context items so the default
+ * shell composition (`<svge-editor>` and `<svge-shell-pro>`) has
+ * **real, working** actions out of the box.
  *
  * **Opt-in**: like {@link builtinEditorShortcutsPlugin}, this plugin
  * is **not** auto-installed by the shell. Consumers explicitly add it
- * to their `provideSvgEnginePlugin(...)` chain. The Mosaicoo drop-in
- * shell (and the playground) install it by default; consumers wanting
- * different menu layouts can omit it and register their own.
+ * via `provideSvgEnginePlugin(...)`. Mosaicoo / playground install it
+ * by default; consumers wanting different layouts omit it and
+ * register their own.
  *
- * **D-042 multi-editor safety**: every `run()` handler resolves services
- * from the **per-fire injector** (via `currentInjector()`), with
- * fallback to the plugin install context. Disable `Signal`s capture
- * the install-time services (which is fine — for the disable check,
- * any editor instance's bus/history reflects the global current
- * state of the same store; in route-scoped editors only one is
- * mounted at a time anyway).
+ * **D-042 / D-043 multi-editor safety**:
  *
- * **What's NOT included** (intentional scope):
+ * - **`run()` handlers** read the per-fire `MenuContributionContext`
+ *   passed by the UI component (`<svge-menu-bar>`, `<svge-toolbar>`,
+ *   `<svge-context-menu>`) and resolve services from `ctx.injector`
+ *   (= the **active editor scope** in route-scoped apps).
+ * - **`disabled` signals** use the **factory form**
+ *   `(injector) => Signal<boolean>` so the consumer component
+ *   instantiates one signal per-instance, reading services from its
+ *   own injector. Avoids the stale-root-services trap that the
+ *   first attempt at D-043 fell into (handlers worked-ish but
+ *   disabled signals always showed root state).
  *
- * - **Clipboard items** (`Cut`/`Copy`/`Paste`) — no `ClipboardService`
- *   yet. When that lands, append items to File/Edit and CONTEXT_NODE.
- * - **Duplicate** — needs `DuplicateCommand` (deferred from D-040).
- * - **Save** / **Open** / **New** — depend on the consumer's persistence
- *   strategy. Consumers register these themselves.
- * - **Export SVG / PNG (with dialog)** — opening the source-viewer
- *   dialog needs `MatDialog` which lives in `svg-engine/ui`. This
- *   plugin lives in `edit` and cannot import from `ui` (D-017).
- *   Consumers wanting that pattern register a `ui`-side wrapper.
- * - **Align / Distribute** — needs rendered-node bboxes
- *   (`NodeBBox[]`), which requires a live SVG DOM reference. Plugin
- *   handlers don't have one. The Inspector / a future align-tool
- *   surface those buttons where the canvas ref is available.
- * - **Workspace Settings dialog** — same Material-dialog dep as Export.
+ * **What's NOT included** (intentional scope, registered in D-043):
+ * - Clipboard items (Cut/Copy/Paste) — no `ClipboardService` yet.
+ * - Duplicate — no `DuplicateCommand` (deferred).
+ * - Save / Open / New — depend on consumer's persistence strategy.
+ * - Export with dialog / Workspace Settings dialog — require Material
+ *   dialog (`MatDialog` lives in `ui`; plugin in `edit` cannot import).
+ * - Align / Distribute — require rendered-node bboxes (SVG DOM ref).
  *
- * **What IS included**:
+ * **What IS included** (31 contributions):
  *
- * | Slot                         | Item              | Action                                |
- * | ---------------------------- | ----------------- | ------------------------------------- |
- * | `menu.edit`                  | Undo              | `bus.undo()`                          |
- * | `menu.edit`                  | Redo              | `bus.redo()`                          |
- * | `menu.edit`                  | Delete            | `RemoveNodeCommand` for each selected |
- * | `menu.edit`                  | Select All        | `selection.selectMany(root.children)` |
- * | `menu.edit`                  | Group             | `GroupSelectionCommand(ids)`          |
- * | `menu.edit`                  | Ungroup           | `UngroupCommand(focusId)`             |
- * | `menu.view`                  | Zoom In           | `viewport.zoomIn()`                   |
- * | `menu.view`                  | Zoom Out          | `viewport.zoomOut()`                  |
- * | `menu.view`                  | Reset Zoom        | `viewport.reset()`                    |
- * | `menu.view`                  | Toggle Outline    | `workspace.toggleOutlineMode()`       |
- * | `menu.view`                  | Toggle Grid       | `workspace.toggleGrid()`              |
- * | `menu.view`                  | Toggle Rulers     | `workspace.toggleRulers()`            |
- * | `menu.object`                | Bring to Front    | `ReorderNodeCommand(id, 'toFront')`   |
- * | `menu.object`                | Bring Forward     | `ReorderNodeCommand(id, 'forward')`   |
- * | `menu.object`                | Send Backward     | `ReorderNodeCommand(id, 'backward')`  |
- * | `menu.object`                | Send to Back      | `ReorderNodeCommand(id, 'toBack')`    |
- * | `menu.help`                  | About SVGEngine   | `alert(...)` (consumer overrides)     |
- * | `toolbar.main`               | Undo / Redo / Group / Ungroup / Delete | same as menu     |
- * | `context.canvas`             | Select All / Zoom In / Zoom Out / Reset Zoom        | same as menu     |
- * | `context.node`               | Delete / Group / Ungroup / Bring Forward / Send Backward | same as menu |
- *
- * Every item has reactive `disabled` signals — e.g., Undo is disabled
- * when `history.canUndo()` is false; Group is disabled when fewer than
- * 2 items are selected; Bring Forward is disabled when nothing is
- * selected.
+ * | Slot                         | Items                                                       |
+ * | ---------------------------- | ----------------------------------------------------------- |
+ * | `menu.edit`                  | Undo, Redo, Delete, Select All, Group, Ungroup + dividers   |
+ * | `menu.view`                  | Zoom In/Out/Reset, Show Grid/Rulers, Outline Mode           |
+ * | `menu.object`                | Bring to Front, Bring Forward, Send Backward, Send to Back  |
+ * | `menu.help`                  | About SVGEngine                                             |
+ * | `toolbar.main`               | Undo, Redo, Delete, Group, Ungroup                          |
+ * | `context.canvas`             | Select All, Zoom In/Out/Reset                               |
+ * | `context.node`               | Delete, Group, Ungroup, Bring Forward, Send Backward        |
  */
 export const builtinMenuContributionsPlugin: EditorPlugin = {
   id: 'svge.builtin.menu-contributions',
@@ -99,45 +76,43 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
   install(ctx) {
     const reg = ctx.injector.get(MenuContributionRegistry);
 
-    // Install-context resolution for `disabled` signals (read-only and
-    // read at signal-fire time — single-editor or route-scoped, the
-    // store under test always reflects current state).
-    const history = ctx.injector.get(HistoryService);
-    const selection = ctx.injector.get(SelectionService);
-    const state = ctx.injector.get(EditorStateService);
+    // ── Factory helpers for `disabled` signals (D-043 fix) ─────────
+    // Each factory takes the CONSUMER's injector (the editor scope
+    // the contribution is being rendered in) and returns a Signal.
+    // The UI component memoizes one signal per (contribution × instance).
+    const canUndoFactory = (injector: Injector): Signal<boolean> => {
+      const history = injector.get(HistoryService);
+      return computed(() => !history.canUndo());
+    };
+    const canRedoFactory = (injector: Injector): Signal<boolean> => {
+      const history = injector.get(HistoryService);
+      return computed(() => !history.canRedo());
+    };
+    const noSelectionFactory = (injector: Injector): Signal<boolean> => {
+      const selection = injector.get(SelectionService);
+      return computed(() => !selection.hasSelection());
+    };
+    const cantGroupFactory = (injector: Injector): Signal<boolean> => {
+      const selection = injector.get(SelectionService);
+      return computed(() => selection.selectedIds().size < 2);
+    };
+    const cantUngroupFactory = (injector: Injector): Signal<boolean> => {
+      const selection = injector.get(SelectionService);
+      const state = injector.get(EditorStateService);
+      return computed(() => {
+        const focus = selection.focusId();
+        if (focus === null) return true;
+        const node = findNodeById(state.document().root, focus);
+        return node === null || node.type !== 'group';
+      });
+    };
 
-    // Reactive guards — encoded once, shared between menu and toolbar
-    // items so layout changes don't require duplicating logic.
-    const canUndo = computed(() => history.canUndo());
-    const canRedo = computed(() => history.canRedo());
-    const hasSelection = computed(() => selection.hasSelection());
-    const canGroup = computed(() => selection.selectedIds().size >= 2);
-    const canUngroup = computed(() => {
-      const focus = selection.focusId();
-      if (focus === null) return false;
-      const node = findNodeById(state.document().root, focus);
-      return node !== null && node.type === 'group';
-    });
-
-    // ── Lazy injector helper (D-042 multi-editor safety) ───────────
-    // run() handlers ALWAYS resolve services from the per-fire ctx
-    // injector when available (= the editor that triggered the
-    // action) and fall back to the plugin install context otherwise
-    // (= single-editor or direct test invocation).
-    //
-    // NOTE on the disabled signals above: they read install-context
-    // services. In multi-editor with route-scoped DI (D-042 — only one
-    // route mounted at a time), the install-context = root, but the
-    // root services aren't being mutated (route-scoped overrides them
-    // for active components). The disabled signal reflects the ROOT
-    // state which is stale. Acceptable trade-off for v1 — a follow-up
-    // can attach per-editor disabled signals if multi-editor side-by-
-    // side becomes a real scenario (see D-042 "fora de escopo").
-    interface CtxArg {
-      readonly injector?: { get<T>(t: ProviderToken<T>): T };
-    }
-    const fromCtx = <T>(token: ProviderToken<T>, run?: CtxArg): T =>
-      (run?.injector ?? ctx.injector).get(token);
+    // ── Lazy injector helper for run() handlers (D-043 fix) ────────
+    // Always reads from `runCtx.injector` when present (the editor
+    // that fired the action), falling back to the plugin install
+    // context for direct test invocations (no UI dispatch).
+    const fromCtx = <T>(token: ProviderToken<T>, runCtx?: MenuContributionContext): T =>
+      (runCtx?.injector ?? ctx.injector).get(token);
 
     // ── Edit menu ───────────────────────────────────────────────────
     ctx.track(
@@ -148,9 +123,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'undo',
         shortcut: 'Ctrl+Z',
         order: 10,
-        disabled: computed(() => !canUndo()),
-        run() {
-          fromCtx(CommandBus).undo();
+        disabled: canUndoFactory,
+        run(runCtx) {
+          fromCtx(CommandBus, runCtx).undo();
         },
       }),
     );
@@ -162,9 +137,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'redo',
         shortcut: 'Ctrl+Shift+Z',
         order: 20,
-        disabled: computed(() => !canRedo()),
-        run() {
-          fromCtx(CommandBus).redo();
+        disabled: canRedoFactory,
+        run(runCtx) {
+          fromCtx(CommandBus, runCtx).redo();
         },
       }),
     );
@@ -188,9 +163,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'delete',
         shortcut: 'Delete',
         order: 40,
-        disabled: computed(() => !hasSelection()),
-        run() {
-          deleteSelected(fromCtx);
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          deleteSelected(runCtx, fromCtx);
         },
       }),
     );
@@ -202,8 +177,8 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'select_all',
         shortcut: 'Ctrl+A',
         order: 50,
-        run() {
-          selectAllTopLevel(fromCtx);
+        run(runCtx) {
+          selectAllTopLevel(runCtx, fromCtx);
         },
       }),
     );
@@ -227,9 +202,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'group_work',
         shortcut: 'Ctrl+G',
         order: 70,
-        disabled: computed(() => !canGroup()),
-        run() {
-          groupSelection(fromCtx);
+        disabled: cantGroupFactory,
+        run(runCtx) {
+          groupSelection(runCtx, fromCtx);
         },
       }),
     );
@@ -241,9 +216,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'workspaces',
         shortcut: 'Ctrl+Shift+G',
         order: 80,
-        disabled: computed(() => !canUngroup()),
-        run() {
-          ungroupFocus(fromCtx);
+        disabled: cantUngroupFactory,
+        run(runCtx) {
+          ungroupFocus(runCtx, fromCtx);
         },
       }),
     );
@@ -256,8 +231,8 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         label: 'Zoom In',
         icon: 'zoom_in',
         order: 10,
-        run() {
-          fromCtx(ViewportService).zoomIn();
+        run(runCtx) {
+          fromCtx(ViewportService, runCtx).zoomIn();
         },
       }),
     );
@@ -268,8 +243,8 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         label: 'Zoom Out',
         icon: 'zoom_out',
         order: 20,
-        run() {
-          fromCtx(ViewportService).zoomOut();
+        run(runCtx) {
+          fromCtx(ViewportService, runCtx).zoomOut();
         },
       }),
     );
@@ -280,8 +255,8 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         label: 'Reset Zoom',
         icon: 'fit_screen',
         order: 30,
-        run() {
-          fromCtx(ViewportService).reset();
+        run(runCtx) {
+          fromCtx(ViewportService, runCtx).reset();
         },
       }),
     );
@@ -304,8 +279,8 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         label: 'Show Grid',
         icon: 'grid_on',
         order: 50,
-        run() {
-          fromCtx(WorkspaceService).toggleGrid();
+        run(runCtx) {
+          fromCtx(WorkspaceService, runCtx).toggleGrid();
         },
       }),
     );
@@ -316,8 +291,8 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         label: 'Show Rulers',
         icon: 'straighten',
         order: 60,
-        run() {
-          fromCtx(WorkspaceService).toggleRulers();
+        run(runCtx) {
+          fromCtx(WorkspaceService, runCtx).toggleRulers();
         },
       }),
     );
@@ -328,18 +303,18 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         label: 'Outline Mode',
         icon: 'gesture',
         order: 70,
-        run() {
-          fromCtx(WorkspaceService).toggleOutlineMode();
+        run(runCtx) {
+          fromCtx(WorkspaceService, runCtx).toggleOutlineMode();
         },
       }),
     );
 
     // ── Object menu ────────────────────────────────────────────────
-    const reorder = (direction: ReorderDirection, run?: CtxArg): void => {
-      const sel = fromCtx(SelectionService, run);
+    const reorder = (direction: ReorderDirection, runCtx?: MenuContributionContext): void => {
+      const sel = fromCtx(SelectionService, runCtx);
       const ids = Array.from(sel.selectedIds());
       if (ids.length === 0) return;
-      const bus = fromCtx(CommandBus, run);
+      const bus = fromCtx(CommandBus, runCtx);
       for (const id of ids) bus.dispatch(new ReorderNodeCommand(id, direction));
     };
     ctx.track(
@@ -350,9 +325,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'flip_to_front',
         shortcut: 'Ctrl+Shift+]',
         order: 10,
-        disabled: computed(() => !hasSelection()),
-        run() {
-          reorder('toFront');
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          reorder('toFront', runCtx);
         },
       }),
     );
@@ -364,9 +339,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'arrow_upward',
         shortcut: 'Ctrl+]',
         order: 20,
-        disabled: computed(() => !hasSelection()),
-        run() {
-          reorder('forward');
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          reorder('forward', runCtx);
         },
       }),
     );
@@ -378,9 +353,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'arrow_downward',
         shortcut: 'Ctrl+[',
         order: 30,
-        disabled: computed(() => !hasSelection()),
-        run() {
-          reorder('backward');
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          reorder('backward', runCtx);
         },
       }),
     );
@@ -392,9 +367,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'flip_to_back',
         shortcut: 'Ctrl+Shift+[',
         order: 40,
-        disabled: computed(() => !hasSelection()),
-        run() {
-          reorder('toBack');
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          reorder('toBack', runCtx);
         },
       }),
     );
@@ -408,8 +383,6 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'info',
         order: 10,
         run() {
-          // Plain alert keeps this dialog-free (consumers wanting a
-          // Material dialog override this id via their own plugin).
           alert(
             'SVGEngine — headless-first SVG editor for Angular.\nhttps://github.com/mosaicoo/svg-engine',
           );
@@ -417,7 +390,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
       }),
     );
 
-    // ── Toolbar.main (subset of edit/object actions, no labels) ────
+    // ── Toolbar.main ───────────────────────────────────────────────
     ctx.track(
       reg.register({
         id: 'svge.builtin.toolbar.undo',
@@ -426,9 +399,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'undo',
         tooltip: 'Undo (Ctrl+Z)',
         order: 10,
-        disabled: computed(() => !canUndo()),
-        run() {
-          fromCtx(CommandBus).undo();
+        disabled: canUndoFactory,
+        run(runCtx) {
+          fromCtx(CommandBus, runCtx).undo();
         },
       }),
     );
@@ -440,9 +413,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'redo',
         tooltip: 'Redo (Ctrl+Shift+Z)',
         order: 20,
-        disabled: computed(() => !canRedo()),
-        run() {
-          fromCtx(CommandBus).redo();
+        disabled: canRedoFactory,
+        run(runCtx) {
+          fromCtx(CommandBus, runCtx).redo();
         },
       }),
     );
@@ -454,9 +427,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'delete',
         tooltip: 'Delete selection (Delete)',
         order: 30,
-        disabled: computed(() => !hasSelection()),
-        run() {
-          deleteSelected(fromCtx);
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          deleteSelected(runCtx, fromCtx);
         },
       }),
     );
@@ -468,9 +441,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'group_work',
         tooltip: 'Group selection (Ctrl+G)',
         order: 40,
-        disabled: computed(() => !canGroup()),
-        run() {
-          groupSelection(fromCtx);
+        disabled: cantGroupFactory,
+        run(runCtx) {
+          groupSelection(runCtx, fromCtx);
         },
       }),
     );
@@ -482,14 +455,14 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'workspaces',
         tooltip: 'Ungroup focus (Ctrl+Shift+G)',
         order: 50,
-        disabled: computed(() => !canUngroup()),
-        run() {
-          ungroupFocus(fromCtx);
+        disabled: cantUngroupFactory,
+        run(runCtx) {
+          ungroupFocus(runCtx, fromCtx);
         },
       }),
     );
 
-    // ── Context.canvas (right-click on empty canvas) ───────────────
+    // ── Context.canvas ─────────────────────────────────────────────
     ctx.track(
       reg.register({
         id: 'svge.builtin.context.canvas.select-all',
@@ -498,8 +471,8 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'select_all',
         shortcut: 'Ctrl+A',
         order: 10,
-        run() {
-          selectAllTopLevel(fromCtx);
+        run(runCtx) {
+          selectAllTopLevel(runCtx, fromCtx);
         },
       }),
     );
@@ -522,8 +495,8 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         label: 'Zoom In',
         icon: 'zoom_in',
         order: 30,
-        run() {
-          fromCtx(ViewportService).zoomIn();
+        run(runCtx) {
+          fromCtx(ViewportService, runCtx).zoomIn();
         },
       }),
     );
@@ -534,8 +507,8 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         label: 'Zoom Out',
         icon: 'zoom_out',
         order: 40,
-        run() {
-          fromCtx(ViewportService).zoomOut();
+        run(runCtx) {
+          fromCtx(ViewportService, runCtx).zoomOut();
         },
       }),
     );
@@ -546,13 +519,13 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         label: 'Reset Zoom',
         icon: 'fit_screen',
         order: 50,
-        run() {
-          fromCtx(ViewportService).reset();
+        run(runCtx) {
+          fromCtx(ViewportService, runCtx).reset();
         },
       }),
     );
 
-    // ── Context.node (right-click on a shape / group) ──────────────
+    // ── Context.node ───────────────────────────────────────────────
     ctx.track(
       reg.register({
         id: 'svge.builtin.context.node.delete',
@@ -561,9 +534,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'delete',
         shortcut: 'Delete',
         order: 10,
-        disabled: computed(() => !hasSelection()),
-        run() {
-          deleteSelected(fromCtx);
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          deleteSelected(runCtx, fromCtx);
         },
       }),
     );
@@ -587,9 +560,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'group_work',
         shortcut: 'Ctrl+G',
         order: 30,
-        disabled: computed(() => !canGroup()),
-        run() {
-          groupSelection(fromCtx);
+        disabled: cantGroupFactory,
+        run(runCtx) {
+          groupSelection(runCtx, fromCtx);
         },
       }),
     );
@@ -601,9 +574,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'workspaces',
         shortcut: 'Ctrl+Shift+G',
         order: 40,
-        disabled: computed(() => !canUngroup()),
-        run() {
-          ungroupFocus(fromCtx);
+        disabled: cantUngroupFactory,
+        run(runCtx) {
+          ungroupFocus(runCtx, fromCtx);
         },
       }),
     );
@@ -627,9 +600,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'arrow_upward',
         shortcut: 'Ctrl+]',
         order: 60,
-        disabled: computed(() => !hasSelection()),
-        run() {
-          reorder('forward');
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          reorder('forward', runCtx);
         },
       }),
     );
@@ -641,9 +614,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'arrow_downward',
         shortcut: 'Ctrl+[',
         order: 70,
-        disabled: computed(() => !hasSelection()),
-        run() {
-          reorder('backward');
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          reorder('backward', runCtx);
         },
       }),
     );
@@ -651,43 +624,40 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
 };
 
 // ── Shared action implementations ────────────────────────────────
-// Extracted so the same logic powers Edit menu, toolbar, AND context
-// menu items without duplication. Each takes the lazy `fromCtx`
-// resolver so multi-editor (D-042) routing works.
+// Each takes the runtime ctx so the same logic powers Edit menu,
+// toolbar, AND context menu items. Resolution goes through `fromCtx`
+// which uses `runCtx.injector` (consumer scope) when available.
 
-type Resolver = <T>(
-  token: ProviderToken<T>,
-  run?: { readonly injector?: { get<T2>(t: ProviderToken<T2>): T2 } },
-) => T;
+type Resolver = <T>(token: ProviderToken<T>, runCtx?: MenuContributionContext) => T;
 
-function deleteSelected(fromCtx: Resolver): void {
-  const sel = fromCtx(SelectionService);
+function deleteSelected(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+  const sel = fromCtx(SelectionService, runCtx);
   const ids = Array.from(sel.selectedIds());
   if (ids.length === 0) return;
-  const bus = fromCtx(CommandBus);
+  const bus = fromCtx(CommandBus, runCtx);
   for (const id of ids) bus.dispatch(new RemoveNodeCommand(id));
 }
 
-function selectAllTopLevel(fromCtx: Resolver): void {
-  const state = fromCtx(EditorStateService);
+function selectAllTopLevel(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+  const state = fromCtx(EditorStateService, runCtx);
   const root = state.document().root;
   if (root.type !== 'group' || root.children.length === 0) return;
-  fromCtx(SelectionService).selectMany(root.children.map((c) => c.id));
+  fromCtx(SelectionService, runCtx).selectMany(root.children.map((c) => c.id));
 }
 
-function groupSelection(fromCtx: Resolver): void {
-  const sel = fromCtx(SelectionService);
+function groupSelection(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+  const sel = fromCtx(SelectionService, runCtx);
   const ids = Array.from(sel.selectedIds());
   if (ids.length < 2) return;
-  fromCtx(CommandBus).dispatch(new GroupSelectionCommand(ids));
+  fromCtx(CommandBus, runCtx).dispatch(new GroupSelectionCommand(ids));
 }
 
-function ungroupFocus(fromCtx: Resolver): void {
-  const sel = fromCtx(SelectionService);
+function ungroupFocus(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+  const sel = fromCtx(SelectionService, runCtx);
   const focus = sel.focusId();
   if (focus === null) return;
-  const state = fromCtx(EditorStateService);
+  const state = fromCtx(EditorStateService, runCtx);
   const node = findNodeById(state.document().root, focus);
   if (node === null || node.type !== 'group') return;
-  fromCtx(CommandBus).dispatch(new UngroupCommand(focus));
+  fromCtx(CommandBus, runCtx).dispatch(new UngroupCommand(focus));
 }

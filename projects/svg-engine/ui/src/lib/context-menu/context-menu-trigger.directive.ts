@@ -1,4 +1,4 @@
-import { Directive, inject, input } from '@angular/core';
+import { Directive, inject, Injector, input } from '@angular/core';
 import { SvgeContextMenuService } from './context-menu.service';
 
 /**
@@ -42,6 +42,14 @@ import { SvgeContextMenuService } from './context-menu.service';
 })
 export class SvgeContextMenuTrigger {
   private readonly service = inject(SvgeContextMenuService);
+  /**
+   * **D-043 fix**: forwarded to `service.open(..., this.injector)` so
+   * the rendered `<svge-context-menu>` resolves services from the
+   * scope where the trigger is mounted (typically the editor route's
+   * scope), not from the overlay root injector. Critical in
+   * multi-editor / D-042 route-scoped setups.
+   */
+  private readonly injector = inject(Injector);
 
   /**
    * Slot id to open. Pass an empty string to **disable** the trigger
@@ -100,9 +108,13 @@ export class SvgeContextMenuTrigger {
     if (!this.allowNative()) {
       event.preventDefault();
     }
-    this.service.open(slot, {
-      x: event.clientX,
-      y: event.clientY,
-    });
+    this.service.open(
+      slot,
+      {
+        x: event.clientX,
+        y: event.clientY,
+      },
+      this.injector,
+    );
   }
 }
