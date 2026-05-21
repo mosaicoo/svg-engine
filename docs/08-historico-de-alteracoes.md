@@ -6,6 +6,99 @@
 
 ---
 
+## 2026-05-21 — D-044 follow-up²: dialogs movíveis e redimensionáveis
+
+**Pedido**: _"Dar a possibilidade do usuário mover e redimensionar as
+telas de diálogos. Essas funcionalidades não devem alterar o design
+criado."_
+
+**Estratégia arquitetural**
+
+Todo dialog do SVGEngine passa por `<svge-dialog-shell>` desde o
+follow-up anterior. Implementar drag + resize **só no shell** — todos
+os dialogs (atuais: View Source, Workspace Settings; futuros: Export
+options, About, etc.) herdam automaticamente. Zero alteração nos
+componentes consumidores. Default ligado.
+
+**Drag (CDK)**
+
+- Diretiva `cdkDrag` aplicada no `<header>` com
+  `cdkDragRootElement=".cdk-overlay-pane"` → o que move é o overlay
+  pane inteiro (a "janela" Material), não o conteúdo interno.
+- `cdkDragBoundary=".cdk-overlay-container"` → impede arrastar o
+  dialog pra fora do viewport (não some no escuro).
+- `cdkDragHandle` num `<div class="dlg-handle-zone">` que envolve
+  apenas ícone + títulos + spacer flex — **não** os botões de header
+  actions e Close X. Cliques nos botões continuam funcionando 100%.
+- `cursor: move` aplicado só quando `draggable() === true`, `cursor:
+grabbing` enquanto o CDK adiciona `.cdk-drag-dragging` ao header.
+
+**Resize (custom — CDK v21 não tem primitiva de resize)**
+
+- Grabber `.dlg-resize-handle` em `position: absolute` no canto
+  inferior direito do `:host` (com `position: relative` adicionado
+  para servir de reference).
+- Visual: dois traços diagonais via `linear-gradient`, opacity 0.6 →
+  1.0 no hover. Zero SVG, zero ícone — discreto, não compete com o
+  conteúdo.
+- Pointer events handler `onResizeStart` faz pointer capture, encontra
+  o `.cdk-overlay-pane` ancestor via `closest()`, e em cada `pointermove`
+  escreve `width`/`height` inline. Lifta `max-width`/`max-height` no
+  primeiro resize para que o usuário possa crescer além do budget
+  configurado (`'85vh'` do `svgeDialogConfig`).
+- Limites: floor `MIN_W=320 / MIN_H=220` (abaixo disso o chrome quebra)
+  e ceil `window.innerWidth/innerHeight - 16` (margem mínima para
+  re-agarrar). Botão primário apenas (`event.button === 0`).
+- **Por que não `CSS resize: both`**: não compõe com flexbox interno
+  (canto do host ≠ canto do pane), grabber nativo é unstyled e
+  inconsistente entre OSes, e não consegue mexer no sizing do
+  MatDialog. Handle custom dá controle total e visual consistente.
+- **Por que não `MatDialogRef.updateSize()`**: aceita só strings
+  fixas, força change detection a cada move (lag perceptível), e
+  acopla o shell ao `MatDialogRef` (que pode não estar disponível em
+  test rigs standalone).
+
+**Novos inputs no shell**
+
+- `draggable: boolean = true` — desliga drag para dialogs que ancoram
+  visualmente em algo (tipo tooltip-on-button).
+- `resizable: boolean = true` — desliga resize para dialogs com
+  aspect-ratio fixo (previews, alerts).
+
+**Acessibilidade**
+
+- Handle zone marcada `aria-hidden="true"` (o screen reader já anuncia
+  o `<header>` e o título separadamente).
+- Grabber: `role="separator"`, `aria-orientation="horizontal"`,
+  `aria-label="Resize dialog"`, `title="Drag to resize"`.
+- Botões do header permanecem com seus `aria-label`s próprios e
+  focáveis normalmente (não foram envolvidos pelo handle zone).
+
+**Design preservado**
+
+- Header, body, footer e suas dimensões inalterados.
+- Cursor `move` no header só aparece quando draggable=true (deixa
+  pista pro usuário sem agredir).
+- Grabber discreto (opacity 0.6 default, 16x16px), no canto, sem
+  competir com o conteúdo.
+- Border-radius, paddings, tipografia: todos idênticos ao commit
+  anterior.
+
+**Garantias verificadas**
+
+- ✅ **1049/1049 specs** passando (nenhuma quebra)
+- ✅ 6 entry points + playground build clean
+- ✅ Lint clean nos 2 projetos
+- ✅ Zero alteração visual default
+- ✅ Funciona em todos os dialogs sem mudança no chamador
+
+**Arquivos**
+
+- `projects/svg-engine/ui/src/lib/dialog-shell/dialog-shell.component.ts` — adiciona drag (CDK) + resize (custom) + 2 inputs novos (`draggable`, `resizable`)
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+
+---
+
 ## 2026-05-21 — D-044 follow-up: dialog design system (`<svge-dialog-shell>` + `svgeDialogConfig`)
 
 **Pedido**: _"Crie um padrão profissional das telas de diálogo e
