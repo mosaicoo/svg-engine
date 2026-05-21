@@ -6,6 +6,43 @@
 
 ---
 
+## 2026-05-21 — Fix regressão de z-order: PageOverlay + GridOverlay auto-tagging svgeBehind no host
+
+**Bug reportado pelo usuário**
+
+Screenshot do `/basic-editor` mostrando shapes (rect azul + círculo amarelo) **divididas por uma vertical line**: a metade que ficava **dentro da página** aparecia **lavada/desaturada**; a metade **fora da página** (pasteboard) aparecia com cor cheia. Pergunta: "Já não havíamos corrigido isso?"
+
+**Diagnóstico — regressão clássica**
+
+Sim, foi corrigido em **commit a20635b** (2026-05-19): "página e grid renderizam ATRÁS do conteúdo". Na época, `<svg-renderer>` ganhou um slot `[svgeBehind]` (renderizado ANTES de `<svg:g svgeNode>`); `playground-home.component.html` (hoje `custom-editor`) recebeu o atributo `svgeBehind` em `<svg:g svgePageOverlay>` e `<svg:g svgeGridOverlay>`.
+
+**Por que regrediu**: D-034 criou `<svge-editor>` (em `svg-engine/ui`) e D-038 Phase 4 criou `<svge-shell-pro>`. Ambos incluem `<svg:g svgePageOverlay>` no template MAS **sem** o atributo `svgeBehind` — o autor (eu) esqueceu o detalhe que o consumer era responsável por aplicar. Resultado: nas rotas `/basic-editor`, `/modular-editor`, `/embeddable-canvas`, `/pro-editor` o page rect voltou a render **na frente** do conteúdo, com seu fill `rgba(255,255,255,0.5)`, veluando shapes dentro da página.
+
+**Fix correto = componente, não consumer**
+
+A correção anterior trustava 100% no consumer lembrar do atributo. **Foot-gun**. Solução arquitetural: PageOverlay e GridOverlay são **semanticamente sempre background** — não há caso de uso para renderizá-los em primeiro plano. Então o componente deve **auto-tagear** `svgeBehind` via `host: { svgeBehind: '' }`. Assim qualquer consumer (custom-editor existente, `<svge-editor>`, `<svge-shell-pro>`, futuros shells, layouts custom) recebe z-order correto sem precisar lembrar do atributo.
+
+**Mudanças**
+
+- `projects/svg-engine/edit/src/lib/workspace/page-overlay.component.ts` — `host: { 'aria-hidden': 'true', svgeBehind: '' }` (era só aria-hidden) + comentário explicando o porquê do auto-tag e referenciando o commit a20635b
+- `projects/svg-engine/edit/src/lib/workspace/grid-overlay.component.ts` — mesma adição
+- `projects/svg-engine/ui/src/lib/editor/editor.component.ts` — comentário do `<svg:g svgePageOverlay>` reescrito (era "page vem antes dos overlays do consumer"; agora explica o auto-tag + cita os 2 commits de fix)
+- `projects/svg-engine/ui/src/lib/shell-pro/shell-pro.component.ts` — mesmo comentário
+- `projects/svg-engine/edit/src/lib/workspace/page-overlay.component.spec.ts` — novo bloco "regression guard for commit a20635b" testando que `host element carries the svgeBehind attribute`
+- `projects/svg-engine/edit/src/lib/workspace/grid-overlay.component.spec.ts` — **novo** (não existia spec antes); testa o mesmo regression guard
+
+**Garantias**
+
+- ✅ **1024/1024 specs** passando (era 1022 + 2 novos regression guards)
+- ✅ 6 entry points build clean
+- ✅ Playground build clean
+- ✅ Zero breaking change: `<svg:g svgePageOverlay svgeBehind>` em `custom-editor` continua válido (a atribuição via host bind é equivalente; HTML aceita o atributo declarado duas vezes — uma do host, uma do template — sem conflito)
+- ✅ **Bug não pode regredir** pela 3ª vez: spec de regressão falha imediatamente se alguém remover o host binding
+
+**Lesson learned** (registrar para próximos componentes): overlays **decorativos com fill** (page, grid, futuros background patterns, water marks) devem auto-tagear `svgeBehind` no host. Overlays **interativos com handles** (selection, marquee, rotation pivot, anchor overlay, snap guides, guides) ficam no slot default (front).
+
+---
+
 ## 2026-05-21 — D-042 Editor scope (route-scoped DI) — fix bug de estado compartilhado entre rotas
 
 **Bug reportado**

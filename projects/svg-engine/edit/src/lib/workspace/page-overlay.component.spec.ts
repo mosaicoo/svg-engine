@@ -34,6 +34,22 @@ function marginRect(host: HTMLElement): SVGRectElement | null {
   return host.querySelector('.margin-rect');
 }
 
+describe('PageOverlay — regression guard for commit a20635b (z-order)', () => {
+  it('host element carries the svgeBehind attribute so the renderer projects it under content', () => {
+    // Without this, the page rect (which has a semi-transparent white
+    // fill) renders ON TOP of shapes via SvgeRenderer's default front
+    // slot — desaturating colors inside the page boundary. Bug
+    // a20635b was the original fix; the host attr binding here makes
+    // every consumer (custom-editor, svge-editor shell, svge-shell-pro
+    // and any future composition) inherit correct z-order without
+    // having to remember the attribute manually.
+    const { fixture } = setup();
+    const gEl = fixture.nativeElement.querySelector('g[svgepageoverlay]');
+    expect(gEl).not.toBeNull();
+    expect(gEl?.hasAttribute('svgeBehind')).toBe(true);
+  });
+});
+
 describe('PageOverlay — default render', () => {
   it('renders a page rect with default DEFAULT_PAGE dimensions (800×600 landscape)', () => {
     const { fixture } = setup();

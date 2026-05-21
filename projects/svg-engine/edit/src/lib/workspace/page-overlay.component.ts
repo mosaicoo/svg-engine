@@ -47,10 +47,19 @@ import { pageBoundsIn, WorkspaceService } from './workspace.service';
   // eslint-disable-next-line @angular-eslint/component-selector
   selector: 'g[svgePageOverlay]',
   standalone: true,
-  // Decorative page marker — pointer-events: none, purely visual
-  // reference. Page dimensions are surfaced semantically via the
-  // Inspector's page section (when implemented).
-  host: { 'aria-hidden': 'true' },
+  // - `aria-hidden`: decorative page marker (purely visual reference;
+  //   page dimensions are surfaced semantically via the Inspector's
+  //   page section when implemented).
+  // - `svgeBehind`: ALWAYS render under the document content. The page
+  //   rect carries a semi-transparent fill (the "paper"); without this
+  //   attribute the renderer's default front slot would put it on TOP
+  //   of shapes, applying a white-50% veil that desaturates colors
+  //   inside the page boundary. Auto-tagging the host (instead of
+  //   trusting every consumer to remember `<svg:g svgePageOverlay
+  //   svgeBehind>`) prevents that regression — D-038's `<svge-editor>`
+  //   and D-038 Phase 4's `<svge-shell-pro>` both originally forgot
+  //   the attribute and reintroduced the bug.
+  host: { 'aria-hidden': 'true', svgeBehind: '' },
   template: `
     @if (pageBounds(); as p) {
       <!--
