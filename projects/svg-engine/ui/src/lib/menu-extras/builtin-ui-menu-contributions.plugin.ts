@@ -34,14 +34,18 @@ import { SvgeSvgSourceDialog } from '../svg-source-dialog';
  *   never install this — they don't have Material loaded at all.
  *   Consumers using the shells install both edit + ui plugins together.
  *
- * **Multi-editor (D-042/D-043)**: `run()` handlers receive
+ * **Multi-editor (D-042/D-043/D-044)**: `run()` handlers receive
  * `MenuContributionContext` and resolve `MatDialog` from the consumer
- * injector via `ctx.injector.get(MatDialog)`. The opened dialog
- * component (`<svge-svg-source-dialog>`) injects services from its own
- * injection context (root-scoped MatDialog overlay) but reads
- * `EditorStateService` etc. that resolve through the dialog's parent
- * scope — which is the consumer's. So source view reflects the active
- * editor's document.
+ * injector. **Critically**, the opened dialog is wired with
+ * `MatDialogConfig.injector = runCtx.injector` so the dialog
+ * component's `inject(EditorStateService)` (and any other service
+ * lookup) resolves from the **active editor scope** — not from the
+ * overlay's root injector. Without that wiring the dialog would show
+ * the root `EditorStateService` (empty document) instead of the
+ * route-scoped one (with the actual shapes), which was the symptom
+ * observed when the dialog first shipped — the SVG body came back
+ * empty even though the canvas had content. Same defect class as
+ * `SvgeContextMenuService` before its parent-injector fix.
  *
  * **Future items** for this plugin (registered as deferred):
  * - Workspace Settings… (dialog with `<svge-workspace-settings>`)
@@ -83,6 +87,14 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
             maxHeight: '90vh',
             autoFocus: false,
             restoreFocus: true,
+            // D-044 follow-up fix: scope the dialog component's
+            // injector to the editor's so EditorStateService resolves
+            // to the active document (not the overlay-root empty one).
+            // `runCtx?.injector` is the dispatching consumer's
+            // injector (e.g., a route with provideSvgEngineEditorScope).
+            // Falls back to ctx.injector (plugin install ctx = root)
+            // for single-editor / direct-test invocations.
+            injector: runCtx?.injector ?? ctx.injector,
           });
         },
       }),
