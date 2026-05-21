@@ -6,7 +6,72 @@
 
 ---
 
-## 2026-05-21 — Fix regressão de z-order: PageOverlay + GridOverlay auto-tagging svgeBehind no host
+## 2026-05-21 — Fix REAL de z-order: svgeBehind literal nas templates de svge-editor + svge-shell-pro (corrige tentativa anterior)
+
+**Tentativa anterior (commit `f4ea08c`) NÃO funcionou**
+
+A correção daquele commit usou `host: { svgeBehind: '' }` em `PageOverlay` e `GridOverlay`, esperando que Angular auto-tagueasse o host element e o `<ng-content select="[svgeBehind]">` do renderer pegasse via projeção. **Errado**: Angular content projection é **compile-time** — decide o slot baseado nos atributos escritos na **template do consumer**, **não em atributos adicionados em runtime via host binding**. O atributo aparecia no DOM (verdade) mas o slot já tinha sido decidido como front (default).
+
+Os specs de regressão da tentativa anterior testavam apenas `hasAttribute('svgeBehind')` — passavam mas **não validavam projeção real**. Tipo de spec que dá confiança falsa.
+
+**Diagnóstico confirmado pelo usuário** mostrando screenshots:
+
+- ✅ `/custom-editor` correto (atributo literal já estava na template desde a20635b)
+- ❌ `/basic-editor` errado (overlay branco 50% nas shapes dentro da página)
+- ❌ `/modular-editor` errado (idem)
+- ❌ `/embeddable-canvas` errado (idem)
+- ❌ `/pro-editor` errado (idem)
+- ✅ `/svg-viewer` e `/benchmark` corretos (não usam PageOverlay)
+
+**Fix real**
+
+Adicionar o atributo **literal** `svgeBehind` nas templates de:
+
+- `projects/svg-engine/ui/src/lib/editor/editor.component.ts` — linha do `<svg:g svgePageOverlay svgeBehind>`
+- `projects/svg-engine/ui/src/lib/shell-pro/shell-pro.component.ts` — idem
+
+Esse é o caminho canônico que o commit original `a20635b` usou em `playground-home` (hoje `custom-editor`). O atributo PRECISA estar escrito na template Angular para o seletor `[svgeBehind]` matchear durante a compilação.
+
+**Reverter host bindings + corrigir specs**
+
+- Removido `host: { svgeBehind: '' }` de `page-overlay.component.ts` e `grid-overlay.component.ts` — era no-op + mensagem mental errada
+- Adicionado comentário forte nos dois componentes alertando que o atributo PRECISA estar na template do consumer
+- Specs `page-overlay.component.spec.ts` e `grid-overlay.component.spec.ts` reescritos para **testar projeção real**:
+  - Mounta um `<svge-renderer>` real com PageOverlay/GridOverlay como conteúdo projetado
+  - Usa `Node.compareDocumentPosition` para verificar se `<g svgepageoverlay>` vem ANTES de `<g svgenode>` no DOM
+  - Inclui **caso de controle negativo** (sem `svgeBehind`) provando que sem o atributo o overlay vai pra DEPOIS do conteúdo
+
+**Lesson learned forte**
+
+| Aspecto      | Antes (errado)                           | Depois (correto)                                                                    |
+| ------------ | ---------------------------------------- | ----------------------------------------------------------------------------------- |
+| Mental model | "Componente sabe seu papel, auto-aplica" | "Content projection é compile-time, atributo PRECISA estar na template do consumer" |
+| Spec         | "Atributo está no DOM"                   | "Elemento foi projetado no slot certo (compareDocumentPosition)"                    |
+| Fix          | Host binding (no-op para projection)     | Atributo literal na template (canonical Angular)                                    |
+
+Quando uma decisão arquitetural envolve **content projection**, o spec **precisa** testar o DOM final renderizado, não atributos intermediários.
+
+**Garantias**
+
+- ✅ Bug **resolvido de verdade** nas 4 rotas afetadas (basic/modular/embeddable/pro)
+- ✅ Custom-editor continua funcionando (nenhuma mudança lá)
+- ✅ 1026/1026 specs passando (era 1024; +2 control cases nos novos specs)
+- ✅ 6 entry points + playground build clean
+- ✅ Zero breaking change para consumers que já tinham o atributo literal
+
+**Arquivos**
+
+- `projects/svg-engine/ui/src/lib/editor/editor.component.ts` — adicionado `svgeBehind` literal no template; comentário longo explicando o porquê
+- `projects/svg-engine/ui/src/lib/shell-pro/shell-pro.component.ts` — mesmo
+- `projects/svg-engine/edit/src/lib/workspace/page-overlay.component.ts` — removido host binding; comentário avisando que consumer precisa do atributo literal
+- `projects/svg-engine/edit/src/lib/workspace/grid-overlay.component.ts` — mesmo
+- `projects/svg-engine/edit/src/lib/workspace/page-overlay.component.spec.ts` — spec reescrito para testar projeção real + control case sem o atributo
+- `projects/svg-engine/edit/src/lib/workspace/grid-overlay.component.spec.ts` — idem
+- `docs/08-historico-de-alteracoes.md` — esta entrada (e nota corretiva sobre a entrada anterior `f4ea08c`)
+
+---
+
+## 2026-05-21 — Fix regressão de z-order: PageOverlay + GridOverlay auto-tagging svgeBehind no host (TENTATIVA QUE NÃO FUNCIONOU — ver entrada acima)
 
 **Bug reportado pelo usuário**
 

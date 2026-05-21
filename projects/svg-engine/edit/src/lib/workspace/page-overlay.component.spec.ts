@@ -1,5 +1,8 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { createEmptyDocument, type SvgDocument } from 'svg-engine/core';
+import { SvgeRenderer } from 'svg-engine/render';
+import { describe, expect, it } from 'vitest';
 import { PageOverlay } from './page-overlay.component';
 import { WorkspaceService } from './workspace.service';
 
@@ -34,19 +37,72 @@ function marginRect(host: HTMLElement): SVGRectElement | null {
   return host.querySelector('.margin-rect');
 }
 
-describe('PageOverlay — regression guard for commit a20635b (z-order)', () => {
-  it('host element carries the svgeBehind attribute so the renderer projects it under content', () => {
-    // Without this, the page rect (which has a semi-transparent white
-    // fill) renders ON TOP of shapes via SvgeRenderer's default front
-    // slot — desaturating colors inside the page boundary. Bug
-    // a20635b was the original fix; the host attr binding here makes
-    // every consumer (custom-editor, svge-editor shell, svge-shell-pro
-    // and any future composition) inherit correct z-order without
-    // having to remember the attribute manually.
-    const { fixture } = setup();
-    const gEl = fixture.nativeElement.querySelector('g[svgepageoverlay]');
-    expect(gEl).not.toBeNull();
-    expect(gEl?.hasAttribute('svgeBehind')).toBe(true);
+// ── Regression guards for commit a20635b (z-order) ──────────────
+// The page rect has fill rgba(255,255,255,0.5); if rendered ON TOP
+// of shapes (front slot), it veils them with semi-transparent white.
+// SvgeRenderer exposes a `<ng-content select="[svgeBehind]">` slot
+// that puts projected elements UNDER the content. Consumers MUST
+// write `<svg:g svgePageOverlay svgeBehind>` literally — Angular
+// content projection is compile-time, so runtime host bindings on
+// PageOverlay don't affect the slot. These specs prove the actual
+// DOM ordering, not just attribute presence (a prior version of the
+// spec only checked attribute presence and missed the bug).
+
+@Component({
+  standalone: true,
+  imports: [SvgeRenderer, PageOverlay],
+  template: `<svge-renderer [tree]="doc.root" [viewBox]="doc.viewBox">
+    <svg:g svgePageOverlay svgeBehind></svg:g>
+  </svge-renderer>`,
+})
+class WithBehindHost {
+  readonly doc: SvgDocument = createEmptyDocument();
+}
+
+@Component({
+  standalone: true,
+  imports: [SvgeRenderer, PageOverlay],
+  template: `<svge-renderer [tree]="doc.root" [viewBox]="doc.viewBox">
+    <svg:g svgePageOverlay></svg:g>
+  </svge-renderer>`,
+})
+class WithoutBehindHost {
+  readonly doc: SvgDocument = createEmptyDocument();
+}
+
+describe('PageOverlay × SvgeRenderer — actual DOM projection slot (regression guard a20635b)', () => {
+  it('WITH svgeBehind: page-overlay <g> renders BEFORE the content <g svgeNode> (behind slot)', () => {
+    TestBed.configureTestingModule({ imports: [WithBehindHost] });
+    const fixture = TestBed.createComponent(WithBehindHost);
+    fixture.detectChanges();
+    const svgEl: SVGSVGElement | null = fixture.nativeElement.querySelector('svg');
+    expect(svgEl).not.toBeNull();
+    const pageG = svgEl!.querySelector('g[svgepageoverlay]');
+    const contentG = svgEl!.querySelector('g[svgenode]');
+    expect(pageG).not.toBeNull();
+    expect(contentG).not.toBeNull();
+    // Node.compareDocumentPosition: returns DOCUMENT_POSITION_FOLLOWING (4)
+    // when the parameter follows the current node. So pageG.compareDocumentPosition(contentG)
+    // having FOLLOWING bit set means contentG comes AFTER pageG — i.e., pageG is BEHIND.
+    const pos = pageG!.compareDocumentPosition(contentG!);
+    expect((pos & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
+  });
+
+  it('WITHOUT svgeBehind (control case): page-overlay <g> renders AFTER the content (front slot)', () => {
+    // This is the BUG that affected svge-editor + svge-shell-pro after
+    // their creation. Documented as a control case so any future
+    // refactor that breaks projection semantics fails loudly here.
+    TestBed.configureTestingModule({ imports: [WithoutBehindHost] });
+    const fixture = TestBed.createComponent(WithoutBehindHost);
+    fixture.detectChanges();
+    const svgEl: SVGSVGElement | null = fixture.nativeElement.querySelector('svg');
+    const pageG = svgEl!.querySelector('g[svgepageoverlay]');
+    const contentG = svgEl!.querySelector('g[svgenode]');
+    expect(pageG).not.toBeNull();
+    expect(contentG).not.toBeNull();
+    const pos = pageG!.compareDocumentPosition(contentG!);
+    // Without svgeBehind, contentG should PRECEDE pageG (bug condition).
+    expect((pos & Node.DOCUMENT_POSITION_PRECEDING) !== 0).toBe(true);
   });
 });
 

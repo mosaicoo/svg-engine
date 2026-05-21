@@ -35,16 +35,16 @@ import { pageBoundsIn, WorkspaceService } from './workspace.service';
   // eslint-disable-next-line @angular-eslint/component-selector
   selector: 'g[svgeGridOverlay]',
   standalone: true,
-  // - `aria-hidden`: decorative reference grid (pointer-events: none,
-  //   no interaction). Hidden from accessibility tree so SR users
-  //   don't hear hundreds of unnamed "graphic" elements when zooming
-  //   over a dense grid.
-  // - `svgeBehind`: ALWAYS render under document content. The grid is
-  //   reference, not foreground — putting it in front would obscure
-  //   shapes. Auto-tagging via host attr means every consumer (shell,
-  //   custom layouts, future routes) gets correct z-order without
-  //   needing to remember the attribute.
-  host: { 'aria-hidden': 'true', svgeBehind: '' },
+  // Decorative reference grid — pointer-events: none + no interaction.
+  // Hidden from accessibility tree so SR users don't hear hundreds of
+  // unnamed "graphic" elements when zooming over a dense grid.
+  //
+  // ⚠ Z-order: consumers MUST write `<svg:g svgeGridOverlay
+  // svgeBehind>` literally so SvgeRenderer projects it under content.
+  // Host bindings don't affect Angular's compile-time projection slot
+  // resolution — see `docs/08-historico-de-alteracoes.md` and the
+  // sibling PageOverlay for the same caveat.
+  host: { 'aria-hidden': 'true' },
   template: `
     @if (visible()) {
       @for (line of lines(); track line.key) {

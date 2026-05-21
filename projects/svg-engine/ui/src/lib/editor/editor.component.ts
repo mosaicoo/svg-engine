@@ -186,23 +186,29 @@ import { SvgeToolOptions } from '../tool-options';
           [ariaLabel]="ariaLabel() ?? 'Editable SVG document'"
         >
           <!--
-            Page marker — PageOverlay auto-tags itself with svgeBehind
-            via host binding (see workspace/page-overlay.component.ts),
-            so the renderer projects it into the BEHIND slot and shapes
-            render ON TOP of the page rect (Illustrator/Affinity "paper"
-            convention). Without this, the page rect's white-50% fill
-            would veil shapes inside the page boundary, desaturating
-            their colors — bug fixed in commit a20635b for custom-editor
-            (then ex-playground-home) and re-fixed at component level
-            to prevent the regression that affected this shell after
-            its creation in D-034 (and svge-shell-pro after D-038).
+            Page marker — MUST carry the literal svgeBehind attribute
+            so SvgeRenderer's ng-content select="[svgeBehind]" slot
+            picks it up and projects it UNDER the document content. The
+            page rect has a semi-transparent white fill (Illustrator/
+            Affinity "paper" convention) — without behind projection
+            that fill would veil shapes inside the page boundary,
+            desaturating their colors.
+
+            Why the attribute MUST be literal in this template (not
+            host-bound on PageOverlay): Angular content projection is
+            a compile-time decision based on attributes written in the
+            consumer's template. Runtime host bindings on the projected
+            component don't affect the projection slot — they only mark
+            the DOM after the slot is already decided. This caught us
+            in a previous attempt at "auto-tagging" — see the fix
+            history in docs/08-historico-de-alteracoes.md.
 
             Consumers can hide the page by zeroing out width/height in
             WorkspaceService.patchPage (rejected silently, so set via
             resetPage if needed) or just not provisioning it (the shell
             is the only place that auto-includes it).
           -->
-          <svg:g svgePageOverlay></svg:g>
+          <svg:g svgePageOverlay svgeBehind></svg:g>
           <ng-content />
         </svge-renderer>
       </svge-workspace-background>

@@ -47,19 +47,22 @@ import { pageBoundsIn, WorkspaceService } from './workspace.service';
   // eslint-disable-next-line @angular-eslint/component-selector
   selector: 'g[svgePageOverlay]',
   standalone: true,
-  // - `aria-hidden`: decorative page marker (purely visual reference;
-  //   page dimensions are surfaced semantically via the Inspector's
-  //   page section when implemented).
-  // - `svgeBehind`: ALWAYS render under the document content. The page
-  //   rect carries a semi-transparent fill (the "paper"); without this
-  //   attribute the renderer's default front slot would put it on TOP
-  //   of shapes, applying a white-50% veil that desaturates colors
-  //   inside the page boundary. Auto-tagging the host (instead of
-  //   trusting every consumer to remember `<svg:g svgePageOverlay
-  //   svgeBehind>`) prevents that regression — D-038's `<svge-editor>`
-  //   and D-038 Phase 4's `<svge-shell-pro>` both originally forgot
-  //   the attribute and reintroduced the bug.
-  host: { 'aria-hidden': 'true', svgeBehind: '' },
+  // Decorative page marker — pointer-events: none, purely visual
+  // reference. Page dimensions are surfaced semantically via the
+  // Inspector's page section (when implemented).
+  //
+  // ⚠ Z-order via content projection: the page rect carries a semi-
+  // transparent white fill (the "paper"), so it MUST render UNDER the
+  // document content. SvgeRenderer exposes a `<ng-content
+  // select="[svgeBehind]">` slot for that. **Every consumer that
+  // includes this overlay must write `<svg:g svgePageOverlay
+  // svgeBehind>` literally** in their template — Angular content
+  // projection is compile-time and only matches static template
+  // attributes, NOT host bindings. We tried auto-tagging via
+  // `host: { svgeBehind: '' }` and it doesn't work (the attribute
+  // appears in the DOM but the projection slot was already decided).
+  // See `docs/08-historico-de-alteracoes.md` for the bug history.
+  host: { 'aria-hidden': 'true' },
   template: `
     @if (pageBounds(); as p) {
       <!--

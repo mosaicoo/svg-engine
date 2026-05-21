@@ -119,16 +119,14 @@ import { SvgeToolsPalette } from '../tools-palette';
             [ariaLabel]="ariaLabel() ?? 'Editable SVG document'"
           >
             <!--
-              Page marker — auto-tags itself with svgeBehind via host
-              binding (workspace/page-overlay.component.ts) so the
-              renderer projects it into the BEHIND slot. Without that,
-              the page rect's semi-transparent white fill would veil
-              shapes inside the page boundary (bug a20635b in playground;
-              re-introduced when this shell was created in D-038 Phase 4
-              and re-fixed at component level so consumers don't have
-              to remember the attribute).
+              Page marker — MUST carry the literal svgeBehind
+              attribute. Angular content projection is compile-time so
+              host bindings on PageOverlay don't help here. See the
+              detailed explanation in editor.component.ts (sibling
+              shell) and docs/08-historico-de-alteracoes.md for the
+              fix history.
             -->
-            <svg:g svgePageOverlay></svg:g>
+            <svg:g svgePageOverlay svgeBehind></svg:g>
             <ng-content />
           </svge-renderer>
         </svge-workspace-background>
