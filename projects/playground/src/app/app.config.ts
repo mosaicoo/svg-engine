@@ -2,6 +2,7 @@ import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter } from '@angular/router';
 import {
+  builtinEditorShortcutsPlugin,
   builtinEffectsPlugin,
   builtinIoPlugin,
   builtinOptimizersPlugin,
@@ -70,5 +71,8 @@ export const appConfig: ApplicationConfig = {
     // Press K to activate; the options bar shows radius + color
     // togglers; click on the canvas to drop a styled circle.
     provideSvgEnginePlugin(stampToolPlugin),
+    // D-040 — canonical editor shortcuts (Ctrl+Z/Y/Shift+Z/G/Shift+G/A).
+    // Opt-in; consumers can replace with their own bindings if needed.
+    provideSvgEnginePlugin(builtinEditorShortcutsPlugin),
   ],
 };

@@ -272,6 +272,10 @@
 
 > **2026-05-20 — Sprint Pro-Editor (D-038) ✅**: editor profissional drop-in em 4 phases incrementais. **Phase 1** `<svge-menu-bar>` (Material dropdowns lendo slots `menu.*`, submenus via `parentId`, dividers). **Phase 2** `<svge-context-menu>` + `[svgeContextMenu]` diretiva (CDK Overlay, slots `context.*`). **Phase 3** `<svge-tool-options>` + `Tool.optionsComponent` (NgComponentOutlet) + Stamp Tool demo. **Phase 4** `<svge-shell-pro>` composição final grid (menu / toolbar / tool-options / [tools palette | canvas | layers+inspector] / status) + `<svge-tools-palette>` auxiliar. Nova rota `/shell-pro-demo`. **1016/1016 specs** (+23 dos novos componentes), invariantes D-037 preservadas (modos 1-4 inalterados por padrão). `<svge-editor>` ganhou 4 flags opt-in (`showMenuBar`/`showContextMenu`/`showToolOptions` + slot configs) que defaultam false. `<svge-shell-pro>` coexiste — não substitui.
 
+> **2026-05-20 — D-039 Shell interactions full kit ✅**: `[svgeShellInteractions]` expandido (110→330 linhas) cobrindo drag-move + snap, marquee, multi-select Shift/Ctrl, dblclick→isolation, ShortcutService auto-start, Escape hierarchy. Migrou ~120 linhas do `playground-home` para a diretiva. svge-editor e svge-shell-pro herdam automaticamente.
+
+> **2026-05-20 — D-040 Shell interactions polish ✅**: 2 entregas independentes. (1) `[svgeContextMenuResolver]` function input no `[svgeContextMenu]` — right-click em shape → `context.node`, no fundo → `context.canvas`. (2) `builtinEditorShortcutsPlugin` opt-in registrando Ctrl+Z/Y/Shift+Z/G/Shift+G/A no ShortcutRegistry. Playground instala por padrão.
+
 - [x] **Bloco 5-IO**: Import + Export SVG (categorias 4 e 5 do D-023)
   - Tipos `Importer` (id/name/mediaTypes/extensions/import) e `Exporter` (id/name/mediaType/extension/export). `ImportResult = { ok:true, document, warnings } | { ok:false, error }` (warnings não-fatais para sanitização)
   - `ImporterRegistry` + `ExporterRegistry` signal-backed seguindo a forma das outras: register retorna Disposable, lookup helpers `byExtension`/`byMediaType` (extensão case-insensitive, tolera leading dot)

@@ -1,13 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { type BoundingBox, EditorStateService, type SvgNode } from 'svg-engine/core';
 import {
+  IsolationService,
   PageOverlay,
+  resolveSelectableNodeId,
   SvgeCanvasGestures,
   SvgeShellInteractions,
   WorkspaceBackground,
 } from 'svg-engine/edit';
 import { SvgeRenderer } from 'svg-engine/render';
-import { SvgeContextMenuTrigger } from '../context-menu';
+import { CONTEXT_MENU_SLOT, SvgeContextMenuTrigger } from '../context-menu';
 import { SvgeInspector } from '../inspector';
 import { LayersPanel } from '../layers-panel';
 import { SvgeMenuBar } from '../menu-bar';
@@ -107,6 +109,7 @@ import { SvgeToolsPalette } from '../tools-palette';
         svgeCanvasGestures
         svgeShellInteractions
         [svgeContextMenu]="contextMenuSlot()"
+        [svgeContextMenuResolver]="contextMenuResolver"
       >
         <svge-workspace-background>
           <svge-renderer
@@ -230,6 +233,22 @@ import { SvgeToolsPalette } from '../tools-palette';
 })
 export class SvgeShellPro {
   private readonly state = inject(EditorStateService);
+  private readonly isolation = inject(IsolationService);
+
+  /**
+   * **D-040** — Dynamic context-menu slot resolver. Right-click on a
+   * shape opens `'context.node'`; right-click on the canvas background
+   * opens `'context.canvas'`. Arrow-function to preserve `this`.
+   */
+  protected readonly contextMenuResolver = (event: MouseEvent): string => {
+    const rootId = this.state.document().root.id;
+    const id = resolveSelectableNodeId(event, {
+      mode: 'group',
+      rootId,
+      isolationRootId: this.isolation.isolationRootId(),
+    });
+    return id !== null && id !== rootId ? CONTEXT_MENU_SLOT.NODE : CONTEXT_MENU_SLOT.CANVAS;
+  };
 
   /** Optional document override — same semantics as `<svge-editor>`. */
   readonly tree = input<SvgNode | null>(null);

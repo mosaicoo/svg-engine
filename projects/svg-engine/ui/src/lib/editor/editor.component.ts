@@ -12,12 +12,14 @@ import {
 } from 'svg-engine/core';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
 import {
+  IsolationService,
   PageOverlay,
+  resolveSelectableNodeId,
   SvgeCanvasGestures,
   SvgeShellInteractions,
   WorkspaceBackground,
 } from 'svg-engine/edit';
-import { SvgeContextMenuTrigger } from '../context-menu';
+import { CONTEXT_MENU_SLOT, SvgeContextMenuTrigger } from '../context-menu';
 import { SvgeMenuBar } from '../menu-bar';
 import { SvgeStatusBar } from '../status-bar';
 import { SvgeToolbar } from '../toolbar';
@@ -173,6 +175,7 @@ import { SvgeToolOptions } from '../tool-options';
       svgeCanvasGestures
       svgeShellInteractions
       [svgeContextMenu]="showContextMenu() ? contextMenuSlot() : ''"
+      [svgeContextMenuResolver]="showContextMenu() ? contextMenuResolver : null"
     >
       <svge-workspace-background>
         <svge-renderer
@@ -266,6 +269,29 @@ export class SvgeEditor {
   private readonly history = inject(HistoryService);
   private readonly state = inject(EditorStateService);
   private readonly viewport = inject(ViewportService);
+  private readonly isolation = inject(IsolationService);
+
+  /**
+   * **D-040** — Resolver for the dynamic context-menu slot. Bound to
+   * `[svgeContextMenuResolver]` on the canvas-area when `showContextMenu`
+   * is true. On every right-click, hit-tests the cursor position:
+   * - hits a selectable node → `'context.node'`
+   * - hits canvas background  → `'context.canvas'`
+   *
+   * Plugins register items in either slot via `MenuContributionRegistry`;
+   * the directive opens the right menu without the consumer wiring two
+   * `[svgeContextMenu]`s. Arrow-function so `this` binding survives the
+   * directive-to-resolver call.
+   */
+  protected readonly contextMenuResolver = (event: MouseEvent): string => {
+    const rootId = this.state.document().root.id;
+    const id = resolveSelectableNodeId(event, {
+      mode: 'group',
+      rootId,
+      isolationRootId: this.isolation.isolationRootId(),
+    });
+    return id !== null && id !== rootId ? CONTEXT_MENU_SLOT.NODE : CONTEXT_MENU_SLOT.CANVAS;
+  };
 
   /**
    * The tree to render. Optional — when omitted, falls back to the

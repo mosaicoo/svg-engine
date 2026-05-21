@@ -6,6 +6,59 @@
 
 ---
 
+## 2026-05-20 — D-040 Shell interactions polish: dynamic context-menu + builtin shortcuts
+
+**Contexto**
+
+D-039 declarou 2 itens fora de escopo como **D-040 pendente**: dynamic context-menu slot (right-click em shape vs fundo) + plugin de shortcuts canônicos. Esta sprint entregou ambos.
+
+**Solução — 2 partes independentes**
+
+**Part 1 — `[svgeContextMenuResolver]` function input**
+
+- Diretiva `[svgeContextMenu]` em `svg-engine/ui` ganhou input opcional `[svgeContextMenuResolver]: ((event: MouseEvent) => string) | null` — quando supplied, toma precedência sobre a slot estática.
+- `<svge-editor>` e `<svge-shell-pro>` providenciam resolver baseado em `resolveSelectableNodeId + IsolationService.isolationRootId()`:
+  - Hit em shape → `'context.node'`
+  - Hit no fundo → `'context.canvas'`
+- Consumer não wireia dois `[svgeContextMenu]` diferentes — uma única binding com lógica dinâmica.
+
+**Part 2 — `builtinEditorShortcutsPlugin`**
+
+Novo plugin opt-in em `svg-engine/edit/lib/shortcut/builtin-editor-shortcuts.plugin.ts`. Registra:
+
+- `Ctrl+Z` → `bus.undo()`
+- `Ctrl+Y` + `Ctrl+Shift+Z` → `bus.redo()` (Windows + Mac/Linux idioms)
+- `Ctrl+G` → `GroupSelectionCommand(selectedIds)` (gated em >= 2 selecionados)
+- `Ctrl+Shift+G` → `UngroupCommand(focusId)` quando focus é group
+- `Ctrl+A` → `selection.selectMany(root.children)` (todos top-level)
+
+Plugin opt-in — playground instala em `app.config.ts`. Bare consumers escolhem (ou substituem por bindings custom).
+
+**Fora de escopo (fast-follows futuros)**
+
+- `Ctrl+C/X/V` (clipboard) — precisa de `ClipboardService` ainda não existente
+- `Ctrl+S` (save) — depende de estratégia do consumer
+- `Ctrl+D` (duplicate) — precisa de `DuplicateCommand` ainda não existente
+
+**Garantias verificadas**
+
+- ✅ 1016/1016 specs passing (sem regressão)
+- ✅ 6 entry points build clean
+- ✅ Playground build clean
+- ✅ ESLint clean
+- ✅ D-037/D-038/D-039 invariantes preservadas (resolver é opt-in via input; plugin é opt-in via provider)
+
+**Arquivos**
+
+- `projects/svg-engine/ui/src/lib/context-menu/context-menu-trigger.directive.ts` — input novo
+- `projects/svg-engine/ui/src/lib/editor/editor.component.ts` — resolver method + binding
+- `projects/svg-engine/ui/src/lib/shell-pro/shell-pro.component.ts` — idem
+- `projects/svg-engine/edit/src/lib/shortcut/builtin-editor-shortcuts.plugin.ts` — novo
+- `projects/svg-engine/edit/src/lib/shortcut/index.ts` — export
+- `projects/playground/src/app/app.config.ts` — provideSvgEnginePlugin(builtinEditorShortcutsPlugin)
+
+---
+
 ## 2026-05-20 — D-039 Shell interactions full kit (`[svgeShellInteractions]` expandido)
 
 **Contexto**

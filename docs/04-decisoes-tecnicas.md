@@ -1075,18 +1075,84 @@ http://localhost:4200/shell-pro-demo
 
 ---
 
+## D-040 — Shell interactions polish (dynamic context-menu + builtin shortcuts)
+
+- **Data**: 2026-05-20
+- **Status**: Decidida + implementada
+- **Contexto**: D-039 declarou 2 itens fora de escopo: (a) right-click em shape deveria abrir `context.node` em vez de `context.canvas`; (b) atalhos canônicos de editor (Ctrl+Z/Y/G/Shift+G/A) precisavam de um plugin de registro. Ambos foram registrados como pendentes na mesma data.
+
+### Decisão
+
+Duas peças independentes entregues juntas como "polish do shell":
+
+**Part 1 — Dynamic context-menu slot via resolver function**
+
+- `[svgeContextMenu]` directive ganhou input opcional `[svgeContextMenuResolver]` — função `(event: MouseEvent) => string`.
+- Quando supplied, **toma precedência** sobre a slot estática.
+- `<svge-editor>` e `<svge-shell-pro>` fornecem resolver que usa `resolveSelectableNodeId` + `IsolationService.isolationRootId()` para retornar `'context.node'` (hit em shape) ou `'context.canvas'` (hit no fundo).
+- Plugins registram items em qualquer slot via `MenuContributionRegistry`; consumer não wireia dois `[svgeContextMenu]`s.
+
+**Part 2 — `builtinEditorShortcutsPlugin` (svg-engine/edit/lib/shortcut/)**
+
+| Combo          | Action                                       |
+| -------------- | -------------------------------------------- |
+| `Ctrl+Z`       | `bus.undo()`                                 |
+| `Ctrl+Y`       | `bus.redo()` (Windows idiom)                 |
+| `Ctrl+Shift+Z` | `bus.redo()` (Mac/Linux idiom)               |
+| `Ctrl+G`       | `GroupSelectionCommand` (>= 2 selecionados)  |
+| `Ctrl+Shift+G` | `UngroupCommand(focus)` quando focus é group |
+| `Ctrl+A`       | Select all top-level children do root        |
+
+Plugin opt-in (consumer escolhe instalar). Playground instala por padrão em `app.config.ts`. Bare `<svge-editor>` consumers que querem bindings custom NÃO instalam este e registram os seus.
+
+### Fora de escopo (NÃO entrou)
+
+- `Ctrl+C` / `Ctrl+V` (clipboard) — sem `ClipboardService` ainda.
+- `Ctrl+S` (save) — depende da estratégia do consumer.
+- `Ctrl+D` (duplicate) — precisa de `DuplicateCommand` que ainda não existe; fast-follow.
+- Arrow nudge já provido por `selectionNudgePlugin` (separado).
+
+### Garantias
+
+- ✅ **1016/1016 specs** continuam passando
+- ✅ 6 entry points build clean
+- ✅ Playground build clean
+- ✅ ESLint clean
+- ✅ Modos 1-5 D-037/D-038/D-039 sem regressão de comportamento
+- ✅ Plugin opt-in não força bindings — coerente com D-020 (plugin scaffolding)
+
+### Validação manual
+
+```
+http://localhost:4200/shell-pro-demo
+  → right-click em shape → menu mostra context.node items (vazio por enquanto — registre items para popular)
+  → right-click no fundo → menu mostra context.canvas items (Paste/Select All/Zoom)
+  → Ctrl+Z → desfaz última operação
+  → Ctrl+Y ou Ctrl+Shift+Z → refaz
+  → Selecionar 2+ shapes → Ctrl+G agrupa
+  → Focus em group → Ctrl+Shift+G desagrupa
+  → Ctrl+A seleciona todos os top-level children
+```
+
+### Quando reabrir
+
+- Quando aparecer `ClipboardService`: adicionar Ctrl+C/X/V ao plugin.
+- Quando aparecer `DuplicateCommand`: adicionar Ctrl+D.
+- Se um consumer Mosaicoo demandar Cmd-only no Mac (vs Ctrl-or-Cmd): hoje a combinação `Ctrl` matcha ambos; bifurcar via plugin custom seria a saída.
+
+---
+
 ## Decisões pendentes (em aberto)
 
-| ID provis. | Tema                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D-025?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo)                                                                                                                                                                                                                                                                                                                                                                                                            |
-| D-027?     | Migração para zoneless (revisar D-010)                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| D-028?     | Lint rule customizada para enforcer headless boundary                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| D-029?     | Estratégia de testes E2E (Playwright?)                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| D-031?     | Versionamento + changelog (changesets / standard-version)                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| D-032?     | Multi-page (`WorkspacesRegistry`) — extensão futura de D-021                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| D-033?     | Estratégia de i18n no editor                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| **D-040?** | **Shell interactions polish** — items que ficaram fora de D-039 e exigem mais design: (a) dynamic context-menu slot — right-click em shape → `context.node`, no fundo → `context.canvas` (requer slot-resolver function-input no `[svgeContextMenu]`); (b) plugin `builtinEditorShortcutsPlugin` registrando Ctrl+Z/Y/G/Shift+G/A/D no `ShortcutRegistry` (hoje `[svgeShellInteractions]` apenas inicia o listener — registrar shortcuts continua sendo escolha do consumer) |
-| D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ID provis. | Tema                                                                   |
+| ---------- | ---------------------------------------------------------------------- |
+| D-025?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo)      |
+| D-027?     | Migração para zoneless (revisar D-010)                                 |
+| D-028?     | Lint rule customizada para enforcer headless boundary                  |
+| D-029?     | Estratégia de testes E2E (Playwright?)                                 |
+| D-031?     | Versionamento + changelog (changesets / standard-version)              |
+| D-032?     | Multi-page (`WorkspacesRegistry`) — extensão futura de D-021           |
+| D-033?     | Estratégia de i18n no editor                                           |
+| D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3 |
 
 > **Nota**: D-023 era "API formal de plugins" (cumprida pelo D-020 expandido em 2026-05-15). D-024 era "Versionamento + changelog" (renumerada para D-031 porque o número D-024 foi reusado para `ScriptRuntimePlugin`). D-030 era "Workspace/Página: A vs B" (cumprida pelo D-021 resolvido como Option C). D-032 entra como pendente para multi-page futuro. Sequência de IDs cumpridas em 2026-05-15: D-020, D-021, D-023, D-024. Em 2026-05-20: D-026 (alinhamento estrutural io/optimize); o número D-026 era previamente reservado para i18n — renomeado para D-033. D-036 (consolidação de helpers compartilhados) entrou no mesmo dia. **D-034 + D-035 + D-037** (shell-refinement) entraram em 2026-05-20 mais tarde no mesmo dia — adiamento "pós-Fase 6d" foi reduzido pois caso de uso Mosaicoo (canvas embedável em painéis menores + editor completo) demandou ambas formas garantidamente.
