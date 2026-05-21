@@ -159,6 +159,231 @@ import { SvgEditorComponent } from 'svg-engine/ui';
 - `public-api.ts` é a **única** superfície exportada por entry point.
   Internos não vazam.
 
+## 4. Mapa de dependências (verificado por código)
+
+> Os diagramas abaixo refletem a **estrutura real** do repositório
+> (verificada via `grep "from 'svg-engine/(core|render|io|optimize|edit|ui)'"`).
+> Renderizam nativamente no GitHub, VS Code (com a extensão Markdown
+> Preview Mermaid Support) e na maioria das plataformas modernas.
+
+### 4.1 Visão macro — entry points, consumers e peer deps
+
+```mermaid
+flowchart TD
+  subgraph Consumers["CONSUMER APPS (Angular)"]
+    direction LR
+    PG["playground<br/>(desenvolvimento)"]
+    MOS["Mosaicoo<br/>(produto interno)"]
+    EXT["3rd party<br/>(npm consumer)"]
+  end
+
+  subgraph Library["svg-engine (library, 6 secondary entry points)"]
+    direction TB
+
+    subgraph UIBox["svg-engine/ui &nbsp; - &nbsp; UNICA camada com Material/CDK"]
+      UI["svge-editor / svge-shell-pro / svge-toolbar /<br/>svge-menu-bar / svge-context-menu /<br/>svge-tools-palette / svge-tool-options /<br/>svge-inspector / svge-layers-panel / svge-status-bar /<br/>svge-isolation-breadcrumb / svge-color-picker /<br/>svge-effects-panel / svge-svg-source-dialog /<br/>svge-workspace-settings / svge-theme-toggle"]
+    end
+
+    subgraph HeadlessBox["HEADLESS BOUNDARY (D-017) - Material/CDK PROIBIDOS abaixo"]
+      EDIT["svg-engine/edit<br/>Services: SelectionService, IsolationService,<br/>WorkspaceService, LayersService, SnapService,<br/>TransformService, ToolHostService, AutosaveService,<br/>AnchorSelectionService, AlignmentService,<br/>ShapeToolService, PenToolService, ViewportCullingService<br/>Registries: ToolRegistry, MenuContributionRegistry,<br/>ShortcutRegistry, PaletteRegistry, EffectRegistry<br/>Plugin scaffolding: EditorPlugin, provideSvgEnginePlugin,<br/>provideBuiltinPlugins<br/>Diretivas: svgeShellInteractions, SvgeCanvasGestures,<br/>PageOverlay, WorkspaceBackground, IsolationFilter<br/>Built-in plugins: shape-tools, pen-tool, text-tool,<br/>selection-nudge, builtin-editor-shortcuts,<br/>builtin-optimizers"]
+
+      OPT["svg-engine/optimize<br/>OptimizerRegistry / OptimizeCommand<br/>Passes built-in (cleanupAttrs, removeEmptyGroups,<br/>collapseTransforms, ...)"]
+
+      IO["svg-engine/io<br/>ImporterRegistry / ExporterRegistry<br/>svgImporter / svgExporter / pngExporter"]
+
+      RENDER["svg-engine/render<br/>SvgeRenderer / NodeRenderer / NodeRendererRegistry<br/>ViewportService / screenToDoc<br/>13 directives de render (rect/ellipse/path/text/...)"]
+
+      CORE["svg-engine/core (base, sem deps internas)<br/>Tipos: SvgNode, SvgDocument, NodeId, Point,<br/>BoundingBox, Transform, AnchorPoint<br/>Document: createEmptyDocument, findNodeById, walk<br/>Commands: 20+ (Move/Resize/Rotate/Insert/Remove/<br/>Group/Ungroup/SetProperty/Pathfinder/Anchor/...)<br/>CommandBus / EditorStateService<br/>Geometry: bbox, path-anchors, transform-math<br/>Registries-core: PluginInfoRegistry"]
+    end
+  end
+
+  subgraph Peers["PEER DEPS (declaradas em projects/svg-engine/package.json)"]
+    direction LR
+    NG["@angular/core,common,forms,animations,platform-browser ^21.2"]
+    CDK["@angular/cdk ^21.2 &nbsp;(optional)"]
+    MAT["@angular/material ^21.2 &nbsp;(optional)"]
+    POLY["polygon-clipping ^0.15 &nbsp;(bundled)"]
+  end
+
+  PG ==>|"Modo 2/3:<br/>shell ou parcial"| UI
+  MOS ==>|"Mosaicoo escolhe<br/>por painel<br/>(D-037)"| UI
+  EXT -.->|"Modo 2"| UI
+  EXT -.->|"Modo 1<br/>(headless puro)"| EDIT
+  EXT -.->|"Modo 1"| RENDER
+
+  UI --> EDIT
+  UI --> IO
+  UI --> RENDER
+  UI --> CORE
+  UI -.->|optional| CDK
+  UI -.->|optional| MAT
+
+  EDIT --> OPT
+  EDIT --> IO
+  EDIT --> RENDER
+  EDIT --> CORE
+
+  OPT --> CORE
+  IO --> CORE
+  RENDER --> CORE
+
+  CORE --> NG
+  CORE --> POLY
+
+  classDef boundary fill:#fff3cd,stroke:#b88600,stroke-width:2px
+  classDef ui fill:#d1e7ff,stroke:#0d6efd,stroke-width:2px
+  classDef core fill:#d4edda,stroke:#198754,stroke-width:2px
+  classDef consumer fill:#f8d7da,stroke:#dc3545,stroke-width:1px
+  classDef peer fill:#e2e3e5,stroke:#6c757d,stroke-width:1px
+
+  class HeadlessBox boundary
+  class UIBox ui
+  class CORE,RENDER,IO,OPT,EDIT core
+  class PG,MOS,EXT consumer
+  class NG,CDK,MAT,POLY peer
+```
+
+**Convenção de setas**:
+
+| Estilo               | Significado                           |
+| -------------------- | ------------------------------------- |
+| Grossas (`==>`)      | Consumer instalado por padrão         |
+| Pontilhadas (`-.->`) | Caminho opcional / por modo           |
+| Finas (`-->`)        | Import direto (`from 'svg-engine/X'`) |
+
+**Regras invioláveis codificadas no grafo**:
+
+1. **D-017 Headless boundary**: tudo abaixo de `ui` é Material-free e CDK-free. Verificado: **todos** os 16 arquivos que importam `@angular/material|cdk` estão em `svg-engine/ui`.
+2. **Sem ciclos**: `core` não importa ninguém de `svg-engine/*`. `render`, `io`, `optimize` só importam `core`. `edit` importa `core+render+io+optimize`. `ui` é o topo.
+3. **`polygon-clipping`** está em `core` (motor de pathfinder boolean ops) — bundled como dep direta, não peer.
+4. **Material + CDK são `optional` peer deps** — consumer headless (Modo 1) não precisa instalá-los.
+
+### 4.2 Zoom — como `ui` se conecta ao `edit` (registries + plugins)
+
+```mermaid
+flowchart LR
+  subgraph EditServices["svg-engine/edit - Registries (DI singletons, providedIn root)"]
+    MR[MenuContributionRegistry<br/>slots menu.* + context.*]
+    TR[ToolRegistry +<br/>ToolHostService]
+    SR[ShortcutRegistry +<br/>ShortcutService]
+    PAL[PaletteRegistry]
+    EFR[EffectRegistry]
+    WS[WorkspaceService]
+    SEL[SelectionService]
+    ISO[IsolationService]
+    LAY[LayersService]
+    SNAP[SnapService]
+  end
+
+  subgraph UIComponents["svg-engine/ui - Componentes leem signals dos registries"]
+    TB[svge-toolbar] --> MR
+    MB[svge-menu-bar] --> MR
+    CM[svge-context-menu] --> MR
+    TP[svge-tools-palette] --> TR
+    TO[svge-tool-options] --> TR
+    INSP[svge-inspector] --> SEL
+    INSP --> LAY
+    INSP --> PAL
+    LP[svge-layers-panel] --> LAY
+    LP --> SEL
+    LP --> ISO
+    IB[svge-isolation-breadcrumb] --> ISO
+    SB[svge-status-bar] --> SEL
+    SB --> SNAP
+    SB --> WS
+    EP[svge-effects-panel] --> EFR
+    EP --> SEL
+    WSC[svge-workspace-settings] --> WS
+  end
+
+  subgraph PluginsLayer["Plugins (built-in + custom) populam os registries"]
+    BP1[shape-tools.plugin] -.registra.-> TR
+    BP2[pen-tool.plugin] -.registra.-> TR
+    BP3[text-tool.plugin] -.registra.-> TR
+    BP4[builtinEditorShortcutsPlugin] -.registra.-> SR
+    BP5[selectionNudgePlugin] -.registra.-> SR
+    BP6[demoMenuBarPlugin] -.registra.-> MR
+    BPX[seu plugin custom] -.registra em qq registry.-> TR
+    BPX -.-> MR
+    BPX -.-> SR
+  end
+
+  classDef reg fill:#ffe5b4,stroke:#cc7700,stroke-width:1px
+  classDef comp fill:#d1e7ff,stroke:#0d6efd,stroke-width:1px
+  classDef plug fill:#e7d4ff,stroke:#7c3aed,stroke-width:1px
+
+  class MR,TR,SR,PAL,EFR,WS,SEL,ISO,LAY,SNAP reg
+  class TB,MB,CM,TP,TO,INSP,LP,IB,SB,EP,WSC comp
+  class BP1,BP2,BP3,BP4,BP5,BP6,BPX plug
+```
+
+**Padrão arquitetural**: registries em `edit` são a **fonte de verdade**; componentes em `ui` apenas **lêem**. Plugins (built-in ou de terceiros) **populam** os registries via `EditorPlugin.install(ctx)`. Nenhum componente UI tem lista hardcoded de tools/menus/shortcuts — toda funcionalidade aparece via registro dinâmico.
+
+### 4.3 Os 4 modos de consumo (D-037)
+
+```mermaid
+flowchart TB
+  subgraph Mode1["Modo 1 - Headless puro (zero UI Angular)"]
+    M1["Consumer importa so:<br/>core + render + edit (services)<br/>Constroi sua propria UI<br/>(React? Vue? Angular custom? CLI?)"]
+  end
+
+  subgraph Mode2["Modo 2 - Shell completo (drop-in)"]
+    M2["svge-shell-pro ou svge-editor [shell]=true<br/>Toolbar + menu + inspector +<br/>layers + canvas + status bar +<br/>tools-palette + context-menu"]
+  end
+
+  subgraph Mode3["Modo 3 - Shell parcial (pick and choose)"]
+    M3["svge-canvas + svge-toolbar +<br/>svge-layers-panel (qualquer combinacao)<br/>Consumer monta o layout"]
+  end
+
+  subgraph Mode4["Modo 4 - Canvas only"]
+    M4["svge-canvas sozinho<br/>Embed minimo: so render +<br/>pan/zoom. Sem tools, sem paineis."]
+  end
+
+  M1 -.->|usa apenas| L1["core / render / edit"]
+  M2 -.->|usa| L2["TODOS os 6 entry points<br/>+ Material + CDK"]
+  M3 -.->|usa| L3["core / render / edit / ui (parte)<br/>+ Material + CDK"]
+  M4 -.->|usa| L4["core / render / ui (svge-canvas)"]
+
+  classDef m1 fill:#d4edda,stroke:#198754
+  classDef m2 fill:#d1e7ff,stroke:#0d6efd
+  classDef m3 fill:#fff3cd,stroke:#b88600
+  classDef m4 fill:#f8d7da,stroke:#dc3545
+
+  class Mode1,M1,L1 m1
+  class Mode2,M2,L2 m2
+  class Mode3,M3,L3 m3
+  class Mode4,M4,L4 m4
+```
+
+### 4.4 Tabela de referência rápida — o que cada entry point possui
+
+| Entry point | Owns                                                                                                                                                                                                 | Material? | Imports de svg-engine/\*           |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------: | ---------------------------------- |
+| `core`      | tipos, document, commands, CommandBus, EditorStateService, geometry                                                                                                                                  |    Não    | — (base)                           |
+| `render`    | SvgeRenderer, ViewportService, 13 directives de render, screenToDoc                                                                                                                                  |    Não    | `core`                             |
+| `io`        | ImporterRegistry, ExporterRegistry, svgImporter, svgExporter, pngExporter                                                                                                                            |    Não    | `core`                             |
+| `optimize`  | OptimizerRegistry, OptimizeCommand, builtin optimizers                                                                                                                                               |    Não    | `core`                             |
+| `edit`      | services (Selection/Isolation/Layers/Snap/Workspace/Transform/...), registries (Tool/Menu/Shortcut/Palette/Effect), plugin scaffolding, shell-interactions directive, built-in tool/shortcut plugins |    Não    | `core`, `render`, `io`, `optimize` |
+| `ui`        | TODOS os 16 componentes Angular Material (toolbar, menu-bar, inspector, layers-panel, status-bar, shell-pro, editor, ...)                                                                            |    Sim    | `core`, `render`, `io`, `edit`     |
+
+### 4.5 Como manter esses diagramas em dia
+
+Quando adicionar/remover entry points, services, registries ou alterar imports cross-entry-point, **atualize esta seção** no mesmo PR. Comando para reverificar a fronteira headless:
+
+```bash
+# Deve retornar apenas arquivos em svg-engine/ui/:
+grep -r "from '@angular/(material|cdk)" projects/svg-engine/
+```
+
+Comando para reverificar grafo de deps interno:
+
+```bash
+# Mostra todos os imports cross-entry-point:
+grep -rn "from 'svg-engine/" projects/svg-engine/
+```
+
+---
+
 ## 2. Camadas internas da library
 
 ### 2.1 `core/` — Núcleo independente de UI

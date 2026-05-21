@@ -6,6 +6,35 @@
 
 ---
 
+## 2026-05-21 — `docs/02-arquitetura.md`: seção "Mapa de dependências" com 3 diagramas Mermaid
+
+**Contexto**
+
+A doc 02-arquitetura descrevia a estrutura **em texto** (seções 1-3, estrutura-alvo D-018, regras D-017) mas não tinha um **grafo visual** mostrando "quem importa de quem". Conforme a library cresceu (6 entry points realizados, 16 componentes UI, 10+ registries em `edit`), pedir um overview a quem entra no projeto exigia ler ~250 linhas de texto + inspecionar imports manualmente.
+
+**Decisão**
+
+Adicionar **seção 4 "Mapa de dependências (verificado por código)"** em `docs/02-arquitetura.md` com 3 diagramas Mermaid + tabela de referência:
+
+1. **4.1 — Visão macro**: consumer apps → 6 entry points (com headless boundary em destaque) → peer deps. Codifica D-017 + D-018 + D-026 + D-037 num único grafo. Convenção de setas (grossa/pontilhada/fina) documentada.
+2. **4.2 — Zoom registries**: como cada componente em `ui` lê de qual registry em `edit`, e como plugins (built-in + custom) populam esses registries. Mostra o padrão "ui lê, edit é fonte de verdade, plugins contribuem".
+3. **4.3 — 4 modos de consumo (D-037)**: Headless puro / Shell completo / Shell parcial / Canvas-only com quais entry points cada modo realmente usa.
+4. **4.4 — Tabela de referência** entry point × owns × Material? × deps internas.
+5. **4.5 — Comandos `grep` canônicos** para reverificar headless boundary e grafo de deps quando algo mudar (preserva a doc de virar mentira no tempo).
+
+**Garantias**
+
+- Diagramas são **verificáveis por código** — gerados a partir de `grep "from 'svg-engine/(core|render|io|optimize|edit|ui)'"` em todos os entry points.
+- Confirmação: **16 arquivos** importam `@angular/material|cdk` e **todos** estão em `svg-engine/ui` (D-017 intacto).
+- Mermaid renderiza nativamente no GitHub e VS Code (com extensão Markdown Preview Mermaid Support) — sem build extra.
+
+**Arquivos**
+
+- `docs/02-arquitetura.md` — seção 4 nova (5 sub-seções, ~200 linhas adicionadas)
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+
+---
+
 ## 2026-05-20 — D-031 Release tooling: `standard-version` + workflow publish-on-tag
 
 **Contexto**
