@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { type BoundingBox, EditorStateService, type SvgNode } from 'svg-engine/core';
 import {
+  GridOverlay,
   IsolationService,
+  OutlineFilter,
   PageOverlay,
   resolveSelectableNodeId,
   SvgeCanvasGestures,
@@ -13,6 +15,7 @@ import { CONTEXT_MENU_SLOT, SvgeContextMenuTrigger } from '../context-menu';
 import { SvgeInspector } from '../inspector';
 import { LayersPanel } from '../layers-panel';
 import { SvgeMenuBar } from '../menu-bar';
+import { SvgeRulers } from '../rulers';
 import { SvgeStatusBar } from '../status-bar';
 import { SvgeToolbar } from '../toolbar';
 import { SvgeToolOptions } from '../tool-options';
@@ -80,6 +83,9 @@ import { SvgeToolsPalette } from '../tools-palette';
     SvgeRenderer,
     WorkspaceBackground,
     PageOverlay,
+    GridOverlay,
+    OutlineFilter,
+    SvgeRulers,
     SvgeCanvasGestures,
     SvgeShellInteractions,
     SvgeContextMenuTrigger,
@@ -113,6 +119,7 @@ import { SvgeToolsPalette } from '../tools-palette';
       >
         <svge-workspace-background>
           <svge-renderer
+            svgeOutlineFilter
             [tree]="resolvedTree()"
             [viewBox]="resolvedViewBox()"
             [defs]="resolvedDefs()"
@@ -127,9 +134,21 @@ import { SvgeToolsPalette } from '../tools-palette';
               fix history.
             -->
             <svg:g svgePageOverlay svgeBehind></svg:g>
+            <!--
+              Grid overlay — auto-conditional on WorkspaceService.grid().enabled
+              (toggled via View > Show Grid menu item). svgeBehind needed
+              for same reason as PageOverlay (compile-time projection).
+            -->
+            <svg:g svgeGridOverlay svgeBehind></svg:g>
             <ng-content />
           </svge-renderer>
         </svge-workspace-background>
+        <!--
+          Rulers overlay — internally conditional on
+          WorkspaceService.rulers().enabled (toggled via View > Show
+          Rulers menu item).
+        -->
+        <svge-rulers />
       </div>
       <aside class="right-side" aria-label="Layers and inspector panels">
         <section class="panel layers-section">

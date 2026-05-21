@@ -21,6 +21,7 @@ import { SelectionService } from '../selection/selection.service';
 import { ShortcutService } from '../shortcut/shortcut.service';
 import { SnapService } from '../snap/snap.service';
 import { TransformService } from '../transform/transform.service';
+import { WorkspaceService } from '../workspace/workspace.service';
 import { DIRECT_SELECT_TOOL_ID, SELECT_TOOL_ID } from './builtin-tools';
 import { ToolHostService } from './tool-host.service';
 import type { ToolPointerEvent } from './tool';
@@ -95,6 +96,15 @@ export class SvgeShellInteractions implements OnDestroy {
   private readonly snap = inject(SnapService);
   private readonly isolation = inject(IsolationService);
   private readonly shortcuts = inject(ShortcutService);
+  /**
+   * Used by `onPointerMove` to publish doc-space cursor coordinates
+   * to `<svge-status-bar>` (cursor section) and `<svge-rulers>`
+   * (cursor indicator). Previously only `custom-editor` route wired
+   * this manually; the shells now do it via this directive so any
+   * `<svge-editor>`/`<svge-shell-pro>` consumer gets the live readout
+   * for free.
+   */
+  private readonly workspace = inject(WorkspaceService);
 
   /**
    * Pending drag bookkeeping. Set on pointer-down over a node; cleared
@@ -207,6 +217,16 @@ export class SvgeShellInteractions implements OnDestroy {
   // ── Pointer-move (drag detection + marquee update) ──────────────
 
   protected onPointerMove(event: PointerEvent): void {
+    // Update the workspace ruler-cursor signal so <svge-status-bar>'s
+    // cursor section (and rulers' cursor indicator) shows live doc
+    // coords as the user moves the pointer over the canvas. Runs on
+    // EVERY pointermove regardless of tool/drag state so the readout
+    // tracks continuously. setRulerCursor de-dups identical values
+    // internally — cheap. (D-043 follow-up: shells previously had no
+    // updater, so the cursor section always showed `—`.)
+    const cursorPoint = this.toDocPoint(event);
+    this.workspace.setRulerCursor(cursorPoint);
+
     // Drawing tool active → forward.
     const activeId = this.toolHost.activeId();
     const isDrawingTool =
@@ -320,6 +340,10 @@ export class SvgeShellInteractions implements OnDestroy {
     // leaves the canvas without releasing (e.g., dragged off the window).
     // The actual gesture would still resolve via pointercancel, but this
     // covers edge cases where the browser doesn't fire it.
+    // Clear the workspace ruler cursor so <svge-status-bar>'s cursor
+    // section reverts to "—" when the pointer leaves (matches user
+    // intuition that the readout follows the pointer's presence).
+    this.workspace.setRulerCursor(null);
   }
 
   // ── Click (manual dblclick detection → isolation) ───────────────

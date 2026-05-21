@@ -6,6 +6,63 @@
 
 ---
 
+## 2026-05-21 — D-043 follow-up: shells renderizam grid/rulers/outline + File menu items + cursor wired
+
+**Bugs reportados pelo usuário** (após o fix de MenuContributionContext funcionar):
+
+1. **Régua, grade, outline não funcionam visualmente** — menu items disparam, mas nada acontece no canvas
+2. **Menu File vazio** — pediu New, Import, Export SVG, Export PNG, etc.
+3. **Ícones ausentes em alguns botões da toolbar**
+4. **Posicionamento do cursor no rodapé não atualiza**
+
+**Diagnóstico**
+
+1. **Grid/Rulers/Outline**: `<svge-editor>` e `<svge-shell-pro>` (criados em D-034/D-038) **nunca incluíram** os componentes/diretivas que renderizam esses elementos: `<svg:g svgeGridOverlay>`, `svgeOutlineFilter` (diretiva no renderer), `<svge-rulers>`. Os menu items invocavam `workspace.toggleGrid()/toggleRulers()/toggleOutlineMode()` corretamente, mas como ninguém **lia** essas flags no shell, o canvas não mudava.
+
+2. **File menu vazio**: minha entrega anterior do D-043 deliberadamente **omitiu** o slot `menu.file` — registrei nota "consumer-specific" mas isso era resposta preguiçosa: New/Import/Export são UNIVERSAIS e implementáveis sem dialog Material (usando `<input type="file">` programático + Blob download).
+
+3. **Cursor não atualiza**: `WorkspaceService.setRulerCursor()` só era chamado pela rota custom-editor manualmente. Os shells nunca propagavam pointermove → setRulerCursor → status bar / rulers ficam sempre em `'—'`.
+
+4. **Ícones**: `workspaces` é Material Icon válido mas trocado por `call_split` (universalmente disponível e mais óbvio visualmente para "ungroup" — visualmente é uma seta dividindo em duas).
+
+**Fix arquitetural — todos no componente raiz, não nas views**
+
+| Onde                                                   | O quê                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `svg-engine/ui/editor/editor.component.ts`             | Imports: `GridOverlay`, `OutlineFilter`, `SvgeRulers`. Template: adiciona `svgeOutlineFilter` no `<svge-renderer>`; `<svg:g svgeGridOverlay svgeBehind>` dentro; `<svge-rulers />` como overlay sibling                                                       |
+| `svg-engine/ui/shell-pro/shell-pro.component.ts`       | Mesmo                                                                                                                                                                                                                                                         |
+| `svg-engine/edit/tool/shell-interactions.directive.ts` | Inject `WorkspaceService`. `onPointerMove` chama `workspace.setRulerCursor(toDocPoint(event))`. `onPointerLeave` chama `setRulerCursor(null)`. **Todos shells** que usam `[svgeShellInteractions]` herdam automaticamente                                     |
+| `builtinMenuContributionsPlugin`                       | Adiciona 5 itens em `menu.file`: New (resetDocument + history.clear + confirm se não-empty), Import SVG (input file + svgImporter), Export SVG (Blob download via svgExporter), Export PNG (Blob download via pngExporter), + 2 dividers para grouping visual |
+| `builtinMenuContributionsPlugin`                       | Icon `workspaces` → `call_split` (3 itens: Edit/Toolbar/Context.node ungroup)                                                                                                                                                                                 |
+
+**Sobre os File items**: Todos usam **APIs do navegador** (`<input type="file">`, `Blob`, `URL.createObjectURL`, `<a download>`) — sem necessidade de Material dialog. Plugin continua no `edit` (zero violação de D-017). Defensive: cada handler verifica `typeof document !== 'undefined'` para SSR-safety. **New** pede confirmação só quando documento tem conteúdo (não importuna em editor fresco). **Import** mostra warnings da importação via `console.warn`. **Export PNG** lida com `string | Promise<string | Blob>` do Exporter API normalizando para Blob.
+
+**Status bar**: agora cursor section mostra `x.x, y.y` em tempo real conforme o usuário move o pointer sobre o canvas em QUALQUER shell. Tooltip "Cursor position (document coordinates)".
+
+**Grid/Rulers/Outline rendering**:
+
+- `<svg:g svgeGridOverlay svgeBehind>` — auto-conditional internamente (`@if (visible())` no GridOverlay onde `visible = grid().enabled`). Toggle via menu funciona instantaneamente
+- `<svge-rulers />` — auto-conditional internamente (`@if (visible())` onde `visible = rulers().enabled`)
+- `svgeOutlineFilter` — diretiva no renderer, internamente reativa a `outlineMode()`. Aplica fill:none + stroke nos shapes; remove ao desligar
+
+**Garantias verificadas**
+
+- ✅ **1038/1038 specs** passando
+- ✅ 6 entry points + playground build clean
+- ✅ Zero breaking change
+- ✅ D-017 headless boundary intacta (File items usam APIs DOM nativas, não Material)
+- ✅ D-042 multi-editor scope correto (handlers usam `fromCtx(token, runCtx)`, cursor update é por componente — cada shell tem seu próprio Workspace via scope)
+
+**Arquivos**
+
+- `projects/svg-engine/ui/src/lib/editor/editor.component.ts` — imports + template: GridOverlay/OutlineFilter/SvgeRulers
+- `projects/svg-engine/ui/src/lib/shell-pro/shell-pro.component.ts` — idem
+- `projects/svg-engine/edit/src/lib/tool/shell-interactions.directive.ts` — inject WorkspaceService + onPointerMove setRulerCursor + onPointerLeave clear
+- `projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts` — File items (New/Import/Export SVG/Export PNG) + helpers `newDocument`, `importSvgFromFile`, `exportAndDownload`; icon `workspaces` → `call_split`
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+
+---
+
 ## 2026-05-21 — Fix REAL de D-043: MenuContribution context per-fire + disabled como factory (corrige tentativa anterior)
 
 **Bug reportado**: Após o commit anterior de D-043, usuário testou `/pro-editor` e reportou: menus + submenus + context menu sem ação; itens aparecendo todos disabled. **Mesma natureza** do bug do PageOverlay (svgeBehind via host binding não funcionava) — minha implementação tinha furo arquitetural não testado em multi-editor real.

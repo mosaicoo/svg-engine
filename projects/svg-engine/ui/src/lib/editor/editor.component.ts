@@ -12,7 +12,9 @@ import {
 } from 'svg-engine/core';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
 import {
+  GridOverlay,
   IsolationService,
+  OutlineFilter,
   PageOverlay,
   resolveSelectableNodeId,
   SvgeCanvasGestures,
@@ -21,6 +23,7 @@ import {
 } from 'svg-engine/edit';
 import { CONTEXT_MENU_SLOT, SvgeContextMenuTrigger } from '../context-menu';
 import { SvgeMenuBar } from '../menu-bar';
+import { SvgeRulers } from '../rulers';
 import { SvgeStatusBar } from '../status-bar';
 import { SvgeToolbar } from '../toolbar';
 import { SvgeToolOptions } from '../tool-options';
@@ -94,6 +97,9 @@ import { SvgeToolOptions } from '../tool-options';
     SvgeRenderer,
     WorkspaceBackground,
     PageOverlay,
+    GridOverlay,
+    OutlineFilter,
+    SvgeRulers,
     SvgeCanvasGestures,
     SvgeToolbar,
     SvgeStatusBar,
@@ -180,6 +186,7 @@ import { SvgeToolOptions } from '../tool-options';
     >
       <svge-workspace-background>
         <svge-renderer
+          svgeOutlineFilter
           [tree]="resolvedTree()"
           [viewBox]="resolvedViewBox()"
           [defs]="resolvedDefs()"
@@ -209,9 +216,25 @@ import { SvgeToolOptions } from '../tool-options';
             is the only place that auto-includes it).
           -->
           <svg:g svgePageOverlay svgeBehind></svg:g>
+          <!--
+            Grid overlay — auto-conditional on WorkspaceService.grid().enabled
+            (the GridOverlay component itself wraps render in @if (visible())).
+            svgeBehind = renders UNDER content (D-043 fix lesson — content
+            projection is compile-time, attribute MUST be in template).
+            Toggled live via View > Show Grid menu item or
+            workspace.toggleGrid() programmatic.
+          -->
+          <svg:g svgeGridOverlay svgeBehind></svg:g>
           <ng-content />
         </svge-renderer>
       </svge-workspace-background>
+      <!--
+        Rulers overlay — positions itself absolutely on top + left of
+        the canvas. Internally conditional on WorkspaceService.rulers().enabled
+        (no extra @if needed here). Toggled live via View > Show Rulers
+        menu item or workspace.toggleRulers() programmatic.
+      -->
+      <svge-rulers />
     </div>
     @if (showStatusBar()) {
       <div class="status-area">

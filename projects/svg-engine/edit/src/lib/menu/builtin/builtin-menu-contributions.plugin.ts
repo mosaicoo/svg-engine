@@ -10,6 +10,7 @@ import {
   type ReorderDirection,
   UngroupCommand,
 } from 'svg-engine/core';
+import { pngExporter, svgExporter, svgImporter } from 'svg-engine/io';
 import { ViewportService } from 'svg-engine/render';
 
 import { type EditorPlugin } from '../../plugin/plugin';
@@ -114,6 +115,87 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     const fromCtx = <T>(token: ProviderToken<T>, runCtx?: MenuContributionContext): T =>
       (runCtx?.injector ?? ctx.injector).get(token);
 
+    // ── File menu ──────────────────────────────────────────────────
+    // Browser-native I/O (no dialog component required → stays in
+    // edit headless boundary). Consumers wanting a Material file
+    // dialog or a custom save flow can register their own items with
+    // the same IDs to override (registry throws on duplicate id, so
+    // they must dispose the built-in first via reg.get(id) + dispose).
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.new',
+        slot: MENU_SLOT.FILE,
+        label: 'New',
+        icon: 'insert_drive_file',
+        shortcut: 'Ctrl+N',
+        order: 10,
+        run(runCtx) {
+          newDocument(runCtx, fromCtx);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.divider1',
+        slot: MENU_SLOT.FILE,
+        label: '',
+        order: 20,
+        divider: true,
+        run() {
+          /* divider */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.import',
+        slot: MENU_SLOT.FILE,
+        label: 'Import SVG…',
+        icon: 'folder_open',
+        shortcut: 'Ctrl+O',
+        order: 30,
+        run(runCtx) {
+          importSvgFromFile(runCtx, fromCtx);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.divider2',
+        slot: MENU_SLOT.FILE,
+        label: '',
+        order: 40,
+        divider: true,
+        run() {
+          /* divider */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.export-svg',
+        slot: MENU_SLOT.FILE,
+        label: 'Export SVG…',
+        icon: 'download',
+        order: 50,
+        run(runCtx) {
+          void exportAndDownload(runCtx, fromCtx, 'svg');
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.export-png',
+        slot: MENU_SLOT.FILE,
+        label: 'Export PNG…',
+        icon: 'image',
+        order: 60,
+        run(runCtx) {
+          void exportAndDownload(runCtx, fromCtx, 'png');
+        },
+      }),
+    );
+
     // ── Edit menu ───────────────────────────────────────────────────
     ctx.track(
       reg.register({
@@ -213,7 +295,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         id: 'svge.builtin.edit.ungroup',
         slot: MENU_SLOT.EDIT,
         label: 'Ungroup',
-        icon: 'workspaces',
+        icon: 'call_split',
         shortcut: 'Ctrl+Shift+G',
         order: 80,
         disabled: cantUngroupFactory,
@@ -452,7 +534,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         id: 'svge.builtin.toolbar.ungroup',
         slot: TOOLBAR_SLOT.MAIN,
         label: 'Ungroup',
-        icon: 'workspaces',
+        icon: 'call_split',
         tooltip: 'Ungroup focus (Ctrl+Shift+G)',
         order: 50,
         disabled: cantUngroupFactory,
@@ -571,7 +653,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         id: 'svge.builtin.context.node.ungroup',
         slot: CONTEXT_MENU_SLOT.NODE,
         label: 'Ungroup',
-        icon: 'workspaces',
+        icon: 'call_split',
         shortcut: 'Ctrl+Shift+G',
         order: 40,
         disabled: cantUngroupFactory,
@@ -660,4 +742,93 @@ function ungroupFocus(runCtx: MenuContributionContext | undefined, fromCtx: Reso
   const node = findNodeById(state.document().root, focus);
   if (node === null || node.type !== 'group') return;
   fromCtx(CommandBus, runCtx).dispatch(new UngroupCommand(focus));
+}
+
+// ── File menu action implementations ──────────────────────────────
+// Browser-native I/O so the plugin stays in `edit` (no Material dep).
+// Each function defends against SSR / non-browser contexts so the
+// plugin can still register on the server (handlers just no-op).
+
+function newDocument(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+  // Confirm before discarding work — only when document is non-empty.
+  // Avoid the prompt on a fresh editor where confirmation feels noisy.
+  if (typeof window !== 'undefined') {
+    const state = fromCtx(EditorStateService, runCtx);
+    const root = state.document().root;
+    const hasContent = root.type === 'group' && root.children.length > 0;
+    if (hasContent) {
+      const ok = window.confirm('Discard the current document and start fresh?');
+      if (!ok) return;
+    }
+  }
+  // resetDocument() with no arg creates an empty document; history.clear()
+  // wipes undo/redo so the user can't undo back into the discarded state.
+  fromCtx(EditorStateService, runCtx).resetDocument();
+  fromCtx(HistoryService, runCtx).clear();
+}
+
+function importSvgFromFile(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+  if (typeof document === 'undefined') return;
+  // Programmatic <input type="file"> — no UI scaffolding required.
+  // Pattern matches what `/svg-viewer` route does (browser-native flow,
+  // works without Material).
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.svg,image/svg+xml';
+  input.style.display = 'none';
+  input.addEventListener(
+    'change',
+    () => {
+      const file = input.files?.[0];
+      input.remove();
+      if (file === undefined || file === null) return;
+      void file.text().then((text) => {
+        const result = svgImporter.import(text);
+        if (!result.ok) {
+          if (typeof window !== 'undefined') window.alert(`Import failed: ${result.error}`);
+          return;
+        }
+        fromCtx(EditorStateService, runCtx).resetDocument(result.document);
+        fromCtx(HistoryService, runCtx).clear();
+        if (result.warnings.length > 0 && typeof console !== 'undefined') {
+          console.warn(`[SVGEngine] Import warnings:\n${result.warnings.join('\n')}`);
+        }
+      });
+    },
+    { once: true },
+  );
+  document.body.appendChild(input);
+  input.click();
+}
+
+async function exportAndDownload(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+  format: 'svg' | 'png',
+): Promise<void> {
+  if (typeof document === 'undefined' || typeof URL === 'undefined') return;
+  const state = fromCtx(EditorStateService, runCtx);
+  const doc = state.document();
+  const exporter = format === 'svg' ? svgExporter : pngExporter;
+  // `Exporter.export` may return `string` (SVG) or `Promise<string | Blob>`
+  // (PNG). Normalize both branches into a Blob for download.
+  let output: string | Blob;
+  try {
+    const result = exporter.export(doc);
+    output = typeof result === 'string' ? result : await result;
+  } catch (err) {
+    if (typeof window !== 'undefined')
+      window.alert(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
+  const blob = output instanceof Blob ? output : new Blob([output], { type: exporter.mediaType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `untitled.${exporter.extension}`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  // Defer revoke so the browser has a chance to start the download.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
