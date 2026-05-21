@@ -102,9 +102,8 @@ import {
   SvgeRulers,
   SvgeSvgSourceDialogService,
   SvgeThemeToggle,
-  SvgeWorkspaceSettings,
+  SvgeWorkspaceSettingsDialogService,
 } from 'svg-engine/ui';
-import { MatDialog } from '@angular/material/dialog';
 
 type ShapeKind = 'rect' | 'ellipse' | 'path';
 
@@ -196,15 +195,15 @@ export class CustomEditor implements OnDestroy {
   protected readonly isolation = inject(IsolationService);
   private readonly autoSave = inject(AutoSaveService);
   private readonly anchorSelection = inject(AnchorSelectionService);
-  // D-044 follow-up: use the centralized SvgSourceDialog opener instead
-  // of MatDialog directly. The service knows how to wire the parent
-  // injector so the dialog reads THIS editor's EditorStateService
-  // (route-scoped via provideSvgEngineEditorScope) — same defect class
-  // that bit the built-in UI menu plugin before centralization.
+  // D-044 follow-up: use the centralized dialog openers instead of
+  // MatDialog directly. The services know how to wire the parent
+  // injector so each dialog reads THIS editor's services (route-scoped
+  // via provideSvgEngineEditorScope) — same defect class that bit the
+  // built-in UI menu plugin before centralization. The dialog-shell
+  // sizing system (svgeDialogConfig) also lives inside the services so
+  // every "View Source" / "Workspace Settings" call site looks the same.
   private readonly sourceDialog = inject(SvgeSvgSourceDialogService);
-  // Kept for any remaining ad-hoc dialog needs in this route (e.g.,
-  // future workspace-settings dialog wrapped in its own service).
-  private readonly dialog = inject(MatDialog);
+  private readonly workspaceDialog = inject(SvgeWorkspaceSettingsDialogService);
   private readonly hostInjector = inject(Injector);
 
   /** Reference to the hidden `<input type="file">` for SVG import. */
@@ -526,9 +525,16 @@ export class CustomEditor implements OnDestroy {
    * The dialog edits page/grid/rulers/guides via the WorkspaceService
    * APIs; no command-bus involvement (workspace state is presentation,
    * not document, per D-021).
+   *
+   * Delegates to {@link SvgeWorkspaceSettingsDialogService} (D-044
+   * follow-up) so MatDialogConfig — `svgeDialogConfig('md')` — and the
+   * scope-aware injector wiring stay aligned with the built-in UI menu
+   * plugin. Same centralization rationale as the source dialog: when
+   * an action has nontrivial setup that must stay consistent across
+   * consumers, the fix-once-protect-everywhere is a service.
    */
   protected openWorkspaceSettings(): void {
-    this.dialog.open(SvgeWorkspaceSettings, { width: '420px' });
+    this.workspaceDialog.open(this.hostInjector);
   }
 
   /**

@@ -8,6 +8,7 @@ import {
 } from 'svg-engine/edit';
 
 import { SvgeSvgSourceDialogService } from '../svg-source-dialog';
+import { SvgeWorkspaceSettingsDialogService } from '../workspace-settings';
 
 /**
  * **`builtinUiMenuContributionsPlugin`** — D-044 (UI controls full-functionality follow-up).
@@ -20,9 +21,10 @@ import { SvgeSvgSourceDialogService } from '../svg-source-dialog';
  *
  * **What's included**:
  *
- * | Slot         | Item          | Action                                        |
- * | ------------ | ------------- | --------------------------------------------- |
- * | `menu.file`  | View Source…  | Opens `<svge-svg-source-dialog>` via MatDialog |
+ * | Slot         | Item                  | Action                                                  |
+ * | ------------ | --------------------- | ------------------------------------------------------- |
+ * | `menu.file`  | View Source…          | Opens `<svge-svg-source-dialog>` via MatDialog          |
+ * | `menu.file`  | Workspace Settings…   | Opens `<svge-workspace-settings>` via MatDialog         |
  *
  * **Why a separate plugin** instead of merging into the edit-side one:
  *
@@ -47,7 +49,6 @@ import { SvgeSvgSourceDialogService } from '../svg-source-dialog';
  * `SvgeContextMenuService` before its parent-injector fix.
  *
  * **Future items** for this plugin (registered as deferred):
- * - Workspace Settings… (dialog with `<svge-workspace-settings>`)
  * - Export With Options… (dialog with format chooser + dimensions)
  * - About SVGEngine (Material-styled About box vs the alert in the
  *   edit-side plugin's Help item)
@@ -85,6 +86,28 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
           // injector wiring). Custom routes use the same service so
           // both paths stay aligned automatically.
           const service = fromCtx(SvgeSvgSourceDialogService, runCtx);
+          service.open(runCtx?.injector ?? ctx.injector);
+        },
+      }),
+    );
+
+    // ── File ▸ Workspace Settings… ───────────────────────────────
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.ui.file.workspace-settings',
+        slot: MENU_SLOT.FILE,
+        label: 'Workspace Settings…',
+        icon: 'tune',
+        // Lowest order in File group so it sits at the bottom — settings
+        // are global / cross-cutting, distinct from the document-scoped
+        // actions above.
+        order: 90,
+        run(runCtx) {
+          // Delegate to SvgeWorkspaceSettingsDialogService — same
+          // centralization rationale as View Source: dialog config +
+          // scope-aware injector wiring live in one place so every
+          // call site stays aligned automatically.
+          const service = fromCtx(SvgeWorkspaceSettingsDialogService, runCtx);
           service.open(runCtx?.injector ?? ctx.injector);
         },
       }),

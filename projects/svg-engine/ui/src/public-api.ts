@@ -79,3 +79,9 @@ export * from './lib/shell-pro';
 
 // Built-in UI menu contributions (Material-dialog items — D-044)
 export * from './lib/menu-extras';
+
+// Shared dialog shell + sizing system (D-044 follow-up — UI consistency)
+// Use SvgeDialogShell + svgeDialogConfig() to build new dialogs that
+// match the standardized SVGEngine look. See dialog-shell.component.ts
+// for the API and dialog-config.ts for the size buckets.
+export * from './lib/dialog-shell';

@@ -7,16 +7,11 @@ import {
   type Signal,
 } from '@angular/core';
 import { MatIconButton } from '@angular/material/button';
-import {
-  MatDialogActions,
-  MatDialogClose,
-  MatDialogContent,
-  MatDialogTitle,
-} from '@angular/material/dialog';
 import { MatIcon } from '@angular/material/icon';
 import { MatTooltip } from '@angular/material/tooltip';
 import { EditorStateService, type SvgDocument } from 'svg-engine/core';
 import { ExporterRegistry, type Exporter, svgExporter } from 'svg-engine/io';
+import { SvgeDialogShell } from '../dialog-shell';
 
 /**
  * Source-code viewer for the **current editor document** rendered as
@@ -25,47 +20,42 @@ import { ExporterRegistry, type Exporter, svgExporter } from 'svg-engine/io';
  * falls back to the {@link svgExporter} import when nothing is registered
  * (e.g., the consumer mounted this dialog without `builtinIoPlugin`).
  *
+ * **Layout standardized via `<svge-dialog-shell>`** — D-044 follow-up
+ * (UI consistency sprint): inherits the canonical header (icon + title
+ * + Copy action + Close X), body padding, and footer slot from the
+ * shared shell. Sizing comes from `svgeDialogConfig('lg')` set in
+ * {@link SvgeSvgSourceDialogService}.
+ *
  * **Why a dialog (not a sidebar panel)**: source view is a debugging /
  * inspection surface — most users only open it occasionally. A modal
  * dialog avoids permanently squeezing the layout and gives the source
- * generous breathing room (full-height `<pre>`). Pattern matches
- * Inkscape's "XML Editor" window and Boxy SVG's source pane.
+ * generous breathing room. Pattern matches Inkscape's "XML Editor"
+ * window and Boxy SVG's source pane.
  *
  * **Live updates**: the source `computed` reads `state.document()`, so
  * the displayed XML refreshes automatically as the user edits the
- * canvas with the dialog open (move/rotate/style change/etc.). Useful
- * during development to "see the diff" of a single command.
+ * canvas with the dialog open. Useful during development to "see the
+ * diff" of a single command.
  *
  * **Why no syntax highlighting**: keeps this component zero-dep beyond
  * Material. The deterministic exporter (`svgExporter`) already produces
- * stable, readable output with canonical attribute order — the visual
- * benefit of highlighting wouldn't justify dragging Prism / Highlight.js
- * into the bundle. Consumers wanting fancy rendering can wrap this
- * component or roll their own using the same exporter.
+ * stable, readable output. Consumers wanting fancy rendering can wrap
+ * this component or roll their own using the same exporter.
  *
- * **Copy to clipboard**: uses the modern `navigator.clipboard.writeText`
- * API with a graceful fallback to `document.execCommand('copy')` for
- * non-secure contexts (HTTP / older browsers). UI feedback via a
- * transient "Copied!" label shown for ~1500ms.
+ * **Copy to clipboard**: uses `navigator.clipboard.writeText` with a
+ * graceful fallback to `document.execCommand('copy')` for non-secure
+ * contexts (HTTP / older browsers). UI feedback via a transient
+ * "Copied!" label shown for ~1500ms.
  */
 @Component({
   selector: 'svge-svg-source-dialog',
   standalone: true,
-  imports: [
-    MatDialogTitle,
-    MatDialogContent,
-    MatDialogActions,
-    MatDialogClose,
-    MatIconButton,
-    MatIcon,
-    MatTooltip,
-  ],
+  imports: [SvgeDialogShell, MatIconButton, MatIcon, MatTooltip],
   template: `
-    <h2 mat-dialog-title class="header">
-      <mat-icon aria-hidden="true">code</mat-icon>
-      <span>SVG source</span>
-      <span class="spacer"></span>
+    <svge-dialog-shell icon="code" title="SVG source" [subtitle]="subtitleText()">
+      <!-- Header actions: Copy button next to Close X -->
       <button
+        svgeDialogHeaderActions
         mat-icon-button
         type="button"
         [matTooltip]="copied() ? 'Copied!' : 'Copy to clipboard'"
@@ -74,17 +64,8 @@ import { ExporterRegistry, type Exporter, svgExporter } from 'svg-engine/io';
       >
         <mat-icon>{{ copied() ? 'check' : 'content_copy' }}</mat-icon>
       </button>
-      <button
-        mat-icon-button
-        type="button"
-        mat-dialog-close
-        matTooltip="Close"
-        aria-label="Close SVG source dialog"
-      >
-        <mat-icon>close</mat-icon>
-      </button>
-    </h2>
-    <mat-dialog-content class="content">
+
+      <!-- Body (default slot) -->
       @if (errorMessage(); as err) {
         <p class="error" role="alert">{{ err }}</p>
       } @else {
@@ -94,41 +75,17 @@ import { ExporterRegistry, type Exporter, svgExporter } from 'svg-engine/io';
           aria-label="Exported SVG source code"
           tabindex="0"
         ><code>{{ source() }}</code></pre>
-        <p class="meta" aria-live="polite">{{ byteCount() }} bytes · {{ lineCount() }} lines</p>
       }
-    </mat-dialog-content>
-    <mat-dialog-actions align="end" class="actions">
-      <button mat-icon-button type="button" mat-dialog-close matTooltip="Close" aria-label="Close">
-        <mat-icon>close</mat-icon>
-      </button>
-    </mat-dialog-actions>
+
+      <!-- Footer status: byte/line count (replaces in-body meta line) -->
+      <span svgeDialogFooterStatus aria-live="polite">
+        {{ byteCount() }} bytes · {{ lineCount() }} lines
+      </span>
+    </svge-dialog-shell>
   `,
   styles: `
-    :host {
-      display: block;
-      min-width: min(70vw, 720px);
-      max-width: 90vw;
-    }
-    .header {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin: 0;
-    }
-    .spacer {
-      flex: 1 1 auto;
-    }
-    .content {
-      max-height: 60vh;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      padding-top: 0;
-    }
+    /* Internals only — header / footer / sizing live in <svge-dialog-shell>. */
     .source {
-      flex: 1 1 auto;
-      min-height: 0;
       margin: 0;
       padding: 0.75rem 1rem;
       border-radius: 0.35rem;
@@ -140,18 +97,11 @@ import { ExporterRegistry, type Exporter, svgExporter } from 'svg-engine/io';
       overflow: auto;
       white-space: pre;
       tab-size: 2;
-      /* Focus ring for keyboard users navigating into the <pre>. */
+      max-height: 60vh;
       outline-offset: -2px;
     }
     .source:focus-visible {
       outline: 2px solid var(--mat-sys-primary, #1976d2);
-    }
-    .meta {
-      margin: 0;
-      font-size: 11px;
-      opacity: 0.6;
-      align-self: flex-end;
-      font-variant-numeric: tabular-nums;
     }
     .error {
       margin: 0;
@@ -170,9 +120,7 @@ export class SvgeSvgSourceDialog {
 
   /**
    * Pick the registered SVG exporter when available (plugin override
-   * possible) or fall back to the builtin import. Computed so consumers
-   * registering a custom exporter after dialog open get the new one
-   * automatically.
+   * possible) or fall back to the builtin import.
    */
   private readonly resolvedExporter: Signal<Exporter> = computed(() => {
     const registered = this.exporters.byMediaType('image/svg+xml');
@@ -181,25 +129,17 @@ export class SvgeSvgSourceDialog {
 
   /**
    * Reactive serialization: re-runs whenever the document or the
-   * registered exporter changes. `svgExporter.export(doc)` is guaranteed
-   * to return `string` synchronously (SVG is a text format); if a third-
-   * party exporter for `image/svg+xml` returns a Promise (unusual but
-   * legal per `Exporter` union type), we surface an error rather than
-   * pretending we have a value.
+   * registered exporter changes. SVG exporters return `string`
+   * synchronously; async exporters surface an error message instead
+   * of silently rendering `[object Promise]`.
    */
   protected readonly source = computed<string>(() => {
     const doc: SvgDocument = this.state.document();
     const result = this.resolvedExporter().export(doc);
-    if (typeof result !== 'string') {
-      // Async exporter for image/svg+xml is theoretically possible but
-      // not how any of our builtin or planned exporters behave. Surfacing
-      // the limitation explicitly beats showing "[object Promise]".
-      return '';
-    }
+    if (typeof result !== 'string') return '';
     return result;
   });
 
-  /** Async-exporter detection — drives the error banner in the template. */
   protected readonly errorMessage = computed<string | null>(() => {
     const result = this.resolvedExporter().export(this.state.document());
     if (typeof result !== 'string') {
@@ -218,9 +158,19 @@ export class SvgeSvgSourceDialog {
   });
 
   /**
+   * Subtitle shown under the title: surfaces the resolved exporter
+   * name so the user knows whether they're looking at the built-in
+   * SVG output or a plugin-contributed serializer. Falls back to a
+   * neutral label when the exporter has no friendly name.
+   */
+  protected readonly subtitleText = computed<string>(() => {
+    const exporter = this.resolvedExporter();
+    return `Live export — ${exporter.name ?? exporter.id ?? 'SVG'}`;
+  });
+
+  /**
    * Transient "Copied!" indicator. Set true on a successful copy, reset
-   * after ~1500ms so the UI doesn't accumulate stale state across
-   * multiple copies.
+   * after ~1500ms so the UI doesn't accumulate stale state.
    */
   protected readonly copied = signal(false);
 
@@ -246,9 +196,6 @@ export class SvgeSvgSourceDialog {
  * (we just skip the "Copied!" feedback).
  */
 async function writeClipboard(text: string): Promise<boolean> {
-  // Modern path (HTTPS / localhost). Wrapped in try because some browsers
-  // throw on writeText calls outside a user gesture, even when the API
-  // is present.
   try {
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
@@ -257,8 +204,6 @@ async function writeClipboard(text: string): Promise<boolean> {
   } catch {
     // Fall through to legacy path.
   }
-  // Legacy path: a transient textarea + execCommand. Works on HTTP and
-  // some older browsers; deprecated but still widely supported in 2026.
   try {
     if (typeof document === 'undefined') return false;
     const ta = document.createElement('textarea');

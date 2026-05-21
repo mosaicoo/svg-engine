@@ -1,54 +1,62 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatDialogClose, MatDialogRef } from '@angular/material/dialog';
 import { MatFormField, MatLabel } from '@angular/material/form-field';
-import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { WHEEL_ZOOM_SPEED_MAX, WHEEL_ZOOM_SPEED_MIN, WorkspaceService } from 'svg-engine/edit';
+import { SvgeDialogShell } from '../dialog-shell';
 
 /**
- * Settings dialog for the `WorkspaceService` (Item 2 — débito 4f).
- * Exposes page / grid / rulers controls in a Material `<mat-dialog>`
+ * Settings dialog for the {@link WorkspaceService} — page / grid /
+ * rulers / guides / interaction tuning surfaced as a Material dialog
  * so users can adjust them without leaving the canvas.
+ *
+ * **Layout standardized via `<svge-dialog-shell>`** — D-044 follow-up
+ * (UI consistency sprint): inherits the canonical header (icon + title
+ * + Close X), body padding, and footer actions slot from the shared
+ * shell. Sizing comes from `svgeDialogConfig('md')` set in
+ * {@link SvgeWorkspaceSettingsDialogService} — `'md'` (600px) is the
+ * right bucket for forms with multiple grouped fields.
  *
  * **Surface kept narrow on purpose**:
  * - Page: width / height / orientation
- * - Grid: enabled / spacing / majorEvery (color picker deferred —
- *   the default `--mat-sys-outline-variant` blends well in both
- *   themes; custom color is plugin territory)
+ * - Grid: enabled / spacing / majorEvery (color picker deferred — the
+ *   default `--mat-sys-outline-variant` blends well in both themes;
+ *   custom color is plugin territory)
  * - Rulers: enabled
  * - Guides: count (read-only) + "Clear all"
+ * - Interaction: wheel zoom speed slider
  *
  * Margins NOT exposed in v1 — workspace model supports them but no
- * editor feature consumes them yet (would be confusing to set
- * without visible feedback).
+ * editor feature consumes them yet (would be confusing to set without
+ * visible feedback).
  *
- * **Usage** (typically opened from a toolbar button):
- * ```ts
- * dialog.open(SvgeWorkspaceSettings, { width: '420px' });
- * ```
+ * **Usage**: open via {@link SvgeWorkspaceSettingsDialogService} so
+ * MatDialogConfig (size + scope-aware injector wiring) stays consistent
+ * across every call site.
  */
 @Component({
   selector: 'svge-workspace-settings',
   standalone: true,
   imports: [
-    MatDialogModule,
+    SvgeDialogShell,
+    MatDialogClose,
     MatButtonModule,
     MatFormField,
     MatLabel,
     MatInput,
     MatSelectModule,
     MatCheckboxModule,
-    MatIcon,
   ],
   template: `
-    <h2 mat-dialog-title>
-      <mat-icon aria-hidden="true">tune</mat-icon>
-      Workspace settings
-    </h2>
-    <mat-dialog-content>
+    <svge-dialog-shell
+      icon="tune"
+      title="Workspace settings"
+      subtitle="Page · Grid · Rulers · Guides · Interaction"
+    >
+      <!-- Body (default slot) -->
       <section class="group">
         <h3>Page</h3>
         <div class="row">
@@ -157,22 +165,22 @@ import { WHEEL_ZOOM_SPEED_MAX, WHEEL_ZOOM_SPEED_MIN, WorkspaceService } from 'sv
           scroll feels like it jumps too far.
         </p>
       </section>
-    </mat-dialog-content>
-    <mat-dialog-actions align="end">
-      <button mat-button type="button" (click)="resetAll()">Reset defaults</button>
-      <button mat-flat-button type="button" (click)="dialogRef.close()">Done</button>
-    </mat-dialog-actions>
+
+      <!-- Footer actions slot -->
+      <ng-container svgeDialogFooterActions>
+        <button mat-button type="button" (click)="resetAll()">Reset defaults</button>
+        <button mat-flat-button type="button" mat-dialog-close>Done</button>
+      </ng-container>
+    </svge-dialog-shell>
   `,
   styles: `
-    :host {
-      display: block;
-      min-width: 360px;
-    }
+    /* Internals only — header / footer / sizing live in <svge-dialog-shell>. */
     .group {
-      padding: 8px 0;
+      padding: 12px 0;
       border-top: 1px solid var(--mat-sys-outline-variant, #ddd);
     }
     .group:first-of-type {
+      padding-top: 0;
       border-top: 0;
     }
     .group h3 {
@@ -228,6 +236,11 @@ import { WHEEL_ZOOM_SPEED_MAX, WHEEL_ZOOM_SPEED_MIN, WorkspaceService } from 'sv
 })
 export class SvgeWorkspaceSettings {
   private readonly ws = inject(WorkspaceService);
+  /**
+   * Kept injected (even though the Done button uses `mat-dialog-close`)
+   * so callers wiring `afterClosed()` can still distinguish "Done"
+   * vs the implicit dismiss paths if needed in the future.
+   */
   protected readonly dialogRef = inject(MatDialogRef<SvgeWorkspaceSettings>);
 
   // ── Page readers ──────────────────────────────────────────────

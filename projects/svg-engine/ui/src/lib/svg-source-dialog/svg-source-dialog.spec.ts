@@ -53,10 +53,13 @@ describe('SvgeSvgSourceDialog', () => {
     expect(text).toContain('<rect');
   });
 
-  it('shows byte count + line count for the current source', () => {
-    const meta = fixture.nativeElement.querySelector('.meta')!.textContent ?? '';
-    expect(meta).toMatch(/\d+ bytes/);
-    expect(meta).toMatch(/\d+ lines/);
+  it('shows byte count + line count for the current source (footer status)', () => {
+    // D-044 follow-up: footer status now lives in `.dlg-footer-status`
+    // inside <svge-dialog-shell>'s footer slot, replacing the in-body
+    // `.meta` line. Same content, standardized chrome.
+    const status = fixture.nativeElement.querySelector('.dlg-footer-status')!.textContent ?? '';
+    expect(status).toMatch(/\d+ bytes/);
+    expect(status).toMatch(/\d+ lines/);
   });
 
   it('exposes a copy button (default state: content_copy icon)', () => {

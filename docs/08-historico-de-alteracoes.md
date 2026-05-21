@@ -6,6 +6,116 @@
 
 ---
 
+## 2026-05-21 — D-044 follow-up: dialog design system (`<svge-dialog-shell>` + `svgeDialogConfig`)
+
+**Pedido**: _"Crie um padrão profissional das telas de diálogo e
+dimensões que fazem sentido ao negócio apresentado nelas. Sempre manter
+padrão."_ — depois de notar que cada dialog (View Source, Workspace
+Settings) tinha chrome ligeiramente diferente: header artesanal,
+largura hardcoded inconsistente, presença/ausência de Close X, etc.
+
+**Estratégia arquitetural**
+
+Mesma lição dos services centralizados (`SvgeContextMenuService`,
+`SvgeSvgSourceDialogService`): **quando uma decoração precisa ficar
+consistente entre consumers, a defesa é uma primitiva compartilhada,
+não documentação**. Criar dois itens trabalhando juntos:
+
+1. **`svgeDialogConfig(size)`** — fábrica de `MatDialogConfig` com
+   buckets canônicos (`sm` 440px, `md` 600px, `lg` 720px, `xl` 960px),
+   `maxHeight: '85vh'`, `autoFocus: false`, `restoreFocus: true`,
+   `panelClass: 'svge-dialog-panel'`. Substitui o "width: '720px'"
+   espalhado.
+2. **`<svge-dialog-shell>`** — wrapper Angular standalone que injeta o
+   header padronizado (icon opcional + `<h2>` title + subtítulo opcional
+   - extras + Close X), body com `<mat-dialog-content>` e padding
+     normalizado, footer com slot para actions + slot para status text.
+     4 content-projection slots: default (body), `[svgeDialogHeaderActions]`,
+     `[svgeDialogFooterActions]`, `[svgeDialogFooterStatus]`.
+
+**Refatorados para usar o shell**
+
+- **`<svge-svg-source-dialog>`** — agora consome `<svge-dialog-shell>`
+  com icon `code`, title `SVG source`, subtítulo dinâmico mostrando
+  qual exporter está em uso, Copy no header actions, body com `<pre>`,
+  e contagem de bytes/linhas no footer status (antes era um `.meta`
+  inline no body — agora chrome do shell). Spec ajustada para
+  consultar `.dlg-footer-status` em vez de `.meta`.
+- **`<svge-workspace-settings>`** — chrome inteiramente delegado ao
+  shell (antes tinha `<h2 mat-dialog-title>` + `<mat-icon>` inline,
+  sem Close X). Padding interno revisado para combinar com o body do
+  shell. Botões "Reset defaults" / "Done" no footer actions slot.
+
+**Centralização de opening (novo service paralelo)**
+
+- **`SvgeWorkspaceSettingsDialogService`** (`ui/workspace-settings/`) —
+  espelho de `SvgeSvgSourceDialogService`. `open(parentInjector?)`
+  encapsula `svgeDialogConfig('md', { injector })` + scope-aware
+  `MatDialogConfig.injector`. Razão idêntica: sem essa centralização,
+  cada consumer da rota redescobre que `MatDialog.open()` direto pega
+  o injector da overlay root (D-042 multi-editor bug — mutaria
+  workspace errado).
+
+**Wireado**
+
+- `builtinUiMenuContributionsPlugin` registra **File ▸ Workspace
+  Settings…** (icon `tune`, order 90 — fim do grupo File porque
+  settings são cross-cutting). Delegate ao service novo via `fromCtx`
+  lazy resolution (mesmo pattern de View Source).
+- `CustomEditor` (playground) troca `inject(MatDialog) +
+dialog.open(SvgeWorkspaceSettings, { width: '420px' })` por
+  `inject(SvgeWorkspaceSettingsDialogService) +
+workspaceDialog.open(this.hostInjector)`. Remove import desnecessário
+  de `MatDialog`. **Antes** dois call sites com config divergente
+  (built-in plugin sem service vs route com `420px`), **agora** ambos
+  passam por uma única função.
+- `ui/public-api.ts` exporta o barrel `dialog-shell` (`SvgeDialogShell`,
+  `SvgeDialogSize`, `SVGE_DIALOG_MAX_HEIGHT`, `svgeDialogConfig`) para
+  que consumers possam construir dialogs próprios com o mesmo chrome.
+
+**O que NÃO entrou** (registrado como deferred)
+
+- **Export with Options…** dialog (formato + dimensões + qualidade)
+  — usaria `'md'` ou `'lg'` dependendo do nível de controle.
+- **About SVGEngine** Material-styled About (`'sm'`) substituindo o
+  `alert()` do plugin edit-side.
+- Documentação no `docs/06-componentes-editor-svg.md` sobre como criar
+  novos dialogs usando o shell — deixar para o próximo doc-catchup
+  consolidado.
+
+**Garantias verificadas**
+
+- ✅ **1049/1049 specs** passando (spec do source dialog ajustada
+  para o novo seletor `.dlg-footer-status`)
+- ✅ 6 entry points + playground build clean
+- ✅ Lint clean nos 2 projetos
+- ✅ Zero breaking change funcional — dialogs continuam abrindo,
+  apenas chrome consolidado
+- ✅ **D-017 headless boundary intacta**: `dialog-shell` vive em
+  `svg-engine/ui` (depende de `@angular/material/dialog`)
+- ✅ **D-042 multi-editor scope**: ambos services aceitam
+  `parentInjector` e propagam via `MatDialogConfig.injector`
+- ✅ **Princípio fix-once-protect-everywhere**: futuros dialogs que
+  consumam o shell + config helper ganham consistência automática
+
+**Arquivos**
+
+- `projects/svg-engine/ui/src/lib/dialog-shell/dialog-config.ts` — novo
+- `projects/svg-engine/ui/src/lib/dialog-shell/dialog-shell.component.ts` — novo
+- `projects/svg-engine/ui/src/lib/dialog-shell/index.ts` — novo
+- `projects/svg-engine/ui/src/lib/svg-source-dialog/svg-source-dialog.component.ts` — refatorado para usar shell
+- `projects/svg-engine/ui/src/lib/svg-source-dialog/svg-source-dialog.service.ts` — usa `svgeDialogConfig('lg')`
+- `projects/svg-engine/ui/src/lib/svg-source-dialog/svg-source-dialog.spec.ts` — query `.dlg-footer-status`
+- `projects/svg-engine/ui/src/lib/workspace-settings/workspace-settings.component.ts` — refatorado para usar shell
+- `projects/svg-engine/ui/src/lib/workspace-settings/workspace-settings-dialog.service.ts` — novo (centralized opener)
+- `projects/svg-engine/ui/src/lib/workspace-settings/index.ts` — exporta service
+- `projects/svg-engine/ui/src/lib/menu-extras/builtin-ui-menu-contributions.plugin.ts` — registra Workspace Settings… item
+- `projects/svg-engine/ui/src/public-api.ts` — exporta `dialog-shell`
+- `projects/playground/src/app/pages/custom-editor/custom-editor.component.ts` — usa service em vez de `MatDialog.open`
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+
+---
+
 ## 2026-05-21 — D-044 menu completion: Cut/Copy/Paste/Duplicate + Optimize + Snap + View Source
 
 **Pedido**: completar o menubar — itens que faltavam: View Source, Copy, Paste, Duplicar, Otimização, Snap.

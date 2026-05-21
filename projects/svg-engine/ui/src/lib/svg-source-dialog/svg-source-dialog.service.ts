@@ -1,5 +1,6 @@
 import { inject, Injectable, type Injector } from '@angular/core';
 import { MatDialog, type MatDialogRef } from '@angular/material/dialog';
+import { svgeDialogConfig } from '../dialog-shell';
 import { SvgeSvgSourceDialog } from './svg-source-dialog.component';
 
 /**
@@ -58,12 +59,11 @@ export class SvgeSvgSourceDialogService {
    * listeners or `afterClosed()` observable.
    */
   open(parentInjector?: Injector): MatDialogRef<SvgeSvgSourceDialog> {
-    return this.dialog.open(SvgeSvgSourceDialog, {
-      width: 'min(720px, 92vw)',
-      maxHeight: '90vh',
-      autoFocus: false,
-      restoreFocus: true,
-      injector: parentInjector,
-    });
+    // 'lg' = 720px — appropriate for content viewers (source code,
+    // preview). See dialog-config.ts for the full sizing rationale.
+    return this.dialog.open(
+      SvgeSvgSourceDialog,
+      svgeDialogConfig('lg', { injector: parentInjector }),
+    );
   }
 }
