@@ -1225,6 +1225,74 @@ git push --follow-tags origin main
 
 ---
 
+## D-041 — Posicionamento: o produto é o Canvas headless; `ui` é camada de conveniência
+
+- **Data**: 2026-05-21
+- **Status**: Decidida
+- **Contexto**: D-016 estabeleceu "produto de mercado, não MVP". D-017 fixou o boundary headless. D-018 dividiu em 6 entry points. D-037 codificou os 4 modos de consumo. Mas **nenhuma decisão dizia, com todas as letras, qual é o produto principal**. Em conversas de alinhamento isso virou pergunta recorrente: "É o `<svge-shell-pro>` ou é o headless?". Sem resposta canônica, decisões de roadmap/breaking-change/doc oscilavam.
+
+### Decisão
+
+**O produto principal do SVGEngine é o Canvas Engine headless** — o conjunto de entry points `core` + `render` + `io` + `optimize` + `edit`. O entry point `svg-engine/ui` (com componentes Angular Material como `<svge-shell-pro>`, `<svge-editor>`, `<svge-toolbar>`, etc.) é uma **camada de conveniência opt-in**, reutilizável mas **substituível**.
+
+Em uma frase: **"Vendemos uma engine. A UI profissional é cortesia."**
+
+### Implicações operacionais
+
+1. **Roadmap prioriza features headless primeiro**. UI só ganha versão de uma feature **depois** que a API headless dela está estável. Ex.: ao adicionar `ClipboardService` (futuro D-???), primeiro o service vai em `edit`; só depois `<svge-shell-pro>` ganha botões/atalhos que o consumam.
+
+2. **Breaking changes em `ui` são menos graves do que em headless**. Quebra no headless = consumer em modo 1 (D-037) quebra silenciosamente sem alternativa. Quebra em `ui` = consumer ainda pode cair para Modo 3 (shell parcial) ou Modo 1. SemVer minor pode incluir breaking em `ui` com migration note; SemVer minor **não pode** incluir breaking em headless.
+
+3. **Documentação de API prioriza headless**. `09-api-publica.md` ordena: tipos do `core` primeiro, services do `edit` segundo, componentes do `ui` por último. O 10-guia-plugin foca em headless. README posiciona "use o engine; UI pronta se quiser".
+
+4. **Tamanho e dependências do `ui` podem crescer**; do headless devem ser vigiados ativamente. Adicionar `@angular/material/foo` em `ui` é OK; adicionar **qualquer** dep em `core/render/io/optimize/edit` exige justificativa em D-???.
+
+5. **Performance** (D-???? perf budget futuro): mede-se contra o Canvas headless puro (Modo 1), não contra o shell completo. Overhead do shell é aceitável; do headless não.
+
+6. **A `playground` é showcase + sandbox + benchmark, não produto.** A rota `/raw-primitives` (anteriormente `/playground-home`) é o exemplo canônico de "consumer construindo UI própria sobre o Canvas headless" e deve ser preservada como referência mesmo se outras rotas mudarem.
+
+### De-para conceitual (alinhamento terminológico)
+
+| Termo conceitual (mercado)  | Implementação real (hoje)                                                                                                                 |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **SVG Engine** (produto)    | npm package `svg-engine`                                                                                                                  |
+| **Canvas Engine / Core**    | conjunto: `svg-engine/{core,render,io,optimize,edit}` (5 entry points headless)                                                           |
+| **Canvas físico**           | `<svge-renderer>` (read-only) ou `<svge-canvas>` (com gestures via diretivas `edit`)                                                      |
+| **SVG Engine Professional** | entry point `svg-engine/ui` — em particular `<svge-shell-pro>` (editor drop-in completo) e `<svge-editor [shell]="true">` (editor padrão) |
+| **Shell parcial**           | Modo 3 (D-037) — composição manual de componentes de `svg-engine/ui`                                                                      |
+| **Playground**              | app `projects/playground/` — sandbox + showcase + benchmark, **não** produto                                                              |
+| **Raw primitives example**  | rota `/raw-primitives` (alias de `/`) — demonstra Modo 1 (headless puro com UI construída pelo consumer)                                  |
+
+### Por que **não** quebrar em dois pacotes npm (`svg-engine` + `svg-engine-professional`)
+
+Avaliado em D-041 e rejeitado:
+
+- Tree-shaking + `optional` peer deps **já garantem** o que dois pacotes ofereceriam: consumer headless puro **não baixa** Material/CDK (`peerDependenciesMeta.@angular/material.optional = true`).
+- Manter duas versões coordenadas adiciona overhead real (release sincronizada, risco de drift) sem ganho funcional.
+- Refactor cross-entry (renomear API em `core` que é re-exportada por componente em `ui`) hoje é 1 PR atômico; em 2 pacotes seria coordenação 2 PRs + 2 releases.
+- A invariante "produto = headless" pode ser comunicada por **documentação** (D-041 + README + doc 01) sem precisar da segregação física.
+
+Se em algum futuro `ui` precisar evoluir em cadência **dramaticamente** diferente de `core` (cenário improvável: hoje co-evoluem), reabrir.
+
+### Fora de escopo
+
+- Lint rule formal para impedir adição de deps em entry points headless — fica como **D-028?** (já pendente).
+- "Perf budget" headless vs shell — registrar como nova decisão pendente quando começar a medir formalmente.
+
+### Garantias
+
+- ✅ Decisão é puramente posicional/operacional — **zero código alterado** para registrar.
+- ✅ Compatível com todas as decisões anteriores (D-016, D-017, D-018, D-026, D-037).
+- ✅ Diagramas de `docs/02-arquitetura.md` seção 4 já refletem essa hierarquia (UI no topo, headless boundary destacado).
+
+### Quando reabrir
+
+- Se o `ui` virar mais consumido que o headless (consumer headless = <10% dos usuários) — **reposicionar produto**.
+- Se Angular dropar Material e exigir migração brutal — **revisar o que é "conveniência"** quando o custo de conveniência sobe.
+- Se a Mosaicoo demandar release de `ui` independente do headless por X meses seguidos — **reabrir a separação em 2 pacotes**.
+
+---
+
 ## Decisões pendentes (em aberto)
 
 | ID provis. | Tema                                                                   |

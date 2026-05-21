@@ -1,9 +1,21 @@
 import { Routes } from '@angular/router';
 
+/**
+ * Playground routes — sandbox/showcase para os 4 modos (D-037).
+ *
+ * Convenção (D-041): `/raw-primitives` é o **nome canônico** do exemplo
+ * Modo 1 (Canvas headless puro com UI construída pelo consumer). A
+ * raiz `/` redireciona para `/raw-primitives` por compatibilidade com
+ * bookmarks antigos.
+ */
 export const routes: Routes = [
   {
     path: '',
     pathMatch: 'full',
+    redirectTo: 'raw-primitives',
+  },
+  {
+    path: 'raw-primitives',
     loadComponent: () =>
       import('./pages/playground-home/playground-home.component').then((m) => m.PlaygroundHome),
   },

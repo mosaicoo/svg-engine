@@ -6,6 +6,60 @@
 
 ---
 
+## 2026-05-21 — D-041 Posicionamento Canvas-first + vocabulário canônico + rota `/raw-primitives`
+
+**Contexto**
+
+Em conversas de alinhamento entre time/produto/marketing, virou recorrente a pergunta: _"Qual é o produto principal — o `<svge-shell-pro>` ou o headless?"_. Sem resposta canônica registrada, decisões de roadmap, breaking-change e doc oscilavam. D-016 falava em "produto de mercado", D-017 fixava o headless boundary, D-018 dividia em entry points, D-037 codificava os 4 modos — mas **nenhuma dizia, com todas as letras, qual é o produto**.
+
+**Decisão (D-041)**
+
+**O produto principal do SVGEngine é o Canvas Engine headless** (entry points `core` + `render` + `io` + `optimize` + `edit`). O `svg-engine/ui` é **camada de conveniência opt-in**, substituível.
+
+Em uma frase: **"Vendemos uma engine. A UI profissional é cortesia."**
+
+**Implicações operacionais formalizadas (6)**
+
+1. Roadmap prioriza features headless primeiro; UI segue
+2. Breaking changes em `ui` são menos graves do que em headless (SemVer minor pode quebrar `ui`; não pode quebrar headless)
+3. Documentação de API prioriza headless (09 ordena `core` → `edit` → `ui`)
+4. Dependências do headless são vigiadas ativamente; do `ui` podem crescer
+5. Performance é medida contra o Canvas headless puro (Modo 1)
+6. Playground é showcase + sandbox + benchmark — **não** é o produto
+
+**Rejeitado em D-041**: quebrar em dois pacotes npm (`svg-engine` + `svg-engine-professional`). Tree-shaking + `peerDependenciesMeta.optional` já entregam o que dois pacotes ofereceriam, sem overhead de releases coordenadas. Reavaliação só se cadência de evolução `ui` vs `core` divergir dramaticamente.
+
+**Vocabulário canônico (de-para conceitual)**
+
+Tabela completa em `docs/01-visao-geral.md` seção "Vocabulário canônico". Resumo:
+
+- **SVG Engine** = npm package `svg-engine`
+- **Canvas Engine / Core** = conjunto 5 entry points headless
+- **Canvas físico** = `<svge-renderer>` ou `<svge-canvas>`
+- **SVG Engine Professional** = entry point `svg-engine/ui` + `<svge-shell-pro>`
+- **Raw primitives example** = rota `/raw-primitives` (era `/playground-home`)
+
+**Mudança operacional (rota)**
+
+A rota `/` agora **redireciona** para `/raw-primitives`. O caminho `/raw-primitives` é o **nome canônico** do exemplo Modo 1. Bookmarks antigos continuam funcionando via redirect. Folder/componente `playground-home` mantidos por enquanto (rename é polish opcional, baixo valor).
+
+**Arquivos**
+
+- `docs/04-decisoes-tecnicas.md` — D-041 nova decisão (~100 linhas)
+- `docs/01-visao-geral.md` — seção "O que é o produto" + "Vocabulário canônico" + "Quatro casos de uso" expandida para 4 modos (era 3)
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+- `projects/playground/src/app/app.routes.ts` — rota `/raw-primitives` adicionada, `/` redireciona
+- `projects/playground/src/app/app.html` — nav linka para `/raw-primitives` com label "Raw primitives (Modo 1)"
+- `projects/playground/src/app/app.ts` — docstring atualizada
+
+**Garantias**
+
+- ✅ Decisão é puramente posicional — zero código de produção alterado
+- ✅ Rota `/` continua funcional (redirect, não 404)
+- ✅ Compatível com D-016, D-017, D-018, D-026, D-037 (D-041 formaliza intenção implícita)
+
+---
+
 ## 2026-05-21 — `docs/02-arquitetura.md`: seção "Mapa de dependências" com 3 diagramas Mermaid
 
 **Contexto**

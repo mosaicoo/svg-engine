@@ -23,18 +23,54 @@ toda decisão técnica:
 - **Cobertura de testes** desde o primeiro código de produção.
 - **Documentação viva** sincronizada com cada PR.
 
-## Três casos de uso explícitos
+### O que é "o produto" (D-041)
 
-A library é desenhada para que terceiros consumam de três formas:
+O produto principal do SVGEngine é o **Canvas Engine headless** — o
+conjunto de entry points sem UI obrigatória. A UI profissional pronta
+(`<svge-shell-pro>` e companhia) é **camada de conveniência opt-in**,
+substituível pelo consumer.
 
-| Modo               | O que precisa estar disponível                                                   |
-| ------------------ | -------------------------------------------------------------------------------- |
-| **1. Render**      | Apenas viewer: parse + render de SVG, sem edição. Embed em qualquer app Angular. |
-| **2. Manipulação** | API programática (e/ou UI) para inserir, mover, transformar elementos.           |
-| **3. Otimização**  | Pipeline de otimizações (ex.: redução de path, dedup, minificação) standalone.   |
+Em uma frase: **"Vendemos uma engine. A UI profissional é cortesia."**
 
-**Consequência arquitetural**: a library deve permitir consumo
-**headless** (engine sem UI), e a UI do editor é uma camada **opcional**.
+Implicações práticas:
+
+1. Roadmap prioriza features headless primeiro — UI segue
+2. Breaking changes em `ui` são menos graves do que em headless
+3. Documentação de API prioriza headless
+4. Dependências do headless são vigiadas; do `ui` podem crescer
+5. Performance é medida contra o headless puro
+
+Detalhes completos em D-041 (`docs/04-decisoes-tecnicas.md`).
+
+## Vocabulário canônico
+
+Para alinhamento entre time, doc e marketing, usamos este vocabulário:
+
+| Termo conceitual            | Implementação real                                                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **SVG Engine** (produto)    | npm package `svg-engine`                                                                                           |
+| **Canvas Engine / Core**    | conjunto: `svg-engine/{core,render,io,optimize,edit}` — 5 entry points headless                                    |
+| **Canvas físico**           | `<svge-renderer>` (read-only) ou `<svge-canvas>` (com gestures via diretivas de `edit`)                            |
+| **SVG Engine Professional** | entry point `svg-engine/ui` — em particular `<svge-shell-pro>` (drop-in completo) e `<svge-editor>` (configurável) |
+| **Shell parcial**           | Modo 3 (D-037) — composição manual de componentes de `svg-engine/ui`                                               |
+| **Playground**              | app `projects/playground/` — sandbox + showcase + benchmark, **não** produto                                       |
+| **Raw primitives example**  | rota `/raw-primitives` (alias de `/`) — demonstra Modo 1 (Canvas headless com UI construída pelo consumer)         |
+
+## Quatro casos de uso explícitos (D-037)
+
+A library é desenhada para que terceiros consumam de **quatro** formas
+distintas. Todas precisam funcionar sem quebrar as outras:
+
+| Modo                  | O que o consumer importa                                                   | Componentes UI envolvidos              |
+| --------------------- | -------------------------------------------------------------------------- | -------------------------------------- |
+| **1. Headless puro**  | `svg-engine/{core,render,io,optimize,edit}` — sem `ui`                     | Nenhum — consumer constrói UI própria  |
+| **2. Shell completo** | `svg-engine/ui` (`<svge-shell-pro>` ou `<svge-editor [shell]="true">`)     | Editor profissional pronto             |
+| **3. Shell parcial**  | `svg-engine/ui` (escolhendo componentes individuais)                       | Toolbar + canvas + inspector (por ex.) |
+| **4. Canvas-only**    | `svg-engine/render` (`<svge-canvas>`) + opcionalmente `edit` para gestures | Só o canvas + pan/zoom                 |
+
+**Consequência arquitetural**: nenhum entry point headless pode
+importar Material/CDK (D-017). `svg-engine/ui` é o único que pode.
+A `playground` demonstra os 4 modos em rotas separadas.
 
 ## Diretório raiz
 
@@ -61,8 +97,9 @@ A library é desenhada para que terceiros consumam de três formas:
 - **Linguagem**: TypeScript em modo `strict`.
 - **Estilo de SVG**: DOM SVG nativo + camada de abstração própria.
   Sem dependência de `svg.js`, `snap.svg`, `fabric.js` ou similares.
-- **Distribuição**: workspace Angular com **library** `svg-engine` +
-  **app** `playground` (consumidora/demonstração).
+- **Distribuição**: workspace Angular com **library** `svg-engine`
+  (npm package, 6 entry points) + **app** `playground`
+  (sandbox/showcase/benchmark — **não** é o produto).
 - **Back-end**: .NET 10 LTS — **somente se** surgir necessidade real
   (persistência server-side, colaboração, exportação pesada).
 
