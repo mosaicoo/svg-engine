@@ -5,6 +5,7 @@ import {
   builtinEditorShortcutsPlugin,
   builtinEffectsPlugin,
   builtinIoPlugin,
+  builtinMenuContributionsPlugin,
   builtinOptimizersPlugin,
   builtinPalettesPlugin,
   pencilToolPlugin,
@@ -17,7 +18,6 @@ import {
   textToolPlugin,
 } from 'svg-engine/edit';
 
-import { demoMenuBarPlugin } from './plugins/demo-menu-bar.plugin';
 import { stampToolPlugin } from './plugins/stamp-tool.plugin';
 import { routes } from './app.routes';
 
@@ -62,10 +62,14 @@ export const appConfig: ApplicationConfig = {
     // drop-shadow, grayscale, sepia. Shipped separately so apps that
     // don't surface effects in their UI can drop this plugin.
     provideSvgEnginePlugin(builtinEffectsPlugin),
-    // Demo menu bar items (D-038 Phase 1) — playground-only. Populates
-    // File/Edit/View/Help slots so the <svge-menu-bar> showcase has
-    // content. Real consumers wire their own.
-    provideSvgEnginePlugin(demoMenuBarPlugin),
+    // D-043 — Built-in menu/toolbar/context contributions with REAL
+    // handlers (replaces playground demoMenuBarPlugin which was all
+    // console.info mocks). Populates Edit/View/Object/Help + toolbar
+    // + context.canvas + context.node with wired commands (undo/redo/
+    // delete/group/ungroup/select-all/zoom/reorder/toggle-grid/etc).
+    // Items with reactive `disabled` signals follow selection/history
+    // state. Opt-in (consumer may replace with custom layouts).
+    provideSvgEnginePlugin(builtinMenuContributionsPlugin),
     // Stamp tool (D-038 Phase 3 showcase) — demonstrates
     // Tool.optionsComponent flowing through <svge-tool-options>.
     // Press K to activate; the options bar shows radius + color

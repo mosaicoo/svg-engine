@@ -6,6 +6,67 @@
 
 ---
 
+## 2026-05-21 — D-043 UI controls full-functionality — `builtinMenuContributionsPlugin` substitui demoMenuBarPlugin
+
+**Pedido do usuário**: "todos os controles definidos na UI do svg-engine estejam totalmente funcionais e suportem integralmente as ações disponíveis na engine". Diagnosticada como **mocks no demoMenuBarPlugin**: todos os `run()` faziam `console.info(...)`. Menus visuais profissionais mas nenhum botão fazia ação real.
+
+**Auditoria executada (Fase 0)**
+
+Mapeado:
+
+- **18 componentes UI** todos wired aos services correspondentes (1038 specs passing comprovam)
+- **10 plugins de library** todos com handlers reais (tools, effects, io, optimize, palettes, shortcuts, nudge)
+- **GAP CENTRAL**: ausência de plugin built-in conectando `MenuContributionRegistry` aos commands do bus. Único populador era o `demoMenuBarPlugin` no playground com handlers mock.
+
+**Decisão (D-043)**
+
+Criar **`builtinMenuContributionsPlugin`** em `svg-engine/edit/lib/menu/builtin/` registrando **31 contribuições** (File/Edit/View/Object/Help + toolbar.main + context.canvas + context.node) com:
+
+- **Handlers reais** dispatchando commands no bus (`bus.undo()`, `RemoveNodeCommand`, `GroupSelectionCommand`, `UngroupCommand`, `ReorderNodeCommand`, `viewport.zoomIn/Out/reset`, `workspace.toggleGrid/Rulers/OutlineMode`, `selection.selectMany`)
+- **Reactive `disabled` signals** (`!history.canUndo()`, `selection.selectedIds().size < 2` para Group, etc.)
+- **D-042 multi-editor safe** via `fromCtx(token, runCtxArg)` lazy resolver
+- **Opt-in** (mesmo padrão D-040 `builtinEditorShortcutsPlugin`)
+
+**Consolidação arquitetural casada**: constantes de slot (`MENU_SLOT`, `TOOLBAR_SLOT`, `CONTEXT_MENU_SLOT`) movidas de `ui/menu-bar` + `ui/context-menu` para `edit/lib/menu/menu-slots.ts` (fonte única). `ui` re-exporta para zero breaking change. Plugins em `edit` agora têm vocabulário próprio sem violar D-017.
+
+**Substituição em playground**: `demo-menu-bar.plugin.ts` removido via `git rm` (history preservada). `app.config.ts` substitui o provide. As 5 rotas do shell (`basic/modular/embeddable-canvas/pro-editor` + `custom-editor` que tem seu próprio wiring) **herdam automaticamente** os menus funcionais — **zero alterações nas views** (registry-driven — exato requisito do pedido).
+
+**Itens deferidos honestamente** (não inventei APIs)
+
+- Cut/Copy/Paste — precisa `ClipboardService` que não existe
+- Duplicate — precisa `DuplicateCommand` que não existe
+- Save/Open — depende de estratégia consumer
+- Export SVG/PNG **com dialog** — precisa Material dialog (`MatDialog` vive em `ui`; plugin em `edit` não pode importar — D-017)
+- Align/Distribute — precisa `NodeBBox[]` (rendered geometry, requer SVG DOM ref)
+- Workspace Settings dialog — idem Export
+
+Todos registrados em D-043 "fora de escopo / quando reabrir".
+
+**Garantias (verificadas)**
+
+- ✅ **1038/1038 specs** passando (era 1026 + 12 novos cobrindo registro nos slots, disabled signals, handlers dispatching commands reais, D-042 lazy injector)
+- ✅ 6 entry points + playground build clean
+- ✅ Zero breaking change (re-exports preservam imports `from 'svg-engine/ui'`)
+- ✅ D-017 headless boundary intacta (verificado: `edit/menu/builtin` zero imports de `ui`)
+- ✅ Componentes UI **não mudaram** — herdam automaticamente as contribuições novas via registry signal
+- ✅ Specs anti-mock provam comportamento real: `Undo` realmente remove shape do documento; `Group` realmente cria GroupNode; `Delete` realmente apaga
+
+**Arquivos**
+
+- `projects/svg-engine/edit/src/lib/menu/menu-slots.ts` — **novo** (constantes consolidadas)
+- `projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts` — **novo** (~450 LOC com docstrings, 31 contribuições)
+- `projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.spec.ts` — **novo** (12 testes, comprovação anti-mock)
+- `projects/svg-engine/edit/src/lib/menu/builtin/index.ts` — barrel
+- `projects/svg-engine/edit/src/lib/menu/index.ts` — exporta novas constantes + plugin
+- `projects/svg-engine/ui/src/lib/menu-bar/menu-bar.component.ts` — re-exporta `MENU_SLOT` de `svg-engine/edit`
+- `projects/svg-engine/ui/src/lib/context-menu/context-menu.component.ts` — re-exporta `CONTEXT_MENU_SLOT` de `svg-engine/edit`
+- `projects/playground/src/app/plugins/demo-menu-bar.plugin.ts` — **removido** (git rm)
+- `projects/playground/src/app/app.config.ts` — usa `builtinMenuContributionsPlugin`
+- `docs/04-decisoes-tecnicas.md` — D-043 entrada nova
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+
+---
+
 ## 2026-05-21 — Fix REAL de z-order: svgeBehind literal nas templates de svge-editor + svge-shell-pro (corrige tentativa anterior)
 
 **Tentativa anterior (commit `f4ea08c`) NÃO funcionou**

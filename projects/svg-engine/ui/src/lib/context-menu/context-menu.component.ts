@@ -178,14 +178,8 @@ export class SvgeContextMenu {
   }
 }
 
-/** Canonical context-menu slot ids — exported so plugins don't memorize strings. */
-export const CONTEXT_MENU_SLOT = {
-  CANVAS: 'context.canvas',
-  NODE: 'context.node',
-  LAYER: 'context.layer',
-  ANCHOR: 'context.anchor',
-  GUIDE: 'context.guide',
-} as const;
-
-/** Type union of the canonical slots. */
-export type ContextMenuSlot = (typeof CONTEXT_MENU_SLOT)[keyof typeof CONTEXT_MENU_SLOT];
+// Re-export the canonical slot constants from svg-engine/edit (single
+// source of truth — see edit/lib/menu/menu-slots.ts). Kept here as a
+// re-export so that consumers using the historical import path
+// `from 'svg-engine/ui'` continue to work without code changes.
+export { CONTEXT_MENU_SLOT, type ContextMenuSlot } from 'svg-engine/edit';

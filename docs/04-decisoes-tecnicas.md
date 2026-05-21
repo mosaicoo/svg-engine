@@ -1384,6 +1384,79 @@ Plugins como `builtinEditorShortcutsPlugin` registram handlers que disparam `bus
 
 ---
 
+## D-043 — `builtinMenuContributionsPlugin` (UI controls full-functionality sprint)
+
+- **Data**: 2026-05-21
+- **Status**: Decidida + implementada
+- **Contexto**: A library tinha **componentes UI completos** (`<svge-menu-bar>`, `<svge-toolbar>`, `<svge-context-menu>`, `<svge-tools-palette>`, `<svge-tool-options>`, `<svge-status-bar>`, `<svge-inspector>`, `<svge-layers-panel>`, `<svge-color-picker>`, `<svge-effects-panel>`, etc.) **todos wired aos services correspondentes**. E tinha **commands reais no core** (Move/Group/Ungroup/Remove/Reorder/etc.). Mas **não existia um plugin built-in que conectasse os dois** — o único populador de menus era o `demoMenuBarPlugin` (em `projects/playground/`), cujos `run()` eram puramente `console.info(...)`. Resultado: ao consumir o shell pro Mosaicoo, os menus apareciam visualmente profissionais mas **nenhum botão fazia ação real**.
+
+### Decisão
+
+Criar **`builtinMenuContributionsPlugin`** em `svg-engine/edit/lib/menu/builtin/` — plugin opt-in que registra **File / Edit / View / Object / Help + toolbar.main + context.canvas + context.node** com **handlers funcionais** wired aos commands reais do bus. Mesmo padrão arquitetural do `builtinEditorShortcutsPlugin` (D-040): opt-in, multi-editor safe (D-042 lazy injector), reactive `disabled` signals.
+
+Como efeito colateral arquitetural necessário, as constantes de slot (`MENU_SLOT`, `TOOLBAR_SLOT`, `CONTEXT_MENU_SLOT`) foram **consolidadas em `svg-engine/edit/lib/menu/menu-slots.ts`** (eram duplicadas em `ui/menu-bar` e `ui/context-menu`). `ui` re-exporta para back-compat zero-quebra.
+
+### Itens registrados (canonical surface)
+
+| Slot             | Item                                                     | Wired para                                                                  |
+| ---------------- | -------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `menu.edit`      | Undo                                                     | `bus.undo()` (disabled quando `!history.canUndo()`)                         |
+| `menu.edit`      | Redo                                                     | `bus.redo()` (disabled quando `!history.canRedo()`)                         |
+| `menu.edit`      | Delete                                                   | `RemoveNodeCommand` para cada selecionado (disabled quando `!hasSelection`) |
+| `menu.edit`      | Select All                                               | `selection.selectMany(root.children)`                                       |
+| `menu.edit`      | Group                                                    | `GroupSelectionCommand(ids)` (disabled quando `<2 selecionados`)            |
+| `menu.edit`      | Ungroup                                                  | `UngroupCommand(focusId)` (disabled quando focus não é group)               |
+| `menu.view`      | Zoom In / Out / Reset                                    | `viewport.zoomIn()/zoomOut()/reset()`                                       |
+| `menu.view`      | Show Grid / Rulers / Outline                             | `workspace.toggleGrid()/toggleRulers()/toggleOutlineMode()`                 |
+| `menu.object`    | Bring to Front / Forward / Send Backward / to Back       | `ReorderNodeCommand(id, direction)` para cada selecionado                   |
+| `menu.help`      | About                                                    | `alert(...)` (consumer override permitido por ID)                           |
+| `toolbar.main`   | Undo / Redo / Delete / Group / Ungroup                   | mesma lógica das menu items                                                 |
+| `context.canvas` | Select All / Zoom In / Out / Reset                       | mesma lógica                                                                |
+| `context.node`   | Delete / Group / Ungroup / Bring Forward / Send Backward | mesma lógica                                                                |
+
+**31 contribuições no total** (incluindo dividers para agrupamento visual).
+
+### O que **não** entrou (registrado explicitamente em "fora de escopo")
+
+| Item                          | Razão                                                                                                                                                                                 |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cut / Copy / Paste            | Não existe `ClipboardService` ainda. Quando for criado, append items ao Edit/Toolbar/Context.node                                                                                     |
+| Duplicate                     | Não existe `DuplicateCommand` (deferido de D-040)                                                                                                                                     |
+| Save / Open / New             | Dependem de estratégia de persistência do consumer                                                                                                                                    |
+| Export SVG / PNG (com dialog) | Requer `MatDialog` que vive em `ui` (D-017 proíbe `edit→ui`). Export via Blob download direto seria possível — fica como follow-up                                                    |
+| Align / Distribute            | Requer `NodeBBox[]` (rendered geometry — precisa de SVG DOM ref). Handlers de plugin não têm. Já existem buttons no `custom-editor` que fazem isso quando o componente tem ref ao SVG |
+| Workspace Settings dialog     | Idem Export — requer Material dialog                                                                                                                                                  |
+
+### Refactor casado: consolidação de slot constants
+
+Antes: `MENU_SLOT` em `ui/menu-bar/menu-bar.component.ts`, `CONTEXT_MENU_SLOT` em `ui/context-menu/context-menu.component.ts`, `TOOLBAR_SLOT` ausente (literal string).
+
+Depois: **fonte única em `edit/lib/menu/menu-slots.ts`**. `ui` re-exporta para preservar `import { MENU_SLOT } from 'svg-engine/ui'`. Plugins em `edit` agora podem importar das suas próprias constantes sem violar D-017 (edit não pode importar de ui).
+
+### Substituição em playground
+
+`projects/playground/src/app/plugins/demo-menu-bar.plugin.ts` **removido** (via `git rm`, history preservada). `app.config.ts` substitui `provideSvgEnginePlugin(demoMenuBarPlugin)` por `provideSvgEnginePlugin(builtinMenuContributionsPlugin)`. As 5 rotas que usam o shell (`basic-editor`, `modular-editor`, `embeddable-canvas`, `pro-editor`) **herdam automaticamente** os menus funcionais — zero alterações nessas views (registry-driven, conforme o requisito).
+
+### Garantias
+
+- ✅ **1038/1038 specs** passando (era 1026; +12 novos cobrindo: registro nos slots, disabled signals reativos, handlers dispatching commands reais, D-042 lazy injector contract)
+- ✅ 6 entry points + playground build clean
+- ✅ Zero breaking change: `MENU_SLOT`/`CONTEXT_MENU_SLOT` ainda exportados de `svg-engine/ui` via re-export
+- ✅ **D-017 headless boundary intacta**: `edit/menu/builtin` só importa de `core`, `render`, `edit/{plugin,selection,workspace,menu}` — zero `ui`
+- ✅ **D-042 multi-editor**: handlers usam `fromCtx(token, runCtxArg)` para resolver do scope ativo
+- ✅ **D-040 pattern**: plugin opt-in (consumer não obrigado), reactive `disabled` signals
+- ✅ **Sem mocks**: spec dedicado verifica que `Undo` realmente remove shape, `Group` realmente cria group, `Delete` realmente apaga node — não `console.info`
+
+### Quando reabrir / próximas iterações
+
+- **Quando `ClipboardService` aparecer**: append Cut/Copy/Paste a Edit + Toolbar + Context.node
+- **Quando `DuplicateCommand` aparecer**: append Duplicate
+- **Para Save/Export**: adicionar `provideSvgEngineUiScope()` (em `ui`) com items que abrem dialogs Material — ou consumer registra os seus próprios
+- **Align/Distribute**: discutir contrato para handlers receberem SVG ref (talvez via signal global registrado pelo shell)
+- **Override granular pelo consumer**: já é possível — basta o consumer registrar um item com o mesmo `id` (registry throws on duplicate — então o consumer precisa primeiro dispose do built-in via `MenuContributionRegistry.get(id) + dispose`)
+
+---
+
 ## Decisões pendentes (em aberto)
 
 | ID provis. | Tema                                                                   |
