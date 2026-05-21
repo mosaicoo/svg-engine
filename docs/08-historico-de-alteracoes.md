@@ -6,6 +6,65 @@
 
 ---
 
+## 2026-05-21 — D-042 Editor scope (route-scoped DI) — fix bug de estado compartilhado entre rotas
+
+**Bug reportado**
+
+Após D-041 + renomeação das rotas, ao navegar entre `/custom-editor` → `/basic-editor` → `/embeddable-canvas`:
+
+1. **Shapes apareciam compartilhadas** entre rotas (cada visita mostrava as shapes da rota anterior)
+2. **Canvas aparecia esmaecido/apagado** (mesmo problema visual que tivemos no Custom Editor com isolation mode)
+
+**Diagnóstico**
+
+Pre-existing — não introduzido por D-041. Causa raiz: TODOS os 20+ services de estado da library (`EditorStateService`, `CommandBus`, `IsolationService`, `LayersService`, `WorkspaceService`, `ViewportService`, etc.) são `@Injectable({ providedIn: 'root' })` = singletons app-wide. Quando o Angular destrói o componente de uma rota e cria o da próxima, os services persistem — então:
+
+- O `SvgDocument` em `EditorStateService.document()` é **o mesmo** entre rotas → shapes compartilhadas
+- O `isolationRootId` em `IsolationService` persiste → `IsolationFilter` esmaece shapes fora do escopo na rota nova
+- O hidden-set em `LayersService` persiste → `LayersFilter` continua escondendo nodes na rota nova
+- Outline mode em `View › Outline` persiste → filtro continua aplicado
+
+**Não era bug do canvas raiz** — era arquitetura de DI sem suporte a múltiplas instâncias de editor no mesmo app.
+
+**Solução: D-042 — `provideSvgEngineEditorScope()`**
+
+Helper em `svg-engine/edit/lib/scope/` que devolve `Provider[]` listando todos os services per-editor (core+render+edit). Cada componente que o adiciona em `providers: []` recebe **instâncias frescas** isoladas das outras. Services mantêm `providedIn: 'root'` como default (zero breaking change para consumers single-editor).
+
+**Refactor casado: shortcut handlers com lazy injector**
+
+Plugins registram handlers em `app.config.ts` (injector root) que disparam `bus.undo()` etc. Com per-editor state, esses closures hitariam o bus errado. Solução: adicionar `ShortcutContext { injector }` opcional em `Shortcut.run(event, ctx?)`; `ShortcutService` passa seu próprio injector per-fire; plugins resolvem services lazily.
+
+`builtinEditorShortcutsPlugin` e `selectionNudgePlugin` refatorados nesse padrão. Plugin authors são orientados a seguir o mesmo modelo.
+
+**Arquivos**
+
+- `projects/svg-engine/edit/src/lib/scope/editor-scope.providers.ts` — novo helper (~140 LOC, mostly docstring)
+- `projects/svg-engine/edit/src/lib/scope/index.ts` + spec — exports + 6 testes de isolation
+- `projects/svg-engine/edit/src/public-api.ts` — re-exporta `provideSvgEngineEditorScope`
+- `projects/svg-engine/edit/src/lib/shortcut/shortcut.ts` — adiciona `ShortcutContext` interface + `run(event, ctx?)`
+- `projects/svg-engine/edit/src/lib/shortcut/shortcut.service.ts` — injeta `Injector`, passa em `ctx` per-fire
+- `projects/svg-engine/edit/src/lib/shortcut/builtin-editor-shortcuts.plugin.ts` — handlers usam `fromCtx(runCtx, Token)` helper
+- `projects/svg-engine/edit/src/lib/selection/selection-nudge.plugin.ts` — mesmo refactor
+- `projects/playground/src/app/pages/{custom,basic,modular,pro}-editor/*.component.ts` + `embeddable-canvas/*.component.ts` — `providers: [provideSvgEngineEditorScope()]`
+- `docs/04-decisoes-tecnicas.md` — D-042 nova entrada completa
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+
+**Garantias**
+
+- ✅ Bug reportado **resolvido**: cada rota agora tem documento/isolation/layers/etc. independentes
+- ✅ **1022/1022 specs** passando (1016 existentes + 6 novos do scope spec)
+- ✅ 6 entry points build clean; playground build clean (3.54 MB initial)
+- ✅ Zero breaking change: services mantêm `providedIn: 'root'` como fallback
+- ✅ Mosaicoo ganha API formal para embedar 2+ editores na mesma app
+
+**Não resolvido (registrado em D-042 "Fora de escopo")**
+
+- Focus-aware shortcut dispatch (multi-editor side-by-side) — quando 2 editores estão mounted simultaneamente, ambos `ShortcutService` escutam keystrokes. Aceitável em routing (1 ativo de cada vez); precisa solução de focus para split-view real
+- `SvgeContextMenuService` per-editor (vive em `ui`, não pode entrar no helper de `edit`)
+- `AutoSaveService` localStorage key sem scope-id — múltiplas instâncias sobrescrevem mesmo slot
+
+---
+
 ## 2026-05-21 — Playground routes renomeadas (slugs EN, labels PT) + nova rota `/svg-viewer` (read-only puro)
 
 **Contexto**

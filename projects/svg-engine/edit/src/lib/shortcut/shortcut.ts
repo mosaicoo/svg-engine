@@ -1,4 +1,29 @@
-import type { Signal } from '@angular/core';
+import type { Injector, Signal } from '@angular/core';
+
+/**
+ * Per-fire context passed to {@link Shortcut.run} — **D-042** addition.
+ *
+ * Lets handlers resolve services from the **active editor's injector**
+ * rather than from a closure captured at plugin install time. Critical
+ * for multi-editor apps using {@link provideSvgEngineEditorScope}: a
+ * Ctrl+Z handler must dispatch to **this editor's** `CommandBus`, not
+ * to the root one.
+ *
+ * **Fields**:
+ * - `injector`: the {@link Injector} of the dispatching `ShortcutService`.
+ *   In a route-scoped editor, that's the per-editor injector. In a
+ *   single-editor app (no scope helper), that's the root injector —
+ *   equivalent to the closure-capture pattern.
+ *
+ * **Backward compatibility**: handlers that don't take `ctx` continue
+ * to work (TypeScript widens the function type). They just won't be
+ * multi-editor-safe — they'll always hit the closure-captured services
+ * regardless of which editor fired the keystroke. Single-editor apps
+ * remain functionally identical.
+ */
+export interface ShortcutContext {
+  readonly injector: Injector;
+}
 
 /**
  * A keyboard shortcut binding — categoria 9 parte 2 do D-023.
@@ -17,16 +42,20 @@ import type { Signal } from '@angular/core';
  *   `null` / `undefined`, always active.
  * - `description`: human-readable description for preferences UIs.
  *   Optional; falls back to `id` in display contexts.
- * - `run(event)`: handler. Receives the original `KeyboardEvent` so
- *   the implementation can `preventDefault()` if needed (the service
- *   doesn't auto-prevent — leaves the choice to the shortcut).
+ * - `run(event, ctx?)`: handler. Receives the original `KeyboardEvent`
+ *   so the implementation can `preventDefault()` if needed (the service
+ *   doesn't auto-prevent — leaves the choice to the shortcut). The
+ *   second argument is a {@link ShortcutContext} carrying the active
+ *   editor's `Injector` — used to resolve services lazily in
+ *   multi-editor apps (D-042). Handlers that don't take `ctx` keep
+ *   working in single-editor apps.
  */
 export interface Shortcut {
   readonly id: string;
   readonly combo: string;
   readonly when?: Signal<boolean> | null;
   readonly description?: string;
-  run(event: KeyboardEvent): void;
+  run(event: KeyboardEvent, ctx?: ShortcutContext): void;
 }
 
 /**

@@ -1,6 +1,7 @@
 import { DOCUMENT } from '@angular/common';
-import { inject, Injectable, OnDestroy } from '@angular/core';
+import { inject, Injectable, Injector, OnDestroy } from '@angular/core';
 import { isEditableTarget } from '../pointer/is-editable-target';
+import type { ShortcutContext } from './shortcut';
 import { ShortcutRegistry } from './shortcut-registry.service';
 
 /**
@@ -11,15 +12,19 @@ import { ShortcutRegistry } from './shortcut-registry.service';
  *    so typing inside the inspector or any text field doesn't trigger
  *    `Delete` or letter shortcuts.
  * 2. Asks the registry for the first matching active shortcut.
- * 3. Calls the shortcut's `run(event)` if found.
+ * 3. Calls the shortcut's `run(event, ctx)` if found — `ctx` carries the
+ *    `Injector` of THIS `ShortcutService` instance so handlers can
+ *    resolve services from the active editor scope (D-042).
  *
  * **`preventDefault` is the shortcut's responsibility**: the service
  * doesn't auto-prevent so non-destructive shortcuts (e.g., "focus
  * search") can let the event continue. Most shortcuts will want to
  * `event.preventDefault()` inside `run()`.
  *
- * **Bootstrap**: the service is `providedIn: 'root'`. Calling
- * `ShortcutService.start()` once in app bootstrap activates the
+ * **Bootstrap**: the service is `providedIn: 'root'` by default
+ * (single-editor convenience). For multi-editor apps, include it via
+ * {@link provideSvgEngineEditorScope} so each editor gets its own
+ * listener + injector. Calling `ShortcutService.start()` activates the
  * listener; `stop()` removes it (auto on destroy too).
  *
  * Why not always-on by construction: an opt-in `start()` lets app
@@ -30,13 +35,21 @@ import { ShortcutRegistry } from './shortcut-registry.service';
 export class ShortcutService implements OnDestroy {
   private readonly registry = inject(ShortcutRegistry);
   private readonly document = inject(DOCUMENT);
+  /**
+   * The injector of this service instance — root in single-editor apps,
+   * the route/component injector in multi-editor apps using
+   * `provideSvgEngineEditorScope()`. Passed to each handler so it can
+   * resolve services from the active editor scope (D-042).
+   */
+  private readonly injector = inject(Injector);
 
   private listening = false;
   private readonly handler = (event: KeyboardEvent): void => {
     if (isEditableTarget(event.target)) return;
     const match = this.registry.tryMatch(event);
     if (match === null) return;
-    match.run(event);
+    const ctx: ShortcutContext = { injector: this.injector };
+    match.run(event, ctx);
   };
 
   /** Start dispatching keyboard events to the registry. Idempotent. */

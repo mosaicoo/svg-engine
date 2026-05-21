@@ -1,3 +1,4 @@
+import type { ProviderToken } from '@angular/core';
 import {
   CommandBus,
   EditorStateService,
@@ -8,10 +9,12 @@ import {
 import type { EditorPlugin } from '../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../plugin/plugin';
 import { SelectionService } from '../selection/selection.service';
+import type { ShortcutContext } from './shortcut';
 import { ShortcutRegistry } from './shortcut-registry.service';
 
 /**
- * **`builtinEditorShortcutsPlugin`** — D-040 (Sprint Pro-Editor polish).
+ * **`builtinEditorShortcutsPlugin`** — D-040 (Sprint Pro-Editor polish);
+ * refactored in D-042 for multi-editor scope correctness.
  *
  * Opt-in plugin that registers the **canonical editor shortcuts** that
  * Illustrator / Affinity / Figma users expect to "just work":
@@ -36,10 +39,14 @@ import { ShortcutRegistry } from './shortcut-registry.service';
  * `ShortcutService` combo parser treats `Ctrl` as "primary modifier"
  * cross-platform.
  *
- * **`when` guards**: each shortcut returns the `selection.hasSelection`
- * (or similar) computed so a registry-driven preferences UI can show
- * enabled/disabled state. Disabled shortcuts pass through to the
- * browser default (or the next match).
+ * **Multi-editor safety (D-042)**: handlers resolve services from the
+ * `ShortcutContext.injector` passed by `ShortcutService` per-fire, NOT
+ * from a closure captured at plugin install time. In a multi-editor
+ * app using `provideSvgEngineEditorScope()`, this means Ctrl+Z hits
+ * **the editor that received focus**, not a root singleton. Plugin
+ * install happens once at app bootstrap; the `ctx.injector` from
+ * install time is used as a fallback for single-editor apps and tests
+ * that invoke handlers directly without a `ShortcutContext`.
  *
  * **NOT included** (intentional scope):
  * - `Ctrl+C` / `Ctrl+V` (clipboard) — no `ClipboardService` yet
@@ -60,9 +67,13 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
 
   install(ctx) {
     const shortcuts = ctx.injector.get(ShortcutRegistry);
-    const bus = ctx.injector.get(CommandBus);
-    const selection = ctx.injector.get(SelectionService);
-    const state = ctx.injector.get(EditorStateService);
+
+    // Resolution helper — uses the per-fire ShortcutContext.injector
+    // when available (multi-editor scope, D-042), falls back to the
+    // plugin-install context otherwise (single-editor apps + direct
+    // test invocations without ShortcutContext).
+    const fromCtx = <T>(runCtx: ShortcutContext | undefined, token: ProviderToken<T>): T =>
+      (runCtx?.injector ?? ctx.injector).get(token);
 
     // ── Undo / Redo ────────────────────────────────────────────────
     ctx.track(
@@ -70,9 +81,9 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
         id: 'svge.builtin.shortcut.undo',
         combo: 'Ctrl+Z',
         description: 'Undo last command',
-        run(event) {
+        run(event, runCtx) {
           event.preventDefault();
-          bus.undo();
+          fromCtx(runCtx, CommandBus).undo();
         },
       }),
     );
@@ -81,9 +92,9 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
         id: 'svge.builtin.shortcut.redo-y',
         combo: 'Ctrl+Y',
         description: 'Redo (Windows idiom)',
-        run(event) {
+        run(event, runCtx) {
           event.preventDefault();
-          bus.redo();
+          fromCtx(runCtx, CommandBus).redo();
         },
       }),
     );
@@ -92,9 +103,9 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
         id: 'svge.builtin.shortcut.redo-shift-z',
         combo: 'Ctrl+Shift+Z',
         description: 'Redo (Mac/Linux idiom)',
-        run(event) {
+        run(event, runCtx) {
           event.preventDefault();
-          bus.redo();
+          fromCtx(runCtx, CommandBus).redo();
         },
       }),
     );
@@ -105,11 +116,12 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
         id: 'svge.builtin.shortcut.group',
         combo: 'Ctrl+G',
         description: 'Group selection',
-        run(event) {
+        run(event, runCtx) {
+          const selection = fromCtx(runCtx, SelectionService);
           const ids = Array.from(selection.selectedIds());
           if (ids.length < 2) return; // need at least 2 to form a group
           event.preventDefault();
-          bus.dispatch(new GroupSelectionCommand(ids));
+          fromCtx(runCtx, CommandBus).dispatch(new GroupSelectionCommand(ids));
         },
       }),
     );
@@ -118,15 +130,17 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
         id: 'svge.builtin.shortcut.ungroup',
         combo: 'Ctrl+Shift+G',
         description: 'Ungroup focused selection',
-        run(event) {
+        run(event, runCtx) {
+          const selection = fromCtx(runCtx, SelectionService);
           const focus = selection.focusId();
           if (focus === null) return;
           // Only dispatch when the focus IS a group — UngroupCommand
           // returns fail() otherwise but we save the round-trip.
+          const state = fromCtx(runCtx, EditorStateService);
           const node = findNodeById(state.document().root, focus);
           if (node === null || node.type !== 'group') return;
           event.preventDefault();
-          bus.dispatch(new UngroupCommand(focus));
+          fromCtx(runCtx, CommandBus).dispatch(new UngroupCommand(focus));
         },
       }),
     );
@@ -137,11 +151,12 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
         id: 'svge.builtin.shortcut.select-all',
         combo: 'Ctrl+A',
         description: 'Select all top-level nodes',
-        run(event) {
+        run(event, runCtx) {
+          const state = fromCtx(runCtx, EditorStateService);
           const root = state.document().root;
           if (root.type !== 'group' || root.children.length === 0) return;
           event.preventDefault();
-          selection.selectMany(root.children.map((c) => c.id));
+          fromCtx(runCtx, SelectionService).selectMany(root.children.map((c) => c.id));
         },
       }),
     );

@@ -113,3 +113,6 @@ export * from './lib/anchor-editor';
 
 // Auto-save + recovery (localStorage-backed)
 export * from './lib/autosave';
+
+// Route-scoped editor state stack (D-042 — multi-editor in same app)
+export * from './lib/scope';

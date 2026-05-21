@@ -1,6 +1,8 @@
+import type { ProviderToken } from '@angular/core';
 import { CommandBus, type NodeId, type Point, TranslateManyCommand } from 'svg-engine/core';
 import type { EditorPlugin, PluginContext } from '../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../plugin/plugin';
+import type { ShortcutContext } from '../shortcut/shortcut';
 import { ShortcutRegistry } from '../shortcut/shortcut-registry.service';
 import { SelectionService } from './selection.service';
 
@@ -48,16 +50,24 @@ export const selectionNudgePlugin: EditorPlugin = {
 
   install(ctx: PluginContext): void {
     const shortcuts = ctx.injector.get(ShortcutRegistry);
-    const selection = ctx.injector.get(SelectionService);
-    const bus = ctx.injector.get(CommandBus);
 
-    const nudge = (dx: number, dy: number): void => {
+    // D-042: resolve services from the per-fire ShortcutContext.injector
+    // (per-editor scope when active) with fallback to plugin install
+    // context. Critical for multi-editor apps so nudge targets the
+    // editor that received the keystroke, not a singleton root.
+    const fromCtx = <T>(runCtx: ShortcutContext | undefined, token: ProviderToken<T>): T =>
+      (runCtx?.injector ?? ctx.injector).get(token);
+
+    const nudge = (runCtx: ShortcutContext | undefined, dx: number, dy: number): void => {
+      const selection = fromCtx(runCtx, SelectionService);
       const ids = Array.from(selection.selectedIds());
       if (ids.length === 0) return;
       const delta: Point = { x: dx, y: dy };
       const translations = new Map<NodeId, Point>();
       for (const id of ids) translations.set(id, delta);
-      bus.dispatch(new TranslateManyCommand(translations, `Nudge ${ids.length} node(s)`));
+      fromCtx(runCtx, CommandBus).dispatch(
+        new TranslateManyCommand(translations, `Nudge ${ids.length} node(s)`),
+      );
     };
 
     // Eight bindings: 4 cardinals × 2 step sizes. Each registered with a
@@ -80,13 +90,13 @@ export const selectionNudgePlugin: EditorPlugin = {
           id: b.id,
           combo: b.combo,
           description: `Nudge selection ${b.combo}`,
-          run: (event: KeyboardEvent): void => {
+          run: (event: KeyboardEvent, runCtx?: ShortcutContext): void => {
             // No-op on empty selection — but still preventDefault so the
             // browser doesn't scroll. (Matches Figma: arrows are reserved
             // for editor use whenever the canvas has focus, even when
             // nothing is selected.)
             event.preventDefault();
-            nudge(b.dx, b.dy);
+            nudge(runCtx, b.dx, b.dy);
           },
         }),
       );

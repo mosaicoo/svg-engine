@@ -1306,6 +1306,84 @@ Se em algum futuro `ui` precisar evoluir em cadência **dramaticamente** diferen
 
 ---
 
+## D-042 — Editor scope (route-scoped DI): `provideSvgEngineEditorScope()`
+
+- **Data**: 2026-05-21
+- **Status**: Decidida + implementada
+- **Contexto**: Bug visível no playground após D-041 — ao navegar entre `/custom-editor` → `/basic-editor` → `/embeddable-canvas`, as **shapes apareciam compartilhadas** entre rotas (cada rota seedava shapes mas o documento era o mesmo) e os elementos do canvas apareciam **esmaecidos** (estado de `IsolationService` / `LayersService` / outline mode persistia entre rotas). Investigação revelou que TODOS os 20+ services de estado da library são `providedIn: 'root'` (singletons app-wide). Funciona para apps single-editor; **quebra a partir de 2 instâncias** de editor no mesmo app Angular (caso de uso real: Mosaicoo embedando 2 editores em painéis side-by-side, ou playground com múltiplas rotas demonstrando modos).
+
+### Decisão
+
+Introduzir **`provideSvgEngineEditorScope()`** — helper que devolve `Provider[]` listando todos os services de estado per-editor. Consumer adiciona em `providers: []` do componente que hospeda o editor. Cada subtree de injetor recebe **instâncias frescas** dos services, isoladas do root e dos sibling subtrees.
+
+```ts
+@Component({
+  selector: 'my-editor-route',
+  providers: [provideSvgEngineEditorScope()],
+  template: `<svge-editor>...</svge-editor>`,
+})
+export class MyEditorRoute {}
+```
+
+**Por que helper e não breaking change**: services mantêm `providedIn: 'root'` como **default** (back-compat — consumer single-editor não precisa de boilerplate). O override por DI hierárquico kicks in **só quando** o consumer opta. Zero quebra.
+
+### O que entra no scope (per-editor)
+
+| Entry point  | Services                                                                                                                                                                                                             |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core`       | `EditorStateService` (document), `CommandBus` (mutations), `HistoryService` (undo/redo)                                                                                                                              |
+| `render`     | `ViewportService` (pan/zoom)                                                                                                                                                                                         |
+| `edit`       | `SelectionService`, `IsolationService`, `LayersService`, `WorkspaceService`, `SnapService`, `TransformService`, `MarqueeService`, `AlignmentService`, `AutoSaveService`, `ToolHostService`, `AnchorSelectionService` |
+| `edit/tool`  | `PenToolService`, `ShapeToolService`, `InlineTextEditorService`                                                                                                                                                      |
+| `edit/perf`  | `ViewportCullingService`                                                                                                                                                                                             |
+| `edit/input` | `ShortcutService` (per-editor: cada editor escuta keystrokes com seu próprio injector e resolve services do scope ativo)                                                                                             |
+
+### O que FICA app-wide (não entra no scope, intencional)
+
+- **Registries de plugins** (`ToolRegistry`, `MenuContributionRegistry`, `ShortcutRegistry`, `PaletteRegistry`, `EffectRegistry`, `OptimizerRegistry`, `ImporterRegistry`, `ExporterRegistry`, `PluginInfoRegistry`): plugins são registrados **uma vez** em `provideSvgEnginePlugin(...)` no `app.config.ts` e precisam aparecer em todo editor.
+- **Renderer dispatch** (`NodeRendererRegistry`): mapping `<rect>` → `<rect-renderer>` é global.
+- **App-wide UI services** (`ThemeService`, `ColorHistoryService`): tema é escolha única; color history é compartilhada via localStorage por design.
+- **`SvgeContextMenuService`** (vive em `svg-engine/ui`): não inclusa no helper porque importar de `ui` no `edit` violaria D-017 (headless boundary). Consumer adiciona manualmente se precisar isolation de menu per-editor.
+
+### Refactor casado: handlers de shortcut precisam de injector per-fire
+
+Plugins como `builtinEditorShortcutsPlugin` registram handlers que disparam `bus.undo()`. **Problema sutil**: o plugin é instalado uma vez em `app.config.ts` (injector root); o closure do handler captura o `CommandBus` **root**. Com state per-editor, o handler dispara no bus errado.
+
+**Solução**: adicionar `ShortcutContext { injector }` opcional na `Shortcut.run(event, ctx?)`. `ShortcutService` injeta seu próprio `Injector` e passa per-fire — em scope per-editor, esse injector é o da rota. Plugins refatoram para resolver services do `ctx.injector` (com fallback ao injector do install para single-editor + tests).
+
+`builtinEditorShortcutsPlugin` e `selectionNudgePlugin` refatorados nesse padrão. Plugins de terceiros que queiram suportar multi-editor seguem o mesmo modelo (documentado em `10-guia-plugin.md`).
+
+### Garantias
+
+- ✅ **Sem breaking change**: services mantêm `providedIn: 'root'` como default; consumer single-editor não precisa de helper.
+- ✅ **6 entry points buildam clean** após o refactor.
+- ✅ **1022/1022 specs** passando (era 1016; +6 novos covering scope isolation).
+- ✅ **Spec dedicado** (`editor-scope.providers.spec.ts`) prova: 2 hosts com `provideSvgEngineEditorScope()` têm `EditorStateService`/`CommandBus`/`SelectionService`/`IsolationService`/`LayersService` distintos, mutações em A não afetam B.
+- ✅ **D-017 headless boundary intacta**: helper vive em `edit`, não importa de `ui`.
+- ✅ **Playground funciona**: 5 rotas (custom-editor, basic-editor, modular-editor, embeddable-canvas, pro-editor) recebem `providers: [provideSvgEngineEditorScope()]`. svg-viewer não precisa (não usa `edit`). Benchmark não precisa (tem semântica de reset programático).
+
+### Validação manual (após este commit)
+
+1. `npm start` no workspace → abrir `http://localhost:4200/custom-editor`
+2. Inserir 2 rects, agrupar (Ctrl+G), entrar isolation (dblclick no grupo)
+3. Navegar para `/basic-editor` — canvas vazio, **não** mostra os rects da rota anterior, **não** está esmaecido
+4. Voltar para `/custom-editor` — fresh state (sem os rects da visita anterior — instância nova)
+5. `/modular-editor`, `/embeddable-canvas`, `/pro-editor` — cada um com seu próprio documento independente
+
+### Fora de escopo
+
+- **Multi-editor in same view** (Mosaicoo split-panel com 2 `<svge-editor>` lado a lado): tecnicamente suportado pelo helper, mas keyboard dispatch precisa de **focus-aware routing** (qual editor recebe Ctrl+Z?). Hoje, ambos os `ShortcutService` escutam `document.keydown` e ambos disparam — comportamento aceitável em routing (só um editor mounted) mas problemático em split-view. Registrar como **D-???? Focus-aware shortcut dispatch** quando o caso real aparecer.
+- **Helper de UI scope** (`provideSvgEngineUiScope()`) cobrindo `SvgeContextMenuService`: deferir até demanda concreta — em routing single-editor o singleton root funciona.
+- **Auto-cleanup de localStorage por scope** (`AutoSaveService` salva com chave fixa): cada editor scope sobrescreve o mesmo localStorage key. Para multi-editor real, precisaria de keys distintas por instância. Deferir.
+
+### Quando reabrir
+
+- Se aparecer caso real de multi-editor side-by-side com keystroke dispatch ambíguo → abrir D-???? focus dispatch
+- Se `SvgeContextMenuService` per-editor virar requisito → criar `provideSvgEngineUiScope()`
+- Se `AutoSaveService` precisar key per-instance → discutir API de scope-id
+
+---
+
 ## Decisões pendentes (em aberto)
 
 | ID provis. | Tema                                                                   |

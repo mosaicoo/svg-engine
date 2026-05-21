@@ -7,7 +7,13 @@ import {
   EditorStateService,
   InsertNodeCommand,
 } from 'svg-engine/core';
-import { Marquee, RotationPivot, SelectionOverlay, SnapGuides } from 'svg-engine/edit';
+import {
+  Marquee,
+  provideSvgEngineEditorScope,
+  RotationPivot,
+  SelectionOverlay,
+  SnapGuides,
+} from 'svg-engine/edit';
 import { SvgeEditor } from 'svg-engine/ui';
 
 /**
@@ -36,6 +42,8 @@ import { SvgeEditor } from 'svg-engine/ui';
   selector: 'app-pg-embeddable-canvas',
   standalone: true,
   imports: [SvgeEditor, SelectionOverlay, RotationPivot, Marquee, SnapGuides, RouterLink],
+  // D-042: route-scoped editor state — independent document per visit.
+  providers: [provideSvgEngineEditorScope()],
   template: `
     <header class="bar">
       <p>

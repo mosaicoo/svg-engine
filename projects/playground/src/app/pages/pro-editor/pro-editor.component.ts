@@ -10,6 +10,7 @@ import {
 import {
   AnchorOverlay,
   Marquee,
+  provideSvgEngineEditorScope,
   RotationPivot,
   SelectionOverlay,
   SnapGuides,
@@ -52,6 +53,8 @@ import { SvgeShellPro } from 'svg-engine/ui';
     SnapGuides,
     RouterLink,
   ],
+  // D-042: route-scoped editor state — independent document per visit.
+  providers: [provideSvgEngineEditorScope()],
   template: `
     <header class="bar">
       <p>

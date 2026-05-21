@@ -69,6 +69,7 @@ import {
   PageOverlay,
   pageBoundsIn,
   PenOverlay,
+  provideSvgEngineEditorScope,
   releasePointer,
   renderPng,
   ShapeOverlay,
@@ -160,6 +161,11 @@ const DRAG_START_THRESHOLD_PX = 3;
     SvgeThemeToggle,
     SvgeEffectsPanel,
   ],
+  // D-042: route-scoped editor state stack — each navigation gets its
+  // own EditorStateService/CommandBus/IsolationService/Layers/etc. so
+  // shapes, isolation state and layer visibility don't bleed across
+  // routes.
+  providers: [provideSvgEngineEditorScope()],
   templateUrl: './custom-editor.component.html',
   styleUrl: './custom-editor.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
