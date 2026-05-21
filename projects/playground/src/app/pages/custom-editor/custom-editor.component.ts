@@ -5,6 +5,7 @@ import {
   effect,
   type ElementRef,
   inject,
+  Injector,
   type OnDestroy,
   signal,
   viewChild,
@@ -99,7 +100,7 @@ import {
   SvgeInspector,
   SvgeIsolationBreadcrumb,
   SvgeRulers,
-  SvgeSvgSourceDialog,
+  SvgeSvgSourceDialogService,
   SvgeThemeToggle,
   SvgeWorkspaceSettings,
 } from 'svg-engine/ui';
@@ -195,7 +196,16 @@ export class CustomEditor implements OnDestroy {
   protected readonly isolation = inject(IsolationService);
   private readonly autoSave = inject(AutoSaveService);
   private readonly anchorSelection = inject(AnchorSelectionService);
+  // D-044 follow-up: use the centralized SvgSourceDialog opener instead
+  // of MatDialog directly. The service knows how to wire the parent
+  // injector so the dialog reads THIS editor's EditorStateService
+  // (route-scoped via provideSvgEngineEditorScope) — same defect class
+  // that bit the built-in UI menu plugin before centralization.
+  private readonly sourceDialog = inject(SvgeSvgSourceDialogService);
+  // Kept for any remaining ad-hoc dialog needs in this route (e.g.,
+  // future workspace-settings dialog wrapped in its own service).
   private readonly dialog = inject(MatDialog);
+  private readonly hostInjector = inject(Injector);
 
   /** Reference to the hidden `<input type="file">` for SVG import. */
   protected readonly importFileRef = viewChild<ElementRef<HTMLInputElement>>('importFile');
@@ -529,12 +539,15 @@ export class CustomEditor implements OnDestroy {
    * the diff of a single command.
    */
   protected openSvgSource(): void {
-    this.dialog.open(SvgeSvgSourceDialog, {
-      width: 'auto',
-      maxWidth: '90vw',
-      autoFocus: 'first-tabbable',
-      restoreFocus: true,
-    });
+    // Delegate to centralized service — passes `this.hostInjector`
+    // (= route scope) so the dialog reads the active editor's
+    // EditorStateService, not the overlay-root one. Single source of
+    // truth for "how to open this dialog": the service. Avoids the
+    // duplicate-knowledge defect where this route had its own
+    // MatDialog.open with subtly different config (it used width:
+    // auto + autoFocus: first-tabbable, while the built-in plugin
+    // used min(720px,92vw) + autoFocus: false — now both agree).
+    this.sourceDialog.open(this.hostInjector);
   }
 
   /**

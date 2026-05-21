@@ -1,5 +1,4 @@
 import type { ProviderToken } from '@angular/core';
-import { MatDialog } from '@angular/material/dialog';
 import {
   type EditorPlugin,
   MENU_SLOT,
@@ -8,7 +7,7 @@ import {
   type MenuContributionContext,
 } from 'svg-engine/edit';
 
-import { SvgeSvgSourceDialog } from '../svg-source-dialog';
+import { SvgeSvgSourceDialogService } from '../svg-source-dialog';
 
 /**
  * **`builtinUiMenuContributionsPlugin`** — D-044 (UI controls full-functionality follow-up).
@@ -81,21 +80,12 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
         // Lower than Optimize (80) so it groups with view actions.
         order: 65,
         run(runCtx) {
-          const dialog = fromCtx(MatDialog, runCtx);
-          dialog.open(SvgeSvgSourceDialog, {
-            width: 'min(720px, 92vw)',
-            maxHeight: '90vh',
-            autoFocus: false,
-            restoreFocus: true,
-            // D-044 follow-up fix: scope the dialog component's
-            // injector to the editor's so EditorStateService resolves
-            // to the active document (not the overlay-root empty one).
-            // `runCtx?.injector` is the dispatching consumer's
-            // injector (e.g., a route with provideSvgEngineEditorScope).
-            // Falls back to ctx.injector (plugin install ctx = root)
-            // for single-editor / direct-test invocations.
-            injector: runCtx?.injector ?? ctx.injector,
-          });
+          // Delegate to SvgeSvgSourceDialogService — single source of
+          // truth for "how to open the source dialog" (config +
+          // injector wiring). Custom routes use the same service so
+          // both paths stay aligned automatically.
+          const service = fromCtx(SvgeSvgSourceDialogService, runCtx);
+          service.open(runCtx?.injector ?? ctx.injector);
         },
       }),
     );
