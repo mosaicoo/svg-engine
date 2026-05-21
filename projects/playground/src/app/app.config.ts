@@ -17,6 +17,7 @@ import {
   shapeToolsPlugin,
   textToolPlugin,
 } from 'svg-engine/edit';
+import { builtinUiMenuContributionsPlugin } from 'svg-engine/ui';
 
 import { stampToolPlugin } from './plugins/stamp-tool.plugin';
 import { routes } from './app.routes';
@@ -70,6 +71,12 @@ export const appConfig: ApplicationConfig = {
     // Items with reactive `disabled` signals follow selection/history
     // state. Opt-in (consumer may replace with custom layouts).
     provideSvgEnginePlugin(builtinMenuContributionsPlugin),
+    // D-044 — Sibling plugin in svg-engine/ui for menu items that
+    // require Material dialog infrastructure (View Source… opens
+    // <svge-svg-source-dialog> via MatDialog). edit-side plugin
+    // cannot import @angular/material (D-017), so dialog-bound items
+    // live here. Future: Workspace Settings…, Export with options…
+    provideSvgEnginePlugin(builtinUiMenuContributionsPlugin),
     // Stamp tool (D-038 Phase 3 showcase) — demonstrates
     // Tool.optionsComponent flowing through <svge-tool-options>.
     // Press K to activate; the options bar shows radius + color

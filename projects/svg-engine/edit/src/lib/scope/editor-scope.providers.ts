@@ -5,6 +5,7 @@ import { ViewportService } from 'svg-engine/render';
 import { AlignmentService } from '../alignment/alignment.service';
 import { AnchorSelectionService } from '../anchor-editor/anchor-selection.service';
 import { AutoSaveService } from '../autosave/autosave.service';
+import { ClipboardService } from '../clipboard/clipboard.service';
 import { IsolationService } from '../isolation/isolation.service';
 import { LayersService } from '../layers/layers.service';
 import { MarqueeService } from '../marquee/marquee.service';
@@ -144,6 +145,9 @@ export function provideSvgEngineEditorScope(): Provider[] {
     MarqueeService,
     AlignmentService,
     AutoSaveService,
+    // D-044: in-memory clipboard. Per-editor scope so two editors mounted
+    // side-by-side cannot paste each other's content unintentionally.
+    ClipboardService,
     // ── edit / tools (active tool host + tool state machines) ───
     ToolHostService,
     AnchorSelectionService,

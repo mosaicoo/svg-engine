@@ -6,6 +6,79 @@
 
 ---
 
+## 2026-05-21 — D-044 menu completion: Cut/Copy/Paste/Duplicate + Optimize + Snap + View Source
+
+**Pedido**: completar o menubar — itens que faltavam: View Source, Copy, Paste, Duplicar, Otimização, Snap.
+
+**Estratégia arquitetural**
+
+Em vez de hackear handlers no plugin existente, criar as **primitivas reusáveis** primeiro (ClipboardService + DuplicateCommand) e depois conectar via plugin. Itens que precisam de Material dialog (View Source) ficam num **plugin paralelo em `svg-engine/ui`** (D-017 proíbe `edit→ui`).
+
+**Adicionado em `svg-engine/core`**
+
+- **`DuplicateNodeCommand`** (`core/commands/duplicate-node.command.ts`) — clone deep com novos ids via `cloneNodeWithNewIds`, offset configurável (default 10px convenção Figma/Affinity), insere no MESMO parent imediatamente após o original. Single undo entry. Pré-valida ids atomicamente (rejeita root id, ids inexistentes).
+- **`cloneNodeWithNewIds`** (`core/tree/clone-with-new-ids.ts`) — helper recursivo. Para `GroupNode` clona children recursivamente. Reusa por referência valores imutáveis (transform, style, primitivos). Cada clone recebe `generateNodeId()` fresco.
+
+**Adicionado em `svg-engine/edit`**
+
+- **`ClipboardService`** (`edit/clipboard/clipboard.service.ts`) — in-memory. `copy(nodes)` armazena deep-clones com novos ids; `paste()` retorna clones FRESCOS a cada chamada (paste consecutivo cria ids distintos). `hasContent` signal reativo para `disabled` do Paste. **NÃO usa OS clipboard** (`navigator.clipboard`) por ora — predictable, sem permission prompts. localStorage e OS bridge ficam como deferred. Adicionado ao `provideSvgEngineEditorScope()` — per-editor por padrão (dois editores side-by-side não compartilham clipboard acidentalmente).
+- **`builtinMenuContributionsPlugin` expandido** com 11 novos itens:
+  - Edit: Cut (`Ctrl+X`), Copy (`Ctrl+C`), Paste (`Ctrl+V`), Duplicate (`Ctrl+D`)
+  - View: Show Snap (toggle)
+  - File: Optimize (dispatcha `OptimizeCommand`)
+  - Toolbar: Copy, Paste, Duplicate
+  - Context.node: Cut, Copy, Duplicate (acima de Delete)
+- **Disabled signals** factory pattern (D-043): `noClipboardFactory` para Paste, `noSelectionFactory` reusado para Cut/Copy/Duplicate.
+- **Handlers**:
+  - Cut = Copy + Delete (clipboard populado + nodes removidos)
+  - Paste insere via `InsertNodeCommand` para cada clone + chama `selection.selectMany(newIds)` (matches convention: após paste a seleção move para os duplicados)
+  - Duplicate dispatcha `DuplicateNodeCommand([selectedIds])` + seleciona `cmd.getInsertedIds()`
+  - Optimize dispatcha `OptimizeCommand(registry)` — usa `OptimizerRegistry` resolvida no scope ativo
+
+**Adicionado em `svg-engine/ui`**
+
+- **`builtinUiMenuContributionsPlugin`** (`ui/menu-extras/`) — **NOVO** plugin paralelo. Registra itens que precisam de Material dialog. Atualmente: File › View Source… (abre `<svge-svg-source-dialog>` via `MatDialog`). Mesmo pattern de lazy injector (D-042/D-043). Plugin opt-in.
+- **`<svge-status-bar>` snap section** agora é **`<button>` clicável** com `aria-pressed` reativo. Toggle parallel ao View › Snap do menu. Estilos `:hover` + `:focus-visible` para affordance visual. Outras sections (cursor, zoom, etc.) permanecem display-only (decisão D-035 preservada — só snap virou interativa).
+
+**Wireado em `playground/app.config.ts`**: adicionado `provideSvgEnginePlugin(builtinUiMenuContributionsPlugin)`. As 4 rotas de shell herdam automaticamente todos os novos itens via registry signal (zero alteração nas views — registry-driven).
+
+**O que NÃO entrou** (registrado como deferred — fora de escopo desta entrega)
+
+- **OS clipboard bridge** via `navigator.clipboard.writeText/readText` com MIME `image/svg+xml` — adiar para `provideSvgEngineClipboardOsBridge()` opt-in
+- **Snap mode submenu** (None/Grid/Objects/Both) — apenas toggle on/off por ora; mode selection via Inspector existente
+- **Workspace Settings…** dialog em `ui` plugin — mesma estrutura de View Source, deferred
+- **Export with Options…** dialog — formato + dimensões + qualidade
+- **Cut como compound command** (1 undo entry) — atualmente Cut = 2 entries (uma só pra delete; copy não toca history porque só muda ClipboardService). Aceitável trade-off por ora
+
+**Garantias verificadas**
+
+- ✅ **1049/1049 specs** passando (era 1038 + 11 novos: ClipboardService 6 + DuplicateNodeCommand 5)
+- ✅ 6 entry points + playground build clean
+- ✅ Zero breaking change
+- ✅ **D-017 headless boundary intacta**: ClipboardService + DuplicateCommand não usam Material/CDK; UI plugin isolado em `svg-engine/ui`
+- ✅ **D-042 multi-editor scope**: ClipboardService adicionada ao `provideSvgEngineEditorScope()`; cada editor tem clipboard próprio
+- ✅ **D-043 pattern**: factory disabled + ctx run em todos os novos itens
+
+**Arquivos**
+
+- `projects/svg-engine/core/src/lib/tree/clone-with-new-ids.ts` — novo
+- `projects/svg-engine/core/src/lib/commands/duplicate-node.command.ts` — novo + spec
+- `projects/svg-engine/core/src/lib/commands/index.ts` — export DuplicateNodeCommand
+- `projects/svg-engine/core/src/lib/tree/index.ts` — export cloneNodeWithNewIds
+- `projects/svg-engine/edit/src/lib/clipboard/clipboard.service.ts` — novo + spec
+- `projects/svg-engine/edit/src/lib/clipboard/index.ts` — novo
+- `projects/svg-engine/edit/src/lib/scope/editor-scope.providers.ts` — adiciona ClipboardService
+- `projects/svg-engine/edit/src/public-api.ts` — export clipboard
+- `projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts` — +11 itens (Cut/Copy/Paste/Duplicate em Edit/Toolbar/Context, Snap em View, Optimize em File) + handlers + factories
+- `projects/svg-engine/ui/src/lib/menu-extras/builtin-ui-menu-contributions.plugin.ts` — novo
+- `projects/svg-engine/ui/src/lib/menu-extras/index.ts` — novo
+- `projects/svg-engine/ui/src/public-api.ts` — export menu-extras
+- `projects/svg-engine/ui/src/lib/status-bar/status-bar.component.ts` — snap section vira button + toggleSnap()
+- `projects/playground/src/app/app.config.ts` — provider novo plugin UI
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+
+---
+
 ## 2026-05-21 — D-043 follow-up: shells renderizam grid/rulers/outline + File menu items + cursor wired
 
 **Bugs reportados pelo usuário** (após o fix de MenuContributionContext funcionar):

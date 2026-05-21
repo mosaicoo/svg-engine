@@ -1,21 +1,26 @@
 import { computed, type Injector, type ProviderToken, type Signal } from '@angular/core';
 import {
   CommandBus,
+  DuplicateNodeCommand,
   EditorStateService,
   findNodeById,
   GroupSelectionCommand,
   HistoryService,
+  InsertNodeCommand,
   RemoveNodeCommand,
   ReorderNodeCommand,
   type ReorderDirection,
   UngroupCommand,
 } from 'svg-engine/core';
 import { pngExporter, svgExporter, svgImporter } from 'svg-engine/io';
+import { OptimizeCommand, OptimizerRegistry } from 'svg-engine/optimize';
 import { ViewportService } from 'svg-engine/render';
 
+import { ClipboardService } from '../../clipboard/clipboard.service';
 import { type EditorPlugin } from '../../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../../plugin/plugin';
 import { SelectionService } from '../../selection/selection.service';
+import { SnapService } from '../../snap/snap.service';
 import { WorkspaceService } from '../../workspace/workspace.service';
 import { MenuContributionRegistry } from '../menu-contribution-registry.service';
 import type { MenuContributionContext } from '../menu-contribution';
@@ -107,6 +112,11 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         return node === null || node.type !== 'group';
       });
     };
+    // D-044: Paste disabled when clipboard is empty.
+    const noClipboardFactory = (injector: Injector): Signal<boolean> => {
+      const clipboard = injector.get(ClipboardService);
+      return computed(() => !clipboard.hasContent());
+    };
 
     // ── Lazy injector helper for run() handlers (D-043 fix) ────────
     // Always reads from `runCtx.injector` when present (the editor
@@ -195,6 +205,33 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.divider3',
+        slot: MENU_SLOT.FILE,
+        label: '',
+        order: 70,
+        divider: true,
+        run() {
+          /* divider */
+        },
+      }),
+    );
+    // D-044: Optimize current document via the OptimizerRegistry pipeline.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.optimize',
+        slot: MENU_SLOT.FILE,
+        label: 'Optimize',
+        icon: 'auto_fix_high',
+        order: 80,
+        run(runCtx) {
+          const bus = fromCtx(CommandBus, runCtx);
+          const registry = fromCtx(OptimizerRegistry, runCtx);
+          bus.dispatch(new OptimizeCommand(registry));
+        },
+      }),
+    );
 
     // ── Edit menu ───────────────────────────────────────────────────
     ctx.track(
@@ -261,6 +298,63 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         order: 50,
         run(runCtx) {
           selectAllTopLevel(runCtx, fromCtx);
+        },
+      }),
+    );
+    // D-044: Cut/Copy/Paste/Duplicate — clipboard + duplicate handlers
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.cut',
+        slot: MENU_SLOT.EDIT,
+        label: 'Cut',
+        icon: 'content_cut',
+        shortcut: 'Ctrl+X',
+        order: 51,
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          cutSelected(runCtx, fromCtx);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.copy',
+        slot: MENU_SLOT.EDIT,
+        label: 'Copy',
+        icon: 'content_copy',
+        shortcut: 'Ctrl+C',
+        order: 52,
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          copySelected(runCtx, fromCtx);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.paste',
+        slot: MENU_SLOT.EDIT,
+        label: 'Paste',
+        icon: 'content_paste',
+        shortcut: 'Ctrl+V',
+        order: 53,
+        disabled: noClipboardFactory,
+        run(runCtx) {
+          pasteFromClipboard(runCtx, fromCtx);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.duplicate',
+        slot: MENU_SLOT.EDIT,
+        label: 'Duplicate',
+        icon: 'control_point_duplicate',
+        shortcut: 'Ctrl+D',
+        order: 54,
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          duplicateSelected(runCtx, fromCtx);
         },
       }),
     );
@@ -390,6 +484,32 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+    // D-044: Snap toggle (also surfaced clickable in <svge-status-bar>).
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.divider2',
+        slot: MENU_SLOT.VIEW,
+        label: '',
+        order: 75,
+        divider: true,
+        run() {
+          /* divider */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.toggle-snap',
+        slot: MENU_SLOT.VIEW,
+        label: 'Snap',
+        icon: 'grid_3x3',
+        order: 80,
+        run(runCtx) {
+          const snap = fromCtx(SnapService, runCtx);
+          snap.setEnabled(!snap.enabled());
+        },
+      }),
+    );
 
     // ── Object menu ────────────────────────────────────────────────
     const reorder = (direction: ReorderDirection, runCtx?: MenuContributionContext): void => {
@@ -515,6 +635,49 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+    // D-044: clipboard / duplicate on toolbar
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.toolbar.copy',
+        slot: TOOLBAR_SLOT.MAIN,
+        label: 'Copy',
+        icon: 'content_copy',
+        tooltip: 'Copy selection (Ctrl+C)',
+        order: 31,
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          copySelected(runCtx, fromCtx);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.toolbar.paste',
+        slot: TOOLBAR_SLOT.MAIN,
+        label: 'Paste',
+        icon: 'content_paste',
+        tooltip: 'Paste from clipboard (Ctrl+V)',
+        order: 32,
+        disabled: noClipboardFactory,
+        run(runCtx) {
+          pasteFromClipboard(runCtx, fromCtx);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.toolbar.duplicate',
+        slot: TOOLBAR_SLOT.MAIN,
+        label: 'Duplicate',
+        icon: 'control_point_duplicate',
+        tooltip: 'Duplicate selection (Ctrl+D)',
+        order: 33,
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          duplicateSelected(runCtx, fromCtx);
+        },
+      }),
+    );
     ctx.track(
       reg.register({
         id: 'svge.builtin.toolbar.group',
@@ -608,6 +771,60 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     );
 
     // ── Context.node ───────────────────────────────────────────────
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.context.node.cut',
+        slot: CONTEXT_MENU_SLOT.NODE,
+        label: 'Cut',
+        icon: 'content_cut',
+        shortcut: 'Ctrl+X',
+        order: 5,
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          cutSelected(runCtx, fromCtx);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.context.node.copy',
+        slot: CONTEXT_MENU_SLOT.NODE,
+        label: 'Copy',
+        icon: 'content_copy',
+        shortcut: 'Ctrl+C',
+        order: 6,
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          copySelected(runCtx, fromCtx);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.context.node.duplicate',
+        slot: CONTEXT_MENU_SLOT.NODE,
+        label: 'Duplicate',
+        icon: 'control_point_duplicate',
+        shortcut: 'Ctrl+D',
+        order: 7,
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          duplicateSelected(runCtx, fromCtx);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.context.node.divider0',
+        slot: CONTEXT_MENU_SLOT.NODE,
+        label: '',
+        order: 9,
+        divider: true,
+        run() {
+          /* divider */
+        },
+      }),
+    );
     ctx.track(
       reg.register({
         id: 'svge.builtin.context.node.delete',
@@ -742,6 +959,73 @@ function ungroupFocus(runCtx: MenuContributionContext | undefined, fromCtx: Reso
   const node = findNodeById(state.document().root, focus);
   if (node === null || node.type !== 'group') return;
   fromCtx(CommandBus, runCtx).dispatch(new UngroupCommand(focus));
+}
+
+// ── Clipboard + Duplicate (D-044) ─────────────────────────────────
+
+function getSelectedNodes(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+): readonly import('svg-engine/core').SvgNode[] {
+  const sel = fromCtx(SelectionService, runCtx);
+  const state = fromCtx(EditorStateService, runCtx);
+  const ids = sel.selectedIds();
+  if (ids.size === 0) return [];
+  const out: import('svg-engine/core').SvgNode[] = [];
+  for (const id of ids) {
+    const node = findNodeById(state.document().root, id);
+    if (node !== null) out.push(node);
+  }
+  return out;
+}
+
+function copySelected(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+  const nodes = getSelectedNodes(runCtx, fromCtx);
+  if (nodes.length === 0) return;
+  fromCtx(ClipboardService, runCtx).copy(nodes);
+}
+
+function cutSelected(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+  // Copy then delete — gives the user the standard cut behavior
+  // (clipboard populated, document loses the cut nodes). Two undo
+  // entries (one for delete; copy is non-undoable as it only mutates
+  // ClipboardService). Acceptable trade-off — wrapping in a compound
+  // command would couple `edit` to a new command type for marginal
+  // ergonomic gain.
+  copySelected(runCtx, fromCtx);
+  deleteSelected(runCtx, fromCtx);
+}
+
+function pasteFromClipboard(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+  const clipboard = fromCtx(ClipboardService, runCtx);
+  const nodes = clipboard.paste();
+  if (nodes.length === 0) return;
+  const state = fromCtx(EditorStateService, runCtx);
+  const bus = fromCtx(CommandBus, runCtx);
+  const rootId = state.document().root.id;
+  // Insert each clone into the root. Caller (or a future "paste at
+  // selection" enhancement) could insert into a focused group instead.
+  for (const node of nodes) {
+    bus.dispatch(new InsertNodeCommand(rootId, node));
+  }
+  // Select the newly-pasted nodes so subsequent operations target them
+  // (matches the convention of every professional editor).
+  const sel = fromCtx(SelectionService, runCtx);
+  sel.selectMany(nodes.map((n) => n.id));
+}
+
+function duplicateSelected(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+  const sel = fromCtx(SelectionService, runCtx);
+  const ids = Array.from(sel.selectedIds());
+  if (ids.length === 0) return;
+  const bus = fromCtx(CommandBus, runCtx);
+  const cmd = new DuplicateNodeCommand(ids);
+  bus.dispatch(cmd);
+  // Select the new duplicates so the user can continue editing them
+  // (Figma / Illustrator convention — after Ctrl+D the selection moves
+  // to the duplicate).
+  const newIds = cmd.getInsertedIds();
+  if (newIds.length > 0) sel.selectMany(newIds);
 }
 
 // ── File menu action implementations ──────────────────────────────

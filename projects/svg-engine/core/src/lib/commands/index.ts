@@ -7,6 +7,7 @@ export {
   RemoveAnchorCommand,
 } from './anchor.commands';
 export { ConvertNodeToPathCommand, nodeToPathD } from './convert-to-path.command';
+export { DuplicateNodeCommand } from './duplicate-node.command';
 export {
   DivideCommand,
   ExcludeCommand,

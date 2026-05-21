@@ -112,10 +112,21 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
       </span>
     }
     @if (showSection('snap')) {
-      <span class="section section-snap" [matTooltip]="snapTooltip()">
+      <!-- D-044: clickable toggle (parallel to View > Snap menu item).
+           Conventional from Photoshop/Illustrator/Figma: status bar
+           sections that hold a stateful toggle are clickable. Keyboard:
+           Enter/Space activate via implicit button role. -->
+      <button
+        type="button"
+        class="section section-snap section-toggle"
+        [class.is-off]="!snapEnabled()"
+        [matTooltip]="snapTooltip() + ' — click to toggle'"
+        [attr.aria-pressed]="snapEnabled()"
+        (click)="toggleSnap()"
+      >
         <mat-icon class="icon" [class.muted]="!snapEnabled()" aria-hidden="true">grid_3x3</mat-icon>
         <span class="value">{{ snapLabel() }}</span>
-      </span>
+      </button>
     }
     @if (showSection('isolation') && isolationActive()) {
       <span class="section section-isolation" matTooltip="Isolation mode active">
@@ -174,6 +185,28 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
       color: var(--mat-sys-tertiary, #ff6f00);
       font-size: 12px;
       line-height: 1;
+    }
+    /* D-044: snap section as a button. Reset native button styles so it
+       blends with the surrounding info-bar look + add hover/active
+       affordances since this section is interactive (others are display
+       only). */
+    button.section-toggle {
+      background: transparent;
+      border: 0;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+      user-select: none;
+    }
+    button.section-toggle:hover {
+      background: var(--mat-sys-surface-container-high, rgba(0, 0, 0, 0.04));
+    }
+    button.section-toggle.is-off {
+      opacity: 0.7;
+    }
+    button.section-toggle:focus-visible {
+      outline: 2px solid var(--mat-sys-primary, #1976d2);
+      outline-offset: -2px;
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -261,6 +294,16 @@ export class SvgeStatusBar {
   protected readonly snapTooltip = computed(() =>
     this.snap.enabled() ? `Snap on (${this.snap.mode()})` : 'Snap off',
   );
+
+  /**
+   * D-044: toggle snap on click. Parallel to the View > Snap menu item;
+   * either surface flips the same `SnapService.setEnabled` flag, so
+   * keyboard nav (menu) and quick mouse access (status bar) stay in sync.
+   * Both visible-state and tooltip reflect the result via reactive signals.
+   */
+  protected toggleSnap(): void {
+    this.snap.setEnabled(!this.snap.enabled());
+  }
 
   // ── Isolation section ───────────────────────────────────────────
 

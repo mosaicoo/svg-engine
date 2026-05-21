@@ -76,3 +76,6 @@ export * from './lib/tools-palette';
 // Professional shell composing menu + toolbar + tool-options + tools-palette
 // + canvas + context-menu + layers + inspector + status — D-038 phase 4
 export * from './lib/shell-pro';
+
+// Built-in UI menu contributions (Material-dialog items — D-044)
+export * from './lib/menu-extras';

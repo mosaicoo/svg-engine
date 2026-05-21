@@ -114,5 +114,8 @@ export * from './lib/anchor-editor';
 // Auto-save + recovery (localStorage-backed)
 export * from './lib/autosave';
 
+// In-memory clipboard for Copy/Cut/Paste (D-044)
+export * from './lib/clipboard';
+
 // Route-scoped editor state stack (D-042 — multi-editor in same app)
 export * from './lib/scope';
