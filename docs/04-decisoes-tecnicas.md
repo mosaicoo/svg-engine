@@ -1468,7 +1468,7 @@ Depois: **fonte única em `edit/lib/menu/menu-slots.ts`**. `ui` re-exporta para 
 | D-032?     | Multi-page (`WorkspacesRegistry`) — extensão futura de D-021           |
 | D-033?     | Estratégia de i18n no editor                                           |
 | D-045?     | Distribuição cross-framework (React / Vue / Vanilla JS / RN)           |
-| D-046?     | NLU/SLM para comandos por linguagem natural (3 fases incrementais)     |
+| D-046?     | NLU/SLM para comandos — Fase 1 ✅ (2026-05-22); Fases 2 + 3 pendentes  |
 | D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3 |
 
 > **Nota**: D-023 era "API formal de plugins" (cumprida pelo D-020 expandido em 2026-05-15). D-024 era "Versionamento + changelog" (renumerada para D-031 porque o número D-024 foi reusado para `ScriptRuntimePlugin`). D-030 era "Workspace/Página: A vs B" (cumprida pelo D-021 resolvido como Option C). D-032 entra como pendente para multi-page futuro. Sequência de IDs cumpridas em 2026-05-15: D-020, D-021, D-023, D-024. Em 2026-05-20: D-026 (alinhamento estrutural io/optimize); o número D-026 era previamente reservado para i18n — renomeado para D-033. D-036 (consolidação de helpers compartilhados) entrou no mesmo dia. **D-034 + D-035 + D-037** (shell-refinement) entraram em 2026-05-20 mais tarde no mesmo dia — adiamento "pós-Fase 6d" foi reduzido pois caso de uso Mosaicoo (canvas embedável em painéis menores + editor completo) demandou ambas formas garantidamente. **D-038 + D-039 + D-040** (Sprint Pro-Editor + interactions + polish) entraram em 2026-05-20 fechando o ciclo do shell profissional. **D-031** (release tooling) também entrou em 2026-05-20 — destrava `npm publish` via `standard-version` + workflow `release.yml` condicional ao secret `NPM_TOKEN`; a decisão de registry definitivo (D-025?) permanece pendente.
@@ -1477,10 +1477,10 @@ Depois: **fonte única em `edit/lib/menu/menu-slots.ts`**. `ui` re-exporta para 
 
 ---
 
-## D-046? — NLU/SLM para comandos por linguagem natural (3 fases incrementais)
+## D-046 — NLU/SLM para comandos por linguagem natural (3 fases incrementais)
 
 - **Data registro**: 2026-05-21
-- **Status**: Pendente (apenas registro — sem sprint planejada)
+- **Status**: **Fase 1 (rule-based) IMPLEMENTADA** em 2026-05-22; Fases 2 (ML classifier) e 3 (SLM) permanecem pendentes
 - **Pergunta levantada**: viabilidade de adicionar um SLM (Small Language Model) para reconhecer linguagem natural e executar comandos dentro da ferramenta. Não é IA generativa: o caso de uso é **intent classification + slot filling** — entender "criar retângulo vermelho 100x50" → `{intent: 'create-shape', shape: 'rect', fill: 'red', width: 100, height: 50}` → `bus.dispatch(...)`.
 
 ### Por que faz sentido aqui
@@ -1549,6 +1549,34 @@ interface NluIntent {
 | Cold start (Fase 2/3)  | Primeiro uso baixa o modelo (3–10s para SLM); UI deve mostrar progresso. localStorage cache via OPFS / IndexedDB              |
 | WebGPU obrigatório (3) | Fallback: se ausente, cai para Fase 2; documentar requisito de hardware                                                       |
 | Atualização de modelo  | Hash-pinned download URLs; mecanismo de migração para quando modelo evoluir                                                   |
+
+### Fase 1 implementada (2026-05-22)
+
+Dentro de `svg-engine/edit/lib/nlu/` (decisão revista: começar como módulo do `edit`; entry point separado fica reservado para Fase 2/3 quando modelos pesados aparecerem — menos overhead, mesma API contract).
+
+**Componentes**:
+
+- `types.ts` — `NluIntent`, `NluContext`, `NluCandidate`, `NluSlotSchema`, `NluParseOptions`, `NluExecuteOptions`, `NluExecuteResult`. `NluContext` espelha `MenuContributionContext` (mesmo shape `{ injector }`) pra reaproveitar D-042/D-043 multi-editor scope.
+- `dictionaries/` — `colors.ts` (vermelho/red, azul/blue, 25+ cores), `shapes.ts` (`NluShapeKind` PT+EN, 14 nomes), `actions.ts` (canonical mapping: criar/create/desenhar → 'create', 20+ verbos), `stopwords.ts` (artigos/preposições/conjunções PT+EN).
+- `parsers/` — `tokenize.ts` (single-pass scanner que preserva `1.5` / `1,5` decimais e `100x50` dimensões + deacentuação NFD), `levenshtein.ts` (2-row DP com early termination), `fuzzy-match.ts` (adaptive max-dist por tamanho do termo: 0/1/2 pra termos curtos/médios/longos), `slot-extractor.ts` (extrai number/color/enum/string com tracking de consumed indices).
+- `natural-language.service.ts` — singleton `providedIn: 'root'`, `registerIntent()` retorna `Disposable`, `parse(text, ctx)` com scoring adaptativo (peso da keyword depende de quantos componentes a intent declara), `execute(text, ctx)` com gate de confirmação para destrutivos.
+- `menu-intent-discovery.ts` — `discoverMenuIntents(registry, service)` enumera o `MenuContributionRegistry` e auto-promove cada contribution em intent NLU (label tokenizado → keywords; `delete`/`remove`/`clear` no label → `destructive: true`).
+- `builtin-nlu.plugin.ts` — `builtinNluPlugin` opt-in que combina auto-discovery + 2 intents customizados:
+  - `create-shape`: keywords PT/EN, slots `shape: enum`, `fill: color`, `width: number`, `height: number`. Dispatcha `InsertNodeCommand(rect|ellipse)` no centro do viewBox.
+  - `set-fill`: keywords PT/EN, slot `color: color` obrigatório. Stub honesto (warn) até `SetStyleCommand` aparecer no core — não inventa command improvisado.
+
+**Algoritmo de scoring (adaptive weighting)**:
+
+| Intent declara                | Peso keyword | Bônus action | Bônus slot opcional | Penalidade slot obrigatório |
+| ----------------------------- | ------------ | ------------ | ------------------- | --------------------------- |
+| Só `keywords`                 | 0.75         | n/a          | n/a                 | n/a                         |
+| `keywords` + `actionKeywords` | 0.55         | até +0.25    | n/a                 | n/a                         |
+| `keywords` + `slots`          | 0.65         | n/a          | +0.05 cada          | −0.15 cada                  |
+| Todos os 3                    | 0.50         | até +0.25    | +0.05 cada          | −0.15 cada                  |
+
+Sort secundário (tiebreaker quando |Δconfidence| ≤ 0.05): `matches.length` desc — intent que captura MAIS componentes do input ganha.
+
+**Garantias verificadas**: 1138/1138 specs (1049 anteriores + 89 novos), 6 entry points build clean, lint clean, D-017 headless preservado (NLU sem Material/CDK).
 
 ### Decisão de não fazer agora
 

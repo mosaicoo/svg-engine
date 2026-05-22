@@ -6,6 +6,115 @@
 
 ---
 
+## 2026-05-22 — D-046 Fase 1: NLU rule-based (regex + dicionário PT/EN + Levenshtein) implementada
+
+**Pedido**: _"Vamos executar a FASE 1 da Linguagem Natural: NLU Profissional, completo. Regex + dicionário multilíngue + fuzzy matching (Levenshtein). Auto-popula intents do MenuContributionRegistry. Cobre 70–80% dos comandos comuns: 'undo', 'select all', 'delete', 'criar retângulo vermelho'. Sem download, sem WebGPU, funciona offline imediatamente. Plugin: nluPlugin.basic"_
+
+**Decisão arquitetural — onde plantar a Fase 1**
+
+Optei por colocar em **`svg-engine/edit/lib/nlu/`** (módulo dentro de `edit`) em vez de criar entry point `svg-engine/nlu` separado. Razões:
+
+- Fase 1 é puro TS sem dependências extras (~10 KB no bundle) — não justifica o overhead de novo entry point + ng-package.json + tsconfig paths.
+- `edit` já é onde vivem os outros registries plugáveis (`ToolRegistry`, `MenuContributionRegistry`, `ShortcutRegistry`, `PluginRegistry`). NLU se encaixa naturalmente nessa família.
+- Quando Fase 2 (Transformers.js ~30–50MB) e Fase 3 (WebLLM ~500MB+) chegarem, AÍ sim entry points separados `svg-engine/nlu-ml` e `svg-engine/nlu-slm` — opt-in pesado, lazy-load. Eles reaproveitam o contrato `NluIntent` / `NaturalLanguageService` definido na Fase 1.
+- D-017 headless boundary respeitado: nada de Material/CDK.
+
+**Componentes criados** (todos em `projects/svg-engine/edit/src/lib/nlu/`)
+
+```
+nlu/
+├── index.ts                       # barrel
+├── types.ts                       # NluIntent, NluContext, NluCandidate, NluSlotSchema...
+├── natural-language.service.ts    # singleton root: registerIntent / parse / execute
+├── menu-intent-discovery.ts       # auto-promove MenuContributionRegistry em intents
+├── builtin-nlu.plugin.ts          # opt-in: auto-discovery + create-shape / set-fill
+├── dictionaries/
+│   ├── colors.ts                  # 25+ cores PT+EN → hex (vermelho/red, azul/blue...)
+│   ├── shapes.ts                  # 14 formas PT+EN → NluShapeKind (retangulo/rectangle...)
+│   ├── actions.ts                 # 20+ verbos PT+EN → ActionCanonical (criar/create...)
+│   └── stopwords.ts               # artigos/preposições PT+EN
+└── parsers/
+    ├── tokenize.ts                # scanner single-pass com NFD deacento; preserva 1.5/1,5 + 100x50 + #hex
+    ├── levenshtein.ts             # 2-row DP com early termination
+    ├── fuzzy-match.ts             # adaptive max-dist por tamanho (0/1/2 pra curtos/médios/longos)
+    └── slot-extractor.ts          # number/color/enum/string com tracking de consumed indices
+```
+
+**Surface pública (exportada via `svg-engine/edit` public-api)**:
+
+- `NaturalLanguageService` (Injectable root)
+- `NluIntent`, `NluContext`, `NluCandidate`, `NluSlotSchema`, `NluParseOptions`, `NluExecuteOptions`, `NluExecuteResult`, `NluMatchReason`
+- `builtinNluPlugin` (EditorPlugin opt-in)
+- `discoverMenuIntents`, `menuContributionToIntent`
+- `tokenize`, `normalize`, `deaccent`, `tokenizeWithoutStopwords`
+- `levenshtein`, `bestMatch`
+- `adaptiveMaxDistance`, `fuzzyMatchToken`, `fuzzyMatchAny`, `fuzzyMatchAll`
+- `extractSlots`, `parseNumberToken`, `parseColorToken`, `parseDimensionToken`
+- Dicionários: `COLOR_DICTIONARY`, `SHAPE_DICTIONARY`, `ACTION_DICTIONARY`, `STOPWORDS`
+
+**Padrão arquitetural reaproveitado**:
+
+- **D-042/D-043 multi-editor**: `NluContext` espelha `MenuContributionContext` (`{ injector }`). Handlers resolvem services via `ctx.injector` — nunca em closure. Auto-discovery propaga o injector pro `run()` original do menu contribution.
+- **Plugin scaffolding (D-020)**: `builtinNluPlugin` segue exatamente o mesmo padrão de `builtinMenuContributionsPlugin`, `builtinEditorShortcutsPlugin`, `builtinUiMenuContributionsPlugin` — `install(ctx)`, `ctx.track(disposable)`, opt-in via `provideSvgEnginePlugin`.
+- **Registry pattern**: `NaturalLanguageService` mirrors `MenuContributionRegistry` — `register` retorna `Disposable`, signal-backed, throw em config errors.
+
+**Algoritmo de scoring (adaptive weighting)**
+
+A confidence final combina componentes do match em pesos que dependem do que a intent declara:
+
+| Intent declara                | Peso keyword | Bônus action | Slots           |
+| ----------------------------- | ------------ | ------------ | --------------- |
+| Só `keywords`                 | 0.75         | n/a          | n/a             |
+| `keywords` + `actionKeywords` | 0.55         | até +0.25    | n/a             |
+| `keywords` + `slots`          | 0.65         | n/a          | ±0.05/0.15 cada |
+| Todos os 3                    | 0.50         | até +0.25    | ±0.05/0.15 cada |
+
+Sort secundário: quando |Δconfidence| ≤ 0.05, prefere intent com **mais matches** (mais informação capturada do input).
+
+**Threshold**:
+
+- ≥ 0.7 → auto-execute (default `autoExecuteThreshold`)
+- 0.3–0.7 → retorna candidate mas só executa se `confirmGate` aprovar
+- < 0.3 → filtrado do resultado de `parse()`
+- Destrutivo (`intent.destructive === true`) → **sempre** exige `confirmGate`, não auto-executa
+
+**Cobertura validada** (specs e2e do `builtinNluPlugin`):
+
+- `"undo"` → executa via menu auto-discovery (score 0.75)
+- `"select all"` → executa via menu auto-discovery
+- `"criar retangulo vermelho"` → `InsertNodeCommand` com `createRect` + fill `#e53935`
+- `"create a blue circle"` → `InsertNodeCommand` com `createEllipse` rx=ry, fill `#1e88e5`
+- `"create a rect 100x50"` → width=100, height=50 via dimension parsing
+- `"criar retangle"` (typo) → fuzzy match recupera para `create-shape`
+- `"deletar"` → marcado destrutivo automático pelo `menu-intent-discovery` (label "Delete"), rejeita sem gate
+
+**Garantias verificadas**
+
+- ✅ **1138/1138 specs** passando (1049 anteriores + 89 novos NLU)
+- ✅ 6 entry points + playground build clean
+- ✅ Lint clean nos 2 projetos
+- ✅ **D-017 headless preservado**: módulo NLU não importa `@angular/material` nem `@angular/cdk`
+- ✅ **D-042/D-043 multi-editor scope-safe**: `NluContext.injector` propaga até o handler
+- ✅ **Princípio de não-alucinação respeitado**: `set-fill` intent emite warn honesto (sem dispatch de command inventado) até `SetStyleCommand` aparecer no core
+
+**Arquivos**
+
+- `projects/svg-engine/edit/src/lib/nlu/**` — 13 arquivos novos (types + service + discovery + plugin + 4 dicts + 4 parsers + barrel)
+- `projects/svg-engine/edit/src/lib/nlu/**/*.spec.ts` — 6 specs (tokenize 11, levenshtein 11, fuzzy-match 9, slot-extractor 16, service 17, discovery 15, plugin 10 = +89)
+- `projects/svg-engine/edit/src/public-api.ts` — export `./lib/nlu`
+- `docs/04-decisoes-tecnicas.md` — D-046 atualizado (status: Fase 1 implementada) + linha na tabela de pendentes
+- `docs/05-roadmap.md` — Fase 8.1 marcada `[x]`
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+
+**O que NÃO entrou (deferred para Fase 2/3 ou follow-ups)**:
+
+- **Surfaces UI** (command palette Ctrl+K, voice input via Web Speech API, chat sidebar) — vivem em `svg-engine/ui` (Material) e serão sprint próprio.
+- **`SetStyleCommand`** no core — quando aparecer, `set-fill` intent muda de stub pra dispatch real (1 linha).
+- **OS clipboard bridge** e cross-frame intent broadcast — fora de escopo Fase 1.
+- **Fase 2 (Transformers.js intent classifier)** e **Fase 3 (WebLLM SLM)** — reabrir quando houver demanda explícita.
+
+---
+
 ## 2026-05-22 — Fix-of-fix: dialog responsivo (cobertura completa, incluindo Workspace Settings)
 
 **Bug remanescente**: a primeira tentativa do fix de resize vertical resolveu o View Source mas o **Workspace Settings continuava quebrando** — form renderizava normal mas o footer (Reset/Done) e o resize handle ficavam **fora do surface branco**, em área cinza com checkerboard, como se o `<svge-dialog-shell>` tivesse "vazado" pra fora do dialog.

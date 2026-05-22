@@ -348,13 +348,15 @@
 > rationale, encaixe arquitetural, restrições e trade-offs. Reabrir só
 > quando houver demanda explícita ou push de acessibilidade.
 
-- [ ] **Fase 8.1 — Rule-based NLU** (sem ML, < 50 KB)
-  - Entry point `svg-engine/nlu` (headless, opt-in)
+- [x] **Fase 8.1 — Rule-based NLU** ✅ (sem ML, < 50 KB)
+  - Dentro de `svg-engine/edit/lib/nlu/` (decisão revista: entry point separado fica reservado para Fase 8.2/8.3 quando modelos pesados aparecerem)
   - `NaturalLanguageService.parse(text, ctx)` com regex + dicionário PT/EN + fuzzy match (Levenshtein)
   - Auto-descoberta de intents do `MenuContributionRegistry` (todo menu item vira candidato; `label` como exemplo)
   - `registerIntent(...)` para plugins adicionarem intents customizados
   - Confirmation gate configurável para ações destrutivas (delete, clear)
-  - Cobertura esperada: 70–80% dos comandos comuns
+  - `builtinNluPlugin` opt-in: auto-discovery + intents customizados `create-shape` / `set-fill` (slot extraction completa)
+  - Cobertura validada: "undo", "select all", "delete", "criar retângulo vermelho 100x50", "create a blue circle"
+  - +89 specs (tokenize/levenshtein/fuzzy/slot-extractor/service/discovery/plugin) → **1138 passing** em 88 arquivos
 - [ ] **Fase 8.2 — Intent classifier ML leve** (30–50 MB, lazy-load)
   - Entry point `svg-engine/nlu-ml`
   - Distilled BERT / MiniLM via **Transformers.js** (ONNX no browser, sem WebGPU obrigatório)

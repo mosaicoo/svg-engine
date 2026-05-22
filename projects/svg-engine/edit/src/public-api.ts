@@ -119,3 +119,10 @@ export * from './lib/clipboard';
 
 // Route-scoped editor state stack (D-042 — multi-editor in same app)
 export * from './lib/scope';
+
+// Natural Language Understanding — D-046? Fase 1 (rule-based, opt-in via
+// builtinNluPlugin). Auto-descobre intents do MenuContributionRegistry +
+// permite plugins registrarem intents custom com slot extraction.
+// Fase 2 (ML) / Fase 3 (SLM) entram como entry points separados quando
+// chegarem; o contrato NluIntent / NaturalLanguageService é compartilhado.
+export * from './lib/nlu';
