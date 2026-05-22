@@ -27,3 +27,5 @@ export * from './menu-intent-discovery';
 export * from './builtin-nlu.plugin';
 export * from './parsers';
 export * from './dictionaries';
+export * from './scoring';
+export * from './dictionary-registry.service';

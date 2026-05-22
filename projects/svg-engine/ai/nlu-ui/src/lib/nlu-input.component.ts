@@ -18,10 +18,12 @@ import { MatInput } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltip } from '@angular/material/tooltip';
 import {
+  detectLanguage,
   type NluCandidate,
   type NluExecuteResult,
   NaturalLanguageService,
 } from 'svg-engine/ai/nlu';
+import { tokenize } from 'svg-engine/ai/nlu';
 import { VoiceRecognitionService } from './voice-recognition.service';
 
 /**
@@ -93,7 +95,7 @@ import { VoiceRecognitionService } from './voice-recognition.service';
             class="svge-nlu-mic"
             [class.recording]="voice.listening()"
             [attr.aria-pressed]="voice.listening()"
-            [matTooltip]="voice.listening() ? 'Stop' : 'Voice (' + voiceLang() + ')'"
+            [matTooltip]="voice.listening() ? 'Stop' : 'Voice (' + effectiveVoiceLang() + ')'"
             (click)="toggleVoice()"
           >
             <mat-icon>{{ voice.listening() ? 'mic_off' : 'mic' }}</mat-icon>
@@ -310,8 +312,31 @@ export class SvgeNluInput {
   readonly label = input<string>('Comando em linguagem natural');
   /** Placeholder textual. Default exemplo PT. */
   readonly placeholder = input<string>('ex: criar retângulo vermelho 100x50');
-  /** BCP-47 language tag pra voice recognition. Default `pt-BR`. */
+  /**
+   * BCP-47 language tag pra voice recognition. Default `pt-BR`.
+   *
+   * **D-046 review-10 (M14)**: quando `autoDetectLanguage = true`,
+   * o componente sobreescreve esse default usando `detectLanguage(text)`
+   * (PT/EN). Override manual deste input sempre tem prioridade.
+   */
   readonly voiceLang = input<string>('pt-BR');
+
+  /**
+   * **D-046 review-10 (M14)**: auto-detecta idioma do input via
+   * dicionários PT/EN (hits count). Quando `true`, passa o resultado
+   * pra `voice.listen()` em vez de `voiceLang()` estático.
+   *
+   * Útil pra apps que aceitam PT E EN sem o user trocar config manual.
+   */
+  readonly autoDetectLanguage = input<boolean>(false);
+
+  /**
+   * **D-046 review-10 (M5)**: debounce em ms antes de rodar `parse()`.
+   * Default 0 (sem debounce — mantém comportamento Fase 1).
+   * Recomendado `150` pra voice input rápido (~6 keystrokes/s).
+   * Acima de 300 fica perceptível pro user.
+   */
+  readonly parseDebounceMs = input<number>(0);
 
   /**
    * Confidence mínima pra auto-execute. Abaixo disso, o componente
@@ -348,17 +373,48 @@ export class SvgeNluInput {
 
   // ── Estado reativo ──────────────────────────────────────────
   protected readonly text = signal('');
+  /**
+   * **D-046 review-10 (M5)**: signal debouncado pra reduzir parse rate.
+   * Quando `parseDebounceMs=0`, sempre igual a `text()`. Caso contrário,
+   * só atualiza após o delay sem mudanças (typing burst absorve).
+   */
+  protected readonly debouncedText = signal('');
+  private debounceHandle: ReturnType<typeof setTimeout> | undefined;
   protected readonly lastResult = signal<NluExecuteResult | null>(null);
   /**
-   * Candidates ordenados por confidence — recomputa quando `text` muda
-   * OU quando o registry de intents muda (`this.nlu.intents()`).
+   * Candidates ordenados por confidence — recomputa quando
+   * `debouncedText` muda OU quando o registry de intents muda.
    */
   protected readonly candidates = computed<readonly NluCandidate[]>(() => {
-    const t = this.text().trim();
+    const t = this.debouncedText().trim();
     if (t.length === 0) return [];
     // Subscreve ao registry pra recomputar quando intents mudarem.
     void this.nlu.intents();
     return this.nlu.parse(t, { injector: this.hostInjector }, { threshold: 0.25, maxResults: 5 });
+  });
+
+  /**
+   * **D-046 review-10 (M14)**: idioma detectado do input (PT/EN/unknown).
+   * Quando `autoDetectLanguage = true`, este valor sobreescreve `voiceLang()`
+   * default pra escolher o engine STT do browser correto.
+   */
+  protected readonly detectedLanguage = computed<'pt' | 'en' | 'unknown'>(() => {
+    const t = this.debouncedText().trim();
+    if (t.length === 0) return 'unknown';
+    return detectLanguage(tokenize(t)).language;
+  });
+
+  /**
+   * Resolve BCP-47 effective pro `voice.listen(lang)`. Se autoDetect
+   * está ON e detectou PT, retorna 'pt-BR'. Se detectou EN, 'en-US'.
+   * Caso unknown ou autoDetect OFF, usa `voiceLang()` (default 'pt-BR').
+   */
+  protected readonly effectiveVoiceLang = computed<string>(() => {
+    if (!this.autoDetectLanguage()) return this.voiceLang();
+    const lang = this.detectedLanguage();
+    if (lang === 'pt') return 'pt-BR';
+    if (lang === 'en') return 'en-US';
+    return this.voiceLang();
   });
 
   protected readonly topCandidate = computed<NluCandidate | null>(
@@ -415,15 +471,37 @@ export class SvgeNluInput {
    */
   protected onInput(value: string): void {
     this.text.set(value);
+    // **D-046 review-10 (M5)**: debounce conforme parseDebounceMs.
+    if (this.debounceHandle !== undefined) {
+      clearTimeout(this.debounceHandle);
+      this.debounceHandle = undefined;
+    }
+    const ms = this.parseDebounceMs();
+    if (ms <= 0) {
+      this.debouncedText.set(value);
+      return;
+    }
+    this.debounceHandle = setTimeout(() => {
+      this.debouncedText.set(value);
+      this.debounceHandle = undefined;
+    }, ms);
   }
 
   /**
    * Seta o valor do input programaticamente (voice transcript, clear
    * pós-execute). Atualiza o signal E o input element value — o input
    * nativo não escuta mudanças de signal sozinho.
+   *
+   * **D-046 review-10**: também atualiza `debouncedText` IMEDIATO
+   * (sem debounce) — caller programático sabe que o valor é final.
    */
   private setTextProgrammatically(value: string): void {
     this.text.set(value);
+    this.debouncedText.set(value);
+    if (this.debounceHandle !== undefined) {
+      clearTimeout(this.debounceHandle);
+      this.debounceHandle = undefined;
+    }
     const el = this.textInputRef()?.nativeElement;
     if (el) el.value = value;
   }
@@ -494,7 +572,9 @@ export class SvgeNluInput {
       return;
     }
     try {
-      const transcript = await this.voice.listen(this.voiceLang());
+      // **D-046 review-10 (M14)**: usa effectiveVoiceLang (auto-detect
+      // PT/EN do input quando autoDetectLanguage=true).
+      const transcript = await this.voice.listen(this.effectiveVoiceLang());
       if (transcript.length > 0) {
         this.setTextProgrammatically(transcript);
         // Auto-run quando vem por voz — confiança do usuário no

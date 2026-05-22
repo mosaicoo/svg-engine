@@ -328,5 +328,12 @@ export interface NluExecuteResult {
     | 'below-threshold'
     | 'confirmation-declined'
     | 'destructive-no-gate'
+    | 'execute-error'
     | null;
+  /**
+   * Erro capturado quando `rejection === 'execute-error'` (D-046
+   * review-10 / M4). Service envolve `intent.execute()` em try/catch
+   * — handler que lança não derruba a UI nem deixa Promise pendurada.
+   */
+  readonly error?: Error;
 }

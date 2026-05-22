@@ -505,8 +505,25 @@ export class NaturalLanguageService {
       }
     }
 
-    await top.intent.execute(top.slots, ctx);
-    return { executed: true, candidate: top, alternatives, rejection: null };
+    // **D-046 review-10 (M4)**: try/catch defensivo — handlers de
+    // intents podem lançar (sync ou async). Sem isso, erro poluía
+    // a Promise do execute() e UI ficava sem feedback.
+    try {
+      await top.intent.execute(top.slots, ctx);
+      return { executed: true, candidate: top, alternatives, rejection: null };
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      if (typeof console !== 'undefined') {
+        console.error(`[svge.nlu] execute failed in intent "${top.intent.id}":`, error);
+      }
+      return {
+        executed: false,
+        candidate: top,
+        alternatives,
+        rejection: 'execute-error',
+        error,
+      };
+    }
   }
 
   /**
@@ -571,8 +588,26 @@ export class NaturalLanguageService {
       }
     }
 
-    await candidate.intent.execute(candidate.slots, ctx);
-    return { executed: true, candidate, alternatives: [], rejection: null };
+    // **D-046 review-10 (M4)**: try/catch defensivo (vide execute()).
+    try {
+      await candidate.intent.execute(candidate.slots, ctx);
+      return { executed: true, candidate, alternatives: [], rejection: null };
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      if (typeof console !== 'undefined') {
+        console.error(
+          `[svge.nlu] executeCandidate failed in intent "${candidate.intent.id}":`,
+          error,
+        );
+      }
+      return {
+        executed: false,
+        candidate,
+        alternatives: [],
+        rejection: 'execute-error',
+        error,
+      };
+    }
   }
 }
 
