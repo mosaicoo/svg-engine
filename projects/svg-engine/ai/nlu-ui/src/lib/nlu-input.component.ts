@@ -3,11 +3,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  type ElementRef,
   inject,
   Injector,
   input,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormField, MatLabel, MatPrefix, MatSuffix } from '@angular/material/form-field';
@@ -25,37 +27,33 @@ import { VoiceRecognitionService } from './voice-recognition.service';
 /**
  * **`<svge-nlu-input>`** — D-046 Fase 1 UI surface.
  *
- * Input textual com botão de voz para enviar comandos em linguagem
- * natural para o {@link NaturalLanguageService}. Mostra:
+ * Input textual + voice button para enviar comandos em linguagem
+ * natural ao {@link NaturalLanguageService}. Mostra:
  *
- * - Campo de texto (Material outlined) com mic button suffix
- * - Live preview do top candidate enquanto digita (com confidence bar)
- * - Botão "Run" (Enter também envia)
- * - Linha de status com o resultado da última execução
- * - Lista colapsável de alternativas (top N) quando confidence < auto
+ * - Campo de texto Material outlined + prefix icon (smart_toy)
+ * - **Mic button** (Web Speech API) com pulse animation enquanto grava
+ * - **Run button** (Enter também dispara)
+ * - **Live preview** do top candidate (label + confidence% + bar colorida)
+ * - **Status** do último execute (success / rejeição com motivo humano)
+ * - **Botão "Confirmar"** quando rejection é destructive ou low-confidence
+ *   — usuário aprova explicitamente em vez de ficar travado
+ * - **Lista de alternativas** clicável (cada click respeita threshold +
+ *   destructive via `nlu.executeCandidate`)
  *
- * **Por que componente standalone** (e não fragmentos): mesmo padrão
- * dos outros UI components da lib (`<svge-color-picker>`,
- * `<svge-layers-panel>`, etc.). Consumer importa o componente único.
+ * **Por que `window.confirm` default e não Material dialog**: zero
+ * dependência circular `nlu-ui → ui` (D-017-style isolation entre
+ * camadas AI e dialogs Material). Consumer pode override via input
+ * `confirmGate` se quiser dialog próprio.
  *
- * **Multi-editor (D-042/D-043)**: o input do `NaturalLanguageService.execute()`
- * recebe `{ injector: this.hostInjector }` — services do scope ativo,
- * idêntico ao padrão dos handlers de menu / shortcut. Consumer
- * mounta o componente DENTRO do scope do editor (route-scoped).
- *
- * **Voice**: usa {@link VoiceRecognitionService}, ativável com clique
- * no mic. Idioma default `pt-BR`, customizável via input `voiceLang`.
- * Botão fica disabled quando Web Speech API não suportada (Firefox
- * sem polyfill).
- *
- * **Eventos**:
- * - `executed` — emite após cada `execute()` retornar (sucesso ou
- *   rejeição); consumer pode usar pra UI feedback / analytics.
+ * **Multi-editor (D-042/D-043)**: passa `{ injector: this.hostInjector }`
+ * para `executeCandidate`/`execute` — handlers resolvem services do
+ * scope ativo automaticamente.
  *
  * **Acessibilidade**:
- * - Input ARIA-described com hint do top candidate.
- * - Botão mic com `aria-pressed="true"` enquanto gravando.
- * - Lista de alternativas com `role="listbox"`.
+ * - Input ARIA-described com hint do top candidate
+ * - Mic button: `aria-pressed` reativo
+ * - Lista de alternatives: `role="listbox"` + `role="option"` + `aria-selected="false"`
+ * - Status com `aria-live="polite"`
  */
 @Component({
   selector: 'svge-nlu-input',
@@ -78,9 +76,9 @@ import { VoiceRecognitionService } from './voice-recognition.service';
         <mat-label>{{ label() }}</mat-label>
         <mat-icon matPrefix class="svge-nlu-prefix" aria-hidden="true">smart_toy</mat-icon>
         <input
+          #textInput
           matInput
           type="text"
-          [value]="text()"
           (input)="onInput($any($event.target).value)"
           (keydown.enter)="runNow()"
           [attr.aria-label]="label()"
@@ -106,7 +104,7 @@ import { VoiceRecognitionService } from './voice-recognition.service';
           matSuffix
           type="button"
           class="svge-nlu-run"
-          matTooltip="Run"
+          matTooltip="Run (Enter)"
           [disabled]="text().trim().length === 0"
           (click)="runNow()"
         >
@@ -134,18 +132,30 @@ import { VoiceRecognitionService } from './voice-recognition.service';
           @if (result.executed) {
             <mat-icon class="ok" aria-hidden="true">check_circle</mat-icon>
             <span
-              >Executed: <strong>{{ result.candidate!.intent.id }}</strong></span
+              >Executado: <strong>{{ describeIntent(result.candidate!) }}</strong></span
             >
           } @else {
             <mat-icon class="warn" aria-hidden="true">info</mat-icon>
-            <span>{{ describeRejection(result) }}</span>
+            <span class="svge-nlu-status-text">{{ describeRejection(result) }}</span>
+            @if (canForceExecute(result)) {
+              <button
+                mat-stroked-button
+                type="button"
+                color="primary"
+                class="svge-nlu-confirm-btn"
+                (click)="forceExecute(result)"
+              >
+                <mat-icon>play_arrow</mat-icon>
+                <span>Confirmar</span>
+              </button>
+            }
           }
         </div>
       }
 
       @if (alternatives().length > 0) {
         <details class="svge-nlu-alts">
-          <summary>{{ alternatives().length }} alternative(s)</summary>
+          <summary>{{ alternatives().length }} alternativa(s)</summary>
           <ul role="listbox">
             @for (alt of alternatives(); track alt.intent.id) {
               <li
@@ -230,18 +240,25 @@ import { VoiceRecognitionService } from './voice-recognition.service';
     .svge-nlu-status {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
       padding: 8px 12px;
       margin-top: 6px;
       border-radius: 6px;
       background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.04));
       font-size: 13px;
     }
+    .svge-nlu-status-text {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
     .svge-nlu-status .ok {
       color: #2e7d32;
     }
     .svge-nlu-status .warn {
       color: var(--mat-sys-tertiary, #b26500);
+    }
+    .svge-nlu-confirm-btn {
+      flex: 0 0 auto;
     }
     .svge-nlu-alts {
       margin-top: 6px;
@@ -289,8 +306,8 @@ import { VoiceRecognitionService } from './voice-recognition.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SvgeNluInput {
-  /** Label do input (Material outline). Default `Try a natural-language command`. */
-  readonly label = input<string>('Try a natural-language command');
+  /** Label do input (Material outline). Default em PT. */
+  readonly label = input<string>('Comando em linguagem natural');
   /** Placeholder textual. Default exemplo PT. */
   readonly placeholder = input<string>('ex: criar retângulo vermelho 100x50');
   /** BCP-47 language tag pra voice recognition. Default `pt-BR`. */
@@ -298,10 +315,28 @@ export class SvgeNluInput {
 
   /**
    * Confidence mínima pra auto-execute. Abaixo disso, o componente
-   * **não** dispara automaticamente — só executa quando o usuário
-   * pressiona Enter / clica Run / escolhe na lista de alternativas.
+   * **não** dispara automaticamente — mostra "Confirmar" pra usuário
+   * aprovar explicitamente, OU rejeita se gate não aprovar.
    */
   readonly autoExecuteThreshold = input<number>(0.7);
+
+  /**
+   * Gate de confirmação customizado. Quando ausente (default), usa
+   * **`window.confirm`** nativo — funciona sem dependência extra, é
+   * universal, e dispensa abrir Material dialog (privacy + zero
+   * coupling com `svg-engine/ui`).
+   *
+   * Override pra integrar com Material dialog próprio ou tela custom:
+   * ```ts
+   * <svge-nlu-input [confirmGate]="myDialogGate" />
+   * ```
+   *
+   * O gate recebe o candidate (com `intent.id`, `intent.destructive`,
+   * `confidence`, `slots`) e retorna `boolean | Promise<boolean>`.
+   */
+  readonly confirmGate = input<((candidate: NluCandidate) => boolean | Promise<boolean>) | null>(
+    null,
+  );
 
   /** Evento emitido após cada execute (sucesso ou rejeição). */
   readonly executed = output<NluExecuteResult>();
@@ -309,13 +344,14 @@ export class SvgeNluInput {
   protected readonly nlu = inject(NaturalLanguageService);
   protected readonly voice = inject(VoiceRecognitionService);
   private readonly hostInjector = inject(Injector);
+  private readonly textInputRef = viewChild<ElementRef<HTMLInputElement>>('textInput');
 
   // ── Estado reativo ──────────────────────────────────────────
   protected readonly text = signal('');
   protected readonly lastResult = signal<NluExecuteResult | null>(null);
   /**
-   * Tick que muda toda vez que `nlu.intents()` muda, forçando o
-   * recompute de `candidates` (registry signal é dependência).
+   * Candidates ordenados por confidence — recomputa quando `text` muda
+   * OU quando o registry de intents muda (`this.nlu.intents()`).
    */
   protected readonly candidates = computed<readonly NluCandidate[]>(() => {
     const t = this.text().trim();
@@ -333,8 +369,27 @@ export class SvgeNluInput {
   );
 
   // ── Handlers ────────────────────────────────────────────────
+
+  /**
+   * Input handler — atualiza o signal a partir do valor nativo. Não
+   * usamos `[value]` binding (que conflita com o controle interno do
+   * MatInput em digitação rápida); em vez disso lemos do input direto
+   * e setamos programaticamente via `setTextProgrammatically` quando
+   * preciso (voice transcript, limpar pós-execute).
+   */
   protected onInput(value: string): void {
     this.text.set(value);
+  }
+
+  /**
+   * Seta o valor do input programaticamente (voice transcript, clear
+   * pós-execute). Atualiza o signal E o input element value — o input
+   * nativo não escuta mudanças de signal sozinho.
+   */
+  private setTextProgrammatically(value: string): void {
+    this.text.set(value);
+    const el = this.textInputRef()?.nativeElement;
+    if (el) el.value = value;
   }
 
   protected async runNow(): Promise<void> {
@@ -343,25 +398,58 @@ export class SvgeNluInput {
     const result = await this.nlu.execute(
       t,
       { injector: this.hostInjector },
-      { autoExecuteThreshold: this.autoExecuteThreshold() },
+      this.executeOptions(),
     );
     this.lastResult.set(result);
     this.executed.emit(result);
     // Se executou, limpa o input pra próximo comando.
-    if (result.executed) this.text.set('');
+    if (result.executed) this.setTextProgrammatically('');
   }
 
+  /**
+   * Executa um candidate específico (clique na lista de alternativas)
+   * — usa `nlu.executeCandidate` que aplica gate + threshold +
+   * destructive check, em vez de chamar `intent.execute` direto
+   * (que bypassaria toda a defesa).
+   */
   protected async execCandidate(cand: NluCandidate): Promise<void> {
-    await cand.intent.execute(cand.slots, { injector: this.hostInjector });
-    const synthetic: NluExecuteResult = {
-      executed: true,
-      candidate: cand,
-      alternatives: [],
-      rejection: null,
-    };
-    this.lastResult.set(synthetic);
-    this.executed.emit(synthetic);
-    this.text.set('');
+    const result = await this.nlu.executeCandidate(
+      cand,
+      { injector: this.hostInjector },
+      this.executeOptions(),
+    );
+    this.lastResult.set(result);
+    this.executed.emit(result);
+    if (result.executed) this.setTextProgrammatically('');
+  }
+
+  /**
+   * Força a execução do top candidate **após** o usuário clicar
+   * "Confirmar" — passa um gate `() => true` overridand a rejeição
+   * `'destructive-no-gate'` / `'below-threshold'` anterior.
+   */
+  protected async forceExecute(rejected: NluExecuteResult): Promise<void> {
+    const cand = rejected.candidate;
+    if (cand === null) return;
+    const result = await this.nlu.executeCandidate(
+      cand,
+      { injector: this.hostInjector },
+      { ...this.executeOptions(), confirmGate: async () => true },
+    );
+    this.lastResult.set(result);
+    this.executed.emit(result);
+    if (result.executed) this.setTextProgrammatically('');
+  }
+
+  /**
+   * `true` quando o último resultado merece um botão "Confirmar" na
+   * UI: usuário escolheu rodar e bateu numa proteção (destrutivo sem
+   * gate, ou confidence baixa sem gate), mas há candidate concreto
+   * pra forçar execução manualmente.
+   */
+  protected canForceExecute(result: NluExecuteResult): boolean {
+    if (result.executed || result.candidate === null) return false;
+    return result.rejection === 'destructive-no-gate' || result.rejection === 'below-threshold';
   }
 
   protected async toggleVoice(): Promise<void> {
@@ -372,9 +460,9 @@ export class SvgeNluInput {
     try {
       const transcript = await this.voice.listen(this.voiceLang());
       if (transcript.length > 0) {
-        this.text.set(transcript);
+        this.setTextProgrammatically(transcript);
         // Auto-run quando vem por voz — confiança do usuário no
-        // que falou + threshold ainda protege destrutivos.
+        // que falou + threshold/gate ainda protege destrutivos.
         await this.runNow();
       }
     } catch {
@@ -383,9 +471,22 @@ export class SvgeNluInput {
   }
 
   // ── Helpers de display ──────────────────────────────────────
+
+  /**
+   * Texto humano pra exibir do candidate. Prioridade:
+   * 1. `intent.description` (quando explícita)
+   * 2. Keywords joined (mais legível que reverse-DNS id)
+   * 3. `intent.id` (último recurso)
+   */
   protected describeIntent(c: NluCandidate): string {
     const desc = c.intent.description;
-    return typeof desc === 'string' && desc.length > 0 ? desc : c.intent.id;
+    if (typeof desc === 'string' && desc.length > 0) return desc;
+    const kws = c.intent.keywords;
+    if (Array.isArray(kws) && kws.length > 0) {
+      // Junta as 3 primeiras keywords pra dar contexto sem virar lista enorme.
+      return kws.slice(0, 3).join(' / ');
+    }
+    return c.intent.id;
   }
 
   protected confidencePercent(c: NluCandidate): number {
@@ -393,19 +494,48 @@ export class SvgeNluInput {
   }
 
   protected describeRejection(result: NluExecuteResult): string {
-    if (result.candidate === null) return 'No matching command found';
-    const id = result.candidate.intent.id;
+    if (result.candidate === null) return 'Nenhum comando reconhecido';
+    const label = this.describeIntent(result.candidate);
+    const pct = this.confidencePercent(result.candidate);
     switch (result.rejection) {
       case 'below-threshold':
-        return `"${id}" matched with low confidence — press Run to confirm`;
+        return `Confidence baixa (${pct}%) em "${label}" — confirme se é o que quer`;
       case 'destructive-no-gate':
-        return `"${id}" is destructive — confirmation required`;
+        return `Ação destrutiva: "${label}" — confirme pra executar`;
       case 'confirmation-declined':
-        return `"${id}" declined`;
+        return `"${label}" cancelado`;
       case 'no-match':
-        return 'No matching command found';
+        return 'Nenhum comando reconhecido';
       default:
-        return `Rejected: ${id}`;
+        return `Rejeitado: ${label}`;
     }
+  }
+
+  /**
+   * Monta as `NluExecuteOptions` consolidadas: thresholds + gate.
+   * Quando o consumer não passou `confirmGate` via input, usa
+   * `window.confirm` como default — universal, zero dep.
+   */
+  private executeOptions(): {
+    autoExecuteThreshold: number;
+    confirmGate: (c: NluCandidate) => boolean | Promise<boolean>;
+  } {
+    const externalGate = this.confirmGate();
+    const gate =
+      externalGate ??
+      ((c: NluCandidate): boolean => {
+        // Default browser-native confirmation. Mensagem em PT pra ficar
+        // alinhada com o label/placeholder default; consumer que
+        // quiser i18n customiza via input `confirmGate`.
+        if (typeof window === 'undefined' || typeof window.confirm !== 'function') return true;
+        const label = this.describeIntent(c);
+        const pct = this.confidencePercent(c);
+        const prefix = c.intent.destructive ? '[ação destrutiva] ' : '';
+        return window.confirm(`${prefix}Executar "${label}" (${pct}%)?`);
+      });
+    return {
+      autoExecuteThreshold: this.autoExecuteThreshold(),
+      confirmGate: gate,
+    };
   }
 }

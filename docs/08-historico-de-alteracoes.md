@@ -6,6 +6,79 @@
 
 ---
 
+## 2026-05-22 — D-046 review: bugs reais corrigidos no NLU pipeline + UI
+
+**Pedido**: _"O NLU não está funcionando com eficiência. Faça uma análise minuciosa para melhorar e resolver."_
+
+**Auditoria sistemática** (sem chutar — leitura de cada arquivo crítico) identificou **6 bugs reais** com impacto direto na experiência:
+
+### Bug 1 — Destrutivos sempre rejeitavam (UX bloqueador)
+
+`<svge-nlu-input>` chamava `nlu.execute()` **sem `confirmGate`**. Comandos como "deletar", "apagar", "remover" sempre retornavam `rejection: 'destructive-no-gate'` — e a UI mostrava só uma mensagem técnica. Usuário não conseguia deletar nada via NLU.
+
+**Fix**: novo input opcional `confirmGate` no componente, com **default `window.confirm`** nativo do browser (zero dep extra, privacy-friendly, sem dialog Material no caminho). Consumers podem override pra dialog próprio.
+
+### Bug 2 — Lista de alternativas bypassava toda a segurança (vulnerabilidade)
+
+`execCandidate()` chamava `cand.intent.execute(slots, ctx)` direto, **bypassando** threshold + destructive check. Clique numa alternativa "Delete" executava sem confirmação.
+
+**Fix**: novo método `executeCandidate(candidate, ctx, options)` no `NaturalLanguageService` que aplica as mesmas regras de `execute()` (destructive-no-gate / below-threshold / confirmation-declined). UI agora usa esse método na lista de alternatives.
+
+### Bug 3 — Mensagem "press Run to confirm" causava loop infinito
+
+`describeRejection('below-threshold')` instruía o usuário a "press Run to confirm" — mas Run faz `execute` de novo, que rejeita pelo mesmo motivo. Usuário ficava preso sem saber o que fazer.
+
+**Fix**: novo botão **"Confirmar"** que aparece no status quando `canForceExecute(result) === true` (rejection é `destructive-no-gate` ou `below-threshold`). Clicar dispara `forceExecute()` que reusa `executeCandidate` com gate `() => true` — bypassa proteção explicitamente, com aprovação do usuário.
+
+### Bug 4 — Required slot preenchido não recompensava score
+
+Slot obrigatório ausente subtraía 0.15. Slot opcional preenchido somava 0.05. Mas required preenchido somava ZERO — assimétrico. "Pinta de vermelho" tinha score 0.65 (abaixo de auto-execute 0.7) mesmo com o required slot `color` corretamente extraído.
+
+**Fix**: required preenchido agora soma **+0.10** (entre o bônus de optional e a penalidade de missing). "Pinta de vermelho" vira ~0.75 → auto-execute.
+
+### Bug 5 — ID reverse-DNS feio no UI
+
+`describeIntent()` mostrava `svge.nlu.menu.svge.builtin.edit.undo` quando intent auto-discovered não tinha description. Confuso pro usuário.
+
+**Fix**: hierarquia de fallback — (1) `description`, (2) **keywords joined** (primeiras 3, ex: "undo"), (3) `id` (último recurso). Agora "Undo" mostra `"undo"` no hint, não o reverse-DNS.
+
+### Bug 6 — `[value]` binding fragil com MatInput
+
+`<input matInput [value]="text()" (input)="onInput(...)">` funcionava na maioria dos casos, mas digitação rápida + voice update via `text.set(transcript)` tinha edge cases (cursor reset, lag).
+
+**Fix**: removido `[value]` (signal não é mais source-of-truth do input). Lê do input nativo via `(input)`. Atualizações programáticas (voice transcript, clear pós-execute) usam `setTextProgrammatically()` que faz `text.set(value)` + `inputElement.value = value` via `viewChild`. Mais robusto.
+
+### Mensagens de status em PT (UX)
+
+Status messages migrados pra PT (consistente com label/placeholder default):
+
+- `'Executado: <intent>'` (antes "Executed:")
+- `'Confidence baixa (X%) em "Y" — confirme se é o que quer'` (antes inglês confuso)
+- `'Ação destrutiva: "Y" — confirme pra executar'` (acionável)
+- `'Cancelado'` / `'Nenhum comando reconhecido'`
+
+Consumer pode override via i18n no `confirmGate` ou wrappear o componente.
+
+**Garantias verificadas**
+
+- ✅ **1175/1175 specs** passando (1169 + 6 novos: `executeCandidate` x5 + scoring x1)
+- ✅ 8 entry points build clean
+- ✅ Playground build clean
+- ✅ Lint clean nos 2 projetos
+- ✅ **Backward compat**: API antiga `nlu.execute()` continua intacta; `executeCandidate` é adição
+- ✅ **Anti-bypass**: `intent.execute()` direto AINDA funciona (necessário pra implementações custom), mas a UI built-in NUNCA o chama sem passar pelo gate
+
+**Arquivos**
+
+- `projects/svg-engine/ai/nlu/src/lib/natural-language.service.ts` — required slot reward + `executeCandidate` method
+- `projects/svg-engine/ai/nlu/src/lib/natural-language.service.spec.ts` — +6 specs (executeCandidate cases + scoring)
+- `projects/svg-engine/ai/nlu-ui/src/lib/nlu-input.component.ts` — refactor: input `confirmGate` + default `window.confirm` + botão "Confirmar" + `executeCandidate` em alternatives + describeIntent fallback chain + setTextProgrammatically + mensagens PT
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+
+**Lição arquitetural**: separar "registro de intents" de "execução com segurança" foi correto desde o início — mas o UI esqueceu de USAR a porta segura. Auditoria sistemática evita esse tipo de gap. Vale a pena revisar o `<svge-nlu-input>` cada vez que `NaturalLanguageService` ganhar novo método de segurança.
+
+---
+
 ## 2026-05-22 — D-046 vocab enrich: dicionários + HEX/RGB/HSL + intensificadores + semantic colors + novos shapes
 
 **Pedido**: enriquecer os vocabulários do NLU baseado em sugestões: cobertura de conjugações verbais PT, semantic colors (success/warning/danger), aliases semânticos de shapes (nó/conector/balão/seta/estrela/coração), normalização automática de cores compostas ("azul claro"), parsing de HEX/RGB/HSL, intensificadores ("bem escuro").

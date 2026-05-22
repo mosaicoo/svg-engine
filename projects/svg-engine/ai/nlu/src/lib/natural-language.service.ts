@@ -200,25 +200,35 @@ export class NaturalLanguageService {
       // Penalidades / bônus por slots
       let requiredMissing = 0;
       let optionalFilled = 0;
+      let requiredFilled = 0;
       for (const name of slotNames) {
         const filled = extractedSlots[name] !== undefined;
         const schema = slotSchemas[name];
         if (filled) {
+          // Record match reason whether optional ou required — o
+          // usuário forneceu informação semântica de qualquer modo.
+          matches.push({
+            kind: 'slot',
+            term: name,
+            token: String(extractedSlots[name]),
+            distance: 0,
+          });
           if (schema.optional === true) {
             optionalFilled++;
-            matches.push({
-              kind: 'slot',
-              term: name,
-              token: String(extractedSlots[name]),
-              distance: 0,
-            });
+          } else {
+            requiredFilled++;
           }
         } else if (schema.optional !== true) {
           requiredMissing++;
         }
       }
+      // Required preenchidos recompensam levemente (simétrico com
+      // optional). Antes do fix, "pinta de vermelho" tinha score 0.65
+      // (abaixo de auto-execute) porque o required slot `color`
+      // preenchido não elevava — agora vira 0.75 (auto-execute).
       score -= requiredMissing * 0.15;
       score += optionalFilled * 0.05;
+      score += requiredFilled * 0.1;
       score = Math.max(0, Math.min(1, score));
 
       if (score >= threshold) {
@@ -312,6 +322,72 @@ export class NaturalLanguageService {
 
     await top.intent.execute(top.slots, ctx);
     return { executed: true, candidate: top, alternatives, rejection: null };
+  }
+
+  /**
+   * Executa um candidate **específico** (escolhido pelo usuário via UI
+   * — e.g., clique numa alternativa) aplicando as mesmas regras de
+   * segurança do {@link execute}: destructive sem gate rejeita;
+   * confidence baixa sem gate rejeita.
+   *
+   * **Por que precisa de método separado**: chamar `candidate.intent.execute()`
+   * direto bypassa toda a lógica de threshold/destructive. UI components
+   * (`<svge-nlu-input>` alternatives list) DEVEM usar este método em
+   * vez de `intent.execute()` direto, pra preservar a defesa contra
+   * delete acidental.
+   *
+   * **Política idêntica ao `execute`**:
+   * - Destrutivo SEM `confirmGate` → rejeita `'destructive-no-gate'`.
+   * - Destrutivo COM gate → roda gate; só executa se aprovar.
+   * - Não-destrutivo com confidence ≥ `autoExecuteThreshold` → executa.
+   * - Não-destrutivo com confidence < threshold E gate presente →
+   *   roda gate.
+   * - Senão → `'below-threshold'`.
+   *
+   * @param candidate o NluCandidate a executar (vindo de `parse()`).
+   * @param ctx contexto (injector do consumer).
+   * @param options threshold + confirmGate.
+   */
+  async executeCandidate(
+    candidate: NluCandidate,
+    ctx: NluContext,
+    options: NluExecuteOptions = {},
+  ): Promise<NluExecuteResult> {
+    const auto = options.autoExecuteThreshold ?? 0.7;
+    const gate = options.confirmGate ?? null;
+
+    if (candidate.intent.destructive === true && gate === null) {
+      return {
+        executed: false,
+        candidate,
+        alternatives: [],
+        rejection: 'destructive-no-gate',
+      };
+    }
+
+    const needsConfirm = candidate.intent.destructive === true || candidate.confidence < auto;
+    if (needsConfirm) {
+      if (gate === null) {
+        return {
+          executed: false,
+          candidate,
+          alternatives: [],
+          rejection: 'below-threshold',
+        };
+      }
+      const ok = await gate(candidate);
+      if (!ok) {
+        return {
+          executed: false,
+          candidate,
+          alternatives: [],
+          rejection: 'confirmation-declined',
+        };
+      }
+    }
+
+    await candidate.intent.execute(candidate.slots, ctx);
+    return { executed: true, candidate, alternatives: [], rejection: null };
   }
 }
 

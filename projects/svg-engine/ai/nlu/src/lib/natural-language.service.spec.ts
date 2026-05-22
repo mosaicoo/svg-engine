@@ -204,4 +204,108 @@ describe('NaturalLanguageService', () => {
       expect(result.alternatives[0].intent.id).toBe('second');
     });
   });
+
+  describe('executeCandidate (D-046 review fix)', () => {
+    it('executes a non-destructive candidate with sufficient confidence', async () => {
+      const { nlu, ctx } = setup();
+      let called = false;
+      nlu.registerIntent(
+        buildSimpleIntent({
+          actionKeywords: ['create'],
+          execute: () => {
+            called = true;
+          },
+        }),
+      );
+      const [cand] = nlu.parse('criar retangulo', ctx);
+      expect(cand).toBeDefined();
+      const result = await nlu.executeCandidate(cand, ctx);
+      expect(result.executed).toBe(true);
+      expect(called).toBe(true);
+    });
+
+    it('rejects destructive candidate WITHOUT confirmGate (same as execute)', async () => {
+      const { nlu, ctx } = setup();
+      let called = false;
+      nlu.registerIntent(
+        buildSimpleIntent({
+          destructive: true,
+          actionKeywords: ['delete'],
+          execute: () => {
+            called = true;
+          },
+        }),
+      );
+      const [cand] = nlu.parse('deletar retangulo', ctx);
+      const result = await nlu.executeCandidate(cand, ctx);
+      expect(result.executed).toBe(false);
+      expect(result.rejection).toBe('destructive-no-gate');
+      expect(called).toBe(false);
+    });
+
+    it('executes destructive candidate when confirmGate approves', async () => {
+      const { nlu, ctx } = setup();
+      let called = false;
+      nlu.registerIntent(
+        buildSimpleIntent({
+          destructive: true,
+          actionKeywords: ['delete'],
+          execute: () => {
+            called = true;
+          },
+        }),
+      );
+      const [cand] = nlu.parse('deletar retangulo', ctx);
+      const result = await nlu.executeCandidate(cand, ctx, { confirmGate: () => true });
+      expect(result.executed).toBe(true);
+      expect(called).toBe(true);
+    });
+
+    it('rejects below-threshold candidate when no gate', async () => {
+      const { nlu, ctx } = setup();
+      nlu.registerIntent(buildSimpleIntent());
+      const [cand] = nlu.parse('retangulo', ctx);
+      // Force a very high auto-execute threshold so the candidate is "below"
+      const result = await nlu.executeCandidate(cand, ctx, { autoExecuteThreshold: 0.99 });
+      expect(result.executed).toBe(false);
+      expect(result.rejection).toBe('below-threshold');
+    });
+
+    it('executes below-threshold candidate when gate approves', async () => {
+      const { nlu, ctx } = setup();
+      let called = false;
+      nlu.registerIntent(
+        buildSimpleIntent({
+          execute: () => {
+            called = true;
+          },
+        }),
+      );
+      const [cand] = nlu.parse('retangulo', ctx);
+      const result = await nlu.executeCandidate(cand, ctx, {
+        autoExecuteThreshold: 0.99,
+        confirmGate: () => true,
+      });
+      expect(result.executed).toBe(true);
+      expect(called).toBe(true);
+    });
+  });
+
+  describe('scoring (D-046 review fix)', () => {
+    it('rewards required slots that are filled (not just penalizes when missing)', () => {
+      const { nlu, ctx } = setup();
+      nlu.registerIntent(
+        buildSimpleIntent({
+          keywords: ['pinta', 'pintar', 'cor'],
+          slots: { color: { kind: 'color', optional: false } },
+        }),
+      );
+      // "pinta vermelho" — keyword + required slot filled. Antes do fix
+      // de review, ficava em 0.65 (abaixo de auto-execute 0.7). Após
+      // fix: required filled adiciona +0.10, score vira ~0.75.
+      const candidates = nlu.parse('pinta vermelho', ctx);
+      expect(candidates.length).toBe(1);
+      expect(candidates[0].confidence).toBeGreaterThanOrEqual(0.7);
+    });
+  });
 });
