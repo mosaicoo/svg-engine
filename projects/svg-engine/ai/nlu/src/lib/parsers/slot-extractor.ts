@@ -383,6 +383,10 @@ export function extractSlots(
           break;
         }
         case 'color': {
+          // **D-046 review-10 (M2)**: defense uniforme — skip tokens
+          // que sao number-words (mesma logica que shape pra evitar
+          // colisoes inter-dict como 'dois' → 'dots').
+          if (parseNumberToken(tok) !== null) break;
           // Tenta frase completa (cor + intensificadores adjacentes).
           // parseColorPhrase verifica window de até 3 tokens — se nada
           // na janela é cor, retorna null.

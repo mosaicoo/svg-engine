@@ -1,4 +1,4 @@
-import { Injectable, signal, type Signal } from '@angular/core';
+import { computed, Injectable, signal, type Signal } from '@angular/core';
 import type { Disposable } from 'svg-engine/core';
 
 import { resolveActionCanonical, type ActionCanonical } from './dictionaries/actions';
@@ -79,6 +79,14 @@ export class NaturalLanguageService {
 
   /** Snapshot reativo dos intents registrados (insertion order). */
   readonly intents: Signal<readonly NluIntent[]> = this._intents.asReadonly();
+
+  /**
+   * **D-046 review-10 (L12)**: counter conveniente — consumers que só
+   * precisam do número (e.g., status bar "26 intents disponíveis")
+   * subscrevem aqui em vez do array inteiro (evita re-render quando
+   * o array muda mas length não).
+   */
+  readonly intentsCount: Signal<number> = computed(() => this._intents().length);
 
   /**
    * **Cache de description tokens por intent** — usado pelo

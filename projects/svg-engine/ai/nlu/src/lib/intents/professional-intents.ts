@@ -141,8 +141,13 @@ export function registerProfessionalIntents(nlu: NaturalLanguageService, ctx: Re
       // 'horizontal' deve aparecer pra desambiguar de vertical
       actionKeywords: ['flip'],
       slots: {
-        // Slot `axis` enum permite que "espelhar horizontal" preencha
-        // automaticamente — único valor possível 'horizontal' pra esse intent.
+        // Slot `axis` é **discriminador de ranking** — required + enum
+        // restrito a tokens horizontais. Quando user diz "espelhar
+        // horizontal", apenas flip-horizontal preenche (flip-vertical
+        // perde -0.15 por axis required missing). Handler ignora o
+        // valor pois o axis já está codificado no intent.id.
+        // **NÃO REMOVER**: sem este slot, flip-h e flip-v empatariam
+        // pra qualquer "flip" → ambiguidade.
         axis: {
           kind: 'enum',
           values: ['horizontal', 'horiz', 'h', 'eixox', 'xaxis'],
