@@ -17,6 +17,18 @@ export interface FuzzyMatch {
    * Match com 2 erros em palavra de 4 letras = 0.5.
    */
   readonly score: number;
+  /**
+   * **`tokenIndex`** (D-046 review-10): índice do token original no
+   * array de entrada. Sempre populado por {@link fuzzyMatchAny} e
+   * {@link fuzzyMatchAll}; em {@link fuzzyMatchToken} fica `-1` porque
+   * o caller não passa array (e sabe o índice por contexto próprio).
+   *
+   * **Motivação**: `NaturalLanguageService` precisa marcar o ÍNDICE
+   * do token consumido (não só seu valor string) para evitar bug onde
+   * `tokens.indexOf(value)` retorna sempre a 1ª ocorrência — quebrando
+   * em inputs com tokens repetidos ("vermelho borda vermelho").
+   */
+  readonly tokenIndex: number;
 }
 
 /**
@@ -53,7 +65,7 @@ export function fuzzyMatchToken(token: string, terms: readonly string[]): FuzzyM
     if (term.length === 0) continue;
     const maxDist = adaptiveMaxDistance(term.length);
     if (term === token) {
-      return { term, token, distance: 0, score: 1 };
+      return { term, token, distance: 0, score: 1, tokenIndex: -1 };
     }
     // Quando o token tem comprimento absurdamente diferente do
     // termo, nem tenta — `levenshtein` retornaria Infinity rapidamente,
@@ -63,7 +75,7 @@ export function fuzzyMatchToken(token: string, terms: readonly string[]): FuzzyM
     if (d === Infinity) continue;
     const score = 1 - d / Math.max(term.length, 1);
     if (best === null || d < best.distance || (d === best.distance && score > best.score)) {
-      best = { term, token, distance: d, score };
+      best = { term, token, distance: d, score, tokenIndex: -1 };
     }
   }
   return best;
@@ -81,11 +93,14 @@ export function fuzzyMatchAny(
   terms: readonly string[],
 ): FuzzyMatch | null {
   let best: FuzzyMatch | null = null;
-  for (const token of tokens) {
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
     const m = fuzzyMatchToken(token, terms);
     if (m === null) continue;
-    if (m.distance === 0) return m;
-    if (best === null || m.score > best.score) best = m;
+    // Popula tokenIndex com a posição real no input array (D-046 review-10).
+    const matched: FuzzyMatch = { ...m, tokenIndex: i };
+    if (matched.distance === 0) return matched;
+    if (best === null || matched.score > best.score) best = matched;
   }
   return best;
 }
@@ -113,6 +128,7 @@ export function fuzzyMatchAll(
       token,
       distance: d,
       score: 1 - d / Math.max(term.length, 1),
+      tokenIndex: -1,
     });
   }
   return results.sort((a, b) => b.score - a.score);

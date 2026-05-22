@@ -49,6 +49,19 @@ describe('NLU › fuzzy-match', () => {
     it('returns null when nothing matches', () => {
       expect(fuzzyMatchAny(['xyz', 'abc'], ['rectangle', 'circle'])).toBeNull();
     });
+
+    // ── D-046 review-10 ──────────────────────────────────────────
+    it('populates tokenIndex with the real input array position', () => {
+      const m = fuzzyMatchAny(['criar', 'retangulo', 'vermelho'], ['retangulo', 'circulo']);
+      expect(m?.tokenIndex).toBe(1); // 'retangulo' está em idx 1
+    });
+
+    it('tokenIndex difere para tokens repetidos no input', () => {
+      // 'azul' aparece 2× — match exato pega a 1ª ocorrência via
+      // early-return, mas tokenIndex deve ser 0 (não -1, não 2).
+      const m = fuzzyMatchAny(['azul', 'borda', 'azul'], ['azul']);
+      expect(m?.tokenIndex).toBe(0);
+    });
   });
 
   describe('fuzzyMatchAll', () => {

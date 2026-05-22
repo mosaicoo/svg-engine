@@ -205,6 +205,7 @@ export class NaturalLanguageService {
         term: keywordMatch.term,
         token: keywordMatch.token,
         distance: keywordMatch.distance,
+        tokenIndex: keywordMatch.tokenIndex,
       });
 
       // **Adaptive scoring**: o peso do keyword match depende de QUAIS
@@ -242,6 +243,7 @@ export class NaturalLanguageService {
             term: directAction.term,
             token: directAction.token,
             distance: directAction.distance,
+            tokenIndex: directAction.tokenIndex,
           });
           // Soma um bônus de até 0.25
           score = Math.min(1, score + 0.25 * directAction.score);
@@ -262,6 +264,7 @@ export class NaturalLanguageService {
                   term: c,
                   token: tokens[i],
                   distance: 0,
+                  tokenIndex: i,
                 });
                 score = Math.min(1, score + 0.2);
                 break;
@@ -289,14 +292,21 @@ export class NaturalLanguageService {
       for (const m of matches) {
         if (m.kind === 'action') {
           // Action verbs (criar/delete) nunca são slot values → consume.
-          const idx = tokens.indexOf(m.token);
-          if (idx !== -1) consumedIndices.add(idx);
+          // **D-046 review-10**: usa `tokenIndex` (capturado durante
+          // fuzzyMatchAny) em vez de `tokens.indexOf(value)` reverso —
+          // resolve bug onde tokens repetidos só marcavam a 1ª ocorrência.
+          const idx = m.tokenIndex;
+          if (typeof idx === 'number' && idx >= 0 && idx < tokens.length) {
+            consumedIndices.add(idx);
+          }
         } else if (m.kind === 'keyword') {
           // Keyword pode ser também slot value (shape/color); skip nesse caso.
           if (resolveShapeKind(m.token) !== null) continue;
           if (resolveColorName(m.token) !== null) continue;
-          const idx = tokens.indexOf(m.token);
-          if (idx !== -1) consumedIndices.add(idx);
+          const idx = m.tokenIndex;
+          if (typeof idx === 'number' && idx >= 0 && idx < tokens.length) {
+            consumedIndices.add(idx);
+          }
         }
       }
       const slotSchemas = intent.slots ?? {};
@@ -314,11 +324,14 @@ export class NaturalLanguageService {
         if (filled) {
           // Record match reason whether optional ou required — o
           // usuário forneceu informação semântica de qualquer modo.
+          // `tokenIndex: -1` pra slots porque o valor pode ter vindo
+          // de uma frase composta (color phrase, point) — não há 1-to-1.
           matches.push({
             kind: 'slot',
             term: name,
             token: String(extractedSlots[name]),
             distance: 0,
+            tokenIndex: -1,
           });
           if (schema.optional === true) {
             optionalFilled++;

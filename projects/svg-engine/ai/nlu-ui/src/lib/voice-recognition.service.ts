@@ -101,12 +101,23 @@ export class VoiceRecognitionService {
   private activeRec: SpeechRecognitionLike | null = null;
 
   /**
+   * Default timeout pra `listen()` (D-046 review-10).
+   * 30 segundos cobre comandos longos sem deixar Promise pendurada
+   * indefinidamente quando o recognizer entra em estado patológico
+   * (tab em background, perda de conexão, browser sem disparar onend).
+   */
+  static readonly DEFAULT_LISTEN_TIMEOUT_MS = 30000;
+
+  /**
    * Inicia a captura. Resolve com a transcrição final quando o
-   * recognizer terminar. Rejeita em erro ou se chamado sem suporte.
+   * recognizer terminar. Rejeita em erro, em timeout ou se chamado sem suporte.
    *
    * @param lang BCP-47 language tag (default `pt-BR`)
+   * @param options.timeoutMs timeout em ms (default 30000). Após
+   *   expirar, aborta o recognizer e rejeita com `'timeout'`.
    */
-  listen(lang = 'pt-BR'): Promise<string> {
+  listen(lang = 'pt-BR', options: { readonly timeoutMs?: number } = {}): Promise<string> {
+    const timeoutMs = options.timeoutMs ?? VoiceRecognitionService.DEFAULT_LISTEN_TIMEOUT_MS;
     return new Promise<string>((resolve, reject) => {
       const Ctor = getSpeechRecognition();
       if (Ctor === null) {
@@ -133,6 +144,29 @@ export class VoiceRecognitionService {
 
       let resolved = false;
 
+      // **D-046 review-10**: timeout watchdog pra evitar Promise pendurada
+      // quando browser não dispara onend/onerror (bugs raros, tab em
+      // background, etc). Cleared em todos os terminadores.
+      const timeoutHandle =
+        timeoutMs > 0
+          ? setTimeout(() => {
+              if (resolved) return;
+              resolved = true;
+              this._lastError.set('timeout');
+              try {
+                rec.abort();
+              } catch {
+                /* ignore */
+              }
+              this.activeRec = null;
+              this._listening.set(false);
+              reject(new Error(`SpeechRecognition timeout after ${timeoutMs}ms`));
+            }, timeoutMs)
+          : null;
+      const clearTimer = (): void => {
+        if (timeoutHandle !== null) clearTimeout(timeoutHandle);
+      };
+
       rec.onstart = (): void => {
         this._listening.set(true);
       };
@@ -140,6 +174,7 @@ export class VoiceRecognitionService {
         const first = event.results[0]?.[0];
         if (first && typeof first.transcript === 'string') {
           resolved = true;
+          clearTimer();
           resolve(first.transcript);
         }
       };
@@ -147,6 +182,7 @@ export class VoiceRecognitionService {
         this._lastError.set(event.error ?? 'unknown');
         if (!resolved) {
           resolved = true;
+          clearTimer();
           reject(new Error(`SpeechRecognition error: ${event.error}`));
         }
       };
@@ -156,6 +192,7 @@ export class VoiceRecognitionService {
         if (!resolved) {
           // Terminou sem `onresult` (sem fala detectada) — resolve com vazio.
           resolved = true;
+          clearTimer();
           resolve('');
         }
       };
@@ -165,6 +202,7 @@ export class VoiceRecognitionService {
       } catch (err) {
         // Chrome throws DOMException quando .start() é chamado 2× em
         // sequência sem stop. Reset state e propaga.
+        clearTimer();
         this.activeRec = null;
         this._listening.set(false);
         reject(err instanceof Error ? err : new Error(String(err)));

@@ -258,6 +258,19 @@ export interface NluMatchReason {
   readonly token: string;
   /** Distância de Levenshtein (0 = exato). */
   readonly distance: number;
+  /**
+   * Índice do token no array de input (D-046 review-10).
+   *
+   * Quando `kind === 'slot'`, é `-1` (slot value não é necessariamente
+   * um único token — pode ter sido extraído de uma frase de cor ou
+   * `kind: 'point'` compondo 2 números).
+   *
+   * Para `kind: 'keyword'` ou `'action'`, é o índice exato do token
+   * que casou. Usado pelo extractor pra marcar consumed e evitar
+   * dupla atribuição (resolve bug de `tokens.indexOf(value)` retornando
+   * sempre 1ª ocorrência em inputs com tokens repetidos).
+   */
+  readonly tokenIndex?: number;
 }
 
 /**
