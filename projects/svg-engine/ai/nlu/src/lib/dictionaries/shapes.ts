@@ -26,6 +26,7 @@ import { SHAPE_DICTIONARY_EN } from './shapes-en';
 import { SHAPE_DICTIONARY_PT } from './shapes-pt';
 
 export type { NluShapeKind } from './shapes-canonical';
+export { POLYGON_SIDES, regularPolygonPoints, regularStarPoints } from './shapes-canonical';
 export { SHAPE_DICTIONARY_EN } from './shapes-en';
 export { SHAPE_DICTIONARY_PT } from './shapes-pt';
 

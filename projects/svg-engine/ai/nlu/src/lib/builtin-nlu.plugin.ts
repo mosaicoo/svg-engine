@@ -1,7 +1,11 @@
 import {
   CommandBus,
   createEllipse,
+  createLine,
+  createPolygon,
+  createPolyline,
   createRect,
+  createText,
   DuplicateNodeCommand,
   EditorStateService,
   InsertNodeCommand,
@@ -12,6 +16,12 @@ import {
 } from 'svg-engine/core';
 import { type EditorPlugin, MenuContributionRegistry, PLUGIN_API_VERSION } from 'svg-engine/edit';
 import { SelectionService } from 'svg-engine/edit';
+import { SHAPE_KEYS } from './dictionaries/shapes';
+import {
+  POLYGON_SIDES,
+  regularPolygonPoints,
+  regularStarPoints,
+} from './dictionaries/shapes-canonical';
 import { registerProfessionalIntents } from './intents/professional-intents';
 import { discoverMenuIntents } from './menu-intent-discovery';
 import { NaturalLanguageService } from './natural-language.service';
@@ -86,61 +96,12 @@ export const builtinNluPlugin: EditorPlugin = {
     ctx.track(
       nlu.registerIntent({
         id: 'svge.builtin.nlu.create-shape',
-        // Keywords primárias: nomes de forma em PT+EN + semantic aliases.
-        // Mesma lista do SHAPE_DICTIONARY relevante pra create.
-        keywords: [
-          // PT shapes
-          'retangulo',
-          'quadrado',
-          'caixa',
-          'bloco',
-          'painel',
-          'card',
-          'frame',
-          'moldura',
-          'elipse',
-          'oval',
-          'circulo',
-          'bola',
-          'esfera',
-          'ponto',
-          'no',
-          'linha',
-          'risco',
-          'segmento',
-          'eixo',
-          'caminho',
-          'curva',
-          'trajeto',
-          'triangulo',
-          'estrela',
-          'poligono',
-          'hexagono',
-          'pentagono',
-          'losango',
-          'diamante',
-          // EN shapes
-          'rectangle',
-          'rect',
-          'square',
-          'box',
-          'block',
-          'panel',
-          'ellipse',
-          'circle',
-          'round',
-          'node',
-          'line',
-          'segment',
-          'path',
-          'curve',
-          'triangle',
-          'star',
-          'polygon',
-          'hexagon',
-          'pentagon',
-          'diamond',
-        ],
+        // **Keywords = todas as keys do SHAPE_DICTIONARY** (PT+EN
+        // merged). Garante cobertura completa: qualquer shape mapeado
+        // no dict é candidato pra create-shape automaticamente, sem
+        // manter lista duplicada. Inclui octogono, texto, todas as
+        // variantes regionais, semantic aliases (bola, conector, etc).
+        keywords: SHAPE_KEYS,
         actionKeywords: ['create', 'add', 'draw', 'insert', 'new'],
         slots: {
           // **Slot kind 'shape'** (D-046 review-2 fix): resolve via
@@ -221,6 +182,21 @@ export const builtinNluPlugin: EditorPlugin = {
           const cx = position ? position.x : vb.x + vb.width / 2;
           const cy = position ? position.y : vb.y + vb.height / 2;
 
+          // **Geometria por shape kind** — D-046 review-5: polygons
+          // específicos (triangle/pentagon/hexagon/etc) e line/polyline/
+          // text agora têm geometria REAL gerada (antes eram no-op com
+          // console.warn).
+          //
+          // Convenções:
+          // - rect: top-left em (cx-w/2, cy-h/2), tamanho w×h
+          // - ellipse: centro em (cx, cy), raios w/2 × h/2
+          // - circle: raio = min(w,h)/2 (mantém círculo verdadeiro)
+          // - polígonos regulares: inscritos num círculo de raio min(w,h)/2
+          // - line: horizontal de (cx-w/2, cy) a (cx+w/2, cy)
+          // - polyline: zigzag de 3 pontos (V invertido)
+          // - text: placeholder "Texto"/"Text" — fontSize = min(w,h)/3
+          // - path/image/group/svg: SEM geometria (precisam de dados
+          //   específicos: d-string, URL, children)
           switch (shape) {
             case 'rect': {
               const node = createRect(
@@ -241,25 +217,78 @@ export const builtinNluPlugin: EditorPlugin = {
               bus.dispatch(new InsertNodeCommand(rootId, node));
               break;
             }
-            // Shapes sem geometria built-in (anti-alucinação: precisam
-            // de dados específicos que NLU não infere — line: pontos;
-            // polygon: vertices; text: conteúdo; image: URL).
-            case 'line':
-            case 'polygon':
-            case 'polyline':
-            case 'text':
+            // Polígonos regulares — geometria computada a partir do kind.
+            case 'triangle':
+            case 'rhombus':
+            case 'pentagon':
+            case 'hexagon':
+            case 'octagon':
+            case 'polygon': {
+              const sides = POLYGON_SIDES[shape] ?? 6;
+              const r = Math.min(w, h) / 2;
+              const points = regularPolygonPoints(cx, cy, r, sides);
+              const node = createPolygon(points, style ? { style } : {});
+              bus.dispatch(new InsertNodeCommand(rootId, node));
+              break;
+            }
+            // Estrela — 5 pontas, raio interno = 40% do externo.
+            case 'star': {
+              const outerR = Math.min(w, h) / 2;
+              const points = regularStarPoints(cx, cy, outerR);
+              const node = createPolygon(points, style ? { style } : {});
+              bus.dispatch(new InsertNodeCommand(rootId, node));
+              break;
+            }
+            // Linha horizontal centrada.
+            case 'line': {
+              const node = createLine(
+                { x1: cx - w / 2, y1: cy, x2: cx + w / 2, y2: cy },
+                style ? { style } : {},
+              );
+              bus.dispatch(new InsertNodeCommand(rootId, node));
+              break;
+            }
+            // Polyline zigzag (V invertido) com 3 pontos.
+            case 'polyline': {
+              const points = [
+                { x: cx - w / 2, y: cy + h / 4 },
+                { x: cx, y: cy - h / 4 },
+                { x: cx + w / 2, y: cy + h / 4 },
+              ];
+              const node = createPolyline(points, style ? { style } : {});
+              bus.dispatch(new InsertNodeCommand(rootId, node));
+              break;
+            }
+            // Text placeholder — "Texto" se input PT, "Text" se EN.
+            // (sem acesso ao detectLanguage aqui — usa 'Texto' default).
+            case 'text': {
+              const fontSize = Math.max(12, Math.min(w, h) / 3);
+              const node = createText(
+                {
+                  x: cx,
+                  y: cy + fontSize / 3, // alinhamento baseline visual aproximado
+                  content: 'Texto',
+                  fontSize,
+                  textAnchor: 'middle',
+                },
+                style ? { style } : {},
+              );
+              bus.dispatch(new InsertNodeCommand(rootId, node));
+              break;
+            }
+            // Sem geometria built-in: precisam de input adicional
+            // (URL pra image, d-string pra path, children pra group).
+            case 'path':
             case 'image':
             case 'group':
             case 'svg':
-            case 'path':
             default: {
               if (typeof console !== 'undefined') {
                 console.warn(
                   '[svge.nlu] create-shape: kind',
                   shape,
-                  'reconhecido mas builtin handler não tem geometria/comando especializado. ' +
-                    'Registre intent customizado (e.g., create-text com slot `content`) ou ' +
-                    'aguarde icon library / composite commands.',
+                  'requer dados específicos (URL/d-string/children) que NLU não infere. ' +
+                    'Registre intent customizado (e.g., create-image com slot `url`).',
                 );
               }
               break;

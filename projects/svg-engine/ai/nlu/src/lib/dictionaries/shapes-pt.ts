@@ -65,16 +65,19 @@ export const SHAPE_DICTIONARY_PT: Readonly<Record<string, NluShapeKind>> = Objec
   contorno: 'path',
   silhueta: 'path',
 
-  // ── POLYGON ─────────────────────────────────────────────────
+  // ── POLYGON (kinds específicos D-046 review-5) ───────────────
+  // Cada keyword mapeia pra um kind canonical próprio para que o
+  // handler create-shape saiba quantos lados gerar.
+  triangulo: 'triangle',
+  losango: 'rhombus',
+  diamante: 'rhombus',
+  pentagono: 'pentagon',
+  hexagono: 'hexagon',
+  octogono: 'octagon',
+  estrela: 'star',
+  coracao: 'star', // semantic fallback (sem geometria de coração ainda)
+  // Genérico (sem N específico) → default 6 lados (hexagon).
   poligono: 'polygon',
-  hexagono: 'polygon',
-  pentagono: 'polygon',
-  octogono: 'polygon',
-  losango: 'polygon',
-  diamante: 'polygon',
-  triangulo: 'polygon',
-  estrela: 'polygon',
-  coracao: 'polygon',
   setapoligono: 'polygon',
 
   // ── POLYLINE ────────────────────────────────────────────────

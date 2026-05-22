@@ -298,4 +298,124 @@ describe('builtinNluPlugin', () => {
     expect(state.document().root.children[0].style?.fill).toBe(originalFill1);
     expect(state.document().root.children[1].style?.fill).toBe(originalFill2);
   });
+
+  // ── D-046 review-5: polígonos / linha / polyline / texto ────
+
+  it('REGRESSION USUARIO: "Criar um polígono rosa no tamanho 100x100" cria polygon REAL', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const before = state.document().root.children.length;
+    const result = await nlu.execute('Criar um polígono rosa no tamanho 100x100', { injector });
+    expect(result.executed).toBe(true);
+    expect(state.document().root.children.length).toBe(before + 1);
+    const added = state.document().root.children.at(-1)!;
+    // Polígono genérico = hexagono (6 lados). Cor rosa = #ec407a.
+    expect(added.type).toBe('polygon');
+    if (added.type === 'polygon') {
+      expect(added.points.length).toBe(6);
+    }
+    expect(added.style?.fill).toBe('#ec407a');
+  });
+
+  it('cria triangulo (3 vértices) com "criar triangulo verde"', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const result = await nlu.execute('criar triangulo verde', { injector });
+    expect(result.executed).toBe(true);
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('polygon');
+    if (added.type === 'polygon') {
+      expect(added.points.length).toBe(3);
+    }
+    expect(added.style?.fill).toBe('#43a047');
+  });
+
+  it('cria pentagono (5 vértices) com "create pentagon blue"', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const result = await nlu.execute('create pentagon blue', { injector });
+    expect(result.executed).toBe(true);
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('polygon');
+    if (added.type === 'polygon') {
+      expect(added.points.length).toBe(5);
+    }
+  });
+
+  it('cria hexagono (6 vértices) com "criar hexagono"', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const result = await nlu.execute('criar hexagono', { injector });
+    expect(result.executed).toBe(true);
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('polygon');
+    if (added.type === 'polygon') {
+      expect(added.points.length).toBe(6);
+    }
+  });
+
+  it('cria octogono (8 vértices) com "criar octogono"', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const result = await nlu.execute('criar octogono', { injector });
+    expect(result.executed).toBe(true);
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('polygon');
+    if (added.type === 'polygon') {
+      expect(added.points.length).toBe(8);
+    }
+  });
+
+  it('cria estrela (10 vértices = 5 pontas) com "criar estrela amarela"', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const result = await nlu.execute('criar estrela amarela', { injector });
+    expect(result.executed).toBe(true);
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('polygon');
+    if (added.type === 'polygon') {
+      // Estrela 5 pontas = 10 vértices alternados (outer/inner)
+      expect(added.points.length).toBe(10);
+    }
+    expect(added.style?.fill).toBe('#fdd835');
+  });
+
+  it('cria linha REAL com "criar linha vermelha"', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const result = await nlu.execute('criar linha vermelha', { injector });
+    expect(result.executed).toBe(true);
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('line');
+    if (added.type === 'line') {
+      // Linha horizontal centrada → y1 === y2
+      expect(added.y1).toBe(added.y2);
+    }
+    expect(added.style?.stroke ?? added.style?.fill).toBeDefined();
+  });
+
+  it('cria texto REAL com "criar texto"', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const result = await nlu.execute('criar texto', { injector });
+    expect(result.executed).toBe(true);
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('text');
+    if (added.type === 'text') {
+      expect(added.content.length).toBeGreaterThan(0);
+      expect(added.fontSize).toBeGreaterThan(0);
+    }
+  });
+
+  it('cria losango (4 vértices) com "criar losango"', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const result = await nlu.execute('criar losango', { injector });
+    expect(result.executed).toBe(true);
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('polygon');
+    if (added.type === 'polygon') {
+      expect(added.points.length).toBe(4);
+    }
+  });
 });

@@ -62,16 +62,16 @@ export const SHAPE_DICTIONARY_EN: Readonly<Record<string, NluShapeKind>> = Objec
   outline: 'path',
   silhouette: 'path',
 
-  // ── POLYGON ─────────────────────────────────────────────────
-  polygon: 'polygon',
-  hexagon: 'polygon',
-  pentagon: 'polygon',
-  octagon: 'polygon',
-  diamond: 'polygon',
-  rhombus: 'polygon',
-  triangle: 'polygon',
-  star: 'polygon',
-  heart: 'polygon',
+  // ── POLYGON (kinds específicos D-046 review-5) ───────────────
+  triangle: 'triangle',
+  diamond: 'rhombus',
+  rhombus: 'rhombus',
+  pentagon: 'pentagon',
+  hexagon: 'hexagon',
+  octagon: 'octagon',
+  star: 'star',
+  heart: 'star', // fallback semantic
+  polygon: 'polygon', // genérico → 6 lados
 
   // ── POLYLINE ────────────────────────────────────────────────
   polyline: 'polyline',
