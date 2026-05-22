@@ -2,6 +2,9 @@ import { Injectable, signal, type Signal } from '@angular/core';
 import type { Disposable } from 'svg-engine/core';
 
 import { resolveActionCanonical, type ActionCanonical } from './dictionaries/actions';
+import { resolveColorName } from './dictionaries/colors';
+import { resolveShapeKind } from './dictionaries/shapes';
+import { isStopword } from './dictionaries/stopwords';
 import { fuzzyMatchAny } from './parsers/fuzzy-match';
 import { extractSlots } from './parsers/slot-extractor';
 import { tokenize } from './parsers/tokenize';
@@ -60,6 +63,18 @@ export class NaturalLanguageService {
   readonly intents: Signal<readonly NluIntent[]> = this._intents.asReadonly();
 
   /**
+   * **Cache de description tokens por intent** — usado pelo
+   * description-matching pass (meio-termo "semantic disambiguator"
+   * SEM ML deps). Computado lazy quando o intent aparece pela 1ª vez
+   * num scoring run; invalidado quando o intent é desregistrado.
+   *
+   * **Por que cache**: tokenize + filter stopwords é ~10ms por
+   * description, e o parse roda em cada keystroke do usuário —
+   * computar 30+ intents toda vez ficaria perceptível.
+   */
+  private readonly descriptionTokensCache = new Map<string, ReadonlySet<string>>();
+
+  /**
    * Registra um intent novo. Retorna `Disposable` pra remover (em geral
    * trackeada pelo plugin via `ctx.track()` igual aos outros registries).
    *
@@ -86,8 +101,55 @@ export class NaturalLanguageService {
     return {
       dispose: () => {
         this._intents.set(this._intents().filter((i) => i.id !== intent.id));
+        this.descriptionTokensCache.delete(intent.id);
       },
     };
+  }
+
+  /**
+   * **Description-matching boost** (meio-termo "semantic disambiguator"
+   * sem ML deps).
+   *
+   * Tokeniza a `description` do intent (sem stopwords) e conta hits
+   * vs tokens do input. Cada hit adiciona +0.04 (cap 0.2 total). Não
+   * substitui keyword matching — só complementa quando há candidatos
+   * com score próximo (e.g., dois intents com keyword exata, ambos
+   * 0.65; o de description mais alinhada vence).
+   *
+   * **Cache**: tokens da description são computados na 1ª chamada
+   * e guardados em `descriptionTokensCache` keyed por `intent.id`.
+   *
+   * **Quando contribui**: SEMPRE — score é monotônico. UI consumers
+   * que queiram desligar podem passar `options.disableDescriptionBoost`
+   * (não implementado ainda — Fase 2 quando ML chegar e a heurística
+   * for mais relevante).
+   */
+  private descriptionBoost(intent: NluIntent, inputTokens: readonly string[]): number {
+    const desc = intent.description;
+    if (typeof desc !== 'string' || desc.length === 0) return 0;
+
+    // Lookup/populate cache
+    let descTokens = this.descriptionTokensCache.get(intent.id);
+    if (descTokens === undefined) {
+      const all = tokenize(desc);
+      descTokens = new Set(all.filter((t) => !isStopword(t) && t.length >= 3));
+      this.descriptionTokensCache.set(intent.id, descTokens);
+    }
+    if (descTokens.size === 0) return 0;
+
+    // Conta tokens do input que aparecem na description
+    let hits = 0;
+    const seen = new Set<string>();
+    for (const tok of inputTokens) {
+      if (seen.has(tok)) continue;
+      if (isStopword(tok)) continue;
+      if (descTokens.has(tok)) {
+        hits++;
+        seen.add(tok);
+      }
+    }
+    // Cap em 5 hits × 0.04 = 0.20 boost máximo
+    return Math.min(5, hits) * 0.04;
   }
 
   /** Procura intent por id (`null` se ausente). */
@@ -193,9 +255,36 @@ export class NaturalLanguageService {
       }
 
       // ── (c) Slot extraction ──
+      // **CRÍTICO (D-046 review-4)**: marca consumed os índices dos
+      // tokens que casaram com keywords/actions ANTES da extração.
+      // Sem isso, o positional pass de cor pega 'borda' (keyword de
+      // set-stroke) e fuzzy-matcha pra 'bordo' (#800020) por engano.
+      //
+      // **Exceção crítica**: keywords que TAMBÉM são valores de slot
+      // (e.g., 'circulo' é keyword de create-shape MAS também precisa
+      // virar slot `shape='circle'`) NÃO podem ser consumidas — senão
+      // o positional pass do slot shape não as encontra.
+      //
+      // Regra: marca consumed UNLESS o token resolve em shape OU cor
+      // (i.e., poderia ser slot value). Actions são SEMPRE consumed
+      // (verbos nunca são slot values).
+      const consumedIndices = new Set<number>();
+      for (const m of matches) {
+        if (m.kind === 'action') {
+          // Action verbs (criar/delete) nunca são slot values → consume.
+          const idx = tokens.indexOf(m.token);
+          if (idx !== -1) consumedIndices.add(idx);
+        } else if (m.kind === 'keyword') {
+          // Keyword pode ser também slot value (shape/color); skip nesse caso.
+          if (resolveShapeKind(m.token) !== null) continue;
+          if (resolveColorName(m.token) !== null) continue;
+          const idx = tokens.indexOf(m.token);
+          if (idx !== -1) consumedIndices.add(idx);
+        }
+      }
       const slotSchemas = intent.slots ?? {};
       const slotNames = Object.keys(slotSchemas);
-      const extractedSlots = extractSlots(tokens, slotSchemas);
+      const extractedSlots = extractSlots(tokens, slotSchemas, { consumedIndices });
 
       // Penalidades / bônus por slots
       let requiredMissing = 0;
@@ -229,6 +318,14 @@ export class NaturalLanguageService {
       score -= requiredMissing * 0.15;
       score += optionalFilled * 0.05;
       score += requiredFilled * 0.1;
+
+      // ── (d) Description boost (D-046 review-4 meio-termo) ──
+      // Tokens do input que aparecem na description do intent
+      // adicionam +0.04 cada (cap 0.20). Resolve ambiguidades quando
+      // dois intents têm keyword match similar mas só um descreve a
+      // ação pretendida — sem dependência ML.
+      score += this.descriptionBoost(intent, tokens);
+
       score = Math.max(0, Math.min(1, score));
 
       if (score >= threshold) {

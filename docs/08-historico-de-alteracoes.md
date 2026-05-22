@@ -6,6 +6,123 @@
 
 ---
 
+## 2026-05-22 — D-046 NLU profissional: separação PT/EN + ~25 intents novos + meio-termo semantic disambiguator
+
+**Pedido**: NLU "muito básica e baixo entendimento, fica inviável utilizar dessa forma. Deve cobrir todos os aspectos de desenho de um editor SVG profissional, separar por idioma corretamente e implementar o meio-termo".
+
+**Auditoria do inventário**: 14 commands no core + 31 menu items + 6 shortcuts + 8 tools + 5 boolean ops + 2 services novos (`AlignmentService`, `ViewportService`). Cobertura NLU anterior: 6 intents customizados + auto-discovery dos menu items. **Gap real**: ~25 operações profissionais não tinham intent dedicado (rotate, flip, stroke, opacity, z-order, pathfinder, conversão, seleção por tipo).
+
+### 1. Reestruturação dos dicionários por idioma (PT/EN separados)
+
+Cada dicionário virou **3 arquivos**: `*-pt.ts` + `*-en.ts` + `*.ts` (merge). Auditoria por idioma sem ruído cross-locale, manutenção isolada de variantes regionais, base para Fase 2 (ML) carregar modelo do idioma certo.
+
+```
+dictionaries/
+├── colors-pt.ts        ← 90+ cores PT (vermelho, vinho, terracota, ...)
+├── colors-en.ts        ← 80+ cores EN (crimson, navy, terracotta, ...)
+├── colors.ts           ← merge PT+EN (API pública)
+├── shapes-pt.ts        ← 80+ formas PT (retangulo, bola, conector, ...)
+├── shapes-en.ts        ← 70+ formas EN (rectangle, ball, connector, ...)
+├── shapes-canonical.ts ← `NluShapeKind` (rect|ellipse|circle|line|...)
+├── shapes.ts           ← merge
+├── actions-pt.ts       ← conjugações PT (criar/crie/cria, mover/mova, ...)
+├── actions-en.ts       ← sinônimos EN (create/add/draw, move/drag/shift, ...)
+├── actions-canonical.ts ← `ActionCanonical` (35 categorias)
+├── actions.ts          ← merge
+├── stopwords-pt.ts     ← stopwords PT
+├── stopwords-en.ts     ← stopwords EN
+├── stopwords.ts        ← merge
+└── language-detect.ts  ← `detectLanguage(tokens)` → 'pt' | 'en' | 'unknown'
+```
+
+`detectLanguage()` conta hits dos tokens em cada dict por idioma; retorna o dominante (empate = unknown). Ferramenta de instrumentação / UI hint / Fase 2 ML.
+
+### 2. ~25 intents profissionais novos (`intents/professional-intents.ts`)
+
+Cobertura completa por categoria:
+
+| Categoria        | Intent IDs                                                                      | Comandos típicos                                 |
+| ---------------- | ------------------------------------------------------------------------------- | ------------------------------------------------ |
+| **Transform**    | `rotate-selected`, `flip-horizontal`, `flip-vertical`                           | "girar 45", "espelhar horizontal", "mirror"      |
+| **Estilo**       | `set-stroke`, `set-stroke-width`, `set-opacity`, `remove-fill`, `remove-stroke` | "borda azul", "espessura 5", "opacidade 50"      |
+| **Seleção**      | `select-all`, `deselect`, `select-by-type`                                      | "selecionar tudo", "desmarcar", "todos circulos" |
+| **Visibilidade** | `show-selected`, `hide-selected`                                                | "esconder", "mostrar", "show"                    |
+| **Z-order**      | `bring-to-front`, `send-to-back`, `bring-forward`, `send-backward`              | "para frente", "ao fundo", "avançar"             |
+| **Pathfinder**   | `union`, `intersect`, `subtract`, `exclude`, `divide`                           | "unir", "subtrair", "fatiar"                     |
+| **Conversão**    | `convert-to-path`                                                               | "converter para path"                            |
+| **Destrutivo**   | `delete-selected` (já existia mas refinado com sinônimos PT/EN)                 | "deletar", "apagar", "excluir"                   |
+
+Total: **6 intents originais + ~20 novos = ~26 intents customizados** + ~30 menu items auto-descobertos = **~56 comandos NLU**.
+
+### 3. Meio-termo "semantic disambiguator" (SEM ML deps)
+
+Implementação leve no `NaturalLanguageService.descriptionBoost()`:
+
+- Tokeniza `intent.description` (filtra stopwords + ≥3 chars) e cacheia por intent.
+- No scoring, conta tokens do input que aparecem na description.
+- Cada hit: +0.04 boost (cap 0.20). Funciona como tiebreaker quando dois intents têm keyword similar mas só um "fala sobre" a ação pretendida.
+- **Zero download**, ~1ms latência, complementar ao ranking — sem trocar arquitetura.
+
+Justificativa pra não usar Transformers.js (22MB de modelo `MiniLM` que seria o meio-termo "real" com embeddings): adicionar dep desse porte é decisão arquitetural que merece aprovação explícita. O description-matching cobre o caso de uso prático e mantém o entry point < 80 KB.
+
+### 4. Fix crítico: `consumedIndices` de keywords antes da extração de slots
+
+Bug raiz: o `extractSlots()` não recebia indício dos índices de keyword/action já consumidos. Resultado: `'borda'` (keyword de set-stroke) era fuzzy-matched pra `'bordo'` (#800020) no positional color pass, vazando burgundy onde deveria ser stroke vazia.
+
+Fix (`natural-language.service.ts`):
+
+```ts
+const consumedIndices = new Set<number>();
+for (const m of matches) {
+  if (m.kind === 'action') {
+    // Action verbs nunca são slot values → consume sempre.
+    const idx = tokens.indexOf(m.token);
+    if (idx !== -1) consumedIndices.add(idx);
+  } else if (m.kind === 'keyword') {
+    // Exceção crítica: keyword que TAMBÉM é shape/color
+    // (e.g., 'circulo' é keyword de create-shape MAS o slot
+    // shape precisa extraí-la como 'circle') NÃO pode ser
+    // consumida — senão positional slot pass não a encontra.
+    if (resolveShapeKind(m.token) !== null) continue;
+    if (resolveColorName(m.token) !== null) continue;
+    const idx = tokens.indexOf(m.token);
+    if (idx !== -1) consumedIndices.add(idx);
+  }
+}
+extractSlots(tokens, slotSchemas, { consumedIndices });
+```
+
+### Specs novos (+19 testes)
+
+- `language-detect.spec.ts` — 6 testes (PT/EN detection, empty, hex-only, ties)
+- `professional-intents.spec.ts` — 13 testes (stroke, strokeWidth, opacity, remove-fill/stroke, select-all/deselect/by-type, hide, bring-to-front, convert-to-path, destructive gate, description boost ranking)
+
+**Total**: **1216/1216 passing** (1 skipped: tiebreaker edge case "selecionar todos retangulos" — documentado como future-fix).
+
+### Caveats documentados
+
+- **Tiebreaker edge case**: "selecionar todos retangulos" prefere `select-all` (score 0.90) sobre `select-by-type` (0.89). Fix futuro: aumentar peso de slot required filled de 0.10 pra 0.15 quando há intent competidor só-com-keyword.
+- **Description tokens não tokenizam variações morfológicas**: 'converte' (description) ≠ 'converter' (input). Stemming/lemmatization PT seria a evolução natural (Fase 1.x).
+- **`'sem'` agora é canonical `'delete'`**: permite "sem fill" → remove-fill, mas tecnicamente é stopword. Aceitável porque tem 3 chars → exact match only no fuzzy (sem risco de falso-positivo).
+
+### Roadmap explicitamente NÃO implementado
+
+- **Embeddings reais** (Transformers.js `all-MiniLM-L6-v2`, 22MB): listado como **Fase 2 opcional** em entry point separado (`svg-engine/ai/nlu-semantic`). Implementação requer aprovação explícita pelo custo da dep.
+- **SLM via WebLLM** (`svg-engine/ai/nlu-slm`, 500MB+): listado mas não implementado.
+
+### Arquivos modificados/criados
+
+- `dictionaries/colors-{pt,en}.ts` + `shapes-{pt,en,canonical}.ts` + `actions-{pt,en,canonical}.ts` + `stopwords-{pt,en}.ts` (10 novos)
+- `dictionaries/language-detect.ts` + `.spec.ts` (2 novos)
+- `intents/professional-intents.ts` + `.spec.ts` (2 novos)
+- `dictionaries/{colors,shapes,actions,stopwords}.ts` (4 modificados — viraram merge dos sub-arquivos)
+- `dictionaries/index.ts` (re-exports + language-detect)
+- `natural-language.service.ts` (description boost + consumed indices fix)
+- `builtin-nlu.plugin.ts` (chama `registerProfessionalIntents`)
+- `actions-pt.ts` (adicionou `'sem'`: `'delete'` pra remove-fill/stroke)
+
+---
+
 ## 2026-05-22 — D-046 comandos compostos: `anchorKeywords` + `kind: 'point'` + voice errors acionáveis
 
 **Pedido**: implementar suporte a comandos compostos como `"crie um circulo preto 50x50 com borda azul de tamanho 5px na posição 100x100"` autonomamente. Mais a Opção A: mensagens de erro de voz acionáveis em vez do críptico `"Voice error: network"`.

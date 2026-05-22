@@ -12,6 +12,7 @@ import {
 } from 'svg-engine/core';
 import { type EditorPlugin, MenuContributionRegistry, PLUGIN_API_VERSION } from 'svg-engine/edit';
 import { SelectionService } from 'svg-engine/edit';
+import { registerProfessionalIntents } from './intents/professional-intents';
 import { discoverMenuIntents } from './menu-intent-discovery';
 import { NaturalLanguageService } from './natural-language.service';
 
@@ -421,5 +422,11 @@ export const builtinNluPlugin: EditorPlugin = {
         },
       }),
     );
+
+    // ── 3) Professional intents (D-046 review-4) ─────────────────
+    // ~25 intents adicionais cobrindo: rotação, flip, stroke, opacidade,
+    // visibilidade, z-order, pathfinder boolean ops, conversão e
+    // seleção avançada. Idiomas: PT + EN nativamente em cada intent.
+    registerProfessionalIntents(nlu, { track: (d) => ctx.track(d) });
   },
 };
