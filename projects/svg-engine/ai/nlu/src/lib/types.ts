@@ -43,8 +43,17 @@ export interface NluContext {
  *
  * **Variantes**:
  * - `number`: número decimal/inteiro (com unidade opcional como `px`).
- * - `color`: nome de cor (PT/EN via dicionário) OU hex `#rrggbb`.
- * - `enum`: valor de uma lista fechada (lookup case-insensitive).
+ * - `color`: nome de cor (PT/EN via dicionário) OU hex `#rrggbb` /
+ *   `rgb()` / `hsl()`, com suporte a **intensificadores adjacentes**
+ *   ("azul claro", "verde bem escuro") via `parseColorPhrase`.
+ * - `shape`: nome de forma (PT/EN via `SHAPE_DICTIONARY`) — resolve
+ *   automaticamente "círculo"→`circle`, "retângulo"→`rect`,
+ *   "balão"→`group`, etc. **Use este em vez de `enum` quando o
+ *   slot for forma SVG** — `enum` exige match exato do canonical
+ *   ('rect'), não suporta vocabulário PT/EN nem aliases semânticos.
+ * - `enum`: valor de uma lista fechada (lookup case-insensitive,
+ *   com fuzzy match dist ≤ 1). Use para domínios fechados sem
+ *   vocabulário multilíngue (e.g., 'landscape'/'portrait').
  * - `string`: token livre — usado raramente, intent precisa ser
  *   tolerante a ruído.
  *
@@ -56,6 +65,11 @@ export type NluSlotSchema =
   | { readonly kind: 'number'; readonly optional?: boolean; readonly default?: number }
   | {
       readonly kind: 'color';
+      readonly optional?: boolean;
+      readonly default?: string;
+    }
+  | {
+      readonly kind: 'shape';
       readonly optional?: boolean;
       readonly default?: string;
     }

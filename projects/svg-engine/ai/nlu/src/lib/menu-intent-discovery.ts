@@ -4,6 +4,7 @@ import {
   type MenuContributionContext,
   MenuContributionRegistry,
 } from 'svg-engine/edit';
+import { ACTION_DICTIONARY, resolveActionCanonical } from './dictionaries/actions';
 import { normalize, tokenizeWithoutStopwords } from './parsers/tokenize';
 import { STOPWORDS } from './dictionaries/stopwords';
 import type { NaturalLanguageService } from './natural-language.service';
@@ -70,19 +71,40 @@ const DESTRUCTIVE_WORDS = new Set<string>([
 ]);
 
 /**
- * Deriva keywords NLU a partir do label do menu item.
+ * Deriva keywords NLU a partir do label do menu item, **expandindo
+ * multilíngue via `ACTION_DICTIONARY`**.
  *
  * **Regras**:
- * - Tokenize (lowercase + deacento + split)
- * - Remove stopwords
- * - Remove tokens de 1 caractere (muito ruidoso pra fuzzy match)
- * - Remove os 3 pontos `...` / `…` (ellipsis comum em labels Material)
+ * - Tokenize o label (lowercase + deacento + split)
+ * - Remove stopwords + tokens de 1 caractere + ellipsis
+ * - Para cada token, lookup canonical no `ACTION_DICTIONARY`. Se
+ *   resolver, adiciona **TODAS** as palavras PT/EN que apontam pro
+ *   mesmo canonical. Exemplo: label `"Delete"` → token `'delete'` →
+ *   canonical `'delete'` → expande para
+ *   `['delete', 'deletar', 'excluir', 'remover', 'apagar', ...]`.
+ *
+ * **Por quê isso é crítico**: sem expansão, "duplicar" (PT) nunca
+ * casaria com o intent auto-discovered da menu item `"Duplicate"`
+ * porque fuzzy match dist `duplicar → duplicate` é 3 (acima do
+ * adaptive max-dist 2). Com a expansão, ambas as palavras aparecem
+ * no array de keywords e a comparação fica exata em qualquer idioma.
  */
 function deriveKeywords(label: string): readonly string[] {
   if (typeof label !== 'string' || label.length === 0) return [];
   const cleaned = label.replace(/\.{3}|…/g, '').trim();
-  const tokens = tokenizeWithoutStopwords(cleaned, STOPWORDS);
-  return tokens.filter((t) => t.length > 1);
+  const baseTokens = tokenizeWithoutStopwords(cleaned, STOPWORDS).filter((t) => t.length > 1);
+  const expanded = new Set<string>(baseTokens);
+  for (const token of baseTokens) {
+    const canonical = resolveActionCanonical(token);
+    if (canonical === null) continue;
+    // Para cada entry do dicionário que aponta pro mesmo canonical,
+    // adiciona como keyword adicional. Isso cobre todas as variações
+    // PT/EN sem o autor do plugin precisar listar manualmente.
+    for (const [word, target] of Object.entries(ACTION_DICTIONARY)) {
+      if (target === canonical) expanded.add(word);
+    }
+  }
+  return [...expanded];
 }
 
 function isDestructiveLabel(label: string): boolean {

@@ -6,6 +6,73 @@
 
 ---
 
+## 2026-05-22 — D-046 review²: 5 casos REAIS reportados pelo usuário, todos corrigidos
+
+**Pedido**: _"NLU não funciona como deveria. Exemplos: 'Crie uma bola azul marinho' não reconhece; 'Criar circulo azul' cria um retângulo; 'Mover/Redimensionar/Duplicar objeto selecionado' não faz nada. Ajuste AGORA."_
+
+**Auditoria por caso** (cada um com bug raiz identificado e fix específico):
+
+### Caso 1: "Crie uma bola azul marinho" → não reconhece
+
+**Raiz**: `parseColorPhrase` só procurava cor em tokens **isolados** + intensificadores (claro/escuro). Token único 'azul' resolvia mas 'marinho' não era LIGHTNESS_MODIFIER → parava ali, perdendo "marinho".
+
+**Fix**: `parseColorPhrase` agora tenta **concat de pares adjacentes ANTES** do single-token lookup. `'azul'+'marinho'='azulmarinho'` está no `COLOR_DICTIONARY` → resolve para navy `#0d47a1`. Funciona pra qualquer composto: "hot pink"→hotpink, "off white"→offwhite.
+
+### Caso 2: "Criar circulo azul" → cria RETÂNGULO 🔴
+
+**Raiz crítica**: slot `shape` era `kind: 'enum'` com values `['rect','circle','ellipse',...]`. Token PT `'circulo'` não está nos values; fuzzy dist 'circulo'→'circle' = 3 (excede max-dist 2) → slot vazio. No execute, fallback **iterava lista hardcoded** e pegava o **primeiro** match: `'retangulo'`→'rect'. Sempre virava retângulo, ignorando o que o usuário disse.
+
+**Fix**: **novo `kind: 'shape'`** que resolve diretamente via `SHAPE_DICTIONARY` no extractor — "circulo"/"circle"/"bola"/"nó" todos viram `'circle'`. Sem fallback hardcoded no plugin.
+
+### Caso 3: "Mover selecionado 10 20" → não faz nada
+
+**Raiz**: intent `move-selected` **não existia**. `builtinMenuContributionsPlugin` não tem item "Move" (mover é feito por drag no canvas, não menu); auto-discovery não criava.
+
+**Fix**: novo intent `svge.builtin.nlu.move-selected` com keywords PT+EN, slots `width: number, height: number` (captam "10 20" e "100x50"). Execute pega `SelectionService.selectedIds()`, dispatcha `MoveNodeCommand(id, dx, dy)` pra cada.
+
+### Caso 4: "Redimensionar selecionado 200 por 200" → não faz nada
+
+**Raiz**: intent `resize-selected` não existia.
+
+**Fix**: novo intent `svge.builtin.nlu.resize-selected`. Execute dispatcha `ResizeNodeCommand(id, anchor, sx, sy)`. **Heurística**: número `≥10` é porcentagem (200 → sx=2.0), `<10` é fator (1.5 → 1.5x). Cobre "escalar 2x" e "redimensionar 200 por 200".
+
+### Caso 5: "Duplicar objeto selecionado" → não faz nada
+
+**Raiz**: auto-discovery derivava só keywords do **label EN** = `['duplicate']`. Token PT `'duplicar'` vs `'duplicate'` = dist 3 (acima max-dist 2 fuzzy) → não casava.
+
+**Fix duplo**:
+
+1. Auto-discovery agora **expande keywords via canonical** — `['delete']` do label "Delete" → canonical `'delete'` → adiciona TODAS as palavras PT/EN que mapeiam pra `'delete'`. Resultado: `['delete', 'deletar', 'excluir', 'remover', 'apagar', ...]`. **Multilíngue resolvido pra TODOS os menu items** de uma vez.
+2. Intent customizado `duplicate-selected` também registrado como segurança.
+
+### Mudanças técnicas
+
+- **`NluSlotSchema`**: nova variante `{ kind: 'shape' }`
+- **`slot-extractor.ts`**: novo `case 'shape'`; `parseColorPhrase` com lookup composto pré-loop
+- **`menu-intent-discovery.ts`**: `deriveKeywords` expande via `ACTION_DICTIONARY` por canonical
+- **`builtin-nlu.plugin.ts`**: `create-shape` usa `kind: 'shape'` (sem fallback hardcoded); **+3 intents** `move-selected`, `resize-selected`, `duplicate-selected`
+
+### Garantias
+
+- ✅ **1180/1180 specs** (1175 + 5 regression tests cobrindo os 5 casos do usuário)
+- ✅ 8 entry points build clean, playground clean, lint clean
+- ✅ **D-017 headless preservado** + **D-042 multi-editor scope-safe**
+- ✅ **Anti-alucinação**: move/resize são RELATIVOS (dx/dy/sx/sy) porque absolutos requerem bbox renderizado (fora do scope headless). Documentado.
+
+### Comandos que agora funcionam de verdade na rota `/nlu-test`
+
+| Input                          | Resultado                          |
+| ------------------------------ | ---------------------------------- |
+| `crie uma bola azul marinho`   | Cria circle navy                   |
+| `criar circulo azul`           | Cria CIRCLE azul                   |
+| `desenhe um quadrado vermelho` | Cria rect red                      |
+| `duplicar` (com seleção)       | Duplica via `DuplicateNodeCommand` |
+| `mover selecionado 10 20`      | Move dx=10, dy=20                  |
+| `redimensionar 200 por 200`    | Escala 2x                          |
+| `escalar 1.5`                  | Escala 1.5x                        |
+
+---
+
 ## 2026-05-22 — D-046 review: bugs reais corrigidos no NLU pipeline + UI
 
 **Pedido**: _"O NLU não está funcionando com eficiência. Faça uma análise minuciosa para melhorar e resolver."_

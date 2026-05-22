@@ -1,7 +1,13 @@
 import { Injector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { CommandBus, createEmptyDocument, EditorStateService } from 'svg-engine/core';
-import { MenuContributionRegistry, PluginRegistry } from 'svg-engine/edit';
+import {
+  CommandBus,
+  createEmptyDocument,
+  createRect,
+  EditorStateService,
+  InsertNodeCommand,
+} from 'svg-engine/core';
+import { MenuContributionRegistry, PluginRegistry, SelectionService } from 'svg-engine/edit';
 import { describe, expect, it } from 'vitest';
 import { builtinNluPlugin } from './builtin-nlu.plugin';
 import { NaturalLanguageService } from './natural-language.service';
@@ -15,6 +21,7 @@ function setup() {
     nlu: TestBed.inject(NaturalLanguageService),
     menus: TestBed.inject(MenuContributionRegistry),
     bus: TestBed.inject(CommandBus),
+    selection: TestBed.inject(SelectionService),
     state,
     injector: TestBed.inject(Injector),
   };
@@ -110,5 +117,70 @@ describe('builtinNluPlugin', () => {
     expect(candidates[0].intent.id).toBe('svge.builtin.nlu.create-shape');
 
     void state;
+  });
+
+  // ── D-046 review-2 regression tests (5 casos reportados) ─────
+
+  it('REGRESSION: "Criar circulo azul" cria CIRCLE, NÃO rectangle', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    await nlu.execute('Criar circulo azul', { injector });
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('ellipse'); // circle é ellipse com rx=ry
+    if (added.type === 'ellipse') {
+      expect(added.rx).toBe(added.ry);
+    }
+    expect(added.style?.fill).toBe('#1e88e5');
+  });
+
+  it('REGRESSION: "Crie uma bola azul marinho" reconhece cor composta', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const before = state.document().root.children.length;
+    const result = await nlu.execute('Crie uma bola azul marinho', { injector });
+    expect(result.executed).toBe(true);
+    expect(state.document().root.children.length).toBe(before + 1);
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('ellipse');
+    // azul + marinho → 'azulmarinho' (concat) → navy = #0d47a1
+    expect(added.style?.fill).toBe('#0d47a1');
+  });
+
+  it('REGRESSION: "Duplicar objeto selecionado" cria duplicata', async () => {
+    const { plugins, nlu, injector, state, selection, bus } = setup();
+    plugins.install(builtinNluPlugin);
+    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const rootId = state.document().root.id;
+    bus.dispatch(new InsertNodeCommand(rootId, rect));
+    selection.select(rect.id);
+    const before = state.document().root.children.length;
+    const result = await nlu.execute('Duplicar objeto selecionado', { injector });
+    expect(result.executed).toBe(true);
+    expect(state.document().root.children.length).toBe(before + 1);
+  });
+
+  it('REGRESSION: "Mover selecionado 10 20" dispara MoveNodeCommand', async () => {
+    const { plugins, nlu, injector, state, selection, bus } = setup();
+    plugins.install(builtinNluPlugin);
+    const rect = createRect({ x: 5, y: 5, width: 10, height: 10 });
+    const rootId = state.document().root.id;
+    bus.dispatch(new InsertNodeCommand(rootId, rect));
+    selection.select(rect.id);
+    const result = await nlu.execute('Mover selecionado 10 20', { injector });
+    expect(result.executed).toBe(true);
+    // Validamos que o intent foi `move-selected`, não outro.
+    expect(result.candidate?.intent.id).toBe('svge.builtin.nlu.move-selected');
+  });
+
+  it('REGRESSION: "Redimensionar selecionado 200 por 200" dispara ResizeNodeCommand', async () => {
+    const { plugins, nlu, injector, state, selection, bus } = setup();
+    plugins.install(builtinNluPlugin);
+    const rect = createRect({ x: 0, y: 0, width: 50, height: 50 });
+    const rootId = state.document().root.id;
+    bus.dispatch(new InsertNodeCommand(rootId, rect));
+    selection.select(rect.id);
+    const result = await nlu.execute('Redimensionar selecionado 200 por 200', { injector });
+    expect(result.executed).toBe(true);
+    expect(result.candidate?.intent.id).toBe('svge.builtin.nlu.resize-selected');
   });
 });

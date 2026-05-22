@@ -1,4 +1,5 @@
 import { COLOR_KEYS, resolveColorName } from '../dictionaries/colors';
+import { SHAPE_KEYS, resolveShapeKind } from '../dictionaries/shapes';
 import { isStopword } from '../dictionaries/stopwords';
 import type { NluSlotSchema } from '../types';
 import {
@@ -149,17 +150,49 @@ export function parseColorPhrase(
   // Sliding window: começamos no startIdx e olhamos até startIdx+2.
   const window = [tokens[startIdx], tokens[startIdx + 1] ?? '', tokens[startIdx + 2] ?? ''];
 
-  // Acha o índice da cor base na janela (0, 1 ou 2).
+  // Acha o índice da cor base na janela (0, 1 ou 2). **Primeiro tenta
+  // PAIR de tokens adjacentes concatenados** (resolve cores compostas
+  // como "azul marinho" → "azulmarinho" → navy; "hot pink" →
+  // "hotpink"; "off white" → "offwhite"). Isso DEVE vir antes do
+  // single-token lookup, senão "azul marinho" casaria com "azul"
+  // (perdendo o "marinho").
   let colorIdx = -1;
   let baseColor: string | null = null;
-  for (let i = 0; i < window.length; i++) {
-    const tok = window[i];
-    if (tok.length === 0) continue;
-    const c = parseColorToken(tok);
-    if (c !== null) {
+  let compositeTokensConsumed = 0; // 0 = single-token; >0 = composto
+  for (let i = 0; i < window.length - 1; i++) {
+    const tokA = window[i];
+    const tokB = window[i + 1];
+    if (tokA.length === 0 || tokB.length === 0) continue;
+    // Tenta concat AB e BA — ordem semântica varia ("azul marinho"
+    // PT vs "navy blue" EN não se aplica aqui porque navy já está
+    // direto no dict; "azulmarinho" é a key composta).
+    const concatAB = parseColorToken(tokA + tokB);
+    if (concatAB !== null) {
       colorIdx = i;
-      baseColor = c;
+      baseColor = concatAB;
+      compositeTokensConsumed = 2;
       break;
+    }
+    const concatBA = parseColorToken(tokB + tokA);
+    if (concatBA !== null) {
+      colorIdx = i;
+      baseColor = concatBA;
+      compositeTokensConsumed = 2;
+      break;
+    }
+  }
+
+  // Fallback: cor em um único token na janela.
+  if (colorIdx === -1) {
+    for (let i = 0; i < window.length; i++) {
+      const tok = window[i];
+      if (tok.length === 0) continue;
+      const c = parseColorToken(tok);
+      if (c !== null) {
+        colorIdx = i;
+        baseColor = c;
+        break;
+      }
     }
   }
   if (colorIdx === -1 || baseColor === null) return null;
@@ -187,8 +220,11 @@ export function parseColorPhrase(
       break; // tokens não-modifier interrompem
     }
   }
-  // Direita (modifiers posteriores)
-  for (let i = colorIdx + 1; i < window.length; i++) {
+  // Direita (modifiers posteriores) — quando a cor foi composta de
+  // 2 tokens (ex: "azul marinho"), pula o segundo token já consumido
+  // pelo composito antes de procurar modificadores.
+  const rightStart = colorIdx + (compositeTokensConsumed > 0 ? compositeTokensConsumed : 1);
+  for (let i = rightStart; i < window.length; i++) {
     const tok = window[i];
     if (tok.length === 0) break;
     const mod = LIGHTNESS_MODIFIERS[tok];
@@ -215,10 +251,10 @@ export function parseColorPhrase(
 
   // tokensConsumed = quantos tokens A PARTIR DE startIdx foram
   // capturados. consumedLeft modificadores aparecem em índices
-  // (colorIdx-1 .. 0), todos >= startIdx (porque colorIdx >= 0 na
-  // window relativa); consumedRight modificadores em índices
-  // (colorIdx+1 .. ).
-  const tokensConsumed = consumedLeft + 1 + consumedRight;
+  // (colorIdx-1 .. 0); consumedRight modificadores em índices
+  // (colorIdx+1 .. ); composto: 2 tokens da cor em vez de 1.
+  const colorBaseTokens = compositeTokensConsumed > 0 ? compositeTokensConsumed : 1;
+  const tokensConsumed = consumedLeft + colorBaseTokens + consumedRight;
 
   return { color: finalColor, tokensConsumed };
 }
@@ -307,6 +343,26 @@ export function extractSlots(
             found = phrase.color;
             foundIdx = i;
             foundTokensConsumed = phrase.tokensConsumed;
+          }
+          break;
+        }
+        case 'shape': {
+          // Resolve PT/EN/semantic aliases ("círculo" / "circle" /
+          // "bola" / "nó" → 'circle') via SHAPE_DICTIONARY direto.
+          // Exato primeiro, fuzzy depois.
+          const direct = resolveShapeKind(tok);
+          if (direct !== null) {
+            found = direct;
+            foundIdx = i;
+          } else {
+            const m = fuzzyMatchToken(tok, SHAPE_KEYS);
+            if (m !== null) {
+              const resolved = resolveShapeKind(m.term);
+              if (resolved !== null) {
+                found = resolved;
+                foundIdx = i;
+              }
+            }
           }
           break;
         }
