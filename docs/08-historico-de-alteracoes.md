@@ -6,6 +6,60 @@
 
 ---
 
+## 2026-05-22 — D-046 review-8: `'ambos'`/`'ambas'` = sinônimo PT de `'todos'` + plurais nos shape dicts
+
+**Reportado pelo usuário**:
+
+> "Em português dissemos: selecionar ambos = selecionar todos. selecionar ambos retangulos = selecionar todos os retangulos. E assim para os demais objetos/formas."
+
+### Bug 1: `'ambos'`/`'ambas'` não eram canonical `'select-all'`
+
+Em PT, "ambos" é sinônimo direto de "todos os 2" / "todas as 2". Faltava o mapeamento:
+
+```ts
+// actions-pt.ts
+ambos: 'select-all',
+ambas: 'select-all',
+```
+
+Plus adicionei como keywords no `select-all` intent customizado. Cobre auto-discovery do menu "Select All" também (via `deriveTokenGroups` que expande canonical `'select-all'` → todas variantes incluindo `'ambos'`).
+
+### Bug 2: `SHAPE_DICTIONARY` não tinha plurais
+
+`"selecionar ambos retangulos"` falhava porque `'retangulos'` (plural) não estava no dict. `select-by-type` matchava keyword `'retangulos'` mas o slot `shape` ficava `undefined` (required missing → score penalty -0.15 → perdia pra select-all).
+
+**Fix**: adicionei TODOS os plurais em `shapes-pt.ts` (+30 entradas) e `shapes-en.ts` (+50 entradas). Cobertura sistemática: `retangulo`/`retangulos`, `quadrado`/`quadrados`, `estrela`/`estrelas`, `hexagono`/`hexagonos`, `triangulo`/`triangulos`, `losango`/`losangos`, `pentagono`/`pentagonos`, `octogono`/`octogonos`, `linha`/`linhas`, `texto`/`textos`, etc. EN equivalente.
+
+### Specs adicionados (+4 regression)
+
+- `"selecionar ambos"` → seleciona tudo
+- `"selecionar ambas"` (feminino) → também funciona
+- `"selecionar ambos retangulos"` → só rects, ignora ellipses
+- `"selecionar ambas estrelas"` → só polygons com 10 vértices, ignora hexagonos
+
+**Total**: **1242/1242 passing** + 1 skipped.
+
+### Comandos que agora funcionam
+
+| Comando                            | Resultado                                    |
+| ---------------------------------- | -------------------------------------------- |
+| `"selecionar ambos"`               | seleciona tudo (sinônimo de "tudo")          |
+| `"selecionar ambas"`               | mesmo (feminino)                             |
+| `"selecionar ambos retangulos"`    | só rects                                     |
+| `"selecionar ambas estrelas"`      | só polygons com 10 vértices                  |
+| `"selecionar hexagonos"`           | só polygons com 6 vértices (plural funciona) |
+| `"selecionar todos os retangulos"` | mesmo (continua funcionando)                 |
+
+### Arquivos modificados
+
+- `dictionaries/actions-pt.ts` — `'ambos'`/`'ambas'` → canonical `'select-all'`
+- `dictionaries/shapes-pt.ts` — ~30 plurais novos
+- `dictionaries/shapes-en.ts` — ~50 plurais novos
+- `intents/professional-intents.ts` — `'ambos'`/`'ambas'` em keywords do select-all
+- specs +4 regression
+
+---
+
 ## 2026-05-22 — D-046 review-7: "selecione X" selecionava TUDO (auto-discovery super-agressiva)
 
 **Reportado pelo usuário** — comandos que selecionavam TODOS os nós em vez do alvo:

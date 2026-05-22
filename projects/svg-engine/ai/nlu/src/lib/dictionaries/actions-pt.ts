@@ -78,6 +78,12 @@ export const ACTION_DICTIONARY_PT: Readonly<Record<string, ActionCanonical>> = O
   tudo: 'select-all',
   todos: 'select-all',
   todas: 'select-all',
+  // **`'ambos'` / `'ambas'`** (D-046 review-8): em PT, "ambos" =
+  // "todos os 2" / "todas as 2". No contexto de seleção, sinônimo
+  // direto de 'todos'. "selecionar ambos retangulos" deve agir
+  // igual a "selecionar todos os retangulos".
+  ambos: 'select-all',
+  ambas: 'select-all',
   // Frases típicas: "selecionar tudo" → 2 tokens; o action
   // canonical resolution acontece em compound match no parser.
 

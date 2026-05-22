@@ -139,6 +139,68 @@ describe('Professional NLU intents (D-046 review-4)', () => {
     expect(deps.selection.selectedIds().size).toBe(2);
   });
 
+  // ── D-046 review-8: 'ambos'/'ambas' = 'todos'/'todas' em PT ──
+
+  it('REGRESSION USUARIO: "selecionar ambos" → selecionar tudo (sinônimo PT)', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    addRect(deps);
+    addRect(deps);
+    const result = await deps.nlu.execute('selecionar ambos', { injector: deps.injector });
+    expect(result.executed).toBe(true);
+    expect(deps.selection.selectedIds().size).toBe(2);
+  });
+
+  it('REGRESSION USUARIO: "selecionar ambas" (feminino) também funciona', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    addRect(deps);
+    addRect(deps);
+    addRect(deps);
+    const result = await deps.nlu.execute('selecionar ambas', { injector: deps.injector });
+    expect(result.executed).toBe(true);
+    expect(deps.selection.selectedIds().size).toBe(3);
+  });
+
+  it('REGRESSION USUARIO: "selecionar ambos retangulos" → select-by-type rect', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    addRect(deps);
+    addRect(deps);
+    const rootId = deps.state.document().root.id;
+    // Adiciona um ellipse pra garantir que NÃO seja selecionado
+    deps.bus.dispatch(
+      new InsertNodeCommand(rootId, createEllipse({ cx: 100, cy: 100, rx: 30, ry: 20 })),
+    );
+    const result = await deps.nlu.execute('selecionar ambos retangulos', {
+      injector: deps.injector,
+    });
+    expect(result.executed).toBe(true);
+    // 2 rects selecionados, ellipse não
+    expect(deps.selection.selectedIds().size).toBe(2);
+  });
+
+  it('REGRESSION USUARIO: "selecionar ambas estrelas" → só polygons com 10 vértices', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    const rootId = deps.state.document().root.id;
+    const star1 = createPolygon(regularStarPoints(50, 50, 30));
+    const star2 = createPolygon(regularStarPoints(150, 50, 30));
+    const hex = createPolygon(regularPolygonPoints(250, 50, 30, 6));
+    deps.bus.dispatch(new InsertNodeCommand(rootId, star1));
+    deps.bus.dispatch(new InsertNodeCommand(rootId, star2));
+    deps.bus.dispatch(new InsertNodeCommand(rootId, hex));
+    const result = await deps.nlu.execute('selecionar ambas estrelas', {
+      injector: deps.injector,
+    });
+    expect(result.executed).toBe(true);
+    // 2 estrelas selecionadas, hexagono NÃO
+    expect(deps.selection.selectedIds().size).toBe(2);
+    expect(deps.selection.selectedIds().has(star1.id)).toBe(true);
+    expect(deps.selection.selectedIds().has(star2.id)).toBe(true);
+    expect(deps.selection.selectedIds().has(hex.id)).toBe(false);
+  });
+
   it('deselect limpa a seleção', async () => {
     const deps = setup();
     deps.plugins.install(builtinNluPlugin);

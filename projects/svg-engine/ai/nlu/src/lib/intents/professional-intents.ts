@@ -349,13 +349,25 @@ export function registerProfessionalIntents(nlu: NaturalLanguageService, ctx: Re
   // ║ SELEÇÃO                                                    ║
   // ╚═══════════════════════════════════════════════════════════╝
 
-  // ── select-all: "selecionar tudo", "select all", "todos"
+  // ── select-all: "selecionar tudo", "select all", "todos", "ambos"
   ctx.track(
     nlu.registerIntent({
       id: 'svge.builtin.nlu.select-all',
-      keywords: ['tudo', 'todos', 'todas', 'all', 'everything', 'tudoselecionado'],
+      keywords: [
+        'tudo',
+        'todos',
+        'todas',
+        'all',
+        'everything',
+        'tudoselecionado',
+        // **D-046 review-8**: 'ambos'/'ambas' = sinônimo PT de
+        // 'todos'/'todas' no contexto de seleção. "selecionar ambos"
+        // age igual a "selecionar tudo".
+        'ambos',
+        'ambas',
+      ],
       actionKeywords: ['select', 'select-all'],
-      description: 'Seleciona TODOS os nós top-level do documento',
+      description: 'Seleciona TODOS os nós top-level do documento (tudo, todos, todas, ambos, all)',
       execute(_slots, runCtx) {
         const state = runCtx.injector.get(EditorStateService);
         const selection = runCtx.injector.get(SelectionService);
