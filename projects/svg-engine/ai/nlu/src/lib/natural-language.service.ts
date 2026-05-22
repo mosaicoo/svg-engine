@@ -8,6 +8,24 @@ import { isStopword } from './dictionaries/stopwords';
 import { fuzzyMatchAny } from './parsers/fuzzy-match';
 import { extractSlots } from './parsers/slot-extractor';
 import { tokenize } from './parsers/tokenize';
+import {
+  ACTION_BONUS_CANONICAL,
+  ACTION_BONUS_DIRECT,
+  AUTO_EXECUTE_THRESHOLD,
+  DEFAULT_MAX_RESULTS,
+  DEFAULT_PARSE_THRESHOLD,
+  DESCRIPTION_BOOST_MAX,
+  DESCRIPTION_BOOST_PER_HIT,
+  KEYWORD_WEIGHT_ACTION_ONLY,
+  KEYWORD_WEIGHT_FULL,
+  KEYWORD_WEIGHT_KEYWORDS_ONLY,
+  KEYWORD_WEIGHT_SLOTS_ONLY,
+  SLOT_BONUS_ANCHORED,
+  SLOT_BONUS_OPTIONAL,
+  SLOT_BONUS_REQUIRED,
+  SLOT_PENALTY_REQUIRED_MISSING,
+  TIEBREAKER_EPSILON,
+} from './scoring/scoring-constants';
 import type {
   NluCandidate,
   NluContext,
@@ -148,8 +166,9 @@ export class NaturalLanguageService {
         seen.add(tok);
       }
     }
-    // Cap em 5 hits × 0.04 = 0.20 boost máximo
-    return Math.min(5, hits) * 0.04;
+    // Cap configurável via DESCRIPTION_BOOST_MAX / DESCRIPTION_BOOST_PER_HIT
+    const maxHits = DESCRIPTION_BOOST_MAX / DESCRIPTION_BOOST_PER_HIT;
+    return Math.min(maxHits, hits) * DESCRIPTION_BOOST_PER_HIT;
   }
 
   /** Procura intent por id (`null` se ausente). */
@@ -166,8 +185,8 @@ export class NaturalLanguageService {
    * @param options threshold + maxResults
    */
   parse(text: string, _ctx: NluContext, options: NluParseOptions = {}): readonly NluCandidate[] {
-    const threshold = options.threshold ?? 0.3;
-    const maxResults = options.maxResults ?? 5;
+    const threshold = options.threshold ?? DEFAULT_PARSE_THRESHOLD;
+    const maxResults = options.maxResults ?? DEFAULT_MAX_RESULTS;
 
     const tokens = tokenize(text);
     if (tokens.length === 0) return [];
@@ -229,7 +248,14 @@ export class NaturalLanguageService {
       // auto-discovery → 0.75), e (b) intent com action+keyword match
       // exato seja preferida sobre só-keyword (action 0.2 + keyword 0.55
       // = 0.75, empatado, tiebreaker por matchCount escolhe).
-      const keywordWeight = hasAction && hasSlots ? 0.5 : hasAction ? 0.55 : hasSlots ? 0.65 : 0.75;
+      const keywordWeight =
+        hasAction && hasSlots
+          ? KEYWORD_WEIGHT_FULL
+          : hasAction
+            ? KEYWORD_WEIGHT_ACTION_ONLY
+            : hasSlots
+              ? KEYWORD_WEIGHT_SLOTS_ONLY
+              : KEYWORD_WEIGHT_KEYWORDS_ONLY;
       let score = keywordWeight * keywordMatch.score;
 
       // ── (b) Action keyword — opcional, eleva score ──
@@ -245,8 +271,8 @@ export class NaturalLanguageService {
             distance: directAction.distance,
             tokenIndex: directAction.tokenIndex,
           });
-          // Soma um bônus de até 0.25
-          score = Math.min(1, score + 0.25 * directAction.score);
+          // Soma um bônus de até ACTION_BONUS_DIRECT
+          score = Math.min(1, score + ACTION_BONUS_DIRECT * directAction.score);
         } else {
           // ...ou via canonical lookup (e.g., intent declara ['create']
           // mas o usuário disse 'desenhar' → canonical 'create' bate).
@@ -266,7 +292,7 @@ export class NaturalLanguageService {
                   distance: 0,
                   tokenIndex: i,
                 });
-                score = Math.min(1, score + 0.2);
+                score = Math.min(1, score + ACTION_BONUS_CANONICAL);
                 break;
               }
             }
@@ -356,10 +382,10 @@ export class NaturalLanguageService {
       // optional). Antes do fix, "pinta de vermelho" tinha score 0.65
       // (abaixo de auto-execute) porque o required slot `color`
       // preenchido não elevava — agora vira 0.75 (auto-execute).
-      score -= requiredMissing * 0.15;
-      score += optionalFilled * 0.05;
-      score += requiredFilled * 0.1;
-      score += anchoredFilled * 0.1; // bonus por slot anchored bem-extraído
+      score -= requiredMissing * SLOT_PENALTY_REQUIRED_MISSING;
+      score += optionalFilled * SLOT_BONUS_OPTIONAL;
+      score += requiredFilled * SLOT_BONUS_REQUIRED;
+      score += anchoredFilled * SLOT_BONUS_ANCHORED;
 
       // ── (d) Description boost (D-046 review-4 meio-termo) ──
       // Tokens do input que aparecem na description do intent
@@ -389,7 +415,7 @@ export class NaturalLanguageService {
     // segunda capturou DOIS componentes do input — deve vencer.
     candidates.sort((a, b) => {
       const diff = b.confidence - a.confidence;
-      if (Math.abs(diff) > 0.05) return diff;
+      if (Math.abs(diff) > TIEBREAKER_EPSILON) return diff;
       return b.matches.length - a.matches.length;
     });
     return candidates.slice(0, maxResults);
@@ -413,7 +439,7 @@ export class NaturalLanguageService {
     options: NluExecuteOptions = {},
   ): Promise<NluExecuteResult> {
     const candidates = this.parse(text, ctx, options);
-    const auto = options.autoExecuteThreshold ?? 0.7;
+    const auto = options.autoExecuteThreshold ?? AUTO_EXECUTE_THRESHOLD;
     const gate = options.confirmGate ?? null;
 
     if (candidates.length === 0) {
@@ -492,7 +518,7 @@ export class NaturalLanguageService {
     ctx: NluContext,
     options: NluExecuteOptions = {},
   ): Promise<NluExecuteResult> {
-    const auto = options.autoExecuteThreshold ?? 0.7;
+    const auto = options.autoExecuteThreshold ?? AUTO_EXECUTE_THRESHOLD;
     const gate = options.confirmGate ?? null;
 
     if (candidate.intent.destructive === true && gate === null) {
