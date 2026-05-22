@@ -446,9 +446,24 @@ export class SvgeDialogShell implements AfterViewInit {
     const pane = hostEl.closest('.cdk-overlay-pane') as HTMLElement | null;
     if (!pane) return;
 
-    // Walk from shell host up to (but not including) the overlay pane.
-    // Each intermediate element becomes a flex column so vertical space
-    // travels uninterrupted from pane to shell.
+    // **Step 1 — pane itself becomes a flex column.** Critical: in
+    // Material v21 the `.cdk-overlay-pane` is NOT flex by default
+    // (height: auto). Without this, every `flex: 1 1 auto` we set on
+    // descendants below has nothing to grow into — the inner chain
+    // collapses to content height and the shell ends up floating
+    // outside the visible dialog surface (the bug previously seen on
+    // Workspace Settings: form fit normally but the footer + resize
+    // handle rendered in dead space below the white surface).
+    pane.style.display = 'flex';
+    pane.style.flexDirection = 'column';
+
+    // **Step 2 — walk from shell host up to (but not including) the
+    // overlay pane.** Each intermediate element becomes a flex column
+    // so vertical space travels uninterrupted from pane to shell.
+    // This covers: the dialog-component wrapper
+    // (`<svge-workspace-settings>` / `<svge-svg-source-dialog>`), the
+    // `.mat-mdc-dialog-surface`, any `.mdc-dialog__container` wrapper,
+    // and the `.mat-mdc-dialog-container` itself.
     let el: HTMLElement | null = hostEl.parentElement;
     while (el && el !== pane) {
       el.style.display = 'flex';
@@ -460,6 +475,34 @@ export class SvgeDialogShell implements AfterViewInit {
       // is the only height constraint.
       el.style.maxHeight = 'none';
       el = el.parentElement;
+    }
+
+    // **Step 3 — defensive belt-and-suspenders for Material's MDC
+    // surface.** Even after the ancestor walk, the
+    // `.mat-mdc-dialog-surface` sometimes keeps its
+    // `max-height: inherit` resolving against an older budget if the
+    // walk reaches it before MDC finishes its own layout pass. Force
+    // it explicitly here. Same for the container's potential
+    // `.mdc-dialog__container` wrapper element MDC may insert between
+    // the container and the surface.
+    const matSelectors = [
+      '.mat-mdc-dialog-container',
+      '.mdc-dialog__container',
+      '.mat-mdc-dialog-surface',
+      '.mdc-dialog__surface',
+    ];
+    for (const sel of matSelectors) {
+      const node = pane.querySelector<HTMLElement>(sel);
+      if (!node) continue;
+      node.style.display = 'flex';
+      node.style.flexDirection = 'column';
+      node.style.flex = '1 1 auto';
+      node.style.minHeight = '0';
+      node.style.maxHeight = 'none';
+      // The surface owns the visible background + radius; ensure it
+      // grows so the chrome (Reset/Done, resize handle) stays inside
+      // the white area instead of leaking into the overlay backdrop.
+      node.style.height = '100%';
     }
   }
 

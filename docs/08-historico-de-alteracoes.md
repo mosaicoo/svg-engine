@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-05-22 — Fix-of-fix: dialog responsivo (cobertura completa, incluindo Workspace Settings)
+
+**Bug remanescente**: a primeira tentativa do fix de resize vertical resolveu o View Source mas o **Workspace Settings continuava quebrando** — form renderizava normal mas o footer (Reset/Done) e o resize handle ficavam **fora do surface branco**, em área cinza com checkerboard, como se o `<svge-dialog-shell>` tivesse "vazado" pra fora do dialog.
+
+**Causa raiz da regressão**: a lógica `ngAfterViewInit` aplicava `flex: 1 1 auto` em todos os ancestrais entre o host do shell e o `.cdk-overlay-pane`, mas **não no pane em si**. No Material v21 o `.cdk-overlay-pane` é `display: block` por default (não flex). Sem flex no pane, todos os `flex: 1 1 auto` aplicados nos descendentes (container, surface, wrapper) não tinham onde se esticar — a chain colapsava para a altura intrínseca do conteúdo. O `:host { height: 100%; flex: 1 1 auto; }` do shell então tinha `100%` de NADA, e o shell flutuava no espaço vazio que o resize abriu.
+
+Por que View Source não exibiu o sintoma de forma tão dramática: o `<pre>` com `flex: 1 1 auto` colapsa pra altura zero quando não há contexto flex, mas o shell ainda renderiza no topo (altura do conteúdo mínimo). Já no Workspace Settings o form é mais alto, então a divergência ficou mais óbvia.
+
+**Fix definitivo (3 steps explícitos no `ngAfterViewInit`)**
+
+1. **Pane vira flex column**: `pane.style.display = 'flex'; pane.style.flexDirection = 'column';` — destrava o flex chain inteiro.
+2. **Walk ancestor (mantido)**: cada elemento entre o host e o pane recebe `display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; max-height: none;`.
+3. **Belt-and-suspenders nos seletores MDC conhecidos**: `.mat-mdc-dialog-container`, `.mdc-dialog__container`, `.mat-mdc-dialog-surface`, `.mdc-dialog__surface` recebem os mesmos estilos + `height: 100%`. Garante que mesmo se MDC inserir elementos extras que o walk perdeu (race entre o ngAfterViewInit e o layout pass do MDC), a cadeia fica completa.
+
+Agora o **surface branco propriamente dito** (a "janela" visual com background + radius + sombra) cresce junto com o pane — footer e resize handle ficam SEMPRE dentro da área branca, mesmo após resize agressivo.
+
+**Garantias verificadas**
+
+- ✅ 1049/1049 specs passando
+- ✅ 6 entry points + playground build clean
+- ✅ Lint clean nos 2 projetos
+- ✅ Workspace Settings: footer e resize handle agora ficam dentro do surface branco
+- ✅ View Source: continua funcionando como antes
+- ✅ Dialogs futuros: herdam o comportamento sem ajuste
+
+**Arquivos**
+
+- `projects/svg-engine/ui/src/lib/dialog-shell/dialog-shell.component.ts` — `ngAfterViewInit` expandido em 3 steps explícitos
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+
+---
+
 ## 2026-05-22 — Fix: dialog body responsivo no redimensionamento vertical
 
 **Bug observado**: ao redimensionar verticalmente o dialog (drag no grabber inferior-direito), o pane crescia mas o conteúdo interno e o footer **não acompanhavam** — aparecia um gap vazio entre o body e o footer. Horizontal funcionava normalmente.
