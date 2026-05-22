@@ -116,12 +116,33 @@ export class NaturalLanguageService {
       );
     }
     this._intents.set([...this._intents(), intent]);
+    // **D-046 review-10 (H4)**: pre-cache descriptionTokens AGORA
+    // (no register, não lazy no parse). Elimina o cold-cache miss
+    // na 1ª keystroke do user.
+    this.populateDescriptionCache(intent);
     return {
       dispose: () => {
         this._intents.set(this._intents().filter((i) => i.id !== intent.id));
         this.descriptionTokensCache.delete(intent.id);
       },
     };
+  }
+
+  /**
+   * Tokeniza + filtra description do intent e armazena no cache.
+   * No-op se o intent não tem description ou já está cached.
+   */
+  private populateDescriptionCache(intent: NluIntent): void {
+    if (this.descriptionTokensCache.has(intent.id)) return;
+    const desc = intent.description;
+    if (typeof desc !== 'string' || desc.length === 0) {
+      // Cacheia Set vazio pra evitar re-check repetido
+      this.descriptionTokensCache.set(intent.id, new Set());
+      return;
+    }
+    const all = tokenize(desc);
+    const filtered = new Set(all.filter((t) => !isStopword(t) && t.length >= 3));
+    this.descriptionTokensCache.set(intent.id, filtered);
   }
 
   /**
@@ -143,17 +164,16 @@ export class NaturalLanguageService {
    * for mais relevante).
    */
   private descriptionBoost(intent: NluIntent, inputTokens: readonly string[]): number {
-    const desc = intent.description;
-    if (typeof desc !== 'string' || desc.length === 0) return 0;
-
-    // Lookup/populate cache
+    // **D-046 review-10 (H4)**: cache é pre-populado no register, então
+    // só lookup aqui (zero tokenize em hot path). Defensive: re-populate
+    // se intent foi adicionado bypassing registerIntent (não suportado
+    // oficialmente, mas previne crash).
     let descTokens = this.descriptionTokensCache.get(intent.id);
     if (descTokens === undefined) {
-      const all = tokenize(desc);
-      descTokens = new Set(all.filter((t) => !isStopword(t) && t.length >= 3));
-      this.descriptionTokensCache.set(intent.id, descTokens);
+      this.populateDescriptionCache(intent);
+      descTokens = this.descriptionTokensCache.get(intent.id);
     }
-    if (descTokens.size === 0) return 0;
+    if (descTokens === undefined || descTokens.size === 0) return 0;
 
     // Conta tokens do input que aparecem na description
     let hits = 0;
