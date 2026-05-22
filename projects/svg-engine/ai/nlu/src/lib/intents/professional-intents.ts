@@ -36,29 +36,26 @@
 import {
   CommandBus,
   ConvertNodeToPathCommand,
-  DivideCommand,
   EditorStateService,
-  ExcludeCommand,
-  IntersectCommand,
-  MoveNodeCommand,
   RemoveNodeCommand,
-  ReorderNodeCommand,
-  ResizeNodeCommand,
   RotateNodeCommand,
-  SetStylePropertyOnManyCommand,
-  SubtractCommand,
-  UnionCommand,
   collectNodes,
-  findNodeById,
   type NodeId,
-  type SvgNode,
 } from 'svg-engine/core';
 import { SelectionService } from 'svg-engine/edit';
 import type { Disposable } from 'svg-engine/core';
 
-import { POLYGON_SIDES } from '../dictionaries/shapes-canonical';
 import { NaturalLanguageService } from '../natural-language.service';
-import type { NluContext } from '../types';
+import {
+  flipSelected,
+  moveToAbsolute,
+  nodeMatchesShape,
+  reorderSelected,
+  runPathfinder,
+  selectedIdsOrWarn,
+  setStyleOnSelected,
+  warn,
+} from './_helpers';
 
 interface RegisterCtx {
   readonly track: (d: Disposable) => void;
@@ -102,14 +99,10 @@ export function registerProfessionalIntents(nlu: NaturalLanguageService, ctx: Re
       },
       description: 'Rotaciona os nós selecionados pelo ângulo dado (graus, sentido horário)',
       execute(slots, runCtx) {
+        const ids = selectedIdsOrWarn(runCtx, 'rotate-selected');
+        if (ids === null) return;
         const bus = runCtx.injector.get(CommandBus);
         const state = runCtx.injector.get(EditorStateService);
-        const selection = runCtx.injector.get(SelectionService);
-        const ids = [...selection.selectedIds()];
-        if (ids.length === 0) {
-          warn('rotate-selected: nada selecionado');
-          return;
-        }
         const degrees = (slots['width'] as number | undefined) ?? 0;
         const radians = (degrees * Math.PI) / 180;
         // Pivot = centro do viewBox (sem acesso ao bbox real).
@@ -929,266 +922,13 @@ export function registerProfessionalIntents(nlu: NaturalLanguageService, ctx: Re
       destructive: true,
       description: 'DESTRUTIVO: remove permanentemente os nós selecionados',
       execute(_slots, runCtx) {
+        const ids = selectedIdsOrWarn(runCtx, 'delete-selected');
+        if (ids === null) return;
         const bus = runCtx.injector.get(CommandBus);
-        const selection = runCtx.injector.get(SelectionService);
-        const ids = [...selection.selectedIds()];
-        if (ids.length === 0) {
-          warn('delete-selected: nada selecionado');
-          return;
-        }
         for (const id of ids) {
           bus.dispatch(new RemoveNodeCommand(id));
         }
       },
     }),
   );
-}
-
-// ╔═══════════════════════════════════════════════════════════════╗
-// ║ HELPERS                                                        ║
-// ╚═══════════════════════════════════════════════════════════════╝
-
-type RunCtx = NluContext;
-
-function warn(msg: string): void {
-  if (typeof console !== 'undefined') {
-    console.warn(`[svge.nlu] ${msg}`);
-  }
-}
-
-function setStyleOnSelected(
-  runCtx: RunCtx,
-  key: 'fill' | 'stroke' | 'strokeWidth' | 'opacity' | 'visibility',
-  value: string | number,
-  label: string,
-): void {
-  const bus = runCtx.injector.get(CommandBus);
-  const selection = runCtx.injector.get(SelectionService);
-  const ids = [...selection.selectedIds()] as readonly NodeId[];
-  if (ids.length === 0) {
-    warn(`${label}: nada selecionado`);
-    return;
-  }
-  bus.dispatch(new SetStylePropertyOnManyCommand(ids, key, value));
-}
-
-function flipSelected(runCtx: RunCtx, axis: 'horizontal' | 'vertical'): void {
-  const bus = runCtx.injector.get(CommandBus);
-  const state = runCtx.injector.get(EditorStateService);
-  const selection = runCtx.injector.get(SelectionService);
-  const ids = [...selection.selectedIds()];
-  if (ids.length === 0) {
-    warn(`flip-${axis}: nada selecionado`);
-    return;
-  }
-  // Anchor = centro do viewBox (sem bbox real disponível).
-  const vb = state.document().viewBox;
-  const anchor = { x: vb.x + vb.width / 2, y: vb.y + vb.height / 2 };
-  const sx = axis === 'horizontal' ? -1 : 1;
-  const sy = axis === 'vertical' ? -1 : 1;
-  for (const id of ids) {
-    bus.dispatch(new ResizeNodeCommand(id, anchor, sx, sy));
-  }
-}
-
-function reorderSelected(
-  runCtx: RunCtx,
-  direction: 'forward' | 'backward' | 'toFront' | 'toBack',
-): void {
-  const bus = runCtx.injector.get(CommandBus);
-  const selection = runCtx.injector.get(SelectionService);
-  const ids = [...selection.selectedIds()];
-  if (ids.length === 0) {
-    warn(`reorder-${direction}: nada selecionado`);
-    return;
-  }
-  for (const id of ids) {
-    bus.dispatch(new ReorderNodeCommand(id, direction));
-  }
-}
-
-function runPathfinder(
-  runCtx: RunCtx,
-  op: 'union' | 'intersect' | 'subtract' | 'exclude' | 'divide',
-): void {
-  const bus = runCtx.injector.get(CommandBus);
-  const selection = runCtx.injector.get(SelectionService);
-  const ids = [...selection.selectedIds()] as readonly NodeId[];
-  if (ids.length < 2) {
-    warn(`pathfinder-${op}: requer ≥ 2 nós selecionados`);
-    return;
-  }
-  switch (op) {
-    case 'union':
-      bus.dispatch(new UnionCommand(ids));
-      break;
-    case 'intersect':
-      bus.dispatch(new IntersectCommand(ids));
-      break;
-    case 'subtract':
-      bus.dispatch(new SubtractCommand(ids));
-      break;
-    case 'exclude':
-      bus.dispatch(new ExcludeCommand(ids));
-      break;
-    case 'divide':
-      bus.dispatch(new DivideCommand(ids));
-      break;
-  }
-}
-
-/**
- * **`nodeMatchesShape`** (D-046 review-7) — testa se um nó SVG
- * corresponde a um shape kind NLU.
- *
- * Resolve a discrepância entre vocabulário NLU (que tem 'hexagon',
- * 'star', 'triangle' etc) e os tipos REAIS de `SvgNode` (que só tem
- * 'rect', 'ellipse', 'line', 'polygon', 'polyline', 'path', 'text',
- * 'image', 'group'). Polígonos específicos viram todos `<polygon>`
- * no DOM — discriminados aqui pelo `points.length`.
- *
- * **Mapeamento**:
- * - 'rect' → SVG <rect>
- * - 'ellipse' → SVG <ellipse>
- * - 'circle' → SVG <ellipse> (NLU não diferencia geometricamente)
- * - 'line' → SVG <line>
- * - 'path' → SVG <path>
- * - 'polyline' → SVG <polyline>
- * - 'text' → SVG <text>
- * - 'image' → SVG <image>
- * - 'group' → SVG <g>
- * - 'polygon' (genérico) → qualquer <polygon>
- * - 'triangle' / 'rhombus' / 'pentagon' / 'hexagon' / 'octagon' →
- *   <polygon> com points.length = N (POLYGON_SIDES[kind])
- * - 'star' → <polygon> com points.length = 10 (5 pontas × 2 vértices)
- */
-function nodeMatchesShape(node: SvgNode, shape: string): boolean {
-  // Mapeamento direto pra tipos SvgNode universais
-  if (shape === 'rect') return node.type === 'rect';
-  if (shape === 'ellipse') return node.type === 'ellipse';
-  if (shape === 'circle') return node.type === 'ellipse'; // NLU agnostic
-  if (shape === 'line') return node.type === 'line';
-  if (shape === 'path') return node.type === 'path';
-  if (shape === 'polyline') return node.type === 'polyline';
-  if (shape === 'text') return node.type === 'text';
-  if (shape === 'image') return node.type === 'image';
-  if (shape === 'group') return node.type === 'group';
-
-  // Polígonos: discrimina por vertex count
-  if (node.type !== 'polygon') return false;
-  if (shape === 'polygon') return true; // genérico — qualquer polygon
-  if (shape === 'star') return node.points.length === 10; // 5 pontas
-  const expectedSides = POLYGON_SIDES[shape];
-  if (expectedSides === undefined) return false;
-  return node.points.length === expectedSides;
-}
-
-/**
- * **Origin aproximado do nó em coordenadas do documento** — combina
- * geometria intrínseca + componente translate do transform.
- *
- * **Headless por design (D-017)**: NÃO usa bbox renderizado. Compute
- * direto dos campos do nó (rect.x, ellipse.cx-rx, etc) + transform.e/f
- * (translation). Bom o suficiente pra "move to X" quando o user acabou
- * de criar a forma ou só fez translates puros.
- *
- * **Limitação conhecida**: ignora rotação/escala no transform. Pra um
- * nó com `transform = rotate(45°) translate(10, 20)`, o origin retornado
- * é o top-left da geometria + (10, 20), não considerando como a
- * rotação afeta a posição visual real. Aceito como aproximação
- * pragmática — fix correto exige `node-bbox.ts` (geometria
- * transformada), que vive em `core` mas o NLU não importa pra manter
- * peso baixo.
- *
- * **Retorna `null`** pra tipos sem origin computável SEM bbox renderizado:
- * `path` (precisa parsear d-string), `group` (recursivo), `svg` (root).
- */
-function getNodeApproxOrigin(node: SvgNode): { x: number; y: number } | null {
-  // Transform: [a, b, c, d, e, f] — e=tx, f=ty
-  const tx = node.transform[4];
-  const ty = node.transform[5];
-
-  switch (node.type) {
-    case 'rect':
-      return { x: node.x + tx, y: node.y + ty };
-    case 'ellipse':
-      // Top-left do bounding box do ellipse
-      return { x: node.cx - node.rx + tx, y: node.cy - node.ry + ty };
-    case 'line':
-      return { x: Math.min(node.x1, node.x2) + tx, y: Math.min(node.y1, node.y2) + ty };
-    case 'polygon':
-    case 'polyline': {
-      if (node.points.length === 0) return null;
-      let minX = Infinity;
-      let minY = Infinity;
-      for (const p of node.points) {
-        if (p.x < minX) minX = p.x;
-        if (p.y < minY) minY = p.y;
-      }
-      return { x: minX + tx, y: minY + ty };
-    }
-    case 'text':
-      return { x: node.x + tx, y: node.y + ty };
-    case 'image':
-      return { x: node.x + tx, y: node.y + ty };
-    case 'path':
-    case 'group':
-      // Requer parser de d-string OU bbox renderizado — fora do scope
-      // headless. Caller deve dar warn e skip.
-      return null;
-    default:
-      // Defensivo: tipos futuros caem aqui (não-exaustivo, mas safe).
-      return null;
-  }
-}
-
-/**
- * **Move os nós selecionados pra posição absoluta** (x, y).
- *
- * Quando `targetX` ou `targetY` é `null`, esse eixo não é alterado
- * (move-to-x não toca em y; move-to-y não toca em x).
- *
- * Para cada nó:
- * 1. Pega origin atual via {@link getNodeApproxOrigin}
- * 2. Calcula dx = targetX - currentX (ou 0 se null)
- * 3. Dispatcha {@link MoveNodeCommand}(nodeId, dx, dy)
- *
- * Nós sem origin computável (`path`/`group`/`svg`) são SKIP com warn.
- * UI consumer pode registrar intent customizado pra esses tipos
- * passando bbox renderizado.
- */
-function moveToAbsolute(runCtx: RunCtx, targetX: number | null, targetY: number | null): void {
-  const bus = runCtx.injector.get(CommandBus);
-  const state = runCtx.injector.get(EditorStateService);
-  const selection = runCtx.injector.get(SelectionService);
-  const ids = [...selection.selectedIds()];
-  if (ids.length === 0) {
-    warn('move-to-absolute: nada selecionado');
-    return;
-  }
-  const root = state.document().root;
-  let movedCount = 0;
-  let skippedCount = 0;
-  for (const id of ids) {
-    const node = findNodeById(root, id);
-    if (node === null) {
-      skippedCount++;
-      continue;
-    }
-    const origin = getNodeApproxOrigin(node);
-    if (origin === null) {
-      warn(`move-to-absolute: nó ${node.type} (id=${id}) sem origin computável headless — skip`);
-      skippedCount++;
-      continue;
-    }
-    const dx = targetX !== null ? targetX - origin.x : 0;
-    const dy = targetY !== null ? targetY - origin.y : 0;
-    // Evita dispatch de no-op (já está na posição)
-    if (dx === 0 && dy === 0) continue;
-    bus.dispatch(new MoveNodeCommand(id, dx, dy));
-    movedCount++;
-  }
-  if (movedCount === 0 && skippedCount > 0) {
-    warn(`move-to-absolute: ${skippedCount} nó(s) skip; nada movido`);
-  }
 }
