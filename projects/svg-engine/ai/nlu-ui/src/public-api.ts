@@ -1,8 +1,8 @@
 /*
- * Public API surface of `svg-engine/nlu-ui` — D-046 Fase 1 UI surface.
+ * Public API surface of `svg-engine/ai/nlu-ui` — D-046 Fase 1 UI surface.
  *
  * Material + Web Speech API components to interact with the NLU
- * (`svg-engine/nlu`): text input + voice button + autocomplete +
+ * (`svg-engine/ai/nlu`): text input + voice button + autocomplete +
  * results list with confidence visualization.
  *
  * **Opt-in pesado**: este entry point depende de `@angular/material`
@@ -17,8 +17,8 @@
  *   detection de support, recording state via signals.
  *
  * **Roadmap**: quando Fase 2 / 3 chegarem, nlu-ui ganha entry points
- * paralelos (`svg-engine/nlu-ui-ml`, `svg-engine/nlu-ui-slm`) ou
- * componentes adicionais aqui mesmo (decisão por sprint).
+ * paralelos sob `ai/` (`svg-engine/ai/nlu-ui-ml`, `svg-engine/ai/nlu-ui-slm`)
+ * ou componentes adicionais aqui mesmo (decisão por sprint).
  */
 
 export * from './lib';

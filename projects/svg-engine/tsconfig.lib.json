@@ -16,8 +16,8 @@
     "optimize/src/**/*.ts",
     "edit/src/**/*.ts",
     "ui/src/**/*.ts",
-    "nlu/src/**/*.ts",
-    "nlu-ui/src/**/*.ts"
+    "ai/nlu/src/**/*.ts",
+    "ai/nlu-ui/src/**/*.ts"
   ],
   "exclude": ["**/*.spec.ts"]
 }

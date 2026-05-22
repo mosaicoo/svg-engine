@@ -18,7 +18,7 @@ import {
   textToolPlugin,
 } from 'svg-engine/edit';
 import { builtinUiMenuContributionsPlugin } from 'svg-engine/ui';
-import { builtinNluPlugin } from 'svg-engine/nlu';
+import { builtinNluPlugin } from 'svg-engine/ai/nlu';
 
 import { stampToolPlugin } from './plugins/stamp-tool.plugin';
 import { routes } from './app.routes';

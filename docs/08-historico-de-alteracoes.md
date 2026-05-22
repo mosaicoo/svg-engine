@@ -6,6 +6,73 @@
 
 ---
 
+## 2026-05-22 — D-046 follow-up²: agrupar NLU entry points sob `ai/` (namespace dedicado)
+
+**Pedido**: agrupar `svg-engine/nlu` + `svg-engine/nlu-ui` (e futuros `nlu-ml`/`nlu-slm`) numa subpasta `ai/`, consolidando toda a camada de IA num namespace explícito.
+
+**Por quê**:
+
+- Comunica visualmente que **`ai/` é namespace dedicado** — leitor entende imediatamente que toda capability de IA mora lá.
+- **Escalabilidade preparada**: Fase 2 (`ai/nlu-ml` ~30MB Transformers.js) e Fase 3 (`ai/nlu-slm` ~500MB+ WebLLM) entram no mesmo agrupamento sem poluir o root de entry points.
+- Estabelece **precedente arquitetural** para agrupamentos temáticos futuros (se aparecerem).
+
+**Mudanças mecânicas**
+
+- `git mv` `nlu/` → `ai/nlu/` e `nlu-ui/` → `ai/nlu-ui/` (history preservada)
+- `ng-package.json` schema paths: `../../../node_modules/...` → `../../../../node_modules/...` (1 nível mais fundo)
+- `tsconfig.json` paths: `svg-engine/ai/nlu` + `svg-engine/ai/nlu-ui`
+- `tsconfig.lib.json` includes: `ai/nlu/src/**/*.ts` + `ai/nlu-ui/src/**/*.ts`
+- `tsconfig.spec.json` includes: idem para `.spec.ts`
+- `playground/app.config.ts`: `import { builtinNluPlugin } from 'svg-engine/ai/nlu'`
+- `playground/pages/nlu-test/`: `from 'svg-engine/ai/nlu'` + `from 'svg-engine/ai/nlu-ui'`
+- `nlu-ui/lib/nlu-input.component.ts`: import de `svg-engine/nlu` → `svg-engine/ai/nlu`
+- Docstrings + comentários: todas as referências a `svg-engine/nlu(-ml|-slm|-ui)` atualizadas para `svg-engine/ai/...`
+
+**dist/ paths reflectem o agrupamento**:
+
+```
+dist/svg-engine/
+├── core/  render/  io/  optimize/  edit/  ui/
+└── ai/
+    ├── nlu/
+    └── nlu-ui/
+```
+
+**Estrutura final em `projects/svg-engine/`**:
+
+```
+projects/svg-engine/
+├── core/  render/  io/  optimize/  edit/  ui/
+└── ai/
+    ├── nlu/        ← rule-based (Fase 1), headless
+    └── nlu-ui/     ← Material + Web Speech (Fase 1)
+```
+
+**Garantias**
+
+- ✅ **1138/1138 specs** passando (zero regressão)
+- ✅ 8 entry points buildam clean (`core/render/io/optimize/edit/ui/ai/nlu/ai/nlu-ui`)
+- ✅ Playground build clean
+- ✅ Lint clean nos 2 projetos
+
+**Arquivos**
+
+- 26 arquivos `git mv` (`nlu/` → `ai/nlu/` + `nlu-ui/` → `ai/nlu-ui/`)
+- 2 `ng-package.json` schema paths atualizados
+- `tsconfig.json` + `tsconfig.lib.json` + `tsconfig.spec.json` paths/includes
+- `playground/app.config.ts` + `playground/pages/nlu-test/nlu-test.component.ts` imports
+- `nlu-ui/src/lib/nlu-input.component.ts` cross-entry import
+- `nlu/src/public-api.ts` + `nlu/src/lib/{types,index}.ts` docstrings
+- `nlu-ui/src/{public-api,lib/index}.ts` docstrings
+- `edit/src/public-api.ts` comentário de migração
+- `docs/04-decisoes-tecnicas.md`: D-046 secção "Fase 1 implementada" + evolução em 3 iterações
+- `docs/05-roadmap.md`: Fase 8.1/8.2/8.3 com paths atualizados
+- `docs/08-historico-de-alteracoes.md`: esta entrada
+
+**Reflexão arquitetural**: 3 iterações no mesmo dia para chegar na estrutura ideal. Custo aceitável porque (a) ainda não há consumer NPM publicado, (b) cada iteração nasceu de feedback honesto do usuário, e (c) a decisão final é a que melhor escala para Fases 2/3.
+
+---
+
 ## 2026-05-22 — D-046 follow-up: NLU promovida a entry points (`svg-engine/nlu` + `svg-engine/nlu-ui` + voz)
 
 **Pedido (correção)**: a Fase 1 do NLU foi inicialmente plantada em `svg-engine/edit/lib/nlu/` (decisão pragmática unilateral minha). O usuário corretamente apontou que **toda a camada AI deve ficar desacoplada** — Modo 1 (headless puro D-037) não deve pagar nem 10KB de NLU se não usar, e Fases 2/3 vão entrar com modelos pesados que precisam de entry points separados. Refatorei para o desenho original combinado e adicionei o UI com voz para testes reais.

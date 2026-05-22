@@ -21,9 +21,9 @@
     "edit/src/**/*.spec.ts",
     "ui/src/**/*.d.ts",
     "ui/src/**/*.spec.ts",
-    "nlu/src/**/*.d.ts",
-    "nlu/src/**/*.spec.ts",
-    "nlu-ui/src/**/*.d.ts",
-    "nlu-ui/src/**/*.spec.ts"
+    "ai/nlu/src/**/*.d.ts",
+    "ai/nlu/src/**/*.spec.ts",
+    "ai/nlu-ui/src/**/*.d.ts",
+    "ai/nlu-ui/src/**/*.spec.ts"
   ]
 }

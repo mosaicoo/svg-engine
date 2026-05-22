@@ -9,11 +9,12 @@ import type { Injector } from '@angular/core';
  * "criar retângulo vermelho"). Fase 2 (ML classifier) e Fase 3 (SLM)
  * são entry points separados que reúsam esse mesmo contrato.
  *
- * **Por que dentro de `svg-engine/edit`**: Fase 1 é puro TS sem
- * dependências extras — não justifica entry point novo. Quando Fase
- * 2/3 chegarem (Transformers.js / WebLLM, modelos pesados), aí sim
- * `svg-engine/nlu-ml` e `svg-engine/nlu-slm` separados, ambos
- * dependendo do contrato definido aqui.
+ * **Entry point separado `svg-engine/ai/nlu`** (não dentro de `edit`)
+ * pra que a camada AI fique 100% desacoplada — Modo 1 (headless puro
+ * D-037) não importa nada de `ai/` quando não usar. Fase 2 e 3
+ * (Transformers.js / WebLLM) entram em `svg-engine/ai/nlu-ml` e
+ * `svg-engine/ai/nlu-slm`, ambos reaproveitando o contrato
+ * {@link NluIntent} / {@link NaturalLanguageService} definido aqui.
  *
  * **Por que mirrors `MenuContributionContext`**: o NLU é uma surface
  * a mais (`<svge-menu-bar>`, `<svge-toolbar>`, `<svge-context-menu>`

@@ -1552,12 +1552,18 @@ interface NluIntent {
 
 ### Fase 1 implementada (2026-05-22)
 
-Em **dois entry points separados** desde 2026-05-22:
+Em **dois entry points separados agrupados sob `ai/`** desde 2026-05-22:
 
-- **`svg-engine/nlu`** (headless, rule-based): todo o pipeline parser + service + plugin + dicionários
-- **`svg-engine/nlu-ui`** (Material + Web Speech): `<svge-nlu-input>` + `VoiceRecognitionService`
+- **`svg-engine/ai/nlu`** (headless, rule-based): todo o pipeline parser + service + plugin + dicionários
+- **`svg-engine/ai/nlu-ui`** (Material + Web Speech): `<svge-nlu-input>` + `VoiceRecognitionService`
 
-A primeira tentativa colocou tudo em `svg-engine/edit/lib/nlu/` por pragmatismo de tamanho (~10KB), mas isso violava o desenho combinado de **isolamento total da camada AI** (Modo 1 headless puro não deve carregar NLU). Refatorado para entry points próprios no mesmo dia.
+**Evolução da decisão** (3 iterações no mesmo dia):
+
+1. **Primeira tentativa**: tudo dentro de `svg-engine/edit/lib/nlu/` por pragmatismo de tamanho (~10KB) — rejeitada por violar o isolamento combinado (Modo 1 headless puro não deve carregar NLU).
+2. **Segunda tentativa**: `svg-engine/nlu` + `svg-engine/nlu-ui` (flat, irmãos dos outros entry points) — funcionou mas misturava namespaces visualmente.
+3. **Estrutura final**: agrupados sob `ai/` (subpasta lowercase, consistente com convenção de paths Angular). Razões: (a) comunica visualmente que `ai/` é namespace dedicado; (b) Fase 2 (`ai/nlu-ml`) e Fase 3 (`ai/nlu-slm`) entram naturalmente no mesmo agrupamento; (c) reforça arquiteturalmente o isolamento total da camada AI.
+
+**Convenção adotada**: este é o primeiro agrupamento por subpasta em `projects/svg-engine/`. Estabelece precedente para agrupamentos temáticos futuros (se aparecerem).
 
 **Componentes**:
 

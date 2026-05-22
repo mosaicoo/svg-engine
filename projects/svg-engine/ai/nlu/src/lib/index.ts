@@ -17,7 +17,7 @@
  * - Parsers: `tokenize`, `levenshtein`, `fuzzyMatch*`, `extractSlots`
  *
  * **Fase 2 (ML classifier) e Fase 3 (SLM)**: entry points separados
- * (`svg-engine/nlu-ml`, `svg-engine/nlu-slm`) reaproveitarão o
+ * (`svg-engine/ai/nlu-ml`, `svg-engine/ai/nlu-slm`) reaproveitarão o
  * mesmo contrato {@link NluIntent} / {@link NaturalLanguageService}.
  */
 

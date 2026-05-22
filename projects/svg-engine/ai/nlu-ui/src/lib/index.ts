@@ -8,7 +8,7 @@
  *
  * Importação:
  * ```ts
- * import { SvgeNluInput, VoiceRecognitionService } from 'svg-engine/nlu-ui';
+ * import { SvgeNluInput, VoiceRecognitionService } from 'svg-engine/ai/nlu-ui';
  * ```
  */
 

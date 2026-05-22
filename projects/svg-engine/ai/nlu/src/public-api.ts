@@ -17,15 +17,15 @@
  * devem poder consumir `svg-engine/edit` SEM pagar o custo da camada
  * AI. Isolar `nlu` em entry point próprio garante:
  * - Tree-shake real (consumer só importa se quiser NLU).
- * - Preparação transparente para Fase 2 (`svg-engine/nlu-ml` com
- *   Transformers.js ~30–50MB) e Fase 3 (`svg-engine/nlu-slm` com
+ * - Preparação transparente para Fase 2 (`svg-engine/ai/nlu-ml` com
+ *   Transformers.js ~30–50MB) e Fase 3 (`svg-engine/ai/nlu-slm` com
  *   WebLLM 500MB+) — cada uma carrega seu próprio peso.
  * - Consistência arquitetural: TODA a camada AI desacoplada (Modo 1
  *   sem dependência mesmo após Fase 2/3 chegarem).
  *
  * **Headless boundary (D-017)**: este entry point depende apenas de
  * `@angular/core`, `svg-engine/core` e `svg-engine/edit`. **Nada de
- * Material/CDK** — UI fica em `svg-engine/nlu-ui` (entry separado
+ * Material/CDK** — UI fica em `svg-engine/ai/nlu-ui` (entry separado
  * com `<svge-nlu-input>` + voice via Web Speech API).
  *
  * **Surface exportada**:
@@ -43,9 +43,9 @@
  * **Roadmap** (vide D-046 em docs/04):
  * - **Fase 1 (este entry point)** ✅: rule-based, < 50 KB, cobre
  *   70–80% dos comandos comuns
- * - **Fase 2**: `svg-engine/nlu-ml` — intent classifier ML leve
+ * - **Fase 2**: `svg-engine/ai/nlu-ml` — intent classifier ML leve
  *   (Transformers.js, 30–50 MB lazy)
- * - **Fase 3**: `svg-engine/nlu-slm` — Small Language Model
+ * - **Fase 3**: `svg-engine/ai/nlu-slm` — Small Language Model
  *   (WebLLM, 500 MB–2 GB lazy, WebGPU)
  *
  * Todas as fases reaproveitam o mesmo contrato {@link NluIntent} +

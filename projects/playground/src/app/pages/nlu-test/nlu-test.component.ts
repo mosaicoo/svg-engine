@@ -7,8 +7,8 @@ import {
   SelectionOverlay,
   SnapGuides,
 } from 'svg-engine/edit';
-import type { NluExecuteResult } from 'svg-engine/nlu';
-import { SvgeNluInput } from 'svg-engine/nlu-ui';
+import type { NluExecuteResult } from 'svg-engine/ai/nlu';
+import { SvgeNluInput } from 'svg-engine/ai/nlu-ui';
 import { SvgeEditor } from 'svg-engine/ui';
 
 /**

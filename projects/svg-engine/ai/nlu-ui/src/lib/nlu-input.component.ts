@@ -15,7 +15,11 @@ import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltip } from '@angular/material/tooltip';
-import { type NluCandidate, type NluExecuteResult, NaturalLanguageService } from 'svg-engine/nlu';
+import {
+  type NluCandidate,
+  type NluExecuteResult,
+  NaturalLanguageService,
+} from 'svg-engine/ai/nlu';
 import { VoiceRecognitionService } from './voice-recognition.service';
 
 /**

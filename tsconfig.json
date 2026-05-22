@@ -21,8 +21,8 @@
       "svg-engine/optimize": ["./dist/svg-engine/optimize"],
       "svg-engine/edit": ["./dist/svg-engine/edit"],
       "svg-engine/ui": ["./dist/svg-engine/ui"],
-      "svg-engine/nlu": ["./dist/svg-engine/nlu"],
-      "svg-engine/nlu-ui": ["./dist/svg-engine/nlu-ui"]
+      "svg-engine/ai/nlu": ["./dist/svg-engine/ai/nlu"],
+      "svg-engine/ai/nlu-ui": ["./dist/svg-engine/ai/nlu-ui"]
     },
     "module": "preserve"
   },

@@ -349,7 +349,7 @@
 > quando houver demanda explícita ou push de acessibilidade.
 
 - [x] **Fase 8.1 — Rule-based NLU** ✅ (sem ML, < 50 KB)
-  - Entry points separados `svg-engine/nlu` (headless) + `svg-engine/nlu-ui` (Material + Web Speech). Decisão original respeitada: toda camada AI desacoplada — Modo 1 headless puro não importa NLU.
+  - Entry points separados agrupados sob `ai/`: `svg-engine/ai/nlu` (headless) + `svg-engine/ai/nlu-ui` (Material + Web Speech). Toda camada AI desacoplada — Modo 1 headless puro não importa NLU. Fase 8.2 (`ai/nlu-ml`) e 8.3 (`ai/nlu-slm`) entrarão no mesmo agrupamento.
   - `NaturalLanguageService.parse(text, ctx)` com regex + dicionário PT/EN + fuzzy match (Levenshtein)
   - Auto-descoberta de intents do `MenuContributionRegistry` (todo menu item vira candidato; `label` como exemplo)
   - `registerIntent(...)` para plugins adicionarem intents customizados
@@ -358,13 +358,13 @@
   - Cobertura validada: "undo", "select all", "delete", "criar retângulo vermelho 100x50", "create a blue circle"
   - +89 specs (tokenize/levenshtein/fuzzy/slot-extractor/service/discovery/plugin) → **1138 passing** em 88 arquivos
 - [ ] **Fase 8.2 — Intent classifier ML leve** (30–50 MB, lazy-load)
-  - Entry point `svg-engine/nlu-ml`
+  - Entry point `svg-engine/ai/nlu-ml`
   - Distilled BERT / MiniLM via **Transformers.js** (ONNX no browser, sem WebGPU obrigatório)
   - Confidence score → fallback para Fase 1 se baixa
   - Resolve ambiguidades semânticas ("torna isso maior", "alinha à esquerda")
   - Multilíngue (XLM-R / Multilingual MiniLM)
 - [ ] **Fase 8.3 — SLM com function-calling** (500 MB – 2 GB, lazy-load, WebGPU)
-  - Entry point `svg-engine/nlu-slm`
+  - Entry point `svg-engine/ai/nlu-slm`
   - Llama-3.2-1B ou Gemma 2B via **WebLLM** (WebGPU obrigatório; fallback para Fase 2 se ausente)
   - Comandos compostos ("duplica 3 vezes e alinha em grid 2x2")
   - Function-calling style: o SLM emite JSON `{intent, slots}`, código clássico executa
