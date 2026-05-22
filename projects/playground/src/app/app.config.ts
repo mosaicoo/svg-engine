@@ -18,6 +18,7 @@ import {
   textToolPlugin,
 } from 'svg-engine/edit';
 import { builtinUiMenuContributionsPlugin } from 'svg-engine/ui';
+import { builtinNluPlugin } from 'svg-engine/nlu';
 
 import { stampToolPlugin } from './plugins/stamp-tool.plugin';
 import { routes } from './app.routes';
@@ -85,5 +86,11 @@ export const appConfig: ApplicationConfig = {
     // D-040 — canonical editor shortcuts (Ctrl+Z/Y/Shift+Z/G/Shift+G/A).
     // Opt-in; consumers can replace with their own bindings if needed.
     provideSvgEnginePlugin(builtinEditorShortcutsPlugin),
+    // D-046 Fase 1 — NLU rule-based. Auto-descobre intents do
+    // MenuContributionRegistry + registra `create-shape`/`set-fill`
+    // customizados. **Ordem importa**: instalado APÓS
+    // builtinMenuContributionsPlugin / builtinUiMenuContributionsPlugin
+    // para que auto-discovery encontre as contribuições já registradas.
+    provideSvgEnginePlugin(builtinNluPlugin),
   ],
 };

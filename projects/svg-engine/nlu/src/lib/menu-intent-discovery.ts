@@ -1,7 +1,9 @@
 import type { Disposable } from 'svg-engine/core';
-
-import type { MenuContribution, MenuContributionContext } from '../menu/menu-contribution';
-import { MenuContributionRegistry } from '../menu/menu-contribution-registry.service';
+import {
+  type MenuContribution,
+  type MenuContributionContext,
+  MenuContributionRegistry,
+} from 'svg-engine/edit';
 import { normalize, tokenizeWithoutStopwords } from './parsers/tokenize';
 import { STOPWORDS } from './dictionaries/stopwords';
 import type { NaturalLanguageService } from './natural-language.service';

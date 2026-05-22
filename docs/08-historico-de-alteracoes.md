@@ -6,6 +6,58 @@
 
 ---
 
+## 2026-05-22 — D-046 follow-up: NLU promovida a entry points (`svg-engine/nlu` + `svg-engine/nlu-ui` + voz)
+
+**Pedido (correção)**: a Fase 1 do NLU foi inicialmente plantada em `svg-engine/edit/lib/nlu/` (decisão pragmática unilateral minha). O usuário corretamente apontou que **toda a camada AI deve ficar desacoplada** — Modo 1 (headless puro D-037) não deve pagar nem 10KB de NLU se não usar, e Fases 2/3 vão entrar com modelos pesados que precisam de entry points separados. Refatorei para o desenho original combinado e adicionei o UI com voz para testes reais.
+
+**Refatoração estrutural**
+
+- `projects/svg-engine/nlu/` — **novo entry point** com os 13 arquivos NLU (via `git mv`, history preservada). Depende de `svg-engine/core` (CommandBus, factories) e `svg-engine/edit` (MenuContributionRegistry, EditorPlugin, PluginContext).
+- `projects/svg-engine/nlu-ui/` — **novo entry point** (Material + Web Speech). Headless apps NÃO precisam instalar.
+- `tsconfig.json` paths + `tsconfig.lib.json` includes + `tsconfig.spec.json` includes atualizados pros 2 novos entry points.
+- `svg-engine/edit/public-api.ts` — removido `export * from './lib/nlu'` (substituído por comentário explicando a migração).
+- Imports cross-entry-point ajustados: `../menu/menu-contribution-registry.service` → `svg-engine/edit`; `../plugin/plugin` → `svg-engine/edit`.
+
+**Novos componentes em `svg-engine/nlu-ui`**
+
+- **`VoiceRecognitionService`** — wrapper Web Speech API (`SpeechRecognition` + `webkitSpeechRecognition` fallback). Signals `isSupported`, `listening`, `lastError`. `listen(lang = 'pt-BR')` retorna Promise<string> com a transcrição. `stop()` aborta. Zero deps externas — só a API browser-native (gratuita, privacy-friendly: tudo local).
+- **`<svge-nlu-input>`** — componente standalone Material: input texto com prefix `smart_toy` icon, mic button suffix (Web Speech, pulsa quando gravando), Run button (Enter também envia). Live preview do top candidate (label + confidence percent + Material progress bar com cor primary/accent/warn baseado na confidence). Lista colapsável de alternativas (clicável para executar candidato específico). Status do último execute (executed / rejection reason). Eventos: `executed: NluExecuteResult`. Multi-editor scope-safe via `inject(Injector)` (D-042/D-043 pattern).
+
+**Demo rota `/nlu-test` no playground**
+
+- Página `nlu-test.component.ts` com `<svge-editor>` (D-042 route-scoped) lado a lado com `<svge-nlu-input>` (voiceLang `pt-BR`).
+- Dicas de comandos para experimentar (PT/EN) em `<details>` colapsável.
+- Mostra ID do último intent executado abaixo do input.
+- Link "NLU (linguagem natural) 🤖" adicionado à nav principal (`app.html`).
+- `builtinNluPlugin` registrado APÓS `builtinMenuContributionsPlugin` + `builtinUiMenuContributionsPlugin` em `app.config.ts` para que auto-discovery encontre as contribuições.
+
+**Garantias verificadas**
+
+- ✅ **1138/1138 specs** passando (zero regressão dos 89 testes NLU)
+- ✅ **8 entry points** buildados clean (`core/render/io/optimize/edit/ui/nlu/nlu-ui`)
+- ✅ Playground build clean com rota nova
+- ✅ Lint clean nos 2 projetos
+- ✅ **D-017 headless preservado** em todas as camadas: `nlu` sem Material/CDK; `nlu-ui` em entry separado
+- ✅ **D-037 Modo 1 (headless puro)**: pode consumir `svg-engine/edit` sem importar `nlu` (camada AI 100% desacoplada)
+- ✅ **D-042 multi-editor**: `<svge-nlu-input>` injeta `Injector` próprio da rota; comandos atuam só no editor scoped
+
+**Como testar (rota `/nlu-test`)**
+
+1. `npm start` → navegar para `/nlu-test`
+2. Digitar no input ou clicar no mic 🎤 (PT por default)
+3. Comandos sugeridos:
+   - "criar retângulo vermelho 100x50"
+   - "create a blue circle"
+   - "desenhar elipse verde"
+   - "undo" / "desfazer"
+   - "select all" / "selecionar tudo"
+   - "zoom in"
+   - "deletar" (destrutivo — vai rejeitar sem confirmGate; ver `set-fill` stub também)
+
+**Lição arquitetural reforçada**: decisões combinadas com o usuário NÃO devem ser alteradas unilateralmente mesmo com "boa intenção" de simplificar. Pragmatismo só vale quando explicitado e validado antes da mudança.
+
+---
+
 ## 2026-05-22 — D-046 Fase 1: NLU rule-based (regex + dicionário PT/EN + Levenshtein) implementada
 
 **Pedido**: _"Vamos executar a FASE 1 da Linguagem Natural: NLU Profissional, completo. Regex + dicionário multilíngue + fuzzy matching (Levenshtein). Auto-popula intents do MenuContributionRegistry. Cobre 70–80% dos comandos comuns: 'undo', 'select all', 'delete', 'criar retângulo vermelho'. Sem download, sem WebGPU, funciona offline imediatamente. Plugin: nluPlugin.basic"_

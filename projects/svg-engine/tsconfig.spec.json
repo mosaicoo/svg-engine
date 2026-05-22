@@ -20,6 +20,10 @@
     "edit/src/**/*.d.ts",
     "edit/src/**/*.spec.ts",
     "ui/src/**/*.d.ts",
-    "ui/src/**/*.spec.ts"
+    "ui/src/**/*.spec.ts",
+    "nlu/src/**/*.d.ts",
+    "nlu/src/**/*.spec.ts",
+    "nlu-ui/src/**/*.d.ts",
+    "nlu-ui/src/**/*.spec.ts"
   ]
 }

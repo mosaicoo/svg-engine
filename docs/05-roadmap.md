@@ -349,7 +349,7 @@
 > quando houver demanda explícita ou push de acessibilidade.
 
 - [x] **Fase 8.1 — Rule-based NLU** ✅ (sem ML, < 50 KB)
-  - Dentro de `svg-engine/edit/lib/nlu/` (decisão revista: entry point separado fica reservado para Fase 8.2/8.3 quando modelos pesados aparecerem)
+  - Entry points separados `svg-engine/nlu` (headless) + `svg-engine/nlu-ui` (Material + Web Speech). Decisão original respeitada: toda camada AI desacoplada — Modo 1 headless puro não importa NLU.
   - `NaturalLanguageService.parse(text, ctx)` com regex + dicionário PT/EN + fuzzy match (Levenshtein)
   - Auto-descoberta de intents do `MenuContributionRegistry` (todo menu item vira candidato; `label` como exemplo)
   - `registerIntent(...)` para plugins adicionarem intents customizados

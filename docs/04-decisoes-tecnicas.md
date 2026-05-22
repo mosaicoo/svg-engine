@@ -1552,7 +1552,12 @@ interface NluIntent {
 
 ### Fase 1 implementada (2026-05-22)
 
-Dentro de `svg-engine/edit/lib/nlu/` (decisão revista: começar como módulo do `edit`; entry point separado fica reservado para Fase 2/3 quando modelos pesados aparecerem — menos overhead, mesma API contract).
+Em **dois entry points separados** desde 2026-05-22:
+
+- **`svg-engine/nlu`** (headless, rule-based): todo o pipeline parser + service + plugin + dicionários
+- **`svg-engine/nlu-ui`** (Material + Web Speech): `<svge-nlu-input>` + `VoiceRecognitionService`
+
+A primeira tentativa colocou tudo em `svg-engine/edit/lib/nlu/` por pragmatismo de tamanho (~10KB), mas isso violava o desenho combinado de **isolamento total da camada AI** (Modo 1 headless puro não deve carregar NLU). Refatorado para entry points próprios no mesmo dia.
 
 **Componentes**:
 

@@ -5,10 +5,7 @@ import {
   EditorStateService,
   InsertNodeCommand,
 } from 'svg-engine/core';
-
-import { MenuContributionRegistry } from '../menu/menu-contribution-registry.service';
-import type { EditorPlugin } from '../plugin/plugin';
-import { PLUGIN_API_VERSION } from '../plugin/plugin';
+import { type EditorPlugin, MenuContributionRegistry, PLUGIN_API_VERSION } from 'svg-engine/edit';
 import { resolveShapeKind } from './dictionaries/shapes';
 import { discoverMenuIntents } from './menu-intent-discovery';
 import { NaturalLanguageService } from './natural-language.service';

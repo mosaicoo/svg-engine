@@ -1,10 +1,8 @@
 import { Injector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { CommandBus, createEmptyDocument, EditorStateService } from 'svg-engine/core';
+import { MenuContributionRegistry, PluginRegistry } from 'svg-engine/edit';
 import { describe, expect, it } from 'vitest';
-
-import { MenuContributionRegistry } from '../menu/menu-contribution-registry.service';
-import { PluginRegistry } from '../plugin/plugin-registry.service';
 import { builtinNluPlugin } from './builtin-nlu.plugin';
 import { NaturalLanguageService } from './natural-language.service';
 
