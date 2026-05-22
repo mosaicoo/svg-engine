@@ -19,6 +19,7 @@
 export const COLOR_DICTIONARY_EN: Readonly<Record<string, string>> = Object.freeze({
   // ── Reds ─────────────────────────────────────────────────────
   red: '#e53935',
+  reds: '#e53935',
   crimson: '#dc143c',
   scarlet: '#ff2400',
   maroon: '#800000',
@@ -30,6 +31,7 @@ export const COLOR_DICTIONARY_EN: Readonly<Record<string, string>> = Object.free
 
   // ── Blues ────────────────────────────────────────────────────
   blue: '#1e88e5',
+  blues: '#1e88e5',
   navy: '#0d47a1',
   royalblue: '#4169e1',
   skyblue: '#87ceeb',
@@ -44,6 +46,7 @@ export const COLOR_DICTIONARY_EN: Readonly<Record<string, string>> = Object.free
 
   // ── Greens ───────────────────────────────────────────────────
   green: '#43a047',
+  greens: '#43a047',
   lightgreen: '#66bb6a',
   darkgreen: '#2e7d32',
   lime: '#cddc39',
@@ -58,6 +61,7 @@ export const COLOR_DICTIONARY_EN: Readonly<Record<string, string>> = Object.free
 
   // ── Yellows ──────────────────────────────────────────────────
   yellow: '#fdd835',
+  yellows: '#fdd835',
   gold: '#fbc02d',
   beige: '#d7ccc8',
   cream: '#fff3e0',
@@ -69,6 +73,7 @@ export const COLOR_DICTIONARY_EN: Readonly<Record<string, string>> = Object.free
 
   // ── Oranges ──────────────────────────────────────────────────
   orange: '#fb8c00',
+  oranges: '#fb8c00',
   coral: '#ff7043',
   salmon: '#ff8a65',
   peach: '#ffccbc',
@@ -79,6 +84,7 @@ export const COLOR_DICTIONARY_EN: Readonly<Record<string, string>> = Object.free
 
   // ── Purples ──────────────────────────────────────────────────
   purple: '#8e24aa',
+  purples: '#8e24aa',
   violet: '#7e57c2',
   lavender: '#b39ddb',
   indigo: '#3949ab',
@@ -88,6 +94,7 @@ export const COLOR_DICTIONARY_EN: Readonly<Record<string, string>> = Object.free
 
   // ── Pinks ────────────────────────────────────────────────────
   pink: '#ec407a',
+  pinks: '#ec407a',
   lightpink: '#f8bbd0',
   hotpink: '#ff69b4',
   deeppink: '#ff1493',
@@ -96,6 +103,7 @@ export const COLOR_DICTIONARY_EN: Readonly<Record<string, string>> = Object.free
 
   // ── Browns ───────────────────────────────────────────────────
   brown: '#6d4c41',
+  browns: '#6d4c41',
   chocolate: '#4e342e',
   sand: '#bcaaa4',
   terracotta: '#a0522d',
@@ -107,12 +115,14 @@ export const COLOR_DICTIONARY_EN: Readonly<Record<string, string>> = Object.free
 
   // ── Blacks ───────────────────────────────────────────────────
   black: '#000000',
+  blacks: '#000000',
   graphite: '#424242',
   charcoal: '#36454f',
   jet: '#343434',
 
   // ── Whites ───────────────────────────────────────────────────
   white: '#ffffff',
+  whites: '#ffffff',
   ice: '#f5f5f5',
   snow: '#fafafa',
   offwhite: '#f8f8f2',
@@ -120,7 +130,9 @@ export const COLOR_DICTIONARY_EN: Readonly<Record<string, string>> = Object.free
 
   // ── Grays ────────────────────────────────────────────────────
   gray: '#9e9e9e',
+  grays: '#9e9e9e',
   grey: '#9e9e9e',
+  greys: '#9e9e9e',
   lightgray: '#cfd8dc',
   lightgrey: '#cfd8dc',
   darkgray: '#616161',

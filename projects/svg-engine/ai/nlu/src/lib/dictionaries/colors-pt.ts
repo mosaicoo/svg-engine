@@ -20,11 +20,14 @@
 export const COLOR_DICTIONARY_PT: Readonly<Record<string, string>> = Object.freeze({
   // ── Vermelhos ────────────────────────────────────────────────
   vermelho: '#e53935',
+  vermelhos: '#e53935',
   vermelha: '#e53935',
+  vermelhas: '#e53935',
   vermelhoescuro: '#b71c1c',
   vermelhoclaro: '#ef5350',
   carmesim: '#dc143c',
   vinho: '#7b1e3a',
+  vinhos: '#7b1e3a',
   bordo: '#800020',
   bordeaux: '#800020',
   rubi: '#9b111e',
@@ -33,6 +36,10 @@ export const COLOR_DICTIONARY_PT: Readonly<Record<string, string>> = Object.free
 
   // ── Azuis ────────────────────────────────────────────────────
   azul: '#1e88e5',
+  // **`azuis`** é PLURAL IRREGULAR de 'azul' (azu-l → azu-is); o fuzzy
+  // (lev = 2, max adaptive de 4-char = 1) NÃO pega. Precisa entrada
+  // explícita pra "selecionar os 3 retangulos azuis" funcionar.
+  azuis: '#1e88e5',
   azulclaro: '#42a5f5',
   azulescuro: '#1565c0',
   azulmarinho: '#0d47a1',
@@ -40,17 +47,20 @@ export const COLOR_DICTIONARY_PT: Readonly<Record<string, string>> = Object.free
   azulceleste: '#87ceeb',
   azulroyal: '#4169e1',
   turquesa: '#26c6da',
+  turquesas: '#26c6da',
   petroleo: '#003f5c',
   cobalto: '#0047ab',
   anil: '#3949ab',
 
   // ── Verdes ───────────────────────────────────────────────────
   verde: '#43a047',
+  verdes: '#43a047',
   verdeclaro: '#66bb6a',
   verdeescuro: '#2e7d32',
   limao: '#cddc39',
   oliva: '#808000',
   esmeralda: '#2ecc71',
+  esmeraldas: '#2ecc71',
   menta: '#98ff98',
   musgo: '#8a9a5b',
   jade: '#00a86b',
@@ -59,16 +69,23 @@ export const COLOR_DICTIONARY_PT: Readonly<Record<string, string>> = Object.free
 
   // ── Amarelos ─────────────────────────────────────────────────
   amarelo: '#fdd835',
+  amarelos: '#fdd835',
+  amarela: '#fdd835',
+  amarelas: '#fdd835',
   dourado: '#fbc02d',
+  dourados: '#fbc02d',
   ouro: '#fbc02d',
   bege: '#d7ccc8',
+  beges: '#d7ccc8',
   creme: '#fff3e0',
+  cremes: '#fff3e0',
   mostarda: '#ffb300',
   trigo: '#f5deb3',
   marfim: '#fffff0',
 
   // ── Laranjas ─────────────────────────────────────────────────
   laranja: '#fb8c00',
+  laranjas: '#fb8c00',
   salmao: '#ff8a65',
   pessego: '#ffccbc',
   abobora: '#ff7518',
@@ -77,15 +94,22 @@ export const COLOR_DICTIONARY_PT: Readonly<Record<string, string>> = Object.free
 
   // ── Roxos ────────────────────────────────────────────────────
   roxo: '#8e24aa',
+  roxos: '#8e24aa',
+  roxa: '#8e24aa',
+  roxas: '#8e24aa',
   violeta: '#7e57c2',
+  violetas: '#7e57c2',
   lilas: '#b39ddb',
   lavanda: '#b39ddb',
   uva: '#522d80',
+  uvas: '#522d80',
   ameixa: '#8e4585',
+  ameixas: '#8e4585',
   berinjela: '#3b001e',
 
   // ── Rosas ────────────────────────────────────────────────────
   rosa: '#ec407a',
+  rosas: '#ec407a',
   rosaclaro: '#f8bbd0',
   rosachoque: '#ff1493',
   rosaquente: '#ff69b4',
@@ -93,33 +117,44 @@ export const COLOR_DICTIONARY_PT: Readonly<Record<string, string>> = Object.free
 
   // ── Marrons ──────────────────────────────────────────────────
   marrom: '#6d4c41',
+  marrons: '#6d4c41',
   cafe: '#5d4037',
   chocolate: '#4e342e',
+  chocolates: '#4e342e',
   areia: '#bcaaa4',
   terracota: '#a0522d',
   caramelo: '#af6e4d',
   canela: '#d2691e',
   noz: '#5d4e37',
+  nozes: '#5d4e37',
 
   // ── Pretos ───────────────────────────────────────────────────
   preto: '#000000',
+  pretos: '#000000',
   preta: '#000000',
+  pretas: '#000000',
   grafite: '#424242',
+  grafites: '#424242',
   carvao: '#36454f',
   fumaca: '#738276',
 
   // ── Brancos ──────────────────────────────────────────────────
   branco: '#ffffff',
+  brancos: '#ffffff',
   branca: '#ffffff',
+  brancas: '#ffffff',
   gelo: '#f5f5f5',
   neve: '#fafafa',
   perola: '#eae0c8',
+  perolas: '#eae0c8',
 
   // ── Cinzas ───────────────────────────────────────────────────
   cinza: '#9e9e9e',
+  cinzas: '#9e9e9e',
   cinzaclaro: '#cfd8dc',
   cinzaescuro: '#616161',
   prata: '#b0bec5',
+  pratas: '#b0bec5',
   chumbo: '#7a8288',
   acoescovado: '#8c8c8c',
 

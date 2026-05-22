@@ -1,4 +1,5 @@
 import { COLOR_KEYS, resolveColorName } from '../dictionaries/colors';
+import { resolveNumberWord } from '../dictionaries/number-words';
 import { SHAPE_KEYS, resolveShapeKind } from '../dictionaries/shapes';
 import { isStopword } from '../dictionaries/stopwords';
 import type { NluSlotSchema } from '../types';
@@ -75,9 +76,13 @@ export function parseNumberToken(token: string): number | null {
     return Number.isFinite(n) ? n : null;
   }
   const m = NUMBER_RE.exec(token);
-  if (!m) return null;
-  const n = Number.parseFloat(m[1].replace(',', '.'));
-  return Number.isFinite(n) ? n : null;
+  if (m !== null) {
+    const n = Number.parseFloat(m[1].replace(',', '.'));
+    return Number.isFinite(n) ? n : null;
+  }
+  // **D-046 review-9**: number words PT/EN ("dois" → 2, "three" → 3).
+  // Permite comandos como "selecionar os três triangulos amarelos".
+  return resolveNumberWord(token);
 }
 
 /**
@@ -390,6 +395,11 @@ export function extractSlots(
           break;
         }
         case 'shape': {
+          // **D-046 review-9**: skip number-word tokens — 'dois' (PT 2)
+          // fuzzy-matchava 'dots' (EN plural de 'dot' → 'circle') por
+          // dist 1, plantando shape='circle' em "selecionar os dois
+          // retangulos". Tokens que são número não podem ser shape.
+          if (parseNumberToken(tok) !== null) break;
           // Resolve PT/EN/semantic aliases ("círculo" / "circle" /
           // "bola" / "nó" → 'circle') via SHAPE_DICTIONARY direto.
           // Exato primeiro, fuzzy depois.

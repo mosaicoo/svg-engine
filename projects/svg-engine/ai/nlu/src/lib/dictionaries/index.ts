@@ -35,3 +35,6 @@ export { STOPWORDS_EN } from './stopwords-en';
 
 // Language detection
 export { detectLanguage, type NluLanguage, type LanguageDetectResult } from './language-detect';
+
+// Number words (D-046 review-9)
+export { NUMBER_WORDS, resolveNumberWord } from './number-words';

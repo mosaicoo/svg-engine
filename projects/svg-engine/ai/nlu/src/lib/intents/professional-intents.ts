@@ -489,26 +489,53 @@ export function registerProfessionalIntents(nlu: NaturalLanguageService, ctx: Re
       actionKeywords: ['select', 'select-all'],
       slots: {
         shape: { kind: 'shape', optional: false },
+        // **D-046 review-9**: count + fill como filtros opcionais.
+        // Permitem "selecionar os 3 triangulos amarelos" — handler
+        // filtra por shape AND fill, valida count como sanity check.
+        count: { kind: 'number', optional: true },
+        fill: { kind: 'color', optional: true },
       },
       description:
-        'Seleciona TODOS os nós de um tipo específico (rect, circle, polygon, hexagon, star, text, etc)',
+        'Seleciona nós por tipo (rect, circle, polygon, hexagon, star, text, etc) — filtra opcionalmente por cor e valida quantidade ("selecionar os 3 triangulos azuis")',
       execute(slots, runCtx) {
         const shape = slots['shape'] as string | undefined;
         if (shape === undefined) return;
+        const count = slots['count'] as number | undefined;
+        const fill = slots['fill'] as string | undefined;
         const state = runCtx.injector.get(EditorStateService);
         const selection = runCtx.injector.get(SelectionService);
+
         // **D-046 review-7**: shape kinds NLU específicos (star/hexagon/
         // triangle/etc) NÃO existem como SvgNode.type — todos viram
         // <polygon>. Pra select preciso, filtra polygons por vertex
         // count (vide POLYGON_SIDES). 'star' = 10 vértices (5 pontas).
         const matches: NodeId[] = [];
         for (const node of collectNodes(state.document().root)) {
-          if (nodeMatchesShape(node, shape)) matches.push(node.id);
+          if (!nodeMatchesShape(node, shape)) continue;
+          // **D-046 review-9**: filtro adicional por fill quando user
+          // especifica cor ("selecionar 3 retangulos cinza").
+          if (fill !== undefined && node.style?.fill !== fill) continue;
+          matches.push(node.id);
         }
+
         if (matches.length === 0) {
-          warn(`select-by-type: nenhum ${shape} encontrado`);
+          const filterDesc = fill !== undefined ? `${shape} com fill=${fill}` : shape;
+          warn(`select-by-type: nenhum ${filterDesc} encontrado`);
           return;
         }
+
+        // **D-046 review-9**: validação de count — informativa, não
+        // restritiva. Se user disse "os 3" mas há 5, seleciona todos
+        // os 5 e warn. Se há 2, seleciona os 2 e warn. Count é hint
+        // semântico, não limite hard.
+        if (count !== undefined && matches.length !== count) {
+          warn(
+            `select-by-type: usuário pediu ${count} ${shape}` +
+              `${fill !== undefined ? ' ' + fill : ''} mas encontrei ${matches.length} — ` +
+              `selecionando todos os ${matches.length} encontrados`,
+          );
+        }
+
         selection.selectMany(matches);
       },
     }),

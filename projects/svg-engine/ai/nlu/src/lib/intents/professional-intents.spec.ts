@@ -246,12 +246,15 @@ describe('Professional NLU intents (D-046 review-4)', () => {
     expect(deps.selection.selectedIds().has(star.id)).toBe(true);
   });
 
-  it('REGRESSION USUARIO: "selecionar o polígono azul" → seleciona só polygons', async () => {
+  it('REGRESSION USUARIO: "selecionar o polígono azul" → só polygon azul', async () => {
     const deps = setup();
     deps.plugins.install(builtinNluPlugin);
     const rootId = deps.state.document().root.id;
-    const hex = createPolygon(regularPolygonPoints(50, 50, 30, 6));
-    deps.bus.dispatch(new InsertNodeCommand(rootId, hex));
+    // Polígono AZUL (deve casar) + rect (não casa shape) + ellipse (não casa shape)
+    const hexAzul = createPolygon(regularPolygonPoints(50, 50, 30, 6), {
+      style: { fill: '#1e88e5' },
+    });
+    deps.bus.dispatch(new InsertNodeCommand(rootId, hexAzul));
     addRect(deps);
     deps.bus.dispatch(
       new InsertNodeCommand(rootId, createEllipse({ cx: 100, cy: 100, rx: 20, ry: 20 })),
@@ -260,9 +263,8 @@ describe('Professional NLU intents (D-046 review-4)', () => {
       injector: deps.injector,
     });
     expect(result.executed).toBe(true);
-    // Polígono = qualquer <polygon>. Seleciona 1.
     expect(deps.selection.selectedIds().size).toBe(1);
-    expect(deps.selection.selectedIds().has(hex.id)).toBe(true);
+    expect(deps.selection.selectedIds().has(hexAzul.id)).toBe(true);
   });
 
   it('REGRESSION USUARIO: "selecionar apenas a estrela" → só a estrela', async () => {
@@ -333,6 +335,157 @@ describe('Professional NLU intents (D-046 review-4)', () => {
     expect(result.executed).toBe(true);
     expect(deps.selection.selectedIds().size).toBe(1);
     expect(deps.selection.selectedIds().has(txt.id)).toBe(true);
+  });
+
+  // ── D-046 review-9: count + color filter ────────────────────
+
+  it('REGRESSION USUARIO: "Selecionar os dois retangulos cinza" → só rects cinzas', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    const rootId = deps.state.document().root.id;
+    // 2 retangulos cinzas + 1 retangulo vermelho + 1 elipse cinza
+    deps.bus.dispatch(
+      new InsertNodeCommand(
+        rootId,
+        createRect({ x: 0, y: 0, width: 50, height: 50 }, { style: { fill: '#9e9e9e' } }),
+      ),
+    );
+    deps.bus.dispatch(
+      new InsertNodeCommand(
+        rootId,
+        createRect({ x: 60, y: 0, width: 50, height: 50 }, { style: { fill: '#9e9e9e' } }),
+      ),
+    );
+    deps.bus.dispatch(
+      new InsertNodeCommand(
+        rootId,
+        createRect({ x: 120, y: 0, width: 50, height: 50 }, { style: { fill: '#e53935' } }),
+      ),
+    );
+    deps.bus.dispatch(
+      new InsertNodeCommand(
+        rootId,
+        createEllipse({ cx: 200, cy: 25, rx: 20, ry: 20 }, { style: { fill: '#9e9e9e' } }),
+      ),
+    );
+    const result = await deps.nlu.execute('Selecionar os dois retangulos cinza', {
+      injector: deps.injector,
+    });
+    expect(result.executed).toBe(true);
+    // 2 rects cinzas selecionados (não o vermelho, não o ellipse)
+    expect(deps.selection.selectedIds().size).toBe(2);
+  });
+
+  it('REGRESSION USUARIO: "Selecionar os três triangulos azuis" → só triangulos azuis', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    const rootId = deps.state.document().root.id;
+    // 3 triangulos azuis + 1 triangulo vermelho + 1 hexagono azul
+    for (let i = 0; i < 3; i++) {
+      deps.bus.dispatch(
+        new InsertNodeCommand(
+          rootId,
+          createPolygon(regularPolygonPoints(50 + i * 60, 50, 25, 3), {
+            style: { fill: '#1e88e5' },
+          }),
+        ),
+      );
+    }
+    deps.bus.dispatch(
+      new InsertNodeCommand(
+        rootId,
+        createPolygon(regularPolygonPoints(250, 50, 25, 3), { style: { fill: '#e53935' } }),
+      ),
+    );
+    deps.bus.dispatch(
+      new InsertNodeCommand(
+        rootId,
+        createPolygon(regularPolygonPoints(350, 50, 25, 6), { style: { fill: '#1e88e5' } }),
+      ),
+    );
+    const result = await deps.nlu.execute('Selecionar os três triangulos azuis', {
+      injector: deps.injector,
+    });
+    expect(result.executed).toBe(true);
+    expect(deps.selection.selectedIds().size).toBe(3);
+  });
+
+  it('REGRESSION USUARIO: "selecionar os 3 triangulos amarelos" (dígito)', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    const rootId = deps.state.document().root.id;
+    for (let i = 0; i < 3; i++) {
+      deps.bus.dispatch(
+        new InsertNodeCommand(
+          rootId,
+          createPolygon(regularPolygonPoints(50 + i * 60, 50, 25, 3), {
+            style: { fill: '#fdd835' },
+          }),
+        ),
+      );
+    }
+    // 1 triangulo verde pra garantir que NÃO seja selecionado
+    deps.bus.dispatch(
+      new InsertNodeCommand(
+        rootId,
+        createPolygon(regularPolygonPoints(250, 50, 25, 3), { style: { fill: '#43a047' } }),
+      ),
+    );
+    const result = await deps.nlu.execute('selecionar os 3 triangulos amarelos', {
+      injector: deps.injector,
+    });
+    expect(result.executed).toBe(true);
+    expect(deps.selection.selectedIds().size).toBe(3);
+  });
+
+  it('count é informativo: pediu 3 mas achou 5 → seleciona os 5 com warn', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    const rootId = deps.state.document().root.id;
+    // 5 retangulos cinzas (user pediu 3, mas vai pegar todos os 5)
+    for (let i = 0; i < 5; i++) {
+      deps.bus.dispatch(
+        new InsertNodeCommand(
+          rootId,
+          createRect({ x: i * 60, y: 0, width: 50, height: 50 }, { style: { fill: '#9e9e9e' } }),
+        ),
+      );
+    }
+    const result = await deps.nlu.execute('selecionar os 3 retangulos cinza', {
+      injector: deps.injector,
+    });
+    expect(result.executed).toBe(true);
+    // Pega todos os matches reais (5), count é sanity-check informativo
+    expect(deps.selection.selectedIds().size).toBe(5);
+  });
+
+  it('"azuis" (plural irregular) resolve via dict (fuzzy não pegaria)', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    const rootId = deps.state.document().root.id;
+    deps.bus.dispatch(
+      new InsertNodeCommand(
+        rootId,
+        createRect({ x: 0, y: 0, width: 50, height: 50 }, { style: { fill: '#1e88e5' } }),
+      ),
+    );
+    deps.bus.dispatch(
+      new InsertNodeCommand(
+        rootId,
+        createRect({ x: 60, y: 0, width: 50, height: 50 }, { style: { fill: '#1e88e5' } }),
+      ),
+    );
+    deps.bus.dispatch(
+      new InsertNodeCommand(
+        rootId,
+        createRect({ x: 120, y: 0, width: 50, height: 50 }, { style: { fill: '#e53935' } }),
+      ),
+    );
+    const result = await deps.nlu.execute('selecionar retangulos azuis', {
+      injector: deps.injector,
+    });
+    expect(result.executed).toBe(true);
+    expect(deps.selection.selectedIds().size).toBe(2);
   });
 
   it('select-by-type aparece nos candidates pra "selecionar retangulos"', () => {

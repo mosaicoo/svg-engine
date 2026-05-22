@@ -6,6 +6,89 @@
 
 ---
 
+## 2026-05-22 — D-046 review-9: comandos compostos "selecionar os 3 triangulos azuis" (número + cor)
+
+**Reportado pelo usuário** — seleção combinando quantidade + tipo + cor:
+
+- `"Selecionar os dois retangulos cinza"`
+- `"Selecionar os três triangulos azuis"`
+- `"selecionar os 3 triangulos amarelos"`
+
+Sim, é possível. Implementado em 4 partes.
+
+### Parte 1: Números por extenso PT/EN
+
+Novo `number-words.ts` mapeia palavras → inteiro (zero-100). `parseNumberToken` agora resolve dígitos (`"3"`), unidades (`"3px"`), dimensões (`"100x50"`) **E** palavras (`"três"`, `"dois"`).
+
+### Parte 2: Plurais de cores (PT/EN)
+
+`'azuis'` é plural irregular (`azul`→`azuis` = lev 2 > adaptiveMax(4)=1) e NÃO fuzzy-matchava. Adicionadas entradas explícitas: PT (`vermelhos`, `azuis`, `amarelos`, `verdes`, `pretos`, `cinzas`, `roxos`, etc) e EN (`reds`, `blues`, `greens`, `grays`, etc).
+
+### Parte 3: `select-by-type` com `count` + `fill` slots
+
+```ts
+slots: {
+  shape: { kind: 'shape', optional: false },
+  count: { kind: 'number', optional: true },  // novo
+  fill: { kind: 'color', optional: true },    // novo
+}
+```
+
+Handler filtra por `shape AND fill`. `count` é **informativo** (sanity check) — se user pediu 3 mas há 5, seleciona os 5 com warn. Nunca limita hard.
+
+### Parte 4: Fix CRÍTICO — `'dois'` fuzzy-matchava `'dots'`
+
+Bug encontrado via debug: `'dois'` (PT "2") fuzzy-matchava `'dots'` (EN plural de dot → 'circle') com distância 1 (substitui `i` → `t`). Resultado: shape extraído como `'circle'` em vez de `'rect'` em comandos como "selecionar os **dois** retangulos cinza".
+
+**Fix**: `slot-extractor` agora skip tokens que são number-words ao extrair shape:
+
+```ts
+case 'shape': {
+  // Skip tokens que são número — 'dois'/'tres' nunca são shape
+  if (parseNumberToken(tok) !== null) break;
+  ...
+}
+```
+
+Princípio geral: um token unambiguamente numérico não pode ser shape.
+
+### Specs adicionados (+5 regression)
+
+| Comando                                 | Resultado esperado        |
+| --------------------------------------- | ------------------------- |
+| `"Selecionar os dois retangulos cinza"` | só 2 rects cinzas         |
+| `"Selecionar os três triangulos azuis"` | só 3 triangulos azuis     |
+| `"selecionar os 3 triangulos amarelos"` | dígito também funciona    |
+| `count=3 mas há 5`                      | seleciona 5 com warn      |
+| `"selecionar retangulos azuis"`         | plural irregular funciona |
+
+**Total**: **1247/1247 passing** + 1 skipped.
+
+### Comandos que agora funcionam
+
+| Comando                                   | Resultado                 |
+| ----------------------------------------- | ------------------------- |
+| `"Selecionar os dois retangulos cinza"`   | 2 rects cinzas            |
+| `"Selecionar os três triangulos azuis"`   | 3 polygons triangle azuis |
+| `"selecionar os 3 triangulos amarelos"`   | mesmo (dígito)            |
+| `"selecionar quatro hexagonos vermelhos"` | filtros combinados        |
+| `"select three blue triangles"`           | EN também                 |
+
+### Lição: Inter-dicionário pode causar colisões fuzzy
+
+Adicionar `'dots'` (EN plural) ao SHAPE_DICTIONARY criou colisão imprevista com `'dois'` (PT número). Fuzzy adaptativo é generoso para tokens curtos. **Princípio defensivo**: quando um slot tem semântica não-ambígua (número), checá-la primeiro e pular outros tipos.
+
+### Arquivos modificados
+
+- `dictionaries/number-words.ts` (novo) — `NUMBER_WORDS` + `resolveNumberWord`
+- `dictionaries/colors-{pt,en}.ts` — plurais (+30 entradas)
+- `dictionaries/index.ts` — export number words
+- `parsers/slot-extractor.ts` — `parseNumberToken` chama `resolveNumberWord`; shape case skip number tokens
+- `intents/professional-intents.ts` — `select-by-type` com slots count + fill, handler filtra
+- specs +5 regression
+
+---
+
 ## 2026-05-22 — D-046 review-8: `'ambos'`/`'ambas'` = sinônimo PT de `'todos'` + plurais nos shape dicts
 
 **Reportado pelo usuário**:
