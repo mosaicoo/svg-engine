@@ -107,6 +107,45 @@ function deriveKeywords(label: string): readonly string[] {
   return [...expanded];
 }
 
+/**
+ * **`deriveTokenGroups`** (D-046 review-7) — gera os
+ * `requiredAllGroups` pro intent auto-descoberto.
+ *
+ * Cada base token do label vira um grupo. Cada grupo contém o token
+ * literal + suas expansões via `ACTION_DICTIONARY` (variantes
+ * PT/EN do mesmo canonical).
+ *
+ * **Crítico**: enquanto `deriveKeywords` faz UNION (qualquer matchando
+ * conta), este faz **AND por grupo** — TODOS os grupos devem ter pelo
+ * menos uma palavra matched. Isso evita "Select All" auto-discovered
+ * matchar "selecione X" sozinho (sem o qualificador "tudo"/"all").
+ *
+ * **Retorna `null`** quando o label tem só 1 token significativo
+ * (single-token labels NÃO precisam de gate AND — keywords sozinho
+ * já é suficiente, e o AND complicaria sem benefício).
+ */
+function deriveTokenGroups(label: string): readonly (readonly string[])[] | null {
+  if (typeof label !== 'string' || label.length === 0) return null;
+  const cleaned = label.replace(/\.{3}|…/g, '').trim();
+  const baseTokens = tokenizeWithoutStopwords(cleaned, STOPWORDS).filter((t) => t.length > 1);
+  // Só ativa o gate AND pra labels multi-token (≥ 2). Labels single-token
+  // como "Undo" não precisam — keyword match único é OK.
+  if (baseTokens.length < 2) return null;
+
+  const groups: string[][] = [];
+  for (const token of baseTokens) {
+    const group = new Set<string>([token]);
+    const canonical = resolveActionCanonical(token);
+    if (canonical !== null) {
+      for (const [word, target] of Object.entries(ACTION_DICTIONARY)) {
+        if (target === canonical) group.add(word);
+      }
+    }
+    groups.push([...group]);
+  }
+  return groups;
+}
+
 function isDestructiveLabel(label: string): boolean {
   const tokens = new Set(deriveKeywords(label));
   for (const w of DESTRUCTIVE_WORDS) {
@@ -138,8 +177,12 @@ export function menuContributionToIntent(contrib: MenuContribution): NluIntent |
 
   const destructive = isDestructiveLabel(contrib.label);
   const description = normalize(contrib.label);
+  // **D-046 review-7**: gate AND pra multi-token labels — "Select All"
+  // só matcha quando AMBOS verbo + qualificador presentes. Single-token
+  // (e.g., "Undo") fica null → comportamento OR clássico via keywords.
+  const requiredAllGroups = deriveTokenGroups(contrib.label);
 
-  return {
+  const intent: NluIntent = {
     id: buildIntentId(contrib.id),
     keywords,
     destructive,
@@ -151,6 +194,7 @@ export function menuContributionToIntent(contrib: MenuContribution): NluIntent |
       contrib.run(menuCtx);
     },
   };
+  return requiredAllGroups !== null ? { ...intent, requiredAllGroups } : intent;
 }
 
 /**

@@ -2,11 +2,15 @@ import { Injector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
   CommandBus,
+  createEllipse,
   createEmptyDocument,
+  createPolygon,
   createRect,
+  createText,
   EditorStateService,
   InsertNodeCommand,
 } from 'svg-engine/core';
+import { regularPolygonPoints, regularStarPoints } from '../dictionaries/shapes-canonical';
 import { PluginRegistry, SelectionService } from 'svg-engine/edit';
 import { describe, expect, it } from 'vitest';
 import { builtinNluPlugin } from '../builtin-nlu.plugin';
@@ -160,6 +164,113 @@ describe('Professional NLU intents (D-046 review-4)', () => {
       injector: deps.injector,
     });
     expect(candidates[0].intent.id).toBe('svge.builtin.nlu.select-by-type');
+  });
+
+  // ── D-046 review-7: regression usuário "selecionar X" não funciona ─
+
+  it('REGRESSION USUARIO: "selecione a estrela" → NÃO seleciona tudo', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    // Cria uma estrela (polygon com 10 vértices) + um rect
+    const rootId = deps.state.document().root.id;
+    const star = createPolygon(regularStarPoints(50, 50, 30));
+    deps.bus.dispatch(new InsertNodeCommand(rootId, star));
+    addRect(deps);
+    expect(deps.state.document().root.children.length).toBe(2);
+    const result = await deps.nlu.execute('selecione a estrela', { injector: deps.injector });
+    expect(result.executed).toBe(true);
+    // Deve ter selecionado APENAS a estrela (1 nó), não os dois.
+    expect(deps.selection.selectedIds().size).toBe(1);
+    expect(deps.selection.selectedIds().has(star.id)).toBe(true);
+  });
+
+  it('REGRESSION USUARIO: "selecionar o polígono azul" → seleciona só polygons', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    const rootId = deps.state.document().root.id;
+    const hex = createPolygon(regularPolygonPoints(50, 50, 30, 6));
+    deps.bus.dispatch(new InsertNodeCommand(rootId, hex));
+    addRect(deps);
+    deps.bus.dispatch(
+      new InsertNodeCommand(rootId, createEllipse({ cx: 100, cy: 100, rx: 20, ry: 20 })),
+    );
+    const result = await deps.nlu.execute('selecionar o polígono azul', {
+      injector: deps.injector,
+    });
+    expect(result.executed).toBe(true);
+    // Polígono = qualquer <polygon>. Seleciona 1.
+    expect(deps.selection.selectedIds().size).toBe(1);
+    expect(deps.selection.selectedIds().has(hex.id)).toBe(true);
+  });
+
+  it('REGRESSION USUARIO: "selecionar apenas a estrela" → só a estrela', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    const rootId = deps.state.document().root.id;
+    const star = createPolygon(regularStarPoints(50, 50, 30));
+    const hex = createPolygon(regularPolygonPoints(150, 50, 30, 6));
+    deps.bus.dispatch(new InsertNodeCommand(rootId, star));
+    deps.bus.dispatch(new InsertNodeCommand(rootId, hex));
+    const result = await deps.nlu.execute('selecionar apenas a estrela', {
+      injector: deps.injector,
+    });
+    expect(result.executed).toBe(true);
+    // Star (10 vértices) selecionada, hexagono (6 vértices) NÃO.
+    expect(deps.selection.selectedIds().size).toBe(1);
+    expect(deps.selection.selectedIds().has(star.id)).toBe(true);
+  });
+
+  it('REGRESSION USUARIO: "selecione o objeto" sozinho → NÃO seleciona tudo', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    addRect(deps);
+    addRect(deps);
+    addRect(deps);
+    await deps.nlu.execute('selecione o objeto', { injector: deps.injector });
+    // Não deve selecionar tudo (3 nós). Comando ambíguo → rejeitado OU
+    // executa algo específico, mas NUNCA seleciona-tudo erradamente.
+    expect(deps.selection.selectedIds().size).not.toBe(3);
+  });
+
+  it('select-by-type hexagono → só hexagons (6 vértices)', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    const rootId = deps.state.document().root.id;
+    const hex = createPolygon(regularPolygonPoints(50, 50, 30, 6));
+    const tri = createPolygon(regularPolygonPoints(150, 50, 30, 3));
+    deps.bus.dispatch(new InsertNodeCommand(rootId, hex));
+    deps.bus.dispatch(new InsertNodeCommand(rootId, tri));
+    const result = await deps.nlu.execute('selecione hexagono', { injector: deps.injector });
+    expect(result.executed).toBe(true);
+    expect(deps.selection.selectedIds().size).toBe(1);
+    expect(deps.selection.selectedIds().has(hex.id)).toBe(true);
+  });
+
+  it('select-by-type triangulo → só triangles (3 vértices)', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    const rootId = deps.state.document().root.id;
+    const tri = createPolygon(regularPolygonPoints(50, 50, 30, 3));
+    const hex = createPolygon(regularPolygonPoints(150, 50, 30, 6));
+    deps.bus.dispatch(new InsertNodeCommand(rootId, tri));
+    deps.bus.dispatch(new InsertNodeCommand(rootId, hex));
+    const result = await deps.nlu.execute('selecione triangulo', { injector: deps.injector });
+    expect(result.executed).toBe(true);
+    expect(deps.selection.selectedIds().size).toBe(1);
+    expect(deps.selection.selectedIds().has(tri.id)).toBe(true);
+  });
+
+  it('select-by-type texto → só text nodes', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    const rootId = deps.state.document().root.id;
+    const txt = createText({ x: 50, y: 50, content: 'Hello' });
+    deps.bus.dispatch(new InsertNodeCommand(rootId, txt));
+    addRect(deps);
+    const result = await deps.nlu.execute('selecione texto', { injector: deps.injector });
+    expect(result.executed).toBe(true);
+    expect(deps.selection.selectedIds().size).toBe(1);
+    expect(deps.selection.selectedIds().has(txt.id)).toBe(true);
   });
 
   it('select-by-type aparece nos candidates pra "selecionar retangulos"', () => {

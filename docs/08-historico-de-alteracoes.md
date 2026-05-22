@@ -6,6 +6,102 @@
 
 ---
 
+## 2026-05-22 — D-046 review-7: "selecione X" selecionava TUDO (auto-discovery super-agressiva)
+
+**Reportado pelo usuário** — comandos que selecionavam TODOS os nós em vez do alvo:
+
+- `"selecionar o polígono azul"`
+- `"selecionar apenas a estrela"`
+- `"selecione a estrela"`
+- `"selecione o objeto"`
+
+Afetava também: losango, hexagono, octogono, pentagono, texto.
+
+**Diagnóstico**: 3 bugs concorrentes.
+
+### Bug 1: `deriveKeywords` super-expandia auto-discovered intents
+
+`menu-intent-discovery.ts` deriva keywords do label de menu items via canonical expansion. Para "Select All":
+
+- baseTokens = `['select', 'all']`
+- 'select' canonical → `'select'` → expande pra TODAS as variantes: `'selecionar'`, `'selecione'`, `'marcar'`, etc.
+- 'all' canonical → `'select-all'` → expande pra `'tudo'`, `'todos'`, `'everything'`
+
+Resultado: o intent "Select All" tinha ~20 keywords. Qualquer input com `'selecione'` matchava → executava Select All → selecionava tudo.
+
+### Fix 1: `requiredAllGroups` (AND gate por grupo)
+
+Novo campo opcional em `NluIntent`:
+
+```ts
+readonly requiredAllGroups?: readonly (readonly string[])[];
+```
+
+Cada grupo representa um elemento semântico do label que DEVE estar presente. Para "Select All":
+
+```ts
+requiredAllGroups: [
+  ['select', 'selecionar', 'selecione', ...],  // verbo
+  ['all', 'tudo', 'todos', 'everything'],       // qualificador
+]
+```
+
+`"selecione estrela"` tem só o verbo → grupo 2 falha → Select All **não é candidato**.
+
+`menu-intent-discovery.ts` chama `deriveTokenGroups(label)` que retorna groups (null pra labels single-token onde gate AND complica sem benefício).
+
+### Bug 2: `select-by-type` keywords incompletas
+
+Faltavam: `'poligono'`, `'triangulo'`, `'losango'`, `'pentagono'`, `'hexagono'`, `'octogono'`, `'estrela'`, `'polilinha'` (PT) e EN equivalentes. Sem essas, `"selecione hexagono"` nem virava candidato.
+
+### Bug 3: handler de `select-by-type` ignorava polygon variants
+
+Slot vinha `shape='star'`, handler fazia `node.type === 'star'` — mas no SVG todos os polígonos têm `type='polygon'`. Match falhava → 0 nós.
+
+**Fix**: helper `nodeMatchesShape(node, shape)` discrimina polygons por `points.length` via `POLYGON_SIDES` lookup. Star = 10 vértices (5 pontas × 2). Hexagon = 6. Triangle = 3. Etc.
+
+### Specs adicionados (+7 regression)
+
+| Comando                         | Resultado esperado                 |
+| ------------------------------- | ---------------------------------- |
+| `"selecione a estrela"`         | só a estrela (1 nó), não tudo      |
+| `"selecionar o polígono azul"`  | só o polygon                       |
+| `"selecionar apenas a estrela"` | só estrela, não hexagono adjacente |
+| `"selecione o objeto"`          | NÃO seleciona tudo (3 nós)         |
+| `"selecione hexagono"`          | só polygons com 6 vértices         |
+| `"selecione triangulo"`         | só polygons com 3 vértices         |
+| `"selecione texto"`             | só `<text>`                        |
+
+**Total**: **1238/1238 passing** + 1 skipped.
+
+### Comandos que agora funcionam
+
+| Comando                 | Resultado                             |
+| ----------------------- | ------------------------------------- |
+| `"selecione estrela"`   | só polygons com 10 vértices           |
+| `"selecione hexagono"`  | só polygons com 6 vértices            |
+| `"selecione octogono"`  | só polygons com 8 vértices            |
+| `"selecione pentagono"` | só polygons com 5 vértices            |
+| `"selecione triangulo"` | só polygons com 3 vértices            |
+| `"selecione losango"`   | só polygons com 4 vértices            |
+| `"selecione texto"`     | só `<text>`                           |
+| `"selecione poligono"`  | qualquer `<polygon>`                  |
+| `"selecionar tudo"`     | TUDO (requer ambos 'select' + 'tudo') |
+
+### Lição
+
+Auto-discovery por expansão canonical é poderosa mas perigosa quando o label tem múltiplos tokens semânticos. O `requiredAllGroups` torna o gate explícito: cada token do label original vira "fatia" obrigatória do match. Single-token labels (`"Undo"`) ficam com comportamento OR clássico.
+
+### Arquivos modificados
+
+- `types.ts` — `requiredAllGroups?` em `NluIntent`
+- `natural-language.service.ts` — gate AND consultando `requiredAllGroups`
+- `menu-intent-discovery.ts` — `deriveTokenGroups()` + wire
+- `intents/professional-intents.ts` — `nodeMatchesShape()` + keywords expandidas
+- specs atualizados (+7 regression)
+
+---
+
 ## 2026-05-22 — D-046 review-6: movimento ABSOLUTO + "x igual a 10" + 'desloca' conjugação
 
 **Reportado pelo usuário** — 3 comandos não funcionavam:

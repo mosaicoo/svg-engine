@@ -56,6 +56,7 @@ import {
 import { SelectionService } from 'svg-engine/edit';
 import type { Disposable } from 'svg-engine/core';
 
+import { POLYGON_SIDES } from '../dictionaries/shapes-canonical';
 import { NaturalLanguageService } from '../natural-language.service';
 import type { NluContext } from '../types';
 
@@ -410,10 +411,31 @@ export function registerProfessionalIntents(nlu: NaturalLanguageService, ctx: Re
         'linhas',
         'texto',
         'textos',
+        'textos',
         'grupo',
         'grupos',
         'caminho',
         'caminhos',
+        // PT polygon variants (D-046 review-7) — todos viram <polygon>
+        // mas com vertex count diferente; o handler filtra por count.
+        'poligono',
+        'poligonos',
+        'triangulo',
+        'triangulos',
+        'losango',
+        'losangos',
+        'diamante',
+        'diamantes',
+        'pentagono',
+        'pentagonos',
+        'hexagono',
+        'hexagonos',
+        'octogono',
+        'octogonos',
+        'estrela',
+        'estrelas',
+        'polilinha',
+        'polilinhas',
         // EN shapes
         'rectangle',
         'rectangles',
@@ -433,25 +455,43 @@ export function registerProfessionalIntents(nlu: NaturalLanguageService, ctx: Re
         'groups',
         'path',
         'paths',
+        // EN polygon variants
+        'polygon',
+        'polygons',
+        'triangle',
+        'triangles',
+        'rhombus',
+        'diamond',
+        'diamonds',
+        'pentagon',
+        'pentagons',
+        'hexagon',
+        'hexagons',
+        'octagon',
+        'octagons',
+        'star',
+        'stars',
+        'polyline',
+        'polylines',
       ],
       actionKeywords: ['select', 'select-all'],
       slots: {
         shape: { kind: 'shape', optional: false },
       },
       description:
-        'Seleciona TODOS os nós de um tipo específico (rect, circle, ellipse, line, text, etc)',
+        'Seleciona TODOS os nós de um tipo específico (rect, circle, polygon, hexagon, star, text, etc)',
       execute(slots, runCtx) {
         const shape = slots['shape'] as string | undefined;
         if (shape === undefined) return;
         const state = runCtx.injector.get(EditorStateService);
         const selection = runCtx.injector.get(SelectionService);
+        // **D-046 review-7**: shape kinds NLU específicos (star/hexagon/
+        // triangle/etc) NÃO existem como SvgNode.type — todos viram
+        // <polygon>. Pra select preciso, filtra polygons por vertex
+        // count (vide POLYGON_SIDES). 'star' = 10 vértices (5 pontas).
         const matches: NodeId[] = [];
-        // 'circle' do NLU mapeia pra ellipse no core (ellipse com rx=ry).
-        // Pra select-by-type, considere ambos.
-        const targetTypes: readonly SvgNode['type'][] =
-          shape === 'circle' ? ['ellipse'] : [shape as SvgNode['type']];
         for (const node of collectNodes(state.document().root)) {
-          if (targetTypes.includes(node.type)) matches.push(node.id);
+          if (nodeMatchesShape(node, shape)) matches.push(node.id);
         }
         if (matches.length === 0) {
           warn(`select-by-type: nenhum ${shape} encontrado`);
@@ -956,6 +996,52 @@ function runPathfinder(
       bus.dispatch(new DivideCommand(ids));
       break;
   }
+}
+
+/**
+ * **`nodeMatchesShape`** (D-046 review-7) — testa se um nó SVG
+ * corresponde a um shape kind NLU.
+ *
+ * Resolve a discrepância entre vocabulário NLU (que tem 'hexagon',
+ * 'star', 'triangle' etc) e os tipos REAIS de `SvgNode` (que só tem
+ * 'rect', 'ellipse', 'line', 'polygon', 'polyline', 'path', 'text',
+ * 'image', 'group'). Polígonos específicos viram todos `<polygon>`
+ * no DOM — discriminados aqui pelo `points.length`.
+ *
+ * **Mapeamento**:
+ * - 'rect' → SVG <rect>
+ * - 'ellipse' → SVG <ellipse>
+ * - 'circle' → SVG <ellipse> (NLU não diferencia geometricamente)
+ * - 'line' → SVG <line>
+ * - 'path' → SVG <path>
+ * - 'polyline' → SVG <polyline>
+ * - 'text' → SVG <text>
+ * - 'image' → SVG <image>
+ * - 'group' → SVG <g>
+ * - 'polygon' (genérico) → qualquer <polygon>
+ * - 'triangle' / 'rhombus' / 'pentagon' / 'hexagon' / 'octagon' →
+ *   <polygon> com points.length = N (POLYGON_SIDES[kind])
+ * - 'star' → <polygon> com points.length = 10 (5 pontas × 2 vértices)
+ */
+function nodeMatchesShape(node: SvgNode, shape: string): boolean {
+  // Mapeamento direto pra tipos SvgNode universais
+  if (shape === 'rect') return node.type === 'rect';
+  if (shape === 'ellipse') return node.type === 'ellipse';
+  if (shape === 'circle') return node.type === 'ellipse'; // NLU agnostic
+  if (shape === 'line') return node.type === 'line';
+  if (shape === 'path') return node.type === 'path';
+  if (shape === 'polyline') return node.type === 'polyline';
+  if (shape === 'text') return node.type === 'text';
+  if (shape === 'image') return node.type === 'image';
+  if (shape === 'group') return node.type === 'group';
+
+  // Polígonos: discrimina por vertex count
+  if (node.type !== 'polygon') return false;
+  if (shape === 'polygon') return true; // genérico — qualquer polygon
+  if (shape === 'star') return node.points.length === 10; // 5 pontas
+  const expectedSides = POLYGON_SIDES[shape];
+  if (expectedSides === undefined) return false;
+  return node.points.length === expectedSides;
 }
 
 /**

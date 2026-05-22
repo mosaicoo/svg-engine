@@ -173,6 +173,34 @@ export interface NluIntent {
    */
   readonly keywords: readonly string[];
   /**
+   * **`requiredAllGroups`** (D-046 review-7) — strict-AND matching:
+   * cada **grupo** representa um elemento semântico do intent que
+   * DEVE estar presente no input (pelo menos uma palavra do grupo
+   * casa, exato ou fuzzy). Diferente de `keywords` (OR fraco),
+   * requiredAllGroups exige TODOS os grupos preenchidos.
+   *
+   * **Caso de uso típico**: intents auto-descobertos de menu items
+   * multi-token como "Select All" precisam garantir que TANTO o
+   * verbo (select / selecionar / selecione) QUANTO o qualificador
+   * (all / tudo / todos) apareçam — senão "selecione estrela"
+   * matcharia "Select All" e selecionaria tudo erradamente.
+   *
+   * **Estrutura**: array de grupos; cada grupo é array de variantes
+   * sinônimas pra uma posição semântica. Exemplo "Select All":
+   * ```
+   * requiredAllGroups: [
+   *   ['select', 'selecionar', 'selecione', 'marcar', ...],  // verbo
+   *   ['all', 'tudo', 'todos', 'todas', 'everything'],        // qualificador
+   * ]
+   * ```
+   *
+   * Quando `requiredAllGroups` é declarado, o `keywords` ainda é
+   * usado pra ranking de confidence mas o **gate** de candidato vira
+   * o requiredAllGroups (todos satisfeitos OR keywords match com ≥1
+   * candidato — política pragmática).
+   */
+  readonly requiredAllGroups?: readonly (readonly string[])[];
+  /**
    * Verbos / ações associadas (opcional): "create", "criar", "add",
    * "desenhar", "delete", "deletar". Quando presente, eleva confidence
    * mas não é obrigatório — alguns intents são triggados só pelo

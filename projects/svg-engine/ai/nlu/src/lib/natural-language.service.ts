@@ -183,6 +183,23 @@ export class NaturalLanguageService {
       const keywordMatch = fuzzyMatchAny(tokens, intent.keywords);
       if (keywordMatch === null) continue; // nem candidato é
 
+      // **`requiredAllGroups` gate** (D-046 review-7): se o intent
+      // declarou grupos obrigatórios, TODOS devem ter match no input.
+      // Evita "Select All" auto-discovered matchar "selecione estrela"
+      // (que só tem o verbo, não tem o qualificador "tudo"/"all").
+      if (intent.requiredAllGroups !== undefined && intent.requiredAllGroups.length > 0) {
+        let allGroupsMatched = true;
+        for (const group of intent.requiredAllGroups) {
+          if (group.length === 0) continue; // grupo vazio = sempre OK (defensivo)
+          const groupMatch = fuzzyMatchAny(tokens, group);
+          if (groupMatch === null) {
+            allGroupsMatched = false;
+            break;
+          }
+        }
+        if (!allGroupsMatched) continue; // gate falhou → não é candidato
+      }
+
       matches.push({
         kind: 'keyword',
         term: keywordMatch.term,
