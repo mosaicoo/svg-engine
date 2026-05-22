@@ -86,7 +86,23 @@ export const builtinNluPlugin: EditorPlugin = {
         // Verbo de ação — eleva confidence ("criar retângulo" >> só "retângulo")
         actionKeywords: ['create', 'add', 'draw', 'insert', 'new'],
         slots: {
-          shape: { kind: 'enum', values: ['rect', 'ellipse', 'circle', 'line'], optional: true },
+          shape: {
+            kind: 'enum',
+            values: [
+              'rect',
+              'ellipse',
+              'circle',
+              'line',
+              'polygon',
+              'polyline',
+              'text',
+              'image',
+              'group',
+              'svg',
+              'path',
+            ],
+            optional: true,
+          },
           fill: { kind: 'color', optional: true },
           width: { kind: 'number', optional: true, default: 100 },
           height: { kind: 'number', optional: true, default: 100 },
@@ -168,8 +184,35 @@ export const builtinNluPlugin: EditorPlugin = {
               bus.dispatch(new InsertNodeCommand(rootId, node));
               break;
             }
-            // 'line' não inclui aqui — geometria livre demais; consumer
-            // pode registrar intent próprio com slots x1/y1/x2/y2.
+            // Novos shapes da Fase 1 enrich — não inventamos geometria
+            // específica (anti-alucinação): line precisa de x1/y1/x2/y2,
+            // polygon/polyline precisam de points, text precisa de
+            // conteúdo, image precisa de URL/href, svg/group são
+            // wrappers. Emitimos warn honesto pra que plugins terceiros
+            // registrem intents próprios com slots semanticamente
+            // adequados (e.g., create-text com slot `content`).
+            //
+            // Quando uma icon library ou composite-shape registry
+            // chegar, este switch pode dispatchar comandos compostos.
+            case 'line':
+            case 'polygon':
+            case 'polyline':
+            case 'text':
+            case 'image':
+            case 'group':
+            case 'svg':
+            default: {
+              if (typeof console !== 'undefined') {
+                console.warn(
+                  '[svge.nlu] create-shape: kind',
+                  shape,
+                  'reconhecido mas builtin handler ainda não tem geometria/comando especializado. ' +
+                    'Registre um intent customizado (e.g., create-text com slot `content`, ' +
+                    'create-line com x1/y1/x2/y2) ou aguarde icon library / composite commands.',
+                );
+              }
+              break;
+            }
           }
         },
       }),

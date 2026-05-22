@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { tokenize } from './tokenize';
 import {
   extractSlots,
+  parseColorPhrase,
   parseColorToken,
   parseDimensionToken,
   parseNumberToken,
@@ -44,6 +45,14 @@ describe('NLU › slot-extractor', () => {
       expect(parseColorToken('#FF0000')).toBe('#ff0000');
       expect(parseColorToken('#f00')).toBe('#f00');
     });
+    it('resolves rgb()/rgba() functional notation', () => {
+      expect(parseColorToken('rgb(255,0,0)')).toBe('#ff0000');
+      expect(parseColorToken('rgba(255,0,0,0.5)')).toBe('#ff0000');
+    });
+    it('resolves hsl()/hsla() functional notation', () => {
+      expect(parseColorToken('hsl(0,100%,50%)')).toBe('#ff0000');
+      expect(parseColorToken('hsl(240,100%,50%)')).toBe('#0000ff');
+    });
     it('resolves named colors PT', () => {
       expect(parseColorToken('vermelho')).toBe('#e53935');
       expect(parseColorToken('azul')).toBe('#1e88e5');
@@ -52,12 +61,78 @@ describe('NLU › slot-extractor', () => {
       expect(parseColorToken('red')).toBe('#e53935');
       expect(parseColorToken('blue')).toBe('#1e88e5');
     });
+    it('resolves semantic colors (success/warning/danger/info)', () => {
+      expect(parseColorToken('success')).toBe('#43a047');
+      expect(parseColorToken('sucesso')).toBe('#43a047');
+      expect(parseColorToken('warning')).toBe('#fbc02d');
+      expect(parseColorToken('alerta')).toBe('#fbc02d');
+      expect(parseColorToken('danger')).toBe('#e53935');
+      expect(parseColorToken('perigo')).toBe('#e53935');
+      expect(parseColorToken('info')).toBe('#1e88e5');
+      expect(parseColorToken('primary')).toBe('#1e88e5');
+    });
     it('fuzzy-resolves typos', () => {
       // 'vermelo' (1 typo) → 'vermelho'
       expect(parseColorToken('vermelo')).toBe('#e53935');
     });
     it('returns null for unknown tokens', () => {
       expect(parseColorToken('xyz')).toBeNull();
+    });
+  });
+
+  describe('parseColorPhrase (intensificadores adjacentes)', () => {
+    it('parses lonely color → 1 token consumed', () => {
+      const m = parseColorPhrase(['azul'], 0);
+      expect(m).not.toBeNull();
+      expect(m!.color).toBe('#1e88e5');
+      expect(m!.tokensConsumed).toBe(1);
+    });
+    it('parses "azul claro" → lighter blue, 2 tokens consumed', () => {
+      const m = parseColorPhrase(['azul', 'claro'], 0);
+      expect(m).not.toBeNull();
+      // Não verifica hex exato (depende do delta de lightness), só
+      // garante que é UM HEX diferente do base.
+      expect(m!.color.startsWith('#')).toBe(true);
+      expect(m!.color).not.toBe('#1e88e5');
+      expect(m!.tokensConsumed).toBe(2);
+    });
+    it('parses "azul escuro" → darker blue, 2 tokens', () => {
+      const m = parseColorPhrase(['azul', 'escuro'], 0);
+      expect(m).not.toBeNull();
+      expect(m!.color).not.toBe('#1e88e5');
+      expect(m!.tokensConsumed).toBe(2);
+    });
+    it('parses "dark blue" (EN, modifier ANTES) → darker, 2 tokens', () => {
+      const m = parseColorPhrase(['dark', 'blue'], 0);
+      expect(m).not.toBeNull();
+      expect(m!.tokensConsumed).toBe(2);
+    });
+    it('parses "bem azul escuro" → multiplier amplifica delta, 3 tokens', () => {
+      const m = parseColorPhrase(['bem', 'azul', 'escuro'], 0);
+      expect(m).not.toBeNull();
+      expect(m!.tokensConsumed).toBe(3);
+    });
+    it('parses "very dark red" (EN multiplier) → 3 tokens', () => {
+      const m = parseColorPhrase(['very', 'dark', 'red'], 0);
+      expect(m).not.toBeNull();
+      expect(m!.tokensConsumed).toBe(3);
+    });
+    it('does not modify non-hex keyword (transparent stays)', () => {
+      // "transparente claro" — claro is detected but transparent stays
+      // unmodified (não tem hex base pra ajustar)
+      const m = parseColorPhrase(['transparente', 'claro'], 0);
+      expect(m).not.toBeNull();
+      expect(m!.color).toBe('transparent');
+      // Modifier ainda é consumido (tokensConsumed=2) mesmo sem efeito
+      expect(m!.tokensConsumed).toBe(2);
+    });
+    it('returns null when window has no color at all', () => {
+      expect(parseColorPhrase(['criar', 'retangulo'], 0)).toBeNull();
+    });
+    it('parses startIdx > 0', () => {
+      const m = parseColorPhrase(['criar', 'azul'], 1);
+      expect(m).not.toBeNull();
+      expect(m!.color).toBe('#1e88e5');
     });
   });
 

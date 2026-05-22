@@ -1,10 +1,18 @@
 import { COLOR_KEYS, resolveColorName } from '../dictionaries/colors';
 import { isStopword } from '../dictionaries/stopwords';
 import type { NluSlotSchema } from '../types';
+import {
+  adjustHexLightness,
+  HEX_COLOR_RE,
+  LIGHTNESS_MODIFIERS,
+  LIGHTNESS_MULTIPLIERS,
+  parseHslFunction,
+  parseRgbFunction,
+} from './color-functions';
 import { fuzzyMatchToken } from './fuzzy-match';
 
 /**
- * Extrator de slots — D-046? Fase 1.
+ * Extrator de slots — D-046 Fase 1.
  *
  * Dado uma lista de tokens (já normalizados via `tokenize()`) e um
  * schema declarativo de slots, extrai valores tipados.
@@ -13,8 +21,12 @@ import { fuzzyMatchToken } from './fuzzy-match';
  * - `kind: 'number'` — primeiro número encontrado. Aceita decimais
  *   `1.5` / `1,5` e dimensões `100x50` (split em dois numbers — usa
  *   o primeiro). Considera unidades `px` / `pt` (despreza).
- * - `kind: 'color'` — primeiro hex `#rrggbb`/`#rgb` OU nome (lookup
- *   no `COLOR_DICTIONARY`, com fuzzy match dist ≤ 1 pra typos).
+ * - `kind: 'color'` — primeira ocorrência de cor reconhecida. Aceita
+ *   hex (`#rgb` / `#rrggbb` / `#rrggbbaa`), `rgb(...)` / `rgba(...)`,
+ *   `hsl(...)` / `hsla(...)`, nome do dicionário (PT/EN), nome com
+ *   typo (fuzzy match) E **intensificadores adjacentes** ("azul
+ *   claro", "verde bem escuro", "very dark red") — vide
+ *   {@link parseColorPhrase}.
  * - `kind: 'enum'` — primeira ocorrência (exato ou fuzzy dist ≤ 1) de
  *   um dos valores declarados.
  * - `kind: 'string'` — primeiro token não-stopword, não-numeric,
@@ -31,7 +43,6 @@ import { fuzzyMatchToken } from './fuzzy-match';
 
 const NUMBER_RE = /^(-?\d+(?:[.,]\d+)?)(?:px|pt)?$/;
 const DIMENSION_RE = /^(\d+(?:[.,]\d+)?)x(\d+(?:[.,]\d+)?)$/;
-const HEX_COLOR_RE = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 
 /**
  * Resultado da extração: valores por nome de slot. Slots não
@@ -69,11 +80,17 @@ export function parseNumberToken(token: string): number | null {
 }
 
 /**
- * Tenta resolver um token como cor: hex direto OU lookup no
- * dicionário com fuzzy match (dist ≤ 1 pra typos como "vermelo").
+ * Tenta resolver um token ISOLADO como cor: hex direto, rgb/hsl
+ * funcional OU lookup no dicionário com fuzzy match (dist ≤ 1 pra
+ * typos como "vermelo"). Para frases com intensificador adjacente
+ * ("azul claro"), use {@link parseColorPhrase}.
  */
 export function parseColorToken(token: string): string | null {
   if (HEX_COLOR_RE.test(token)) return token.toLowerCase();
+  const rgbHex = parseRgbFunction(token);
+  if (rgbHex !== null) return rgbHex;
+  const hslHex = parseHslFunction(token);
+  if (hslHex !== null) return hslHex;
   // Nome direto
   const direct = resolveColorName(token);
   if (direct !== null) return direct;
@@ -81,6 +98,129 @@ export function parseColorToken(token: string): string | null {
   const m = fuzzyMatchToken(token, COLOR_KEYS);
   if (m === null) return null;
   return resolveColorName(m.term);
+}
+
+/**
+ * Resultado de {@link parseColorPhrase}: cor resolvida + quantos
+ * tokens adjacentes foram consumidos (sempre ≥ 1).
+ */
+export interface ColorPhraseMatch {
+  /** Cor resolvida (`#rrggbb`, CSS keyword, ou outro do dicionário). */
+  readonly color: string;
+  /**
+   * Quantos tokens (a partir de `startIdx`) compõem a frase de cor.
+   * Sempre ≥ 1. Caller deve marcar todos esses índices como consumed.
+   *
+   * Exemplos:
+   * - "azul" → tokensConsumed = 1
+   * - "azul claro" → tokensConsumed = 2 (intensificador adjacente)
+   * - "bem azul escuro" → tokensConsumed = 3 (multiplier + cor + mod)
+   * - "muito claro azul" → tokensConsumed = 3 (multiplier + mod ANTES da cor)
+   */
+  readonly tokensConsumed: number;
+}
+
+/**
+ * Resolve uma cor a partir de `tokens[startIdx]`, considerando
+ * **intensificadores adjacentes** que modificam o lightness do hex
+ * base. Suporta padrões:
+ *
+ * - `[modifier] cor [modifier]` — "azul claro" / "claro azul" /
+ *   "verde escuro" / "dark green"
+ * - `[multiplier] [modifier] cor` — "muito claro azul" / "very
+ *   dark red"
+ * - `cor [multiplier] [modifier]` — "verde bem escuro" / "blue
+ *   really dark"
+ *
+ * Não modifica `none` / `currentColor` / `inherit` (sem hex base).
+ *
+ * Retorna `null` quando `tokens[startIdx]` não é cor nem
+ * intensificador-seguido-de-cor.
+ */
+export function parseColorPhrase(
+  tokens: readonly string[],
+  startIdx: number,
+): ColorPhraseMatch | null {
+  if (startIdx < 0 || startIdx >= tokens.length) return null;
+
+  // Tenta detectar a cor em uma janela curta (até 3 tokens adjacentes).
+  // Os padrões possíveis combinam:
+  //   M? D? C D?   (M = multiplier, D = lightness modifier, C = color)
+  // Sliding window: começamos no startIdx e olhamos até startIdx+2.
+  const window = [tokens[startIdx], tokens[startIdx + 1] ?? '', tokens[startIdx + 2] ?? ''];
+
+  // Acha o índice da cor base na janela (0, 1 ou 2).
+  let colorIdx = -1;
+  let baseColor: string | null = null;
+  for (let i = 0; i < window.length; i++) {
+    const tok = window[i];
+    if (tok.length === 0) continue;
+    const c = parseColorToken(tok);
+    if (c !== null) {
+      colorIdx = i;
+      baseColor = c;
+      break;
+    }
+  }
+  if (colorIdx === -1 || baseColor === null) return null;
+
+  // Coleta modifiers / multipliers nos tokens adjacentes (janela
+  // inteira), respeitando ordem (multiplier ANTES de modifier
+  // amplifica). Computa o delta total.
+  let delta = 0;
+  let multiplier = 1;
+  let consumedRight = 0; // tokens à direita da cor que viraram parte da frase
+  let consumedLeft = 0; // idem à esquerda
+
+  // Esquerda (modifiers anteriores)
+  for (let i = colorIdx - 1; i >= 0; i--) {
+    const tok = window[i];
+    const mod = LIGHTNESS_MODIFIERS[tok];
+    const mul = LIGHTNESS_MULTIPLIERS[tok];
+    if (mod !== undefined) {
+      delta += mod;
+      consumedLeft++;
+    } else if (mul !== undefined) {
+      multiplier *= mul;
+      consumedLeft++;
+    } else {
+      break; // tokens não-modifier interrompem
+    }
+  }
+  // Direita (modifiers posteriores)
+  for (let i = colorIdx + 1; i < window.length; i++) {
+    const tok = window[i];
+    if (tok.length === 0) break;
+    const mod = LIGHTNESS_MODIFIERS[tok];
+    const mul = LIGHTNESS_MULTIPLIERS[tok];
+    if (mod !== undefined) {
+      delta += mod;
+      consumedRight++;
+    } else if (mul !== undefined) {
+      multiplier *= mul;
+      consumedRight++;
+    } else {
+      break;
+    }
+  }
+
+  // Aplica delta * multiplier. Se delta == 0 (sem modifier), retorna
+  // baseColor como veio. Não tenta ajustar keywords não-hex
+  // (transparent / none / inherit / currentColor).
+  let finalColor = baseColor;
+  const effective = delta * multiplier;
+  if (effective !== 0 && HEX_COLOR_RE.test(baseColor)) {
+    finalColor = adjustHexLightness(baseColor, effective);
+  }
+
+  // tokensConsumed = quantos tokens A PARTIR DE startIdx foram
+  // capturados. consumedLeft modificadores aparecem em índices
+  // (colorIdx-1 .. 0), todos >= startIdx (porque colorIdx >= 0 na
+  // window relativa); consumedRight modificadores em índices
+  // (colorIdx+1 .. ).
+  const tokensConsumed = consumedLeft + 1 + consumedRight;
+
+  return { color: finalColor, tokensConsumed };
 }
 
 /**
@@ -110,6 +250,10 @@ export function parseDimensionToken(token: string): { width: number; height: num
  * slot `width` E `height` no schema (nessa ordem), o token de
  * dimensão preenche os dois e consome o índice uma vez. Caso
  * contrário, só o primeiro number do par é usado.
+ *
+ * **Edge case `kind: 'color'`** com intensificador adjacente
+ * ("azul claro"): {@link parseColorPhrase} consome todos os
+ * tokens da frase de cor — caller marca múltiplos consumed indices.
  */
 export function extractSlots(
   tokens: readonly string[],
@@ -121,11 +265,6 @@ export function extractSlots(
 
   // Pre-pass: se tem dimensão `100x50` E width+height pendentes,
   // consome ambos com o token único.
-  const widthIdx = schemaEntries.findIndex(
-    ([, s]) => s.kind === 'number' && /width|largura/i.test(''),
-  );
-  // ↑ Sem heurística semântica simples; deixa o pre-pass apenas
-  //   aos slots literalmente chamados `width` + `height`.
   if (schemas['width']?.kind === 'number' && schemas['height']?.kind === 'number') {
     for (let i = 0; i < tokens.length; i++) {
       if (ctx.consumedIndices.has(i)) continue;
@@ -138,12 +277,12 @@ export function extractSlots(
       }
     }
   }
-  void widthIdx;
 
   for (const [name, schema] of schemaEntries) {
     if (name in result) continue; // já preenchido no pre-pass
     let found: unknown = undefined;
     let foundIdx = -1;
+    let foundTokensConsumed = 1; // > 1 para color phrases (intensificadores)
 
     for (let i = 0; i < tokens.length; i++) {
       if (ctx.consumedIndices.has(i)) continue;
@@ -160,10 +299,14 @@ export function extractSlots(
           break;
         }
         case 'color': {
-          const c = parseColorToken(tok);
-          if (c !== null) {
-            found = c;
+          // Tenta frase completa (cor + intensificadores adjacentes).
+          // parseColorPhrase verifica window de até 3 tokens — se nada
+          // na janela é cor, retorna null.
+          const phrase = parseColorPhrase(tokens, i);
+          if (phrase !== null) {
+            found = phrase.color;
             foundIdx = i;
+            foundTokensConsumed = phrase.tokensConsumed;
           }
           break;
         }
@@ -194,7 +337,10 @@ export function extractSlots(
 
     if (foundIdx !== -1) {
       result[name] = found;
-      ctx.consumedIndices.add(foundIdx);
+      // Marca consumed: 1 token normalmente; mais quando color phrase.
+      for (let k = 0; k < foundTokensConsumed; k++) {
+        ctx.consumedIndices.add(foundIdx + k);
+      }
     } else if (schema.optional === true && 'default' in schema && schema.default !== undefined) {
       result[name] = schema.default;
     }

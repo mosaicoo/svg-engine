@@ -2,15 +2,20 @@
  * Stopwords (PT + EN) — palavras de baixa informação ignoradas
  * pelo parser pra evitar ruído no matching de keywords/actions/slots.
  *
- * Inclui artigos, preposições comuns, conjunções e pronomes que
- * aparecem em comandos coloquiais ("criar **um** retângulo **de** cor
- * vermelha", "select **the** blue circle"). Stopwords NÃO participam
- * de match de keyword nem viram slot value — só ocupariam ruído.
+ * Inclui artigos, preposições comuns, conjunções, pronomes,
+ * **fillers conversacionais** ("por favor", "tipo", "ok") e
+ * **verbos auxiliares fracos** ("quero", "preciso", "would", "could")
+ * que aparecem em comandos coloquiais ("**por favor** crie um
+ * retângulo", "**quero** desenhar uma elipse"). Stopwords NÃO
+ * participam de match de keyword nem viram slot value — só ocupariam
+ * ruído.
  *
- * **Não inclui** verbos de ação (esses estão em `actions.ts` e SÃO
- * relevantes), nem cores/formas (esses são slot values).
+ * **Não inclui** verbos de ação ("criar", "deletar"); esses estão
+ * em `actions.ts` e SÃO relevantes. Nem cores/formas (esses são
+ * slot values).
  *
- * **Stopwords em lowercase, sem acento** (consistente com o tokenizer).
+ * **Stopwords em lowercase, sem acento** (consistente com o tokenizer
+ * — `deaccent()` é aplicado antes do lookup).
  */
 export const STOPWORDS: ReadonlySet<string> = new Set<string>([
   // ── PT: artigos / determinantes ─────────────────────────────
@@ -22,6 +27,7 @@ export const STOPWORDS: ReadonlySet<string> = new Set<string>([
   'uma',
   'uns',
   'umas',
+
   // ── PT: preposições / contrações comuns ─────────────────────
   'de',
   'do',
@@ -39,22 +45,47 @@ export const STOPWORDS: ReadonlySet<string> = new Set<string>([
   'com',
   'sem',
   'sobre',
+
   // ── PT: conjunções / pronomes / advérbios curtos ────────────
   'e',
   'ou',
+  'mas',
+  'tambem', // "também" deacentuado
   'que',
   'isso',
   'esse',
   'essa',
   'este',
   'esta',
+  'aquele',
+  'aquela',
   'aqui',
-  'la',
+  'la', // "lá" deacentuado
   'ali',
-  // ── EN: artigos ────────────────────────────────────────────
-  'a',
+  'ai', // "aí" deacentuado
+
+  // ── PT: fillers conversacionais ─────────────────────────────
+  'porfavor', // colado, caso usuário digite junto
+  'favor',
+  'gentileza',
+  'tipo',
+  'meio',
+  'ok',
+  'beleza',
+
+  // ── PT: verbos auxiliares pouco relevantes (intent fraca) ───
+  // Removem ruído sem perder semântica: "quero criar X" vira
+  // "criar X" — o canonical 'create' ainda é detectado.
+  'pode',
+  'poderia',
+  'quero',
+  'preciso',
+  'gostaria',
+
+  // ── EN: artigos ─────────────────────────────────────────────
   'an',
   'the',
+
   // ── EN: preposições / conjunções ────────────────────────────
   'of',
   'in',
@@ -68,6 +99,9 @@ export const STOPWORDS: ReadonlySet<string> = new Set<string>([
   'for',
   'and',
   'or',
+  'but',
+
+  // ── EN: demonstrativos / localização ────────────────────────
   'that',
   'this',
   'these',
@@ -76,6 +110,20 @@ export const STOPWORDS: ReadonlySet<string> = new Set<string>([
   'its',
   'there',
   'here',
+
+  // ── EN: conversational fillers ──────────────────────────────
+  'please',
+  'kindly',
+  'okay',
+  'well',
+  'just',
+
+  // ── EN: weak intent verbs ───────────────────────────────────
+  'want',
+  'need',
+  'would',
+  'could',
+  'can',
 ]);
 
 /**

@@ -6,6 +6,96 @@
 
 ---
 
+## 2026-05-22 — D-046 vocab enrich: dicionários + HEX/RGB/HSL + intensificadores + semantic colors + novos shapes
+
+**Pedido**: enriquecer os vocabulários do NLU baseado em sugestões: cobertura de conjugações verbais PT, semantic colors (success/warning/danger), aliases semânticos de shapes (nó/conector/balão/seta/estrela/coração), normalização automática de cores compostas ("azul claro"), parsing de HEX/RGB/HSL, intensificadores ("bem escuro").
+
+**Sanitização antes da implementação** (problemas detectados nas sugestões originais):
+
+- **Duplicate keys**: `ACTION_DICTIONARY` tinha `combine` 2× (group + group) e `clone` 2× (duplicate). TypeScript silently overwrites — removidos os duplicates.
+- **Acentos em keys**: muitas sugestões usavam `'limão'`, `'círculo'`, `'bordô'`, `'também'` — esses NUNCA seriam matched porque o tokenizer aplica `deaccent()` antes do lookup. Normalizado tudo para lowercase + sem acento (`'limao'`, `'circulo'`, `'bordo'`, `'tambem'`).
+- **Acentos em STOPWORDS**: idem (`'também'` → `'tambem'`, `'lá'` → `'la'`, `'aí'` → `'ai'`).
+
+**Vocabulários expandidos (4 dicionários)**
+
+- `ACTION_DICTIONARY`: ~140 entries cobrindo:
+  - Conjugações PT (infinitivo + imperativo): `criar`/`crie`/`cria`, `remover`/`remova`, `selecionar`/`selecione`, etc.
+  - Sinônimos: `criar`/`adicionar`/`desenhar`/`inserir`/`colocar`/`gerar`/`montar`
+  - EN: `make`/`generate`/`place`/`pick`/`spin`/`turn`/`adjust`/`rescale`/`detach`
+  - Novos verbos para clipboard, transform, visibility, toggle
+- `COLOR_DICTIONARY`: ~90 entries incluindo:
+  - 50+ cores nomeadas (PT+EN, variantes claras/escuras)
+  - **Semantic colors**: `success`/`sucesso`, `warning`/`alerta`/`aviso`, `danger`/`perigo`/`erro`, `info`/`informacao`, `primary`/`primaria`, `secondary`/`secundaria`
+  - CSS keywords: `currentcolor`, `inherit`
+- `SHAPE_DICTIONARY`: ~80 entries com:
+  - **Tipo `NluShapeKind` expandido**: adicionado `text`, `image`, `polygon`, `polyline`, `svg` (antes: `rect | ellipse | circle | line | path | group`)
+  - **Semantic aliases**: `no`/`node` → circle, `conector`/`connector` → line, `seta`/`arrow` → line, `balao`/`tooltip` → group, `card` → rect, `estrada` → path
+  - **Icon hints** (mapeiam pra polygon como placeholder até icon library): `estrela`/`star`, `coracao`/`heart`, `triangulo`/`triangle`, `losango`/`diamond`
+- `STOPWORDS`: ~80 entries com:
+  - Artigos, preposições, conjunções (PT+EN)
+  - **Fillers conversacionais**: `porfavor`, `favor`, `gentileza`, `tipo`, `ok`, `beleza`, `please`, `kindly`, `okay`, `just`
+  - **Verbos auxiliares fracos**: `pode`/`poderia`/`quero`/`preciso`/`gostaria`, `want`/`need`/`would`/`could`/`can` → "quero criar X" vira "criar X"
+
+**Novos componentes técnicos**
+
+- **`parsers/color-functions.ts`** (novo arquivo) — color math sem dependências:
+  - `parseRgbFunction(input)` → hex (suporta `rgb(...)` e `rgba(...)`)
+  - `parseHslFunction(input)` → hex (suporta `hsl(...)` e `hsla(...)`)
+  - `hexToRgb` / `rgbToHsl` / `hslToRgb` (algoritmos clássicos, FP-safe)
+  - `adjustHexLightness(hex, delta)`, `lightenHex`, `darkenHex` para intensificadores
+  - `LIGHTNESS_MODIFIERS` (`claro: +0.18`, `escuro: -0.18`, `pastel: +0.25`) + `LIGHTNESS_MULTIPLIERS` (`bem: 1.6`, `muito: 1.5`, `very: 1.6`)
+- **`parseColorPhrase(tokens, startIdx)`** em `slot-extractor.ts` — detecta cor + intensificadores adjacentes em janela de 3 tokens. Retorna `{ color, tokensConsumed }`. Padrões suportados:
+  - `[modifier] color [modifier]` — "azul claro", "dark blue"
+  - `[multiplier] [modifier] color` — "very dark red"
+  - `color [multiplier] [modifier]` — "verde bem escuro"
+- **`parseColorToken`** estendido — agora reconhece `rgb()`, `rgba()`, `hsl()`, `hsla()` além do hex e nomes.
+- **`extractSlots`** usa `parseColorPhrase` para `kind: 'color'` — marca múltiplos consumed indices quando intensificador presente.
+
+**`builtinNluPlugin` atualizado**
+
+- Enum `shape` no `create-shape` aceita os novos tipos (`polygon`, `polyline`, `text`, `image`, `group`, `svg`, `path`).
+- Handler com **stub honesto** (warn) para os novos shapes — não inventa geometria (anti-alucinação). Quando icon library / composite commands chegarem, é trivial dispatchar `InsertNodeCommand` específico.
+
+**Sugestões deferidas (registro como follow-up)**
+
+- **Suporte real a ícones** (estrela/coração/engrenagem) requer biblioteca de paths SVG ou path generators. Por ora, esses tokens mapeiam pra `'polygon'` ou `'path'` e emitem warn no handler. Reabrir quando icon library aparecer.
+- **Intent contextual composto** ("crie um botão" → rect+text agrupados, "balão" → speech bubble desenhado) requer composite commands (dispatcha múltiplos `InsertNodeCommand` numa única undo entry, similar ao `DuplicateNodeCommand` do D-044). Sprint próprio.
+- **Marker-end pra setas**: `seta` mapeia pra `line` por ora; renderização com `marker-end="url(#arrow)"` precisa de defs registrados — fora do escopo Fase 1.
+
+**Garantias**
+
+- ✅ **1169/1169 specs** passando (1138 anteriores + 31 novos: 19 color-functions + 12 parseColorPhrase/semantic-colors/rgb-hsl)
+- ✅ 8 entry points buildam clean
+- ✅ Playground build clean
+- ✅ Lint clean nos 2 projetos
+- ✅ **Anti-alucinação**: novos shapes ainda sem geometria dispatcham warn em vez de inventar comando improvisado
+- ✅ **Backward compat**: vocabulários antigos continuam funcionando — só adicionamos, não removemos chaves
+
+**Como testar** (rota `/nlu-test`):
+
+| Comando                                   | Esperado                                   |
+| ----------------------------------------- | ------------------------------------------ |
+| `crie um quadrado vermelho`               | rect fill #e53935                          |
+| `desenhe um círculo success`              | ellipse fill #43a047 (semantic)            |
+| `por favor, crie um retângulo azul claro` | rect fill ~lighter blue, fillers ignorados |
+| `add a very dark red box`                 | rect fill ~darker red                      |
+| `criar caminho com cor #ff8800`           | path com hex direto                        |
+| `criar elipse rgb(255,128,0)`             | ellipse fill #ff8000                       |
+| `criar quadrado hsl(120,100%,50%)`        | rect fill verde puro                       |
+
+**Arquivos**
+
+- `projects/svg-engine/ai/nlu/src/lib/dictionaries/{actions,colors,shapes,stopwords}.ts` — reescritos (sem duplicates, sem acentos, expandidos)
+- `projects/svg-engine/ai/nlu/src/lib/parsers/color-functions.ts` — **novo arquivo** com HEX/RGB/HSL + intensifier dictionaries + color math
+- `projects/svg-engine/ai/nlu/src/lib/parsers/color-functions.spec.ts` — **novo spec** (+19 tests)
+- `projects/svg-engine/ai/nlu/src/lib/parsers/slot-extractor.ts` — `parseColorPhrase` + integração de rgb/hsl no `parseColorToken` + uso no `extractSlots`
+- `projects/svg-engine/ai/nlu/src/lib/parsers/slot-extractor.spec.ts` — +12 tests (rgb/hsl/semantic/parseColorPhrase)
+- `projects/svg-engine/ai/nlu/src/lib/parsers/index.ts` — exporta novos símbolos
+- `projects/svg-engine/ai/nlu/src/lib/builtin-nlu.plugin.ts` — enum `shape` expandido + handlers stubs honestos
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+
+---
+
 ## 2026-05-22 — D-046 follow-up²: agrupar NLU entry points sob `ai/` (namespace dedicado)
 
 **Pedido**: agrupar `svg-engine/nlu` + `svg-engine/nlu-ui` (e futuros `nlu-ml`/`nlu-slm`) numa subpasta `ai/`, consolidando toda a camada de IA num namespace explícito.
