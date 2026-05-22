@@ -6,6 +6,101 @@
 
 ---
 
+## 2026-05-22 — D-046 review-10: Sprint 1-4 do audit (execução autônoma)
+
+**Pedido**: executar autonomamente as 4 sprints do relatório de auditoria NLU sem intervenção.
+
+Cobre **9 findings** do relatório consolidados em 5 commits.
+
+### Sprint 1.A — C1 + C2 (críticos)
+
+**C1**: `tokens.indexOf` quebrava com tokens repetidos.
+
+- `FuzzyMatch.tokenIndex: number` capturado durante `fuzzyMatchAny`.
+- `NluMatchReason.tokenIndex?` opcional, populado por keyword/action.
+- Service usa índice direto em vez de reverse-lookup.
+
+**C2**: `VoiceRecognitionService.listen()` podia pendurar Promise.
+
+- `DEFAULT_LISTEN_TIMEOUT_MS = 30000` (constante pública).
+- `listen(lang, { timeoutMs })` com watchdog; `timeoutMs=0` desliga.
+- Timer cleared em onresult/onend/onerror/start error.
+
+### Sprint 1.B — H2 (scoring constants)
+
+- Novo `scoring/scoring-constants.ts` com 16 constantes documentadas + `expectedScore()` helper.
+- Service substitui todos os literais por constantes nomeadas.
+- Novo `scoring-constants.spec.ts` com 14 fixtures (sentinel + invariantes + cenários reais).
+
+### Sprint 1.C — H1 (split intents)
+
+- Novo `intents/_helpers.ts` (250 linhas): `warn`, `selectedIdsOrWarn`, `setStyleOnSelected`, `flipSelected`, `reorderSelected`, `runPathfinder`, `nodeMatchesShape`, `getNodeApproxOrigin`, `moveToAbsolute`.
+- `professional-intents.ts`: 1194 → 943 linhas (−21%).
+- Handlers `delete-selected` e `rotate-selected` refatorados pra usar `selectedIdsOrWarn`.
+
+### Sprint 1.D — H4 (descriptionBoost optimization)
+
+- `populateDescriptionCache(intent)` chamado IMEDIATO no `registerIntent`.
+- Cold-cache miss eliminado da 1ª keystroke.
+- `descriptionBoost` só faz lookup (zero tokenize em hot path).
+
+### Sprint 2 — Arquitetura Fase 2 ML
+
+**H3**: `NluScorer` interface em `scoring/scorer.types.ts` — contrato pra Fase 2 ML re-rank (forward-compat).
+
+**H5**: `NluDictionaryRegistry` service injetável — `registerColor/Shape/Action()` runtime sem editar source.
+
+**M4**: try/catch ao redor de `intent.execute()`. Novo rejection `'execute-error'` + `Result.error?`.
+
+**M5**: `parseDebounceMs` input no nlu-input. Default 0 (zero break). 150ms recomendado pra voice.
+
+**M14**: `autoDetectLanguage` input. `detectedLanguage` computed via `detectLanguage(tokenize(text))`. `effectiveVoiceLang` resolve PT→pt-BR / EN→en-US.
+
+### Sprint 3 — Polimento
+
+- **M2**: slot-extractor case 'color' também skip number-words (defesa uniforme).
+- **L10**: doc atualizada explicando `axis` slot nos flip-\* É discriminador (NÃO remover).
+- **L12**: `intentsCount: Signal<number>` computed pra UI consumers.
+
+### Sprint 4 — Prep Fase 2
+
+- `scoring/PHASE-2-INTEGRATION.md` — caminho de migração documentado: passos de refactor, exemplo `SemanticScorer` com Transformers.js, trade-offs, critérios de aceite pra adoção.
+
+### Verificação
+
+- **1275/1275 tests passing** + 1 skipped (+21 specs novos vs baseline 1247).
+- `ng build svg-engine` OK
+- `ng lint svg-engine` OK
+- Zero break em 1247 specs anteriores.
+
+### Arquivos novos
+
+- `nlu/src/lib/scoring/scoring-constants.ts` + `.spec.ts`
+- `nlu/src/lib/scoring/scorer.types.ts`
+- `nlu/src/lib/scoring/index.ts`
+- `nlu/src/lib/scoring/PHASE-2-INTEGRATION.md`
+- `nlu/src/lib/intents/_helpers.ts`
+- `nlu/src/lib/dictionary-registry.service.ts` + `.spec.ts`
+- `nlu-ui/src/lib/voice-recognition.service.spec.ts`
+
+### Arquivos modificados
+
+- `nlu/src/lib/parsers/fuzzy-match.ts` (+ tokenIndex)
+- `nlu/src/lib/types.ts` (NluMatchReason.tokenIndex, NluExecuteResult.error)
+- `nlu/src/lib/natural-language.service.ts` (constants, scorer-ready, error boundary, intentsCount)
+- `nlu/src/lib/intents/professional-intents.ts` (−251 linhas, usa \_helpers)
+- `nlu/src/lib/parsers/slot-extractor.ts` (M2 color skip number)
+- `nlu/src/lib/parsers/fuzzy-match.spec.ts` (+ tokenIndex specs)
+- `nlu/src/lib/index.ts` (re-export scoring + dictionary-registry)
+- `nlu-ui/src/lib/voice-recognition.service.ts` (timeout watchdog)
+- `nlu-ui/src/lib/nlu-input.component.ts` (debounce + auto-detect-lang)
+
+### Lição
+
+Auditoria sistemática + execução por sprints incrementais (sempre verificando build+test entre commits) entrega valor real sem regressão. Cada commit pôde ser revertido isoladamente se tivesse problema.
+
+---
+
 ## 2026-05-22 — D-046 review-9: comandos compostos "selecionar os 3 triangulos azuis" (número + cor)
 
 **Reportado pelo usuário** — seleção combinando quantidade + tipo + cor:
