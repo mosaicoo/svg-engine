@@ -1,5 +1,12 @@
 import { CdkDrag, CdkDragHandle } from '@angular/cdk/drag-drop';
-import { ChangeDetectionStrategy, Component, ElementRef, inject, input } from '@angular/core';
+import {
+  type AfterViewInit,
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  inject,
+  input,
+} from '@angular/core';
 import { MatIconButton } from '@angular/material/button';
 import { MatDialogActions, MatDialogClose, MatDialogContent } from '@angular/material/dialog';
 import { MatIcon } from '@angular/material/icon';
@@ -193,9 +200,17 @@ import { MatTooltip } from '@angular/material/tooltip';
     :host {
       display: flex;
       flex-direction: column;
-      /* Lets the body grow to fill, header + footer stay natural-height. */
+      /* Fill all the vertical space made available by the overlay pane —
+         critical for the resize behavior: when the user drags the
+         bottom-right grabber and the pane grows, the body section flexes
+         to fill the new height instead of leaving an empty gap above the
+         footer. The ancestor chain (pane → mat-dialog-container →
+         mat-dialog-surface → dialog-component-wrapper) is forced into the
+         same flex column in ngAfterViewInit so this 100 percent height
+         actually has something to stretch against. */
+      flex: 1 1 auto;
+      height: 100%;
       min-height: 0;
-      max-height: inherit;
       /* Tighter inner radius matches the panelClass border-radius from
          svgeDialogConfig — prevents content edges from clipping the
          dialog's rounded corners. */
@@ -276,6 +291,15 @@ import { MatTooltip } from '@angular/material/tooltip';
       /* Material default adds extra top padding — normalize to match
          the consistent vertical rhythm with header. */
       margin: 0;
+      /* Make the body itself a flex column so content children that opt
+         in to flex grow (e.g., the source viewer pre block, future
+         large-content panels) stretch to fill the available vertical
+         space — eliminates the empty gap that appeared between content
+         and footer when the user resized the dialog taller. Children
+         that DON'T flex (forms with stacked sections) still render at
+         their intrinsic size — no visible change for them. */
+      display: flex;
+      flex-direction: column;
     }
     .dlg-footer {
       display: flex;
@@ -347,7 +371,7 @@ import { MatTooltip } from '@angular/material/tooltip';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SvgeDialogShell {
+export class SvgeDialogShell implements AfterViewInit {
   /** Optional Material icon name shown left of the title. */
   readonly icon = input<string | null>(null);
   /** Required title text — single line, ellipsis when too long. */
@@ -385,6 +409,59 @@ export class SvgeDialogShell {
    */
   private static readonly MIN_W = 320;
   private static readonly MIN_H = 220;
+
+  /**
+   * One-time DOM patch that turns the overlay-pane → dialog-component
+   * ancestor chain into a flex column so the shell's `height: 100%`
+   * actually has something to stretch against.
+   *
+   * **The problem**: Material's `<mat-dialog-container>` and
+   * `<mat-mdc-dialog-surface>` size themselves to their content by
+   * default — they don't grow when the user enlarges the overlay pane
+   * via the resize grabber. Result before the fix: dragging the pane
+   * taller left an empty gap between the dialog content and the
+   * bottom of the pane (visible as a void under the footer). The
+   * width axis worked because the children stretched horizontally via
+   * `width: 100%` flex defaults; only the height axis broke.
+   *
+   * **The fix**: walk from the shell's host element up to the
+   * `.cdk-overlay-pane` ancestor, forcing each intermediate element
+   * (the dialog-component wrapper like `<svge-svg-source-dialog>`,
+   * the surface, the container) into `display: flex; flex-direction:
+   * column; flex: 1 1 auto; min-height: 0;`. Now height propagates
+   * end-to-end and the shell's `:host { height: 100%; flex: 1 }` can
+   * fill whatever vertical space the pane offers — instantly on open
+   * AND while the user is resizing.
+   *
+   * **Why DOM patch rather than global CSS**: the shell ships in a
+   * published library; relying on the consumer to import a global
+   * stylesheet is fragile and easy to forget. Patching at runtime
+   * makes the behavior self-contained — `<svge-dialog-shell>` works
+   * correctly regardless of how the consumer set up their app.
+   * Trade-off: a handful of inline style writes per dialog open, run
+   * once in `ngAfterViewInit`. Negligible.
+   */
+  ngAfterViewInit(): void {
+    const hostEl = this.host.nativeElement;
+    const pane = hostEl.closest('.cdk-overlay-pane') as HTMLElement | null;
+    if (!pane) return;
+
+    // Walk from shell host up to (but not including) the overlay pane.
+    // Each intermediate element becomes a flex column so vertical space
+    // travels uninterrupted from pane to shell.
+    let el: HTMLElement | null = hostEl.parentElement;
+    while (el && el !== pane) {
+      el.style.display = 'flex';
+      el.style.flexDirection = 'column';
+      el.style.flex = '1 1 auto';
+      el.style.minHeight = '0';
+      // Lift any per-element max-height the Material defaults set so
+      // the pane's actual height (which the user controls via resize)
+      // is the only height constraint.
+      el.style.maxHeight = 'none';
+      el = el.parentElement;
+    }
+  }
 
   /**
    * Resize gesture. Captures the pointer on the grabber, then writes

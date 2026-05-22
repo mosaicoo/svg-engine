@@ -6,6 +6,42 @@
 
 ---
 
+## 2026-05-22 — Fix: dialog body responsivo no redimensionamento vertical
+
+**Bug observado**: ao redimensionar verticalmente o dialog (drag no grabber inferior-direito), o pane crescia mas o conteúdo interno e o footer **não acompanhavam** — aparecia um gap vazio entre o body e o footer. Horizontal funcionava normalmente.
+
+**Causa raiz**: a cadeia DOM Material (`overlay-pane → mat-dialog-container → mat-mdc-dialog-surface → componente-wrapper → svge-dialog-shell`) tem cada nó intermediário com `height: auto` por default — eles dimensionam pelo conteúdo intrínseco, ignorando que o pane (avô) cresceu. O `:host { max-height: inherit }` do shell só limitava, não esticava. E o source dialog tinha `max-height: 60vh` no `<pre>` que capava o conteúdo independente do espaço disponível.
+
+**Fix em 3 frentes (todas no shell + 1 ajuste no source dialog)**
+
+1. **`:host` do shell** — trocou `max-height: inherit` por `flex: 1 1 auto; height: 100%; min-height: 0;`. Agora o shell estica até onde o pai permitir.
+2. **`.dlg-body` do shell** — adicionado `display: flex; flex-direction: column;`. Permite que filhos com `flex: 1` (como `<pre>` do source viewer) cresçam dentro do body. Forms com seções empilhadas (workspace settings) continuam dimensionando intrinsicamente — sem mudança visível para eles.
+3. **`ngAfterViewInit` no shell** — DOM patch one-time que sobe do host até o `.cdk-overlay-pane` aplicando `display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; max-height: none;` em cada nó intermediário (`mat-dialog-container`, `mat-mdc-dialog-surface`, `svge-svg-source-dialog`/`svge-workspace-settings` wrapper). Isso destrava a cadeia: altura propaga end-to-end do pane até o shell.
+4. **`<pre class="source">` do source dialog** — trocou `max-height: 60vh` por `flex: 1 1 auto; min-height: 0;`. O `<pre>` agora preenche o body verticalmente, com scroll interno quando o conteúdo excede.
+
+**Por que DOM patch em vez de CSS global**: a library é publicada via npm; depender do consumer importar um stylesheet global é frágil e fácil de esquecer. Patch no `ngAfterViewInit` torna o comportamento self-contained — `<svge-dialog-shell>` funciona correto em qualquer app que abrir via `MatDialog`. Custo: alguns inline style writes por dialog open, uma única vez. Negligível.
+
+**Consistência garantida**
+
+- ✅ View Source: `<pre>` agora preenche o body — sem gap após resize vertical
+- ✅ Workspace Settings: form continua dimensionando pelo conteúdo (sem mudança visual default); body com scroll interno se a janela ficar muito alta
+- ✅ Todos os dialogs futuros que usarem o shell herdam o comportamento
+
+**Garantias verificadas**
+
+- ✅ 1049/1049 specs passando
+- ✅ 6 entry points + playground build clean
+- ✅ Lint clean nos 2 projetos
+- ✅ Comportamento default inalterado quando o usuário não redimensiona (o shell preenche o que o pane oferece, que é exatamente o tamanho do conteúdo intrínseco antes do primeiro resize)
+
+**Arquivos**
+
+- `projects/svg-engine/ui/src/lib/dialog-shell/dialog-shell.component.ts` — `:host` + `.dlg-body` + `ngAfterViewInit` com stretch chain DOM patch
+- `projects/svg-engine/ui/src/lib/svg-source-dialog/svg-source-dialog.component.ts` — `.source` flex em vez de `max-height: 60vh`
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+
+---
+
 ## 2026-05-21 — D-046? registrado (NLU/SLM para comandos por linguagem natural — 3 fases pendentes)
 
 **Pedido**: _"Registre as 03 fases de AI (NLU - ML Leve e SLM)."_ — formalização da conversa anterior sobre viabilidade de SLM no SVGEngine.

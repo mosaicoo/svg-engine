@@ -97,7 +97,13 @@ import { SvgeDialogShell } from '../dialog-shell';
       overflow: auto;
       white-space: pre;
       tab-size: 2;
-      max-height: 60vh;
+      /* Fill the dialog body vertically — when the user resizes the
+         dialog taller, the source pane grows with it (no empty gap
+         between content and footer). The shell's .dlg-body is a flex
+         column, so this child opt-in is enough; no fixed max-height
+         needed. */
+      flex: 1 1 auto;
+      min-height: 0;
       outline-offset: -2px;
     }
     .source:focus-visible {
