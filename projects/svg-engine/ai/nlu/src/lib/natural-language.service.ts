@@ -290,6 +290,7 @@ export class NaturalLanguageService {
       let requiredMissing = 0;
       let optionalFilled = 0;
       let requiredFilled = 0;
+      let anchoredFilled = 0; // D-046 review-6: slots preenchidos via anchor
       for (const name of slotNames) {
         const filled = extractedSlots[name] !== undefined;
         const schema = slotSchemas[name];
@@ -307,6 +308,16 @@ export class NaturalLanguageService {
           } else {
             requiredFilled++;
           }
+          // **Anchored bonus** (D-046 review-6): se o slot tem
+          // `anchorKeywords` declarado E foi preenchido (só seria via
+          // anchor agora que slot-extractor é anchor-only), conta como
+          // signal extra-forte. Resolve "move pra posição 10 50" →
+          // move-to-position vence move-selected, porque o anchor
+          // 'posicao' explícito vale mais que matching positional
+          // genérico de 2 numbers.
+          if (schema.anchorKeywords !== undefined && schema.anchorKeywords.length > 0) {
+            anchoredFilled++;
+          }
         } else if (schema.optional !== true) {
           requiredMissing++;
         }
@@ -318,6 +329,7 @@ export class NaturalLanguageService {
       score -= requiredMissing * 0.15;
       score += optionalFilled * 0.05;
       score += requiredFilled * 0.1;
+      score += anchoredFilled * 0.1; // bonus por slot anchored bem-extraído
 
       // ── (d) Description boost (D-046 review-4 meio-termo) ──
       // Tokens do input que aparecem na description do intent

@@ -40,6 +40,7 @@ import {
   EditorStateService,
   ExcludeCommand,
   IntersectCommand,
+  MoveNodeCommand,
   RemoveNodeCommand,
   ReorderNodeCommand,
   ResizeNodeCommand,
@@ -48,6 +49,7 @@ import {
   SubtractCommand,
   UnionCommand,
   collectNodes,
+  findNodeById,
   type NodeId,
   type SvgNode,
 } from 'svg-engine/core';
@@ -688,6 +690,136 @@ export function registerProfessionalIntents(nlu: NaturalLanguageService, ctx: Re
   );
 
   // ╔═══════════════════════════════════════════════════════════╗
+  // ║ MOVE-TO-ABSOLUTE (D-046 review-6)                          ║
+  // ╠════════════════════════════════════════════════════════════╣
+  // ║ Posicionamento ABSOLUTO — diferente do move-selected que    ║
+  // ║ é relativo (dx, dy). Aqui o user diz "para x 10" ou         ║
+  // ║ "posição 100 50" e o nó vai literalmente PRA aquela         ║
+  // ║ coordenada. Implementação: lê o origin atual do nó          ║
+  // ║ (geométrico + transform.translate), calcula dx/dy delta,    ║
+  // ║ dispatcha MoveNodeCommand. Headless (sem bbox renderizado). ║
+  // ╚═══════════════════════════════════════════════════════════╝
+
+  // ── move-to-position: "para posição 100 50", "para 100 50"
+  ctx.track(
+    nlu.registerIntent({
+      id: 'svge.builtin.nlu.move-to-position',
+      keywords: [
+        // PT
+        'mover',
+        'mova',
+        'move',
+        'movem',
+        'movimentar',
+        'movimente',
+        'movimenta',
+        'deslocar',
+        'desloque',
+        'desloca',
+        'arrastar',
+        'arraste',
+        'arrasta',
+        'posicionar',
+        'posicione',
+        'posiciona',
+        // EN
+        'drag',
+        'shift',
+        'position',
+        'translate',
+      ],
+      actionKeywords: ['move'],
+      slots: {
+        position: {
+          kind: 'point',
+          optional: false,
+          anchorKeywords: ['posicao', 'position', 'coordenada', 'coordinate', 'para', 'to'],
+        },
+      },
+      description:
+        'Move os nós selecionados pra POSIÇÃO absoluta (x, y) — diferente do "move dx dy" que é relativo',
+      execute(slots, runCtx) {
+        const position = slots['position'] as { x: number; y: number } | undefined;
+        if (position === undefined) return;
+        moveToAbsolute(runCtx, position.x, position.y);
+      },
+    }),
+  );
+
+  // ── move-to-x: "para x 10", "x igual a 100", "x = 50"
+  ctx.track(
+    nlu.registerIntent({
+      id: 'svge.builtin.nlu.move-to-x',
+      keywords: [
+        // mesmas keywords de move (move-to-position) — desambiguação
+        // por SLOT: este intent só dispara se SLOT 'x' for preenchido.
+        'mover',
+        'mova',
+        'move',
+        'movimenta',
+        'movimente',
+        'desloca',
+        'desloque',
+        'deslocar',
+        'posicionar',
+        'posicione',
+        // O próprio token 'x' também serve de keyword pra disparar.
+        'x',
+        'horizontal',
+      ],
+      actionKeywords: ['move'],
+      slots: {
+        targetX: {
+          kind: 'number',
+          optional: false,
+          anchorKeywords: ['x', 'horizontal'],
+        },
+      },
+      description: 'Move os nós selecionados pra coordenada X absoluta (eixo horizontal)',
+      execute(slots, runCtx) {
+        const x = slots['targetX'] as number | undefined;
+        if (x === undefined) return;
+        moveToAbsolute(runCtx, x, null);
+      },
+    }),
+  );
+
+  // ── move-to-y: "para y 20", "y igual a 50"
+  ctx.track(
+    nlu.registerIntent({
+      id: 'svge.builtin.nlu.move-to-y',
+      keywords: [
+        'mover',
+        'mova',
+        'move',
+        'movimenta',
+        'movimente',
+        'desloca',
+        'desloque',
+        'deslocar',
+        'posicionar',
+        'posicione',
+        'y',
+        'vertical',
+      ],
+      actionKeywords: ['move'],
+      slots: {
+        targetY: {
+          kind: 'number',
+          optional: false,
+          anchorKeywords: ['y', 'vertical'],
+        },
+      },
+      description: 'Move os nós selecionados pra coordenada Y absoluta (eixo vertical)',
+      execute(slots, runCtx) {
+        const y = slots['targetY'] as number | undefined;
+        if (y === undefined) return;
+        moveToAbsolute(runCtx, null, y);
+      },
+    }),
+  );
+
+  // ╔═══════════════════════════════════════════════════════════╗
   // ║ DELETE (destructive)                                       ║
   // ╚═══════════════════════════════════════════════════════════╝
 
@@ -823,5 +955,115 @@ function runPathfinder(
     case 'divide':
       bus.dispatch(new DivideCommand(ids));
       break;
+  }
+}
+
+/**
+ * **Origin aproximado do nó em coordenadas do documento** — combina
+ * geometria intrínseca + componente translate do transform.
+ *
+ * **Headless por design (D-017)**: NÃO usa bbox renderizado. Compute
+ * direto dos campos do nó (rect.x, ellipse.cx-rx, etc) + transform.e/f
+ * (translation). Bom o suficiente pra "move to X" quando o user acabou
+ * de criar a forma ou só fez translates puros.
+ *
+ * **Limitação conhecida**: ignora rotação/escala no transform. Pra um
+ * nó com `transform = rotate(45°) translate(10, 20)`, o origin retornado
+ * é o top-left da geometria + (10, 20), não considerando como a
+ * rotação afeta a posição visual real. Aceito como aproximação
+ * pragmática — fix correto exige `node-bbox.ts` (geometria
+ * transformada), que vive em `core` mas o NLU não importa pra manter
+ * peso baixo.
+ *
+ * **Retorna `null`** pra tipos sem origin computável SEM bbox renderizado:
+ * `path` (precisa parsear d-string), `group` (recursivo), `svg` (root).
+ */
+function getNodeApproxOrigin(node: SvgNode): { x: number; y: number } | null {
+  // Transform: [a, b, c, d, e, f] — e=tx, f=ty
+  const tx = node.transform[4];
+  const ty = node.transform[5];
+
+  switch (node.type) {
+    case 'rect':
+      return { x: node.x + tx, y: node.y + ty };
+    case 'ellipse':
+      // Top-left do bounding box do ellipse
+      return { x: node.cx - node.rx + tx, y: node.cy - node.ry + ty };
+    case 'line':
+      return { x: Math.min(node.x1, node.x2) + tx, y: Math.min(node.y1, node.y2) + ty };
+    case 'polygon':
+    case 'polyline': {
+      if (node.points.length === 0) return null;
+      let minX = Infinity;
+      let minY = Infinity;
+      for (const p of node.points) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+      }
+      return { x: minX + tx, y: minY + ty };
+    }
+    case 'text':
+      return { x: node.x + tx, y: node.y + ty };
+    case 'image':
+      return { x: node.x + tx, y: node.y + ty };
+    case 'path':
+    case 'group':
+      // Requer parser de d-string OU bbox renderizado — fora do scope
+      // headless. Caller deve dar warn e skip.
+      return null;
+    default:
+      // Defensivo: tipos futuros caem aqui (não-exaustivo, mas safe).
+      return null;
+  }
+}
+
+/**
+ * **Move os nós selecionados pra posição absoluta** (x, y).
+ *
+ * Quando `targetX` ou `targetY` é `null`, esse eixo não é alterado
+ * (move-to-x não toca em y; move-to-y não toca em x).
+ *
+ * Para cada nó:
+ * 1. Pega origin atual via {@link getNodeApproxOrigin}
+ * 2. Calcula dx = targetX - currentX (ou 0 se null)
+ * 3. Dispatcha {@link MoveNodeCommand}(nodeId, dx, dy)
+ *
+ * Nós sem origin computável (`path`/`group`/`svg`) são SKIP com warn.
+ * UI consumer pode registrar intent customizado pra esses tipos
+ * passando bbox renderizado.
+ */
+function moveToAbsolute(runCtx: RunCtx, targetX: number | null, targetY: number | null): void {
+  const bus = runCtx.injector.get(CommandBus);
+  const state = runCtx.injector.get(EditorStateService);
+  const selection = runCtx.injector.get(SelectionService);
+  const ids = [...selection.selectedIds()];
+  if (ids.length === 0) {
+    warn('move-to-absolute: nada selecionado');
+    return;
+  }
+  const root = state.document().root;
+  let movedCount = 0;
+  let skippedCount = 0;
+  for (const id of ids) {
+    const node = findNodeById(root, id);
+    if (node === null) {
+      skippedCount++;
+      continue;
+    }
+    const origin = getNodeApproxOrigin(node);
+    if (origin === null) {
+      warn(`move-to-absolute: nó ${node.type} (id=${id}) sem origin computável headless — skip`);
+      skippedCount++;
+      continue;
+    }
+    const dx = targetX !== null ? targetX - origin.x : 0;
+    const dy = targetY !== null ? targetY - origin.y : 0;
+    // Evita dispatch de no-op (já está na posição)
+    if (dx === 0 && dy === 0) continue;
+    bus.dispatch(new MoveNodeCommand(id, dx, dy));
+    movedCount++;
+  }
+  if (movedCount === 0 && skippedCount > 0) {
+    warn(`move-to-absolute: ${skippedCount} nó(s) skip; nada movido`);
   }
 }

@@ -235,19 +235,45 @@ describe('NLU › slot-extractor', () => {
         expect(slots['strokeWidth']).toBe(5);
       });
 
-      it('anchor stopword é filtrado — não dispara captura', () => {
-        // 'na' é stopword. Anchor 'na' não captura nada — só 'posicao' (não-stopword).
+      it('anchor stopword filtrado + slot anchor-only (D-046 review-6) → undefined', () => {
+        // 'na' é stopword (ignorado no anchor pass). 'posicao' não está
+        // no input. Sem anchor matched, slot ANCHORED não tem fallback
+        // positional — fica undefined. Isso é INTENCIONAL (review-6):
+        // protege "y 100" de preencher targetX erradamente.
         const tokens = tokenize('retangulo na 100 50');
         const slots = extractSlots(tokens, {
           position: {
             kind: 'point',
             optional: true,
-            anchorKeywords: ['na', 'posicao'], // 'na' é stopword → ignorado
+            anchorKeywords: ['na', 'posicao'],
           },
         });
-        // Sem anchor real válido, position fica undefined (Pass 1 falha).
-        // Pass 2 positional pega o ponto pelos 2 numbers adjacentes.
+        expect(slots['position']).toBeUndefined();
+      });
+
+      it('slot anchor-only: anchor presente → preenchido', () => {
+        const tokens = tokenize('retangulo posicao 100 50');
+        const slots = extractSlots(tokens, {
+          position: {
+            kind: 'point',
+            optional: true,
+            anchorKeywords: ['posicao'],
+          },
+        });
         expect(slots['position']).toEqual({ x: 100, y: 50 });
+      });
+
+      it('slot anchor-only: aplica default quando ausente + optional', () => {
+        const tokens = tokenize('apenas texto');
+        const slots = extractSlots(tokens, {
+          position: {
+            kind: 'point',
+            optional: true,
+            default: { x: 0, y: 0 },
+            anchorKeywords: ['posicao'],
+          },
+        });
+        expect(slots['position']).toEqual({ x: 0, y: 0 });
       });
 
       it('anchor sem valor compatível adjacente E sem fallback positional → undefined', () => {

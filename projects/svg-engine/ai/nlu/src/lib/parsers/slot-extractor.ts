@@ -344,6 +344,21 @@ export function extractSlots(
 
   for (const [name, schema] of schemaEntries) {
     if (name in result) continue; // já preenchido no pre-pass
+
+    // **D-046 review-6**: slots com `anchorKeywords` são **anchor-only**.
+    // Se o anchor falhou (Pass 1 não preencheu), NÃO faz fallback
+    // positional. Isso evita que "y 100" preencha targetX por
+    // positional (em vez de targetY que tem anchor 'y'), e que
+    // "para posição 10 50" preencha width=10 height=50 em vez de
+    // position={x:10,y:50}. Slots sem anchor continuam positional.
+    if (schema.anchorKeywords !== undefined && schema.anchorKeywords.length > 0) {
+      // Anchored mas não preenchido pelo Pass 1 → aplica default ou skip.
+      if (schema.optional === true && 'default' in schema && schema.default !== undefined) {
+        result[name] = schema.default;
+      }
+      continue;
+    }
+
     let found: unknown = undefined;
     let foundIdx = -1;
     let foundTokensConsumed = 1; // > 1 para color phrases (intensificadores)

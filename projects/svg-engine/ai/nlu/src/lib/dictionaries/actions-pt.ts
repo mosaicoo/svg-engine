@@ -175,12 +175,26 @@ export const ACTION_DICTIONARY_PT: Readonly<Record<string, ActionCanonical>> = O
   // ── transform ───────────────────────────────────────────────
   mover: 'move',
   mova: 'move',
+  // 3ª pessoa singular + variantes (D-046 review-6): "desloca o
+  // objeto", "movimenta isto" — conjugações comuns no falar PT
+  // que faltavam no dict.
+  movem: 'move',
+  movimenta: 'move',
+  movimente: 'move',
+  movimentar: 'move',
+  movimentem: 'move',
   arrastar: 'move',
   arraste: 'move',
+  arrasta: 'move',
   deslocar: 'move',
   desloque: 'move',
+  desloca: 'move',
+  translada: 'move',
+  translade: 'move',
+  transladar: 'move',
   posicionar: 'move',
   posicione: 'move',
+  posiciona: 'move',
   rotacionar: 'rotate',
   rotacione: 'rotate',
   girar: 'rotate',

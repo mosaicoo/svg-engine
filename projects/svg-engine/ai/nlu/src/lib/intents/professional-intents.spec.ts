@@ -43,6 +43,13 @@ function addRect(deps: ReturnType<typeof setup>) {
   return node;
 }
 
+function addRectAt(deps: ReturnType<typeof setup>, x: number, y: number) {
+  const node = createRect({ x, y, width: 50, height: 50 });
+  const rootId = deps.state.document().root.id;
+  deps.bus.dispatch(new InsertNodeCommand(rootId, node));
+  return node;
+}
+
 describe('Professional NLU intents (D-046 review-4)', () => {
   // ── ESTILO ──────────────────────────────────────────────────
 
@@ -226,6 +233,82 @@ describe('Professional NLU intents (D-046 review-4)', () => {
     );
     expect(withGate.executed).toBe(true);
     expect(deps.state.document().root.children.length).toBe(0);
+  });
+
+  // ── MOVE-TO-ABSOLUTE (D-046 review-6) ────────────────────────
+
+  it('REGRESSION USUARIO: "move o objeto selecionado para x 10" → translada pra x=10', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    // Cria um rect em (50, 30) — vai precisar deslocar pra x=10
+    const rect = addRectAt(deps, 50, 30);
+    deps.selection.select(rect.id);
+    const result = await deps.nlu.execute('move o objeto selecionado para x 10', {
+      injector: deps.injector,
+    });
+    expect(result.executed).toBe(true);
+    // Origem aproximada = rect.x + transform.tx. MoveNodeCommand soma dx ao
+    // transform — origem final visual = 10. Verificamos via origin recomputado.
+    const updated = deps.state.document().root.children[0];
+    expect(updated.type).toBe('rect');
+    if (updated.type === 'rect') {
+      const tx = updated.transform[4];
+      // x geométrico (50) + tx == 10 → tx = -40
+      expect(updated.x + tx).toBe(10);
+      // y NÃO deve ter sido alterado
+      const ty = updated.transform[5];
+      expect(updated.y + ty).toBe(30);
+    }
+  });
+
+  it('REGRESSION USUARIO: "move o objeto selecionado para x igual a 10" → ignora "igual" stopword', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    const rect = addRectAt(deps, 0, 0);
+    deps.selection.select(rect.id);
+    const result = await deps.nlu.execute('move o objeto selecionado para x igual a 10', {
+      injector: deps.injector,
+    });
+    expect(result.executed).toBe(true);
+    const updated = deps.state.document().root.children[0];
+    if (updated.type === 'rect') {
+      const tx = updated.transform[4];
+      expect(updated.x + tx).toBe(10);
+    }
+  });
+
+  it('REGRESSION USUARIO: "desloca o objeto para posição 10 50" → translada pra (10, 50)', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    const rect = addRectAt(deps, 100, 200);
+    deps.selection.select(rect.id);
+    const result = await deps.nlu.execute('desloca o objeto para posição 10 50', {
+      injector: deps.injector,
+    });
+    expect(result.executed).toBe(true);
+    const updated = deps.state.document().root.children[0];
+    if (updated.type === 'rect') {
+      const tx = updated.transform[4];
+      const ty = updated.transform[5];
+      expect(updated.x + tx).toBe(10);
+      expect(updated.y + ty).toBe(50);
+    }
+  });
+
+  it('move-to-y só altera Y, preserva X', async () => {
+    const deps = setup();
+    deps.plugins.install(builtinNluPlugin);
+    const rect = addRectAt(deps, 25, 25);
+    deps.selection.select(rect.id);
+    const result = await deps.nlu.execute('move para y 100', { injector: deps.injector });
+    expect(result.executed).toBe(true);
+    const updated = deps.state.document().root.children[0];
+    if (updated.type === 'rect') {
+      const tx = updated.transform[4];
+      const ty = updated.transform[5];
+      expect(updated.x + tx).toBe(25); // X preservado
+      expect(updated.y + ty).toBe(100); // Y atualizado
+    }
   });
 
   // ── DESCRIPTION BOOST (meio-termo "semantic disambiguator") ──

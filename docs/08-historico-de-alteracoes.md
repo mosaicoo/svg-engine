@@ -6,6 +6,95 @@
 
 ---
 
+## 2026-05-22 — D-046 review-6: movimento ABSOLUTO + "x igual a 10" + 'desloca' conjugação
+
+**Reportado pelo usuário** — 3 comandos não funcionavam:
+
+1. `"move o objeto selecionado para x 10"`
+2. `"move o objeto selecionado para x igual a 10"`
+3. `"desloca o objeto para posição 10 50"`
+
+**Diagnóstico**: 3 bugs reais concorrentes.
+
+### Bug 1: Semântica — só existia "move RELATIVO" (dx/dy)
+
+`move-selected` original interpretava números como deslocamento incremental. O usuário queria movimento ABSOLUTO ("para x=10"). Operações diferentes precisam de intents separados.
+
+**Fix**: 3 novos intents em `professional-intents.ts`:
+
+- `move-to-position`: slot `position` (kind:'point') anchor `posicao`/`position`/`para`/`to`
+- `move-to-x`: slot `targetX` (kind:'number') anchor `x`/`horizontal`
+- `move-to-y`: slot `targetY` (kind:'number') anchor `y`/`vertical`
+
+Handler `moveToAbsolute(runCtx, x|null, y|null)`:
+
+1. Lê origin atual de cada nó selecionado via `getNodeApproxOrigin(node)` (geometria intrínseca + transform.translate)
+2. Calcula dx = targetX - currentX (ou 0 se null)
+3. Dispatcha `MoveNodeCommand(nodeId, dx, dy)` — composição relativa resulta em posição absoluta correta
+
+`getNodeApproxOrigin` cobre rect/ellipse/line/polygon/polyline/text/image (path/group retornam null com warning honesto — exigem bbox renderizado fora do scope D-017).
+
+### Bug 2: Vocabulário PT — 'desloca' (3ª pessoa singular) faltando
+
+`actions-pt.ts` tinha `'deslocar'` (infinitivo) e `'desloque'` (imperativo formal) mas faltava 3ª pessoa `'desloca'` ("desloca o objeto..."). Adicionadas + outras conjugações: `'arrasta'`, `'movem'`, `'movimenta'`, `'movimente'`, `'movimentar'`, `'translada'`, `'translade'`, `'transladar'`, `'posiciona'`.
+
+### Bug 3: "x igual a 10" quebrava o extrator anchored
+
+O `extractValueForSlot` parava no primeiro token não-stopword não-numérico após o anchor. `'igual'` (não-stopword) ficava entre `'x'` e `'10'` e abortava a extração.
+
+**Fix**: stopwords PT/EN expandidas: `'igual'`, `'iguais'`, `'eh'`, `'sao'`, `'valor'` (PT) + `'equals'`, `'equal'`, `'is'`, `'are'`, `'value'` (EN). Também fillers de referência ao objeto: `'objeto'`, `'objetos'`, `'selecionado'`, `'selecionada'` etc — toda operação NLU já assume "no selecionado", essas palavras eram ruído.
+
+### Bug 4 (descoberto durante fix): Slots anchored com fallback positional incorreto
+
+Após implementar `move-to-x`, `"move para y 100"` matched `move-to-x` errado — o positional pass pegava o `100` para `targetX` mesmo SEM anchor `'x'` no input.
+
+**Fix em `slot-extractor.ts`**: slots com `anchorKeywords` agora são **anchor-only**. Se Pass 1 não preenche via anchor, NÃO faz fallback positional. Aplica `default` se declarado, senão `undefined`. Protege a discriminação semântica: `'y 100'` só preenche `targetY`, nunca `targetX`.
+
+### Bug 5 (descoberto durante fix): Score tie quebrava preferência por anchored
+
+`"desloca para posição 10 50"` empatava entre `move-to-position` (1 slot anchored) e `move-selected` (2 slots positional). Tiebreaker favorecia `move-selected` por mais matches.
+
+**Fix em `natural-language.service.ts`**: bonus +0.10 por slot **anchored** preenchido (signal extra-forte de intenção semântica). Move-to-position vence move-selected porque anchor `'posicao'` é semanticamente mais rico que matching positional genérico.
+
+### Specs adicionados (+4 regression do usuário + 3 unit)
+
+- `"move o objeto selecionado para x 10"` → translada absoluto x=10
+- `"move o objeto selecionado para x igual a 10"` → ignora 'igual'
+- `"desloca o objeto para posição 10 50"` → (10, 50) absoluto
+- `"move para y 100"` → só Y altera, X preservado
+- slot anchor-only: anchor falhou → undefined
+- slot anchor-only: anchor presente → preenchido
+- slot anchor-only com default → aplica quando ausente
+
+**Total**: **1231/1231 passing** + 1 skipped.
+
+### Comandos que agora funcionam de verdade
+
+| Comando                          | Resultado                         |
+| -------------------------------- | --------------------------------- |
+| `"move para x 10"`               | translada absoluto x=10           |
+| `"move para x igual a 100"`      | mesmo (stopword 'igual' ignorada) |
+| `"move para y 200"`              | só Y muda, X preservado           |
+| `"desloca para posição 10 50"`   | (x,y) absoluto                    |
+| `"posicione na posição 100 200"` | mesmo                             |
+| `"translada x igual a 75"`       | mesmo                             |
+
+### Limitações documentadas
+
+- `getNodeApproxOrigin` ignora rotação/escala no transform — aceitável quando user move shape recém-criado ou só com translates puros. Para nós com rotação composta, a "origem" não bate exatamente com a visual real.
+- `path` e `group` retornam null (skip + warn). Fix correto requer parser de d-string e bbox recursivo, fora do scope NLU.
+
+### Arquivos modificados
+
+- `dictionaries/stopwords-{pt,en}.ts` — `'igual'`, `'objeto'`, `'selecionado'`
+- `dictionaries/actions-pt.ts` — `'desloca'`, `'movimenta'`, `'translada'`
+- `parsers/slot-extractor.ts` — slots anchored são anchor-only
+- `natural-language.service.ts` — +0.10 bonus por anchored slot filled
+- `intents/professional-intents.ts` — 3 intents + helpers `getNodeApproxOrigin` + `moveToAbsolute`
+- specs atualizados nos 2 arquivos correspondentes
+
+---
+
 ## 2026-05-22 — D-046 review-5: BUG REAL "criar polígono" não criava nada (no-op silencioso)
 
 **Reportado pelo usuário**: "Não funcionou o comando 'Criar um polígono rosa no tamanho 100x100'. Será que você sabe o que realmente está fazendo?"

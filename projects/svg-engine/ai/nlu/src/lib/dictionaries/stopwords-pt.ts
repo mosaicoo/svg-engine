@@ -111,4 +111,38 @@ export const STOPWORDS_PT: ReadonlySet<string> = new Set<string>([
   'sempre',
   'nunca',
   'talvez',
+
+  // ── comparação / equivalência (D-046 review-6) ──────────────
+  // "x igual a 10" / "y eh 20" — palavras de comparação são ruído
+  // entre anchor e valor. Adicionar como stopword permite que o
+  // extractor pule pra o número subsequente.
+  'igual',
+  'iguais',
+  'eh', // 'é' deacentuado
+  'sao', // 'são' deacentuado
+  'fica',
+  'fique',
+  'vale',
+  'valor',
+
+  // ── filler / referência ao objeto (D-046 review-6) ──────────
+  // "move o objeto selecionado para X" — 'objeto' / 'selecionado'
+  // não agregam semântica (toda operação NLU já opera no selecionado
+  // por padrão). Stopword evita ruído.
+  'objeto',
+  'objetos',
+  'item',
+  'itens',
+  'elemento',
+  'elementos',
+  // 'forma'/'formas' NÃO incluídos — são keys do SHAPE_DICTIONARY
+  // (semantic alias para 'path') e seriam silenciados pelo extractor.
+  'selecionado',
+  'selecionada',
+  'selecionados',
+  'selecionadas',
+  'atual',
+  'atuais',
+  'corrente',
+  'correntes',
 ]);

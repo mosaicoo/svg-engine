@@ -91,4 +91,21 @@ export const STOPWORDS_EN: ReadonlySet<string> = new Set<string>([
   'always',
   'never',
   'often',
+
+  // ── equality / filler (D-046 review-6) ──────────────────────
+  'equals',
+  'equal',
+  'is',
+  'are',
+  'value',
+
+  // ── object reference fillers ────────────────────────────────
+  'object',
+  'objects',
+  'element',
+  'elements',
+  'selected',
+  'current',
+  // 'item' / 'items' NÃO incluídos — podem ser slot names em
+  // intents customizados de plugins.
 ]);
