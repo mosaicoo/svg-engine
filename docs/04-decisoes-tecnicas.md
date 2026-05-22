@@ -1468,8 +1468,96 @@ Depois: **fonte única em `edit/lib/menu/menu-slots.ts`**. `ui` re-exporta para 
 | D-032?     | Multi-page (`WorkspacesRegistry`) — extensão futura de D-021           |
 | D-033?     | Estratégia de i18n no editor                                           |
 | D-045?     | Distribuição cross-framework (React / Vue / Vanilla JS / RN)           |
+| D-046?     | NLU/SLM para comandos por linguagem natural (3 fases incrementais)     |
 | D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3 |
 
 > **Nota**: D-023 era "API formal de plugins" (cumprida pelo D-020 expandido em 2026-05-15). D-024 era "Versionamento + changelog" (renumerada para D-031 porque o número D-024 foi reusado para `ScriptRuntimePlugin`). D-030 era "Workspace/Página: A vs B" (cumprida pelo D-021 resolvido como Option C). D-032 entra como pendente para multi-page futuro. Sequência de IDs cumpridas em 2026-05-15: D-020, D-021, D-023, D-024. Em 2026-05-20: D-026 (alinhamento estrutural io/optimize); o número D-026 era previamente reservado para i18n — renomeado para D-033. D-036 (consolidação de helpers compartilhados) entrou no mesmo dia. **D-034 + D-035 + D-037** (shell-refinement) entraram em 2026-05-20 mais tarde no mesmo dia — adiamento "pós-Fase 6d" foi reduzido pois caso de uso Mosaicoo (canvas embedável em painéis menores + editor completo) demandou ambas formas garantidamente. **D-038 + D-039 + D-040** (Sprint Pro-Editor + interactions + polish) entraram em 2026-05-20 fechando o ciclo do shell profissional. **D-031** (release tooling) também entrou em 2026-05-20 — destrava `npm publish` via `standard-version` + workflow `release.yml` condicional ao secret `NPM_TOKEN`; a decisão de registry definitivo (D-025?) permanece pendente.
 
 > **D-045?** (registrado em 2026-05-21, sem prazo): hoje a library é Angular-only (D-001). Pergunta levantada: viabilidade de distribuir em React / React Native / Vue / Vanilla JS. **Status atual**: `core` + `io` + `optimize` são parcialmente neutros (usam `@angular/core` apenas para `signal()` reativo + `@Injectable` em registries) — funcionam fora de Angular com Angular core como peer dep (~50KB) tratando classes como objects. `render` + `edit` + `ui` são Angular-bound (components/directives). RN não suportado por causa do DOM SVG web-only. **Trilha viável** se reabrir: extrair `@svg-engine/core` puro TS (signals → biblioteca neutra tipo `@preact/signals-core`), criar wrappers `@svg-engine/react`, `@svg-engine/vue`, `@svg-engine/web-components` (via `@angular/elements`). D-017 (headless boundary) facilita o destilamento. D-001 explicitamente rejeitou inicialmente mas com nota "pode ser destilado depois se necessário". Apenas registro — não há sprint planejada.
+
+---
+
+## D-046? — NLU/SLM para comandos por linguagem natural (3 fases incrementais)
+
+- **Data registro**: 2026-05-21
+- **Status**: Pendente (apenas registro — sem sprint planejada)
+- **Pergunta levantada**: viabilidade de adicionar um SLM (Small Language Model) para reconhecer linguagem natural e executar comandos dentro da ferramenta. Não é IA generativa: o caso de uso é **intent classification + slot filling** — entender "criar retângulo vermelho 100x50" → `{intent: 'create-shape', shape: 'rect', fill: 'red', width: 100, height: 50}` → `bus.dispatch(...)`.
+
+### Por que faz sentido aqui
+
+A arquitetura atual já está pronta para acoplar isso sem retrabalho:
+
+- **`CommandBus`** (D-002): ponto único de mutação. O NLU produz um `Command` e despacha.
+- **`CommandRegistry` + `MenuContributionRegistry`** (D-020/D-043): catálogo enumerável de tudo que o editor sabe fazer (cada item tem `id`, `label`, `icon`, `run`). O NLU pode **introspectar** isso pra descobrir intents automaticamente — todo menu item vira candidato com label como exemplo.
+- **Plugin system** (D-020 + D-023): entrega opt-in via `provideSvgEnginePlugin(nluPlugin)`.
+- **D-017 headless boundary**: o NLU **não** entra no core — vira entry point separado (`svg-engine/nlu`).
+- **D-042 multi-editor scope**: o `MenuContributionContext.injector` já permite o NLU resolver `CommandBus` / `Selection` / etc. do scope ativo (cada editor seu).
+
+### Decomposição em 3 fases (cada uma entrega valor sozinha)
+
+| Fase  | Stack                                                                                   | Tamanho       | Cobertura esperada                                                                        | Entry point opt-in                   |
+| ----- | --------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------- | ------------------------------------ |
+| **1** | Rule-based: regex + dicionário PT/EN + fuzzy match (Levenshtein)                        | < 50 KB       | 70–80% dos comandos comuns ("undo", "delete", "criar retângulo vermelho")                 | `svg-engine/nlu` (sempre disponível) |
+| **2** | Intent classifier ML: distilled BERT / MiniLM via **Transformers.js** (ONNX no browser) | 30–50 MB      | Resolve ambiguidades ("torna isso maior", "alinha à esquerda"); adiciona confidence score | `svg-engine/nlu-ml` (lazy-load)      |
+| **3** | SLM com function-calling: Llama-3.2-1B / Gemma 2B via **WebLLM** (WebGPU)               | 500 MB – 2 GB | Comandos compostos ("duplica 3 vezes e alinha em grid 2x2")                               | `svg-engine/nlu-slm` (lazy-load)     |
+
+**Importante**: as 3 fases **compõem em cascata** — Fase 1 sempre roda primeiro (instantâneo); cai para Fase 2 se confidence baixa; cai para Fase 3 se a 2 também falhou. Consumer só paga o tamanho que escolher ativar.
+
+### Forma proposta do serviço
+
+```ts
+// svg-engine/nlu (Fase 1 — sem ML)
+@Injectable({ providedIn: 'root' })
+export class NaturalLanguageService {
+  /** Registra intent manual (ou auto-descoberta do MenuContributionRegistry). */
+  registerIntent(intent: NluIntent): Disposable;
+
+  /** Recebe texto, retorna 0..N comandos candidatos com confidence. */
+  parse(text: string, ctx: NluContext): NluResult[] | Promise<NluResult[]>;
+
+  /** Atalho: parse + dispatch. Hook configurável para confirmation gate. */
+  execute(text: string, ctx: NluContext): Promise<NluResult | null>;
+}
+
+interface NluIntent {
+  id: string;
+  examples: string[]; // 'criar retângulo', 'add a circle', 'desenhar elipse 100x50'
+  slots: Record<string, SlotSchema>; // shape: 'enum[rect,circle,ellipse]', width: 'number?'
+  execute: (
+    slots: Record<string, unknown>,
+    runCtx: MenuContributionContext,
+  ) => void | Promise<void>;
+}
+```
+
+### Surfaces UI possíveis (entry separado `svg-engine/nlu-ui`)
+
+- **Command palette** (Ctrl+K) com input texto + autocomplete de intents conhecidos
+- **Voice input** via Web Speech API (gratuito, browser-native) → mesma pipeline `parse()`
+- **Chat sidebar** opcional (modo conversacional, útil pra Fase 3)
+
+### Restrições e trade-offs (não esquecer ao reabrir)
+
+| Tópico                 | Tratamento                                                                                                                    |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Bundle size            | Fase 1 entra default; Fase 2/3 são entry points lazy-loaded — **D-017 preserva headless puro**                                |
+| Privacidade            | Tudo local; **zero envio para servidor** — diferencial vs Copilot/Cursor                                                      |
+| Determinismo           | NLU sempre tem risco de erro → ações destrutivas (delete, clear) **sempre** com confirmation gate configurável                |
+| i18n (D-033?)          | Rule-based: dicionários PT/EN; ML: modelos multilíngues existem (XLM-R, Multilingual MiniLM)                                  |
+| Acessibilidade         | Voz + NLU é uma feature **enorme** de acessibilidade (usuários com mobilidade reduzida) — esse é um argumento forte por si só |
+| Mosaicoo (D-037)       | Plugin opt-in; **Modo 1 (headless puro) continua sem dependência**                                                            |
+| Cold start (Fase 2/3)  | Primeiro uso baixa o modelo (3–10s para SLM); UI deve mostrar progresso. localStorage cache via OPFS / IndexedDB              |
+| WebGPU obrigatório (3) | Fallback: se ausente, cai para Fase 2; documentar requisito de hardware                                                       |
+| Atualização de modelo  | Hash-pinned download URLs; mecanismo de migração para quando modelo evoluir                                                   |
+
+### Decisão de não fazer agora
+
+- Library ainda está fechando funcionalidades base (Fase 6c restante: 6d EffectRegistry, 6e ScriptRuntime); priorizar o core fundamentado.
+- Sem demanda explícita de usuário real ainda — registrar como pendente é o suficiente.
+- Quando reabrir: começar **sempre pela Fase 1** (rule-based) — entrega valor imediato, prova o contrato `NaturalLanguageService`, e Fase 2/3 reaproveitam o mesmo API.
+
+### Quando reabrir
+
+- Demanda explícita de consumer (Mosaicoo, third-party) por command palette / voice
+- Mosaicoo entrar em modo acessibilidade explícito
+- Atingir nível de maturidade onde o catálogo de intents auto-descobertos do `MenuContributionRegistry` cobrir comandos suficientes para validar a Fase 1 standalone

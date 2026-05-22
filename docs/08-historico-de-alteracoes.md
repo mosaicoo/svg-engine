@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-05-21 — D-046? registrado (NLU/SLM para comandos por linguagem natural — 3 fases pendentes)
+
+**Pedido**: _"Registre as 03 fases de AI (NLU - ML Leve e SLM)."_ — formalização da conversa anterior sobre viabilidade de SLM no SVGEngine.
+
+**Conteúdo da decisão pendente** (resumo; detalhes completos em `04-decisoes-tecnicas.md` › D-046?):
+
+- **Não é IA generativa**: caso de uso é **intent classification + slot filling** (entender "criar retângulo vermelho 100x50" → `{intent: 'create-shape', shape: 'rect', fill: 'red', width: 100, height: 50}` → `bus.dispatch(...)`).
+- **Por que encaixa naturalmente**: `CommandBus` (D-002) é ponto único de mutação; `CommandRegistry` + `MenuContributionRegistry` (D-020/D-043) já são catálogos enumeráveis (cada `label` vira exemplo de intent); plugin system permite opt-in puro; D-017 mantém core headless intacto; D-042 multi-editor scope já funciona via `MenuContributionContext.injector`.
+- **3 fases em cascata compõem**:
+  1. **Rule-based** (< 50 KB) — regex + dicionário PT/EN + fuzzy match. Auto-descobre intents do `MenuContributionRegistry`. Cobre 70–80% dos comandos comuns. Entry `svg-engine/nlu`.
+  2. **Intent classifier ML** (30–50 MB lazy) — distilled BERT/MiniLM via **Transformers.js** (ONNX no browser, sem WebGPU). Resolve ambiguidades. Entry `svg-engine/nlu-ml`.
+  3. **SLM com function-calling** (500 MB – 2 GB lazy) — Llama-3.2-1B/Gemma 2B via **WebLLM** (WebGPU obrigatório). Comandos compostos. Entry `svg-engine/nlu-slm`.
+- **Surfaces UI** (entry separado `svg-engine/nlu-ui`): command palette (Ctrl+K), voice input (Web Speech API gratuito), chat sidebar opcional.
+- **Privacy-first**: tudo local, zero envio para servidor — diferencial vs Copilot/Cursor.
+- **Por que não fazer agora**: library ainda fecha funcionalidades base (Fase 6c/6d/6e); priorizar core fundamentado. Sem demanda explícita de consumer real. Registrar é suficiente.
+
+**Registrado em**:
+
+- `docs/04-decisoes-tecnicas.md` — D-046? completo (rationale + arquitetura proposta + restrições + quando reabrir) + linha na tabela de "Decisões pendentes (em aberto)"
+- `docs/05-roadmap.md` — **Fase 8** (condicional) com checkboxes para 8.1/8.2/8.3 + surfaces UI + princípios de execução
+- `docs/08-historico-de-alteracoes.md` — esta entrada
+
+**Sem código alterado**: zero arquivos de produção tocados. Apenas decisão arquitetural pendente formalizada.
+
+---
+
 ## 2026-05-21 — D-044 follow-up²: dialogs movíveis e redimensionáveis
 
 **Pedido**: _"Dar a possibilidade do usuário mover e redimensionar as

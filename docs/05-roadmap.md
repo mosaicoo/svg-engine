@@ -342,6 +342,43 @@
 
 - Só inicia se surgir necessidade real (ver `07-backend-dotnet.md`).
 
+## Fase 8 — NLU / SLM para comandos por linguagem natural (D-046? — condicional)
+
+> Pendente — apenas registrada. Veja [04 — Decisões técnicas › D-046?] para
+> rationale, encaixe arquitetural, restrições e trade-offs. Reabrir só
+> quando houver demanda explícita ou push de acessibilidade.
+
+- [ ] **Fase 8.1 — Rule-based NLU** (sem ML, < 50 KB)
+  - Entry point `svg-engine/nlu` (headless, opt-in)
+  - `NaturalLanguageService.parse(text, ctx)` com regex + dicionário PT/EN + fuzzy match (Levenshtein)
+  - Auto-descoberta de intents do `MenuContributionRegistry` (todo menu item vira candidato; `label` como exemplo)
+  - `registerIntent(...)` para plugins adicionarem intents customizados
+  - Confirmation gate configurável para ações destrutivas (delete, clear)
+  - Cobertura esperada: 70–80% dos comandos comuns
+- [ ] **Fase 8.2 — Intent classifier ML leve** (30–50 MB, lazy-load)
+  - Entry point `svg-engine/nlu-ml`
+  - Distilled BERT / MiniLM via **Transformers.js** (ONNX no browser, sem WebGPU obrigatório)
+  - Confidence score → fallback para Fase 1 se baixa
+  - Resolve ambiguidades semânticas ("torna isso maior", "alinha à esquerda")
+  - Multilíngue (XLM-R / Multilingual MiniLM)
+- [ ] **Fase 8.3 — SLM com function-calling** (500 MB – 2 GB, lazy-load, WebGPU)
+  - Entry point `svg-engine/nlu-slm`
+  - Llama-3.2-1B ou Gemma 2B via **WebLLM** (WebGPU obrigatório; fallback para Fase 2 se ausente)
+  - Comandos compostos ("duplica 3 vezes e alinha em grid 2x2")
+  - Function-calling style: o SLM emite JSON `{intent, slots}`, código clássico executa
+  - Cache do modelo via OPFS / IndexedDB (cold start só na 1ª vez)
+- [ ] **Surfaces UI (entry separado `svg-engine/nlu-ui`)**
+  - Command palette (Ctrl+K) com input texto + autocomplete
+  - Voice input via Web Speech API (gratuito, browser-native)
+  - Chat sidebar opcional (modo conversacional, útil pra 8.3)
+
+**Princípios de execução**:
+
+- As 3 fases **compõem em cascata**: 8.1 sempre roda primeiro; cai para 8.2 se confidence baixa; cai para 8.3 se 8.2 também falhou.
+- Consumer paga só o tamanho que escolher ativar (D-017 headless puro continua sem dependência).
+- **Privacy-first**: tudo local, zero servidor — diferencial vs Copilot/Cursor.
+- **Sempre Fase 8.1 antes** — prova o contrato `NaturalLanguageService`; 8.2 e 8.3 só reaproveitam a API.
+
 ---
 
 ## Princípios de evolução
