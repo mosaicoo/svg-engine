@@ -6,6 +6,54 @@
 
 ---
 
+## 2026-05-22 — D-046 set-fill funcional: NLU agora muda cor de verdade via SetStylePropertyOnManyCommand
+
+**Pedido**: implementar troca de cor do nó selecionado via NLU. O intent `set-fill` reconhecia o comando mas era **stub honesto** (só `console.warn`) porque eu acreditava que faltava `SetStyleCommand` no core.
+
+**Descoberta**: o command já existe! `SetStylePropertyOnManyCommand(nodeIds, key, value)` foi implementado no D-043 (sprint inspector multi-edit). Lição: auditar `commands/index.ts` antes de assumir gap.
+
+**Fix (mínimo)**:
+
+```ts
+// Antes: stub
+execute(slots) {
+  console.warn('SetStyleCommand ainda não existe…');
+}
+
+// Agora: dispatch real
+execute(slots, runCtx) {
+  const fill = slots['color'] as string;
+  const bus = runCtx.injector.get(CommandBus);
+  const selection = runCtx.injector.get(SelectionService);
+  const ids = [...selection.selectedIds()];
+  if (ids.length === 0) { console.warn('nada selecionado'); return; }
+  bus.dispatch(new SetStylePropertyOnManyCommand(ids, 'fill', fill));
+}
+```
+
+**Comandos que agora funcionam de verdade** (com seleção ativa):
+
+| Input                               | Efeito                                      |
+| ----------------------------------- | ------------------------------------------- |
+| `pinta vermelho`                    | fill `#e53935`                              |
+| `cor azul claro`                    | fill `#42a5f5` (lighter via intensificador) |
+| `paint #ff8800`                     | fill `#ff8800` (hex direto)                 |
+| `fill rgb(255,128,0)`               | fill `#ff8000` (rgb function)               |
+| `cor success`                       | fill `#43a047` (semantic)                   |
+| `pintar de bem escuro azul marinho` | fill navy escuro                            |
+
+**Garantias**:
+
+- **Multi-select atômico**: "cor azul" com 3 nós selecionados → 3 nós azuis em **1 undo entry** (Ctrl+Z reverte todos juntos)
+- **Anti-alucinação respeitada**: caller que não selecionou nada vê `console.warn` — não inventa target
+- **Multi-editor scope-safe**: `CommandBus` + `SelectionService` resolvidos via `runCtx.injector` (D-042/D-043)
+
+**Verificado**: 1182/1182 specs (1180 + 2 regression: "pinta vermelho" single-select; "cor azul" multi-select com undo).
+
+**Commit**: `<será preenchido após git commit>` em `origin/main`.
+
+---
+
 ## 2026-05-22 — D-046 review²: 5 casos REAIS reportados pelo usuário, todos corrigidos
 
 **Pedido**: _"NLU não funciona como deveria. Exemplos: 'Crie uma bola azul marinho' não reconhece; 'Criar circulo azul' cria um retângulo; 'Mover/Redimensionar/Duplicar objeto selecionado' não faz nada. Ajuste AGORA."_

@@ -7,6 +7,7 @@ import {
   InsertNodeCommand,
   MoveNodeCommand,
   ResizeNodeCommand,
+  SetStylePropertyOnManyCommand,
   type NodeId,
 } from 'svg-engine/core';
 import { type EditorPlugin, MenuContributionRegistry, PLUGIN_API_VERSION } from 'svg-engine/edit';
@@ -217,23 +218,34 @@ export const builtinNluPlugin: EditorPlugin = {
       }),
     );
 
-    // set-fill — stub honesto (aguarda SetStyleCommand no core)
+    // set-fill: "pinta de vermelho", "cor azul", "fill #ff0000",
+    //           "preenchimento rgb(255,128,0)", "cor success"
+    //
+    // Aplica a cor a TODOS os nós selecionados num único undo step via
+    // `SetStylePropertyOnManyCommand` (commit atômico — Ctrl+Z reverte
+    // a operação inteira). Quando nada selecionado, warn no console e
+    // retorna sem efeito.
     ctx.track(
       nlu.registerIntent({
         id: 'svge.builtin.nlu.set-fill',
         keywords: ['cor', 'pintar', 'pinta', 'preenchimento', 'fill', 'color', 'paint'],
         slots: { color: { kind: 'color', optional: false } },
-        description: 'Define a cor de preenchimento (aguarda SetStyleCommand no core)',
+        description: 'Aplica a cor de preenchimento aos nós selecionados',
         execute(slots, runCtx) {
           const fill = slots['color'] as string | undefined;
           if (fill === undefined) return;
-          if (typeof console !== 'undefined') {
-            console.warn(
-              '[svge.nlu] set-fill: SetStyleCommand ainda não existe no core. Cor resolvida:',
-              fill,
-            );
+          const bus = runCtx.injector.get(CommandBus);
+          const selection = runCtx.injector.get(SelectionService);
+          const ids = [...selection.selectedIds()] as readonly NodeId[];
+          if (ids.length === 0) {
+            if (typeof console !== 'undefined') {
+              console.warn('[svge.nlu] set-fill: nada selecionado');
+            }
+            return;
           }
-          void runCtx.injector;
+          // `key: 'fill'` + `value: <hex|css>` — múltiplos nós, single
+          // undo. Mesmo padrão do inspector multi-select.
+          bus.dispatch(new SetStylePropertyOnManyCommand(ids, 'fill', fill));
         },
       }),
     );

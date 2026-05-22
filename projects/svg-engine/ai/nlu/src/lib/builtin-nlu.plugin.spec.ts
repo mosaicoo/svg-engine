@@ -5,6 +5,7 @@ import {
   createEmptyDocument,
   createRect,
   EditorStateService,
+  HistoryService,
   InsertNodeCommand,
 } from 'svg-engine/core';
 import { MenuContributionRegistry, PluginRegistry, SelectionService } from 'svg-engine/edit';
@@ -22,6 +23,7 @@ function setup() {
     menus: TestBed.inject(MenuContributionRegistry),
     bus: TestBed.inject(CommandBus),
     selection: TestBed.inject(SelectionService),
+    history: TestBed.inject(HistoryService),
     state,
     injector: TestBed.inject(Injector),
   };
@@ -182,5 +184,42 @@ describe('builtinNluPlugin', () => {
     const result = await nlu.execute('Redimensionar selecionado 200 por 200', { injector });
     expect(result.executed).toBe(true);
     expect(result.candidate?.intent.id).toBe('svge.builtin.nlu.resize-selected');
+  });
+
+  it('REGRESSION: "pinta vermelho" muda fill do selecionado', async () => {
+    const { plugins, nlu, injector, state, selection, bus } = setup();
+    plugins.install(builtinNluPlugin);
+    const rect = createRect({ x: 0, y: 0, width: 50, height: 50 });
+    const rootId = state.document().root.id;
+    bus.dispatch(new InsertNodeCommand(rootId, rect));
+    selection.select(rect.id);
+    const result = await nlu.execute('pinta vermelho', { injector });
+    expect(result.executed).toBe(true);
+    expect(result.candidate?.intent.id).toBe('svge.builtin.nlu.set-fill');
+    // O nó deve ter recebido fill #e53935 (red do dicionário)
+    const updated = state.document().root.children[0];
+    expect(updated.style?.fill).toBe('#e53935');
+  });
+
+  it('REGRESSION: "cor azul" muda fill em multi-select (single undo)', async () => {
+    const { plugins, nlu, injector, state, selection, bus } = setup();
+    plugins.install(builtinNluPlugin);
+    const r1 = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const r2 = createRect({ x: 20, y: 0, width: 10, height: 10 });
+    const rootId = state.document().root.id;
+    bus.dispatch(new InsertNodeCommand(rootId, r1));
+    bus.dispatch(new InsertNodeCommand(rootId, r2));
+    const originalFill1 = state.document().root.children[0].style?.fill;
+    const originalFill2 = state.document().root.children[1].style?.fill;
+    selection.selectMany([r1.id, r2.id]);
+    const result = await nlu.execute('cor azul', { injector });
+    expect(result.executed).toBe(true);
+    // Ambos os nós com fill #1e88e5 (azul)
+    expect(state.document().root.children[0].style?.fill).toBe('#1e88e5');
+    expect(state.document().root.children[1].style?.fill).toBe('#1e88e5');
+    // Undo único reverte ambos para o fill original (DEFAULT_STYLE)
+    bus.undo();
+    expect(state.document().root.children[0].style?.fill).toBe(originalFill1);
+    expect(state.document().root.children[1].style?.fill).toBe(originalFill2);
   });
 });
