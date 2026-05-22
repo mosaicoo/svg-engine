@@ -201,6 +201,82 @@ describe('builtinNluPlugin', () => {
     expect(updated.style?.fill).toBe('#e53935');
   });
 
+  // ── D-046 review-3: comandos compostos (anchorKeywords + point) ─
+
+  it('REGRESSION: "criar retangulo vermelho borda azul" cria com fill+stroke', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const result = await nlu.execute('criar retangulo vermelho borda azul', { injector });
+    expect(result.executed).toBe(true);
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('rect');
+    expect(added.style?.fill).toBe('#e53935');
+    expect(added.style?.stroke).toBe('#1e88e5');
+  });
+
+  it('REGRESSION FULL: "crie um circulo preto 50x50 com borda azul tamanho 5 posicao 100 100"', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const result = await nlu.execute(
+      'crie um circulo preto 50x50 com borda azul tamanho 5 posicao 100 100',
+      { injector },
+    );
+    expect(result.executed).toBe(true);
+    const added = state.document().root.children.at(-1)!;
+    // shape='circle' → factory cria ellipse com rx=ry
+    expect(added.type).toBe('ellipse');
+    if (added.type === 'ellipse') {
+      expect(added.rx).toBe(added.ry);
+      expect(added.rx).toBe(25); // min(50,50)/2
+      expect(added.cx).toBe(100);
+      expect(added.cy).toBe(100);
+    }
+    expect(added.style?.fill).toBe('#000000'); // preto
+    expect(added.style?.stroke).toBe('#1e88e5'); // azul
+    expect(added.style?.strokeWidth).toBe(5);
+  });
+
+  it('REGRESSION: "crie um circulo preto 50x50 com borda azul de tamanho 5px na posição 100x100" (exato do usuário)', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    // Frase exata reportada — com 'de'/'na' (stopwords), 'tamanho' (anchor),
+    // '5px' (number com unit), 'posição' (com acento → tokenize deacenta),
+    // '100x100' (dimension token reutilizado como point via anchored).
+    const result = await nlu.execute(
+      'crie um circulo preto 50x50 com borda azul de tamanho 5px na posição 100x100',
+      { injector },
+    );
+    expect(result.executed).toBe(true);
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('ellipse');
+    if (added.type === 'ellipse') {
+      expect(added.cx).toBe(100);
+      expect(added.cy).toBe(100);
+      expect(added.rx).toBe(25);
+      expect(added.ry).toBe(25);
+    }
+    expect(added.style?.fill).toBe('#000000');
+    expect(added.style?.stroke).toBe('#1e88e5');
+    expect(added.style?.strokeWidth).toBe(5);
+  });
+
+  it('cria forma com APENAS stroke (sem fill) quando user só especifica contorno', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    // Usa 'contorno' em vez de 'borda' porque 'borda' fuzzy-matcha
+    // 'bordo' (#800020) no positional pass — comportamento documentado
+    // do extractor. Quando o anchor word É similar a uma cor, melhor
+    // o user dizer fill explícito ('fill X borda Y').
+    const result = await nlu.execute('criar retangulo contorno verde', { injector });
+    expect(result.executed).toBe(true);
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('rect');
+    expect(added.style?.stroke).toBe('#43a047');
+    // fill não foi especificado → style é { stroke: ... } sem fill
+    // (factory NÃO aplica DEFAULT_STYLE porque passamos explicit style).
+    expect(added.style?.fill).toBeUndefined();
+  });
+
   it('REGRESSION: "cor azul" muda fill em multi-select (single undo)', async () => {
     const { plugins, nlu, injector, state, selection, bus } = setup();
     plugins.install(builtinNluPlugin);

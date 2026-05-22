@@ -299,8 +299,7 @@ export function extractSlots(
   const result: ExtractedSlots = {};
   const schemaEntries = Object.entries(schemas);
 
-  // Pre-pass: se tem dimensão `100x50` E width+height pendentes,
-  // consome ambos com o token único.
+  // ── Pre-pass: dimensão composta `100x50` → width+height ──
   if (schemas['width']?.kind === 'number' && schemas['height']?.kind === 'number') {
     for (let i = 0; i < tokens.length; i++) {
       if (ctx.consumedIndices.has(i)) continue;
@@ -311,6 +310,35 @@ export function extractSlots(
         ctx.consumedIndices.add(i);
         break;
       }
+    }
+  }
+
+  // ── Pass 1: ANCHORED slots ──────────────────────────────────
+  // Slots que declaram `anchorKeywords` ("borda azul" → stroke=azul).
+  // Roda ANTES do positional pra "reservar" valores que pertencem a
+  // slots específicos antes que outros slots sem anchor capturem.
+  for (const [name, schema] of schemaEntries) {
+    if (name in result) continue;
+    const anchors = schema.anchorKeywords;
+    if (!anchors || anchors.length === 0) continue;
+
+    for (let i = 0; i < tokens.length; i++) {
+      if (ctx.consumedIndices.has(i)) continue;
+      const tok = tokens[i];
+      if (isStopword(tok)) continue;
+
+      // Token é anchor (exato ou fuzzy)?
+      const anchorHit = fuzzyMatchToken(tok, anchors);
+      if (anchorHit === null) continue;
+
+      // Procura valor no próximo token compatível (janela de 4).
+      const extracted = extractValueForSlot(schema, tokens, i + 1, ctx);
+      if (extracted === null) continue;
+
+      result[name] = extracted.value;
+      ctx.consumedIndices.add(i); // anchor token
+      for (const idx of extracted.consumedIndices) ctx.consumedIndices.add(idx);
+      break;
     }
   }
 
@@ -387,6 +415,21 @@ export function extractSlots(
           foundIdx = i;
           break;
         }
+        case 'point': {
+          const point = extractPointFromTokens(tokens, i, ctx);
+          if (point !== null) {
+            found = point.value;
+            foundIdx = i;
+            // tokensConsumed pode ser >1; mas como nosso scheme
+            // marca foundIdx+k sequencialmente, usamos o consumedSpan.
+            // Para garantir consumed indices não-sequenciais (ex: x e y
+            // separados por stopword), marcamos explicitamente aqui.
+            for (const idx of point.consumedIndices) ctx.consumedIndices.add(idx);
+            // Evita o loop padrão re-marcando (foundTokensConsumed=0).
+            foundTokensConsumed = 0;
+          }
+          break;
+        }
       }
       if (foundIdx !== -1) break;
     }
@@ -394,6 +437,7 @@ export function extractSlots(
     if (foundIdx !== -1) {
       result[name] = found;
       // Marca consumed: 1 token normalmente; mais quando color phrase.
+      // Para 'point', já marcamos no extractPointFromTokens → skip.
       for (let k = 0; k < foundTokensConsumed; k++) {
         ctx.consumedIndices.add(foundIdx + k);
       }
@@ -403,4 +447,108 @@ export function extractSlots(
   }
 
   return result;
+}
+
+// ── Helpers ────────────────────────────────────────────────────
+
+/**
+ * Extrai um valor compatível com `schema` a partir de `tokens[startIdx]`,
+ * pulando stopwords e tokens já consumed. Retorna `{ value, consumedIndices }`
+ * ou `null` se não conseguir extrair na janela de 4 tokens.
+ *
+ * Usado no pass anchored (encontrou anchor, agora busca valor adjacente).
+ */
+function extractValueForSlot(
+  schema: NluSlotSchema,
+  tokens: readonly string[],
+  startIdx: number,
+  ctx: ExtractContext,
+): { value: unknown; consumedIndices: readonly number[] } | null {
+  for (let j = startIdx; j < Math.min(startIdx + 4, tokens.length); j++) {
+    if (ctx.consumedIndices.has(j)) continue;
+    const tok = tokens[j];
+    if (isStopword(tok)) continue;
+
+    switch (schema.kind) {
+      case 'number': {
+        const n = parseNumberToken(tok);
+        if (n !== null) return { value: n, consumedIndices: [j] };
+        return null; // primeiro não-stopword não-consumed deve ser o valor
+      }
+      case 'color': {
+        const phrase = parseColorPhrase(tokens, j);
+        if (phrase !== null) {
+          const ids: number[] = [];
+          for (let k = 0; k < phrase.tokensConsumed; k++) ids.push(j + k);
+          return { value: phrase.color, consumedIndices: ids };
+        }
+        return null;
+      }
+      case 'shape': {
+        const direct = resolveShapeKind(tok);
+        if (direct !== null) return { value: direct, consumedIndices: [j] };
+        const m = fuzzyMatchToken(tok, SHAPE_KEYS);
+        if (m !== null) {
+          const resolved = resolveShapeKind(m.term);
+          if (resolved !== null) return { value: resolved, consumedIndices: [j] };
+        }
+        return null;
+      }
+      case 'enum': {
+        if (schema.values.includes(tok)) return { value: tok, consumedIndices: [j] };
+        const m = fuzzyMatchToken(tok, schema.values);
+        if (m !== null) return { value: m.term, consumedIndices: [j] };
+        return null;
+      }
+      case 'string': {
+        return { value: tok, consumedIndices: [j] };
+      }
+      case 'point': {
+        const point = extractPointFromTokens(tokens, j, ctx);
+        if (point !== null) return { value: point.value, consumedIndices: point.consumedIndices };
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Extrai `{ x, y }` a partir de `tokens[startIdx]`:
+ * - Dimensão composta `100x50` → 1 token, `{ x: 100, y: 50 }`
+ * - Dois números adjacentes (com possíveis stopwords entre) →
+ *   `{ x: n1, y: n2 }`, ambos tokens consumed
+ *
+ * Retorna `null` se não encontrar nem dimensão nem par de números.
+ */
+function extractPointFromTokens(
+  tokens: readonly string[],
+  startIdx: number,
+  ctx: ExtractContext,
+): { value: { x: number; y: number }; consumedIndices: readonly number[] } | null {
+  const tok = tokens[startIdx];
+  if (tok === undefined) return null;
+
+  // Caso 1: dimensão composta `100x50`
+  const dim = parseDimensionToken(tok);
+  if (dim !== null) {
+    return { value: { x: dim.width, y: dim.height }, consumedIndices: [startIdx] };
+  }
+
+  // Caso 2: dois números adjacentes
+  const n1 = parseNumberToken(tok);
+  if (n1 === null) return null;
+
+  // Procura segundo number (até 3 tokens à frente, pulando stopwords/consumed)
+  for (let j = startIdx + 1; j < Math.min(startIdx + 4, tokens.length); j++) {
+    if (ctx.consumedIndices.has(j)) continue;
+    if (isStopword(tokens[j])) continue;
+    const n2 = parseNumberToken(tokens[j]);
+    if (n2 !== null) {
+      return { value: { x: n1, y: n2 }, consumedIndices: [startIdx, j] };
+    }
+    // Primeiro não-stopword não-numeric → quebra (não há par)
+    return null;
+  }
+  return null;
 }

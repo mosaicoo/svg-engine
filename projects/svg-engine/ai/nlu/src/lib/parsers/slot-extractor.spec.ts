@@ -201,5 +201,130 @@ describe('NLU › slot-extractor', () => {
       });
       expect(slots['color']).toBe('#e53935');
     });
+
+    // ── D-046 review-3: anchorKeywords + kind 'point' ─────────────
+
+    describe('anchorKeywords (D-046 review-3)', () => {
+      it('captures stroke via anchor "borda" sem comer o fill positional', () => {
+        const tokens = tokenize('retangulo vermelho borda azul');
+        const slots = extractSlots(tokens, {
+          fill: { kind: 'color', optional: true },
+          stroke: {
+            kind: 'color',
+            optional: true,
+            anchorKeywords: ['borda', 'contorno', 'stroke'],
+          },
+        });
+        // Anchor 'borda' consome 'azul' adjacente pra stroke.
+        expect(slots['stroke']).toBe('#1e88e5');
+        // Positional pega 'vermelho' que NÃO foi consumido pelo anchored.
+        expect(slots['fill']).toBe('#e53935');
+      });
+
+      it('captures strokeWidth via anchor "espessura"', () => {
+        const tokens = tokenize('borda azul espessura 5');
+        const slots = extractSlots(tokens, {
+          stroke: { kind: 'color', optional: true, anchorKeywords: ['borda', 'stroke'] },
+          strokeWidth: {
+            kind: 'number',
+            optional: true,
+            anchorKeywords: ['espessura', 'thickness'],
+          },
+        });
+        expect(slots['stroke']).toBe('#1e88e5');
+        expect(slots['strokeWidth']).toBe(5);
+      });
+
+      it('anchor stopword é filtrado — não dispara captura', () => {
+        // 'na' é stopword. Anchor 'na' não captura nada — só 'posicao' (não-stopword).
+        const tokens = tokenize('retangulo na 100 50');
+        const slots = extractSlots(tokens, {
+          position: {
+            kind: 'point',
+            optional: true,
+            anchorKeywords: ['na', 'posicao'], // 'na' é stopword → ignorado
+          },
+        });
+        // Sem anchor real válido, position fica undefined (Pass 1 falha).
+        // Pass 2 positional pega o ponto pelos 2 numbers adjacentes.
+        expect(slots['position']).toEqual({ x: 100, y: 50 });
+      });
+
+      it('anchor sem valor compatível adjacente E sem fallback positional → undefined', () => {
+        // Quando o anchor falha em extrair valor, o positional pass
+        // ainda roda e pode achar a cor via fuzzy. Aqui usamos um anchor
+        // word que NÃO é fuzzy-próximo de cor alguma (por isso usamos
+        // 'xstrokex' em vez de 'borda' — 'borda' fuzzy-matcha 'bordo').
+        const tokens = tokenize('xstrokex 999');
+        const slots = extractSlots(tokens, {
+          stroke: { kind: 'color', optional: true, anchorKeywords: ['xstrokex'] },
+        });
+        // Nem o anchor (sem valor), nem o positional (999 não é cor)
+        // preenchem o slot.
+        expect(slots['stroke']).toBeUndefined();
+      });
+    });
+
+    describe("kind 'point' (D-046 review-3)", () => {
+      it('captures point a partir de dimensão 100x50', () => {
+        const tokens = tokenize('posicao 100x50');
+        const slots = extractSlots(tokens, {
+          position: { kind: 'point', optional: true, anchorKeywords: ['posicao'] },
+        });
+        expect(slots['position']).toEqual({ x: 100, y: 50 });
+      });
+
+      it('captures point a partir de dois numbers adjacentes', () => {
+        const tokens = tokenize('posicao 100 200');
+        const slots = extractSlots(tokens, {
+          position: { kind: 'point', optional: true, anchorKeywords: ['posicao'] },
+        });
+        expect(slots['position']).toEqual({ x: 100, y: 200 });
+      });
+
+      it('captures point positional (sem anchor)', () => {
+        const tokens = tokenize('rect 100x50');
+        const slots = extractSlots(tokens, {
+          position: { kind: 'point', optional: true },
+        });
+        expect(slots['position']).toEqual({ x: 100, y: 50 });
+      });
+
+      it('aplica default quando ausente', () => {
+        const tokens = tokenize('apenas texto');
+        const slots = extractSlots(tokens, {
+          position: { kind: 'point', optional: true, default: { x: 0, y: 0 } },
+        });
+        expect(slots['position']).toEqual({ x: 0, y: 0 });
+      });
+
+      it('integração FULL: "circulo preto 50x50 com borda azul tamanho 5 posicao 100 100"', () => {
+        const tokens = tokenize('circulo preto 50x50 com borda azul tamanho 5 posicao 100 100');
+        const slots = extractSlots(tokens, {
+          shape: { kind: 'shape', optional: true, default: 'rect' },
+          fill: { kind: 'color', optional: true },
+          width: { kind: 'number', optional: true, default: 100 },
+          height: { kind: 'number', optional: true, default: 100 },
+          stroke: { kind: 'color', optional: true, anchorKeywords: ['borda', 'stroke'] },
+          strokeWidth: {
+            kind: 'number',
+            optional: true,
+            anchorKeywords: ['tamanho', 'espessura'],
+          },
+          position: {
+            kind: 'point',
+            optional: true,
+            anchorKeywords: ['posicao', 'position'],
+          },
+        });
+        expect(slots['shape']).toBe('circle');
+        expect(slots['fill']).toBe('#000000');
+        expect(slots['width']).toBe(50);
+        expect(slots['height']).toBe(50);
+        expect(slots['stroke']).toBe('#1e88e5');
+        expect(slots['strokeWidth']).toBe(5);
+        expect(slots['position']).toEqual({ x: 100, y: 100 });
+      });
+    });
   });
 });

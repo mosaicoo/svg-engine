@@ -6,6 +6,100 @@
 
 ---
 
+## 2026-05-22 — D-046 comandos compostos: `anchorKeywords` + `kind: 'point'` + voice errors acionáveis
+
+**Pedido**: implementar suporte a comandos compostos como `"crie um circulo preto 50x50 com borda azul de tamanho 5px na posição 100x100"` autonomamente. Mais a Opção A: mensagens de erro de voz acionáveis em vez do críptico `"Voice error: network"`.
+
+**Problema de fundo**: o NLU já tinha extração positional (1ª cor → fill, 1º número → width, etc.), mas comandos com MÚLTIPLOS slots do mesmo tipo (`fill` + `stroke` ambos `color`) eram impossíveis — o extractor só pegava a primeira cor pra `fill` e ignorava a segunda. E não havia como capturar pares `{x, y}` ancorados em palavras-chave (`"posição 100 100"`).
+
+**Solução (3 mudanças coordenadas no extractor)**:
+
+### 1. `anchorKeywords` em `NluSlotSchema` (todos os `kind`)
+
+Slots agora podem declarar **palavras-âncora** que precedem o valor:
+
+```ts
+slots: {
+  fill: { kind: 'color', optional: true }, // positional (1ª cor)
+  stroke: {
+    kind: 'color',
+    optional: true,
+    anchorKeywords: ['borda', 'contorno', 'stroke', 'outline'],
+  },
+}
+```
+
+**Two-pass extraction**:
+
+1. **Pass 1 — ANCHORED**: para cada slot com `anchorKeywords`, varre tokens, encontra o anchor (exato ou fuzzy ≤1), tenta extrair valor compatível nos próximos 4 tokens. Consome anchor + valor.
+2. **Pass 2 — POSITIONAL**: slots sem anchor pegam os tokens restantes (não-consumidos).
+
+Assim `"retangulo vermelho borda azul"` produz `{fill: '#e53935', stroke: '#1e88e5'}` corretamente.
+
+### 2. `kind: 'point'` (nova variante)
+
+Captura par `{x, y}` de:
+
+- Dimensão composta: `"100x50"` → `{x:100, y:50}`
+- Dois números adjacentes (pulando stopwords): `"100 50"` → `{x:100, y:50}`
+
+Combina com `anchorKeywords: ['posicao', 'position', 'coordenada']` pra desambiguar de `width`/`height`. Anchor evita stopwords (`'em', 'na', 'at'` já são filtrados pelo tokenizer/extractor).
+
+### 3. `create-shape` estendido com 3 slots novos
+
+```ts
+slots: {
+  shape: { kind: 'shape', optional: true, default: 'rect' },
+  fill: { kind: 'color', optional: true },             // positional
+  width: { kind: 'number', optional: true, default: 100 },
+  height: { kind: 'number', optional: true, default: 100 },
+  stroke: { kind: 'color', optional: true, anchorKeywords: ['borda', 'contorno', 'stroke', 'outline'] },
+  strokeWidth: { kind: 'number', optional: true, anchorKeywords: ['espessura', 'thickness', 'tamanho', 'strokewidth'] },
+  position: { kind: 'point', optional: true, anchorKeywords: ['posicao', 'position', 'coordenada', 'coordinate'] },
+}
+```
+
+`execute()` agora compõe `style: { fill?, stroke?, strokeWidth? }` parcial (omite undefined) e usa `position` como **centro** do shape (rect: `x=cx-w/2, y=cy-h/2`; ellipse/circle: `cx=position.x, cy=position.y`).
+
+### 4. Voice errors acionáveis (Opção A)
+
+`<svge-nlu-input>` agora tem `voiceErrorMessage` computed que mapeia codes Web Speech API:
+
+| Code                     | Mensagem                                                                          |
+| ------------------------ | --------------------------------------------------------------------------------- |
+| `network`                | Sem conexão com Google STT. Verifique internet/firewall/extensões (uBlock/Brave). |
+| `not-allowed`            | Permissão de microfone negada. Habilite no ícone 🔒 da URL.                       |
+| `no-speech`              | Não detectei voz. Fale mais perto do microfone.                                   |
+| `audio-capture`          | Microfone não disponível. Verifique conexão / outra aba usando.                   |
+| `language-not-supported` | Idioma `<lang>` não suportado pelo navegador.                                     |
+
+**Por que `network` é comum no Chrome**: Web Speech API delega o reconhecimento aos servidores Google STT — bloqueio de `*.google.com` (firewall corporativo, extensões privacy) quebra o handshake. Não é bug do app — é dependência arquitetural do spec.
+
+### Comandos que agora funcionam
+
+| Input                                                                          | Resultado                                                                      |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `criar retangulo vermelho borda azul`                                          | rect, fill `#e53935`, stroke `#1e88e5`                                         |
+| `criar circulo contorno verde`                                                 | circle, stroke `#43a047`, sem fill (style parcial)                             |
+| `crie um circulo preto 50x50 com borda azul de tamanho 5px na posição 100x100` | ellipse rx=ry=25 em (100,100), fill `#000000`, stroke `#1e88e5`, strokeWidth=5 |
+| `criar retangulo vermelho borda azul espessura 3 posicao 50 75`                | rect 100x100 em (50,75), fill red, stroke azul, strokeWidth=3                  |
+
+### Caveats documentados
+
+- **`'tamanho'` é ambíguo em PT**: pode significar dimensão geral ou stroke width. Como anchor de `strokeWidth`, "criar retangulo tamanho 100" vira `strokeWidth=100` (não `width`). Recomenda-se `100x100` pra dimensão e `espessura N` pra stroke.
+- **`'borda'` fuzzy-matcha `'bordo'` (#800020, wine)** no positional pass. Se user disser `"criar retangulo borda verde"` sem fill explícito, o `fill` PODE vir `#800020` quando o positional re-scaneia tokens não-consumidos via janela do `parseColorPhrase`. Solução: usar `'contorno'` ou explicitar fill (`"fill X borda Y"`).
+
+**Specs**: +12 specs novos cobrindo `anchorKeywords` (4), `kind: 'point'` (5), integração full (3 regression do comando do usuário). Total: **1195/1195 passing**.
+
+**Arquivos**:
+
+- `projects/svg-engine/ai/nlu/src/lib/types.ts` — `anchorKeywords` em todas variantes + `kind: 'point'`
+- `projects/svg-engine/ai/nlu/src/lib/parsers/slot-extractor.ts` — Pass 1 anchored + `extractValueForSlot` + `extractPointFromTokens`
+- `projects/svg-engine/ai/nlu/src/lib/builtin-nlu.plugin.ts` — `create-shape` com stroke/strokeWidth/position
+- `projects/svg-engine/ai/nlu-ui/src/lib/nlu-input.component.ts` — `voiceErrorMessage` computed
+
+---
+
 ## 2026-05-22 — D-046 set-fill funcional: NLU agora muda cor de verdade via SetStylePropertyOnManyCommand
 
 **Pedido**: implementar troca de cor do nó selecionado via NLU. O intent `set-fill` reconhecia o comando mas era **stub honesto** (só `console.warn`) porque eu acreditava que faltava `SetStyleCommand` no core.

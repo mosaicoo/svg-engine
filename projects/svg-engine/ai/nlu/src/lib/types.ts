@@ -62,24 +62,69 @@ export interface NluContext {
  * preenchido com `default` (ou `undefined`) e confidence mantém.
  */
 export type NluSlotSchema =
-  | { readonly kind: 'number'; readonly optional?: boolean; readonly default?: number }
+  | {
+      readonly kind: 'number';
+      readonly optional?: boolean;
+      readonly default?: number;
+      readonly anchorKeywords?: readonly string[];
+    }
   | {
       readonly kind: 'color';
       readonly optional?: boolean;
       readonly default?: string;
+      readonly anchorKeywords?: readonly string[];
     }
   | {
       readonly kind: 'shape';
       readonly optional?: boolean;
       readonly default?: string;
+      readonly anchorKeywords?: readonly string[];
     }
   | {
       readonly kind: 'enum';
       readonly values: readonly string[];
       readonly optional?: boolean;
       readonly default?: string;
+      readonly anchorKeywords?: readonly string[];
     }
-  | { readonly kind: 'string'; readonly optional?: boolean; readonly default?: string };
+  | {
+      readonly kind: 'string';
+      readonly optional?: boolean;
+      readonly default?: string;
+      readonly anchorKeywords?: readonly string[];
+    }
+  | {
+      /**
+       * **`point`** — extrai par `{ x, y }` de **dois números adjacentes**
+       * (ex: "100 50" ou "100x50"). Combinar com `anchorKeywords`
+       * (`['posicao','position','em','at']`) pra desambiguar de outros
+       * slots numéricos no mesmo intent.
+       */
+      readonly kind: 'point';
+      readonly optional?: boolean;
+      readonly default?: { readonly x: number; readonly y: number };
+      readonly anchorKeywords?: readonly string[];
+    };
+
+/**
+ * **`anchorKeywords`** — palavras que precedem o valor do slot no
+ * input ("**borda** azul" → slot `stroke=azul`; "**posição** 100 50"
+ * → slot `position={x:100,y:50}`).
+ *
+ * Como funciona:
+ * 1. Extractor faz primeiro um **pass anchored**: pra cada slot com
+ *    `anchorKeywords`, procura o anchor token (exato ou fuzzy ≤1) e
+ *    consome o(s) próximo(s) token(s) compatível(eis) com o `kind`.
+ * 2. Depois faz o pass **posicional** normal pros slots sem anchor.
+ * 3. Tokens já consumidos no anchored pass ficam de fora do posicional
+ *    — evita dupla atribuição.
+ *
+ * Útil quando o mesmo intent tem múltiplos slots de mesmo `kind`
+ * (e.g., `create-shape` com `fill` + `stroke` ambos `kind: 'color'`):
+ * sem âncora, o extractor pega a primeira cor pra `fill` e ignora a
+ * segunda. Com âncora `'borda'/'contorno'/'stroke'`, "fill vermelho
+ * borda azul" produz `{fill:'red', stroke:'blue'}` corretamente.
+ */
 
 /**
  * Definição de um intent registrável no {@link NaturalLanguageService}.

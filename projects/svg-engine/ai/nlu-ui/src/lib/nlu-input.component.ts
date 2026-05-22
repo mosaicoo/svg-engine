@@ -174,8 +174,8 @@ import { VoiceRecognitionService } from './voice-recognition.service';
         </details>
       }
 
-      @if (voice.lastError() && voice.lastError() !== 'aborted') {
-        <p class="svge-nlu-voice-error" role="alert">Voice error: {{ voice.lastError() }}</p>
+      @if (voiceErrorMessage(); as msg) {
+        <p class="svge-nlu-voice-error" role="alert">{{ msg }}</p>
       }
     </div>
   `,
@@ -367,6 +367,42 @@ export class SvgeNluInput {
   protected readonly alternatives = computed<readonly NluCandidate[]>(() =>
     this.candidates().slice(1),
   );
+
+  /**
+   * Mensagem **acionável** pra erro do Web Speech API. Mapeia os codes
+   * crus (`'network'`, `'not-allowed'`, `'no-speech'`, `'audio-capture'`,
+   * `'service-not-allowed'`) pra texto humano em PT com o passo concreto
+   * que o usuário pode tomar pra resolver. Retorna `null` quando não
+   * deve mostrar nada (sem erro OU erro `'aborted'` que é silencioso).
+   *
+   * **Por que `'network'` é comum no Chrome**: o Web Speech API delega
+   * o reconhecimento a servidores Google STT — sem internet, com
+   * firewall corporativo ou com bloqueador (uBlock/Brave Shields)
+   * filtrando `*.google.com`, o handshake falha e o navegador dispara
+   * esse erro. Não é bug do app — é dependência arquitetural do
+   * Web Speech API spec ao backend STT do vendor.
+   */
+  protected readonly voiceErrorMessage = computed<string | null>(() => {
+    const err = this.voice.lastError();
+    if (err === null || err === 'aborted') return null;
+    switch (err) {
+      case 'network':
+        return 'Voz indisponível: sem conexão com o serviço de reconhecimento (Google STT). Verifique internet, firewall corporativo ou extensões (uBlock/Brave Shields podem bloquear *.google.com).';
+      case 'not-allowed':
+      case 'service-not-allowed':
+        return 'Permissão de microfone negada. Habilite no ícone 🔒 da barra de endereço e tente novamente.';
+      case 'no-speech':
+        return 'Não detectei voz. Fale mais perto do microfone e tente de novo.';
+      case 'audio-capture':
+        return 'Microfone não disponível. Verifique se há um microfone conectado e se outra aba/app não está usando-o.';
+      case 'language-not-supported':
+        return `Idioma "${this.voiceLang()}" não suportado pelo navegador.`;
+      case 'bad-grammar':
+        return 'Erro de gramática do reconhecimento — tente um comando mais simples.';
+      default:
+        return `Erro de voz: ${err}`;
+    }
+  });
 
   // ── Handlers ────────────────────────────────────────────────
 

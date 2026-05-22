@@ -147,11 +147,46 @@ export const builtinNluPlugin: EditorPlugin = {
           // "nó" todos viram 'circle'. Antes era `kind: 'enum'` que
           // exigia match contra valores canônicos só.
           shape: { kind: 'shape', optional: true, default: 'rect' },
+          // `fill` SEM anchor → positional (primeira cor do input).
+          // Cobre "criar retangulo vermelho" sem ruído.
           fill: { kind: 'color', optional: true },
+          // `width` / `height` SEM anchor → consumidos pelo pre-pass
+          // dimensão (100x50) ou positional (primeiros 2 numbers).
           width: { kind: 'number', optional: true, default: 100 },
           height: { kind: 'number', optional: true, default: 100 },
+          // **`stroke`** — COM anchor ('borda'/'contorno'/'stroke'/
+          // 'outline') pra que "fill vermelho borda azul" produza
+          // {fill:vermelho, stroke:azul} sem que a segunda cor seja
+          // ignorada pelo positional pass (que só pega a 1ª).
+          stroke: {
+            kind: 'color',
+            optional: true,
+            anchorKeywords: ['borda', 'contorno', 'stroke', 'outline'],
+          },
+          // **`strokeWidth`** — anchors ('espessura'/'thickness'/
+          // 'tamanho'/'strokewidth') capturam o número adjacente.
+          // **Caveat**: 'tamanho' é AMBÍGUO em PT (pode significar
+          // dimensão geral). Se o usuário disser "criar retangulo
+          // tamanho 100" sem mencionar borda, o strokeWidth virá 100
+          // (rule-based best-effort). Recomenda-se "100x100" pra
+          // dimensão e "espessura N" pra stroke.
+          strokeWidth: {
+            kind: 'number',
+            optional: true,
+            anchorKeywords: ['espessura', 'thickness', 'tamanho', 'strokewidth'],
+          },
+          // **`position`** — kind 'point' captura "100 50" ou "100x50"
+          // adjacente ao anchor ('posicao'/'position'/'coordenada'/
+          // 'coordinate'). Evita anchors stopword ('em', 'na', 'at')
+          // que são filtrados pelo extractor.
+          position: {
+            kind: 'point',
+            optional: true,
+            anchorKeywords: ['posicao', 'position', 'coordenada', 'coordinate'],
+          },
         },
-        description: 'Criar forma (retângulo, círculo, elipse, etc.) no centro do canvas',
+        description:
+          'Criar forma (retângulo, círculo, elipse, etc.) — suporta fill/stroke/espessura/posição',
         execute(slots, runCtx) {
           const bus = runCtx.injector.get(CommandBus);
           const state = runCtx.injector.get(EditorStateService);
@@ -162,13 +197,28 @@ export const builtinNluPlugin: EditorPlugin = {
           const w = (slots['width'] as number | undefined) ?? 100;
           const h = (slots['height'] as number | undefined) ?? 100;
           const fill = slots['fill'] as string | undefined;
-          const style = fill !== undefined ? { fill } : undefined;
+          const stroke = slots['stroke'] as string | undefined;
+          const strokeWidth = slots['strokeWidth'] as number | undefined;
+          const position = slots['position'] as { x: number; y: number } | undefined;
+
+          // Compose style omitting undefined keys — manter `style:
+          // undefined` quando nenhum apresentável (factory aplica
+          // DEFAULT_STYLE). Se ANY estiver presente, builda parcial.
+          let style: { fill?: string; stroke?: string; strokeWidth?: number } | undefined;
+          if (fill !== undefined || stroke !== undefined || strokeWidth !== undefined) {
+            style = {};
+            if (fill !== undefined) style.fill = fill;
+            if (stroke !== undefined) style.stroke = stroke;
+            if (strokeWidth !== undefined) style.strokeWidth = strokeWidth;
+          }
 
           const doc = state.document();
           const rootId = doc.root.id;
           const vb = doc.viewBox;
-          const cx = vb.x + vb.width / 2;
-          const cy = vb.y + vb.height / 2;
+          // Center default = centro do viewBox; quando user passar
+          // `position`, vira o centro explícito do shape.
+          const cx = position ? position.x : vb.x + vb.width / 2;
+          const cy = position ? position.y : vb.y + vb.height / 2;
 
           switch (shape) {
             case 'rect': {
