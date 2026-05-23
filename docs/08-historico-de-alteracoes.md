@@ -6,6 +6,51 @@
 
 ---
 
+## 2026-05-22 — Paridade total de overlays nas 4 rotas restantes do playground
+
+**Pedido do usuário** (após o fix do pro-editor): "pode atualizar o
+basic-editor e modular-editor, é preciso sempre de atualizar todos os
+editores, logicamente mantendo a particularidade de cada visão".
+
+**Escopo expandido**: além de `/basic-editor` e `/modular-editor`,
+auditei todas as rotas que mountam `<svge-editor>` ou
+`<svge-shell-pro>` e encontrei a mesma carência em `/embeddable-canvas`
+e `/nlu-test`. As 4 ficaram com o conjunto idêntico de 9 overlays:
+
+```
+Selection → RotationPivot → Anchor → Marquee → SnapGuides
+→ Pen → Pencil → Shape → InlineText
+```
+
+Ordem espelhada de `/custom-editor` (referência completa) e
+`/pro-editor` (commit anterior). Particularidades preservadas:
+
+- **`/basic-editor`**: hint banner explicativo + título dinâmico via
+  `computed`. Sem mudanças nessa parte.
+- **`/modular-editor`**: 6 checkboxes para flag-toggling (menu /
+  toolbar / status / context / tool options / custom status) +
+  status bar customizada via projeção `[status-bar]`. Comentário
+  inline deixa claro que as flags controlam **peças do shell**, não
+  os overlays — que ficam sempre presentes para que qualquer tool
+  ativa funcione com feedback visual.
+- **`/embeddable-canvas`**: shell canvas-only (`showToolbar=false`,
+  `showStatusBar=false`). Comentário destaca que mesmo sem toolbar
+  visível as tools podem ser ativadas por atalho de teclado, então
+  os overlays de feedback precisam estar presentes.
+- **`/nlu-test`**: editor + `<svge-nlu-input>` lado a lado. NLU pode
+  disparar comandos que ativam tools ("criar retângulo") — overlays
+  presentes garantem feedback consistente.
+
+**Rotas que NÃO precisam de overlays** (mantidas intocadas):
+
+- `/benchmark` — usa `<svge-renderer>` direto, é teste de
+  performance/render, não editor interativo.
+- `/svg-viewer` — viewer read-only (só Renderer + IO).
+
+**Verificação**: build dev playground 3.0s, lint clean.
+
+---
+
 ## 2026-05-22 — Pro Editor: overlays de feedback das tools (paridade UX com /custom-editor)
 
 **Bug reportado pelo usuário**: a rota `/pro-editor`

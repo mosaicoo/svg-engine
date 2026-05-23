@@ -8,10 +8,15 @@ import {
   InsertNodeCommand,
 } from 'svg-engine/core';
 import {
+  AnchorOverlay,
+  InlineTextEditor,
   Marquee,
+  PenOverlay,
+  PencilOverlay,
   provideSvgEngineEditorScope,
   RotationPivot,
   SelectionOverlay,
+  ShapeOverlay,
   SnapGuides,
 } from 'svg-engine/edit';
 import { SvgeEditor } from 'svg-engine/ui';
@@ -38,7 +43,19 @@ import { SvgeEditor } from 'svg-engine/ui';
 @Component({
   selector: 'app-pg-basic-editor',
   standalone: true,
-  imports: [SvgeEditor, SelectionOverlay, RotationPivot, Marquee, SnapGuides, RouterLink],
+  imports: [
+    SvgeEditor,
+    SelectionOverlay,
+    RotationPivot,
+    AnchorOverlay,
+    Marquee,
+    SnapGuides,
+    PenOverlay,
+    PencilOverlay,
+    ShapeOverlay,
+    InlineTextEditor,
+    RouterLink,
+  ],
   // D-042: route-scoped editor state — independent document per visit.
   providers: [provideSvgEngineEditorScope()],
   template: `
@@ -54,10 +71,30 @@ import { SvgeEditor } from 'svg-engine/ui';
     </div>
     <div class="editor-area">
       <svge-editor [title]="title()" [showContextMenu]="true" [showToolOptions]="true">
+        <!--
+          Conjunto completo de overlays para paridade total de UX com
+          /custom-editor e /pro-editor. Ordem = z-order (mais tarde =
+          mais à frente). Sem o conjunto completo, Pen/Pencil/Shape/Text
+          desenham mas não mostram feedback durante a interação.
+        -->
         <svg:g svgeSelectionOverlay></svg:g>
         <svg:g svgeRotationPivot></svg:g>
+        <svg:g svgeAnchorOverlay></svg:g>
         <svg:g svgeMarquee></svg:g>
         <svg:g svgeSnapGuides></svg:g>
+        <!-- Pen tool: rubber band, in-progress anchors + handles, preview
+             da curva durante o press-drag. -->
+        <svg:g svgePenOverlay></svg:g>
+        <!-- Pencil tool: traçado em tempo real durante o desenho à mão
+             livre. -->
+        <svg:g svgePencilOverlay></svg:g>
+        <!-- Shape tools (Rectangle / Ellipse / Polygon): preview tracejado
+             do bounding box / polígono durante o press-drag. -->
+        <svg:g svgeShapeOverlay></svg:g>
+        <!-- Inline text editor (Text tool): foreignObject +
+             contentEditable. Deve vir por último — surface acima de
+             todos os outros overlays. -->
+        <svg:g svgeInlineTextEditor></svg:g>
       </svge-editor>
     </div>
   `,

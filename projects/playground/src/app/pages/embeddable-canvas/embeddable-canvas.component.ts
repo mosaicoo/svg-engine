@@ -8,10 +8,15 @@ import {
   InsertNodeCommand,
 } from 'svg-engine/core';
 import {
+  AnchorOverlay,
+  InlineTextEditor,
   Marquee,
+  PenOverlay,
+  PencilOverlay,
   provideSvgEngineEditorScope,
   RotationPivot,
   SelectionOverlay,
+  ShapeOverlay,
   SnapGuides,
 } from 'svg-engine/edit';
 import { SvgeEditor } from 'svg-engine/ui';
@@ -41,7 +46,19 @@ import { SvgeEditor } from 'svg-engine/ui';
 @Component({
   selector: 'app-pg-embeddable-canvas',
   standalone: true,
-  imports: [SvgeEditor, SelectionOverlay, RotationPivot, Marquee, SnapGuides, RouterLink],
+  imports: [
+    SvgeEditor,
+    SelectionOverlay,
+    RotationPivot,
+    AnchorOverlay,
+    Marquee,
+    SnapGuides,
+    PenOverlay,
+    PencilOverlay,
+    ShapeOverlay,
+    InlineTextEditor,
+    RouterLink,
+  ],
   // D-042: route-scoped editor state — independent document per visit.
   providers: [provideSvgEngineEditorScope()],
   template: `
@@ -61,10 +78,22 @@ import { SvgeEditor } from 'svg-engine/ui';
         [showStatusBar]="false"
         [showContextMenu]="true"
       >
+        <!--
+          Mesmo conjunto completo de overlays do /custom-editor: o modo
+          canvas-only NÃO renderiza toolbar/status, mas as tools podem
+          ser ativadas por atalho de teclado (P/B/L/R/E/T) — então o
+          feedback visual durante a interação precisa estar presente,
+          senão Pen/Pencil/Shape/Text aparentam quebrar. Ordem = z-order.
+        -->
         <svg:g svgeSelectionOverlay></svg:g>
         <svg:g svgeRotationPivot></svg:g>
+        <svg:g svgeAnchorOverlay></svg:g>
         <svg:g svgeMarquee></svg:g>
         <svg:g svgeSnapGuides></svg:g>
+        <svg:g svgePenOverlay></svg:g>
+        <svg:g svgePencilOverlay></svg:g>
+        <svg:g svgeShapeOverlay></svg:g>
+        <svg:g svgeInlineTextEditor></svg:g>
       </svge-editor>
     </div>
   `,

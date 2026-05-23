@@ -8,10 +8,15 @@ import {
   InsertNodeCommand,
 } from 'svg-engine/core';
 import {
+  AnchorOverlay,
+  InlineTextEditor,
   Marquee,
+  PenOverlay,
+  PencilOverlay,
   provideSvgEngineEditorScope,
   RotationPivot,
   SelectionOverlay,
+  ShapeOverlay,
   SnapGuides,
 } from 'svg-engine/edit';
 import { SvgeEditor } from 'svg-engine/ui';
@@ -31,7 +36,19 @@ import { SvgeEditor } from 'svg-engine/ui';
 @Component({
   selector: 'app-pg-modular-editor',
   standalone: true,
-  imports: [SvgeEditor, SelectionOverlay, RotationPivot, Marquee, SnapGuides, RouterLink],
+  imports: [
+    SvgeEditor,
+    SelectionOverlay,
+    RotationPivot,
+    AnchorOverlay,
+    Marquee,
+    SnapGuides,
+    PenOverlay,
+    PencilOverlay,
+    ShapeOverlay,
+    InlineTextEditor,
+    RouterLink,
+  ],
   // D-042: route-scoped editor state — independent document per visit.
   providers: [provideSvgEngineEditorScope()],
   template: `
@@ -107,10 +124,22 @@ import { SvgeEditor } from 'svg-engine/ui';
             <span>🎨 Custom status bar — selection: {{ selectionCountLabel() }}</span>
           </div>
         }
+        <!--
+          Conjunto completo de overlays. As checkboxes acima controlam
+          peças do shell (menu / toolbar / status / context / tool
+          options) — não os overlays, que estão sempre presentes para
+          que qualquer tool ativa funcione com feedback visual durante
+          a interação. Ordem = z-order.
+        -->
         <svg:g svgeSelectionOverlay></svg:g>
         <svg:g svgeRotationPivot></svg:g>
+        <svg:g svgeAnchorOverlay></svg:g>
         <svg:g svgeMarquee></svg:g>
         <svg:g svgeSnapGuides></svg:g>
+        <svg:g svgePenOverlay></svg:g>
+        <svg:g svgePencilOverlay></svg:g>
+        <svg:g svgeShapeOverlay></svg:g>
+        <svg:g svgeInlineTextEditor></svg:g>
       </svge-editor>
     </div>
   `,

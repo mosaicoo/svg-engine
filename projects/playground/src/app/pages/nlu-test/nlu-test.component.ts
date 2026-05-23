@@ -1,10 +1,15 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
+  AnchorOverlay,
+  InlineTextEditor,
   Marquee,
+  PenOverlay,
+  PencilOverlay,
   provideSvgEngineEditorScope,
   RotationPivot,
   SelectionOverlay,
+  ShapeOverlay,
   SnapGuides,
 } from 'svg-engine/edit';
 import type { NluExecuteResult } from 'svg-engine/ai/nlu';
@@ -38,8 +43,13 @@ import { SvgeEditor } from 'svg-engine/ui';
     SvgeNluInput,
     SelectionOverlay,
     RotationPivot,
+    AnchorOverlay,
     Marquee,
     SnapGuides,
+    PenOverlay,
+    PencilOverlay,
+    ShapeOverlay,
+    InlineTextEditor,
     RouterLink,
   ],
   providers: [provideSvgEngineEditorScope()],
@@ -81,10 +91,22 @@ import { SvgeEditor } from 'svg-engine/ui';
 
     <div class="editor-area">
       <svge-editor title="NLU Test Editor" [showContextMenu]="true" [showToolOptions]="true">
+        <!--
+          Conjunto completo de overlays. Particularidade desta rota:
+          NLU pode disparar comandos que ativam tools (ex: "criar
+          retângulo") — então os overlays de feedback precisam estar
+          presentes mesmo que o foco do teste seja text/voice. Ordem
+          = z-order.
+        -->
         <svg:g svgeSelectionOverlay></svg:g>
         <svg:g svgeRotationPivot></svg:g>
+        <svg:g svgeAnchorOverlay></svg:g>
         <svg:g svgeMarquee></svg:g>
         <svg:g svgeSnapGuides></svg:g>
+        <svg:g svgePenOverlay></svg:g>
+        <svg:g svgePencilOverlay></svg:g>
+        <svg:g svgeShapeOverlay></svg:g>
+        <svg:g svgeInlineTextEditor></svg:g>
       </svge-editor>
     </div>
   `,
