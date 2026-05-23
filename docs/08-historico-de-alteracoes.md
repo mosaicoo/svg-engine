@@ -6,6 +6,65 @@
 
 ---
 
+## 2026-05-22 — Pencil Tool: preview do traçado durante o drag
+
+**Bug reportado pelo usuário**: durante o desenho à mão livre, ao
+manter o botão do mouse pressionado para criar a linha ou traçado, o
+traçado não estava sendo exibido em tempo real — o desenho final só
+aparecia no `pointerup`. Era exatamente o gap que o comentário no
+`PencilTool` já admitia ("No live preview in this reference
+implementation").
+
+**Fix**: aplicar o mesmo padrão Service + Overlay que o Pen Tool usa.
+
+### Novos arquivos
+
+- `pencil-tool.service.ts` — `PencilToolService` (`root`-provided):
+  - signals: `points`, `drawing`, `hasDraft` (≥ 2 pontos + drawing).
+  - mutations: `begin(p)`, `append(p)`, `finish() → points[]`,
+    `cancel()`, `reset()`.
+  - Sem coupling com document/command — toda a parte de dispatch
+    continua no `PencilTool`, mantendo a service testável em isolation.
+- `pencil-overlay.component.ts` — `<svg:g svgePencilOverlay>` (mesmo
+  padrão do `PenOverlay` / `ShapeOverlay`):
+  - Computed `previewD()` reusa `pointsToPathD()` (mesma serialização
+    que o commit usa, garantindo paridade bit-for-bit com o resultado
+    final).
+  - Style: stroke `#1976d2`, `stroke-width: 2`, `stroke-linecap: round`,
+    `stroke-linejoin: round`, `opacity: 0.85`, `vector-effect:
+non-scaling-stroke`, `pointer-events: none`.
+  - Hidden quando `!hasDraft()` (mesma threshold que o tool usa pra
+    decidir se commita — single click sem movimento não desenha nada).
+
+### Refactor
+
+- `builtin-tools.ts` — `PencilTool` perde os fields privados
+  (`points`, `drawing`) e delega tudo para a service via
+  `ctx.injector.get(PencilToolService)` (mesmo padrão das outras
+  builtin tools: SelectionService, EditorStateService, CommandBus).
+  Threshold de 2 pontos para commit mantida.
+
+### Wiring
+
+- `tool/index.ts` exporta `PencilToolService` + `PencilOverlay`.
+- `custom-editor.component.{ts,html}` (playground) adiciona o
+  `<svg:g svgePencilOverlay>` ao lado do `<svg:g svgePenOverlay>`.
+
+### Specs
+
+- `builtin-tools.spec.ts` ganhou 2 describes (10 testes novos):
+  - `PencilTool — live preview via PencilToolService`: pointerdown
+    marca drawing, moves alimentam points + flippam `hasDraft`,
+    pointerup limpa + dispatcha, pointercancel limpa sem dispatch.
+  - `PencilOverlay — reactive preview`: null sem drawing, null com 1
+    ponto, `d` correto a partir de 2 pontos, reatividade a cada move,
+    limpeza pós-finish / pós-cancel.
+
+**Verificação**: 1291/1292 specs (+10), lint clean (lib + playground),
+build prod 10.8s.
+
+---
+
 ## 2026-05-22 — Pen Tool: preview da curva durante drag
 
 **Bug reportado pelo usuário**: durante o desenho ponto a ponto, ao

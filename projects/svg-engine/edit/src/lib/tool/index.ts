@@ -12,6 +12,8 @@ export {
 export { PEN_TOOL_ID, penToolPlugin } from './pen-tool.plugin';
 export { PenToolService } from './pen-tool.service';
 export { PenOverlay } from './pen-overlay.component';
+export { PencilToolService } from './pencil-tool.service';
+export { PencilOverlay } from './pencil-overlay.component';
 export {
   ELLIPSE_TOOL_ID,
   POLYGON_TOOL_ID,

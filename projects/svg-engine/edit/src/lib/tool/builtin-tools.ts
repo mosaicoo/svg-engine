@@ -7,6 +7,7 @@ import {
 } from 'svg-engine/core';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../plugin/plugin';
 import { SelectionService } from '../selection/selection.service';
+import { PencilToolService } from './pencil-tool.service';
 import type { Tool, ToolContext, ToolPointerEvent } from './tool';
 import { ToolRegistry } from './tool-registry.service';
 
@@ -82,21 +83,24 @@ class DirectSelectTool implements Tool {
 }
 
 /**
- * Builtin Pencil tool — freehand path drawing. Records pointer positions
- * during a press-drag-release gesture, then commits a single
+ * Builtin Pencil tool — freehand path drawing. Records pointer
+ * positions during a press-drag-release gesture into
+ * {@link PencilToolService}, then commits a single
  * {@link InsertNodeCommand} on release with a path built from the
  * recorded points.
  *
- * **No live preview** in this reference implementation: the path
- * appears on `pointerup`. Live preview is a future polish (would
- * require either inserting a placeholder node and mutating its `d` on
- * each move, or rendering an out-of-document overlay). Kept simple
- * here to validate the Tool API end-to-end — production tools can
- * follow the same pattern with an extra preview layer.
+ * **Live preview**: state lives in `PencilToolService` so
+ * {@link PencilOverlay} can render the in-progress stroke reactively
+ * as the user drags. Before {@link PencilToolService} existed the
+ * preview was missing — release was the only moment the user saw
+ * what they drew.
  *
  * **Threshold of 2 points**: a single click (no drag) produces no
- * path — releasing without movement is treated as a no-op so accidental
- * clicks don't pollute the document with degenerate paths.
+ * path — releasing without movement is treated as a no-op so
+ * accidental clicks don't pollute the document with degenerate paths.
+ * The overlay's `hasDraft` computed enforces the same threshold for
+ * the preview (matches the commit semantics — what the user sees is
+ * what gets inserted).
  */
 class PencilTool implements Tool {
   readonly id = PENCIL_TOOL_ID;
@@ -105,35 +109,32 @@ class PencilTool implements Tool {
   readonly cursor = 'crosshair';
   readonly shortcut = 'p';
 
-  private points: Point[] = [];
-  private drawing = false;
-
   onActivate(ctx: ToolContext): void {
     // Clear selection so the new path appears unobscured by the old
-    // selection overlay.
+    // selection overlay; reset any stale draft from a prior session.
     ctx.injector.get(SelectionService).clear();
+    ctx.injector.get(PencilToolService).reset();
   }
 
-  onDeactivate(): void {
-    this.drawing = false;
-    this.points = [];
+  onDeactivate(ctx: ToolContext): void {
+    // Switching tools mid-stroke DISCARDS the in-progress trace —
+    // matches PenTool / ShapeTool convention (no auto-commit when
+    // user moves away).
+    ctx.injector.get(PencilToolService).reset();
   }
 
-  onPointerDown(event: ToolPointerEvent): void {
-    this.points = [event.docPoint];
-    this.drawing = true;
+  onPointerDown(event: ToolPointerEvent, ctx: ToolContext): void {
+    ctx.injector.get(PencilToolService).begin(event.docPoint);
   }
 
-  onPointerMove(event: ToolPointerEvent): void {
-    if (!this.drawing) return;
-    this.points.push(event.docPoint);
+  onPointerMove(event: ToolPointerEvent, ctx: ToolContext): void {
+    ctx.injector.get(PencilToolService).append(event.docPoint);
   }
 
   onPointerUp(_event: ToolPointerEvent, ctx: ToolContext): void {
-    if (!this.drawing) return;
-    const captured = this.points;
-    this.drawing = false;
-    this.points = [];
+    const pencil = ctx.injector.get(PencilToolService);
+    if (!pencil.drawing()) return;
+    const captured = pencil.finish();
     if (captured.length < 2) return;
 
     const d = pointsToPathD(captured);
@@ -144,9 +145,8 @@ class PencilTool implements Tool {
     ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(root.id, node));
   }
 
-  onPointerCancel(): void {
-    this.drawing = false;
-    this.points = [];
+  onPointerCancel(_event: ToolPointerEvent, ctx: ToolContext): void {
+    ctx.injector.get(PencilToolService).cancel();
   }
 }
 

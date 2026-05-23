@@ -11,6 +11,8 @@ import {
   SELECT_TOOL_ID,
   selectToolPlugin,
 } from './builtin-tools';
+import { PencilOverlay } from './pencil-overlay.component';
+import { PencilToolService } from './pencil-tool.service';
 import { ToolHostService } from './tool-host.service';
 import { ToolRegistry } from './tool-registry.service';
 import type { ToolPointerEvent } from './tool';
@@ -144,6 +146,118 @@ describe('PencilTool — end-to-end gesture', () => {
     const host = TestBed.inject(ToolHostService);
     host.activate(PENCIL_TOOL_ID);
     expect(sel.hasSelection()).toBe(false);
+  });
+});
+
+describe('PencilTool — live preview via PencilToolService', () => {
+  function setup() {
+    TestBed.configureTestingModule({
+      providers: [provideSvgEnginePlugin(pencilToolPlugin)],
+    });
+    const state = TestBed.inject(EditorStateService);
+    state.resetDocument(createEmptyDocument());
+    const host = TestBed.inject(ToolHostService);
+    host.activate(PENCIL_TOOL_ID);
+    const pencil = TestBed.inject(PencilToolService);
+    return { state, host, pencil };
+  }
+
+  it('pointerdown begins a draft (drawing = true, 1 point recorded)', () => {
+    const { host, pencil } = setup();
+    expect(pencil.drawing()).toBe(false);
+    host.routePointerDown(evtAt({ x: 5, y: 5 }));
+    expect(pencil.drawing()).toBe(true);
+    expect(pencil.points()).toEqual([{ x: 5, y: 5 }]);
+    // 1 point isn't enough for a visible preview yet.
+    expect(pencil.hasDraft()).toBe(false);
+  });
+
+  it('subsequent moves append points and flip hasDraft to true', () => {
+    const { host, pencil } = setup();
+    host.routePointerDown(evtAt({ x: 0, y: 0 }));
+    host.routePointerMove(evtAt({ x: 10, y: 10 }));
+    expect(pencil.hasDraft()).toBe(true);
+    expect(pencil.points()).toEqual([
+      { x: 0, y: 0 },
+      { x: 10, y: 10 },
+    ]);
+  });
+
+  it('pointerup clears the draft and dispatches the path', () => {
+    const { state, host, pencil } = setup();
+    host.routePointerDown(evtAt({ x: 0, y: 0 }));
+    host.routePointerMove(evtAt({ x: 20, y: 20 }));
+    host.routePointerUp(evtAt({ x: 20, y: 20 }));
+    expect(pencil.drawing()).toBe(false);
+    expect(pencil.points()).toEqual([]);
+    expect(state.document().root.children.length).toBe(1);
+  });
+
+  it('pointercancel clears the draft without dispatching', () => {
+    const { state, host, pencil } = setup();
+    host.routePointerDown(evtAt({ x: 0, y: 0 }));
+    host.routePointerMove(evtAt({ x: 20, y: 20 }));
+    host.routePointerCancel(evtAt({ x: 20, y: 20 }));
+    expect(pencil.drawing()).toBe(false);
+    expect(state.document().root.children.length).toBe(0);
+  });
+});
+
+describe('PencilOverlay — reactive preview', () => {
+  function setupOverlay() {
+    TestBed.configureTestingModule({});
+    const pencil = TestBed.inject(PencilToolService);
+    pencil.reset();
+    const fixture = TestBed.createComponent(PencilOverlay);
+    // Expose the protected computed for assertion.
+    const cmp = fixture.componentInstance as unknown as { previewD: () => string | null };
+    return { pencil, cmp };
+  }
+
+  it('returns null when not drawing', () => {
+    const { cmp } = setupOverlay();
+    expect(cmp.previewD()).toBeNull();
+  });
+
+  it('returns null with only 1 point (no visible stroke yet)', () => {
+    const { pencil, cmp } = setupOverlay();
+    pencil.begin({ x: 0, y: 0 });
+    expect(cmp.previewD()).toBeNull();
+  });
+
+  it('emits `d` once ≥ 2 points are recorded, using pointsToPathD format', () => {
+    const { pencil, cmp } = setupOverlay();
+    pencil.begin({ x: 0, y: 0 });
+    pencil.append({ x: 10, y: 10 });
+    expect(cmp.previewD()).toBe('M0.0 0.0 L10.0 10.0');
+  });
+
+  it('updates reactively as each move appends a point', () => {
+    const { pencil, cmp } = setupOverlay();
+    pencil.begin({ x: 0, y: 0 });
+    pencil.append({ x: 5, y: 5 });
+    const first = cmp.previewD();
+    pencil.append({ x: 10, y: 10 });
+    const second = cmp.previewD();
+    expect(first).not.toBe(second);
+    expect(second).toBe('M0.0 0.0 L5.0 5.0 L10.0 10.0');
+  });
+
+  it('clears the preview once the draft is finished', () => {
+    const { pencil, cmp } = setupOverlay();
+    pencil.begin({ x: 0, y: 0 });
+    pencil.append({ x: 10, y: 10 });
+    expect(cmp.previewD()).not.toBeNull();
+    pencil.finish();
+    expect(cmp.previewD()).toBeNull();
+  });
+
+  it('clears the preview on cancel', () => {
+    const { pencil, cmp } = setupOverlay();
+    pencil.begin({ x: 0, y: 0 });
+    pencil.append({ x: 10, y: 10 });
+    pencil.cancel();
+    expect(cmp.previewD()).toBeNull();
   });
 });
 

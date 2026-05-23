@@ -359,6 +359,10 @@
                LAST so it sits on top of all other overlays — the user
                needs to see exactly where the next anchor will land. -->
           <svg:g svgePenOverlay></svg:g>
+          <!-- Pencil tool overlay: real-time trace of the freehand
+               stroke being drawn. Hidden when no draft. Without this,
+               the user would only see what they drew on release. -->
+          <svg:g svgePencilOverlay></svg:g>
           <!-- Shape tools overlay: dashed preview of rect/ellipse/polygon
                being created via press+drag. Hidden when no draft. -->
           <svg:g svgeShapeOverlay></svg:g>
