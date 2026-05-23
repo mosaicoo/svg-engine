@@ -6,6 +6,52 @@
 
 ---
 
+## 2026-05-22 — Paridade do svge-tool-options nas 2 visões ausentes (/custom-editor + /embeddable-canvas)
+
+**Observação do usuário**: "Percebi que o svge-tool-options também é
+ausente em algumas visões, parece que foi disponibilizado apenas para
+shell-pro, verificar e ajustar".
+
+**Auditoria realizada**: `<svge-tool-options>` aparece via flag
+`[showToolOptions]` ou diretamente em 4 das 6 rotas:
+
+- `/pro-editor` ✅ (vem sempre on via `<svge-shell-pro>`)
+- `/basic-editor` ✅ (`[showToolOptions]="true"`)
+- `/modular-editor` ✅ (checkbox signal-controlled, default `false`)
+- `/nlu-test` ✅ (`[showToolOptions]="true"`)
+- `/embeddable-canvas` ❌ → faltava
+- `/custom-editor` ❌ → faltava (monta editor à mão, sem `<svge-editor>`)
+
+**Decisão para `/embeddable-canvas`**: usuário pediu paridade total
+("Adicionar em ambas — consistência"). Adicionado `[showToolOptions]
+="true"` mesmo que isto conflite parcialmente com a proposta
+canvas-only original do D-037 Modo 4 — o argumento prevaleceu de que
+tools como Stamp/Pen/Pencil precisam de UI para customização, e sem a
+bar de opções essas tools ficam "cegas" para o usuário.
+
+**Fix em `/custom-editor`**:
+
+- Import `SvgeToolOptions` em `custom-editor.component.ts` + array
+  `imports`.
+- `<svge-tool-options class="tool-options-bar" [showPlaceholder]="true">`
+  na template, posicionado entre o `<section class="toolbar">` e a
+  `<div class="workspace">` — mesma convenção do `<svge-editor>` e
+  `<svge-shell-pro>`.
+- `showPlaceholder=true` para layout consistente (toolbar com altura
+  fixa mesmo quando a tool ativa não tem opções).
+- SCSS: `:host { grid-template-rows: auto auto 1fr auto }` (era 3
+  linhas, agora 4 — toolbar / tool-options / workspace / status).
+- `.tool-options-bar` ganha border + border-radius para integrar com
+  o look das outras seções do editor customizado.
+
+**Modular-editor**: mantido como está — o checkbox de showToolOptions
+é parte da pedagogia ("ligar/desligar peças do shell" é o ponto da
+rota), e default `false` é intencional.
+
+**Verificação**: build dev playground 2.4s, lint clean.
+
+---
+
 ## 2026-05-22 — Paridade total de overlays nas 4 rotas restantes do playground
 
 **Pedido do usuário** (após o fix do pro-editor): "pode atualizar o

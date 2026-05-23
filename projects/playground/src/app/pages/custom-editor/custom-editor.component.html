@@ -296,6 +296,16 @@
   </fieldset>
 </section>
 
+<!--
+  Tool options bar — segue a convenção do <svge-editor> + <svge-shell-pro>
+  (D-038 Phase 3): mostra a optionsComponent da tool ativa entre o
+  toolbar e o canvas. showPlaceholder=true para layout consistente
+  (toolbar com altura fixa mesmo quando a tool ativa não tem opções).
+  Esta rota monta o editor à mão, então o componente entra direto na
+  template — não há flag de shell para ligar.
+-->
+<svge-tool-options class="tool-options-bar" [showPlaceholder]="true"></svge-tool-options>
+
 <div class="workspace">
   <aside class="sidebar left" aria-label="Layers panel">
     <header class="panel-header">Layers</header>

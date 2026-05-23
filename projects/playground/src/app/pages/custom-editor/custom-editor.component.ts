@@ -103,6 +103,7 @@ import {
   SvgeRulers,
   SvgeSvgSourceDialogService,
   SvgeThemeToggle,
+  SvgeToolOptions,
   SvgeWorkspaceSettingsDialogService,
 } from 'svg-engine/ui';
 
@@ -161,6 +162,7 @@ const DRAG_START_THRESHOLD_PX = 3;
     SvgeRulers,
     SvgeIsolationBreadcrumb,
     SvgeThemeToggle,
+    SvgeToolOptions,
     SvgeEffectsPanel,
   ],
   // D-042: route-scoped editor state stack — each navigation gets its

@@ -77,6 +77,7 @@ import { SvgeEditor } from 'svg-engine/ui';
         [showToolbar]="false"
         [showStatusBar]="false"
         [showContextMenu]="true"
+        [showToolOptions]="true"
       >
         <!--
           Mesmo conjunto completo de overlays do /custom-editor: o modo

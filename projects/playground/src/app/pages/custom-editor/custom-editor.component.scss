@@ -1,6 +1,7 @@
 :host {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  /* 4 rows: toolbar (auto) | tool-options (auto) | workspace (1fr) | status (auto). */
+  grid-template-rows: auto auto 1fr auto;
   height: 100%;
   gap: 0.5rem;
   padding: 0.5rem;
@@ -10,6 +11,17 @@
     -apple-system,
     sans-serif;
   min-height: 0;
+}
+
+/* Tool options bar sits between the manual toolbar and the workspace.
+   The component already paints its own surface + bottom border; we just
+   align it with the grid and reduce default gap so it visually groups
+   with the toolbar above. */
+.tool-options-bar {
+  margin-top: calc(-0.5rem + 0px); /* tighten gap to the toolbar above */
+  border-radius: 0.4rem;
+  overflow: hidden;
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
 }
 
 .toolbar {
