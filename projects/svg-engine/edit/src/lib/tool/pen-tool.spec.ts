@@ -10,6 +10,7 @@ import {
 } from 'svg-engine/core';
 import { PluginRegistry } from '../plugin/plugin-registry.service';
 import { provideSvgEnginePlugin } from '../plugin/provide-plugin';
+import { PenOverlay } from './pen-overlay.component';
 import { PEN_TOOL_ID, penToolPlugin } from './pen-tool.plugin';
 import { PenToolService } from './pen-tool.service';
 import type { ToolPointerEvent } from './tool';
@@ -220,6 +221,92 @@ describe('PenTool — switching tools mid-draft discards state (Affinity convent
     // should reset (matches Affinity: leaving the tool drops the draft).
     host.deactivate();
     expect(pen.anchors()).toHaveLength(0);
+  });
+});
+
+describe('PenOverlay — drag curve preview', () => {
+  /**
+   * Helper: create the overlay component bound to a fresh PenToolService
+   * and return both. The component is detached from the DOM (we only need
+   * its computeds, not the rendered SVG).
+   */
+  function setupOverlay() {
+    TestBed.configureTestingModule({});
+    const pen = TestBed.inject(PenToolService);
+    pen.reset();
+    const fixture = TestBed.createComponent(PenOverlay);
+    // Expose protected computeds for assertion (Angular component
+    // boundary, not a public-API contract).
+    const cmp = fixture.componentInstance as unknown as {
+      dragCurvePreview: () => string | null;
+      dragHandlePreview: () => { start: Point; handleIn: Point; handleOut: Point } | null;
+    };
+    return { pen, cmp };
+  }
+
+  it('returns null when no drag is active', () => {
+    const { cmp } = setupOverlay();
+    expect(cmp.dragCurvePreview()).toBeNull();
+  });
+
+  it('returns null when the very first anchor is being placed (no previous anchor)', () => {
+    const { pen, cmp } = setupOverlay();
+    // Press + move with NO committed anchors → handle preview shows but
+    // curve preview can't (nothing to attach the segment to).
+    pen.beginPotentialDrag({ x: 50, y: 50 });
+    pen.updateDrag({ x: 80, y: 50 });
+    expect(cmp.dragHandlePreview()).not.toBeNull();
+    expect(cmp.dragCurvePreview()).toBeNull();
+  });
+
+  it('returns null while cursor sits on the press point (no curvature yet)', () => {
+    const { pen, cmp } = setupOverlay();
+    pen.beginPotentialDrag({ x: 0, y: 0 });
+    pen.commitClick();
+    // Second anchor begins, no movement yet.
+    pen.beginPotentialDrag({ x: 50, y: 50 });
+    expect(cmp.dragCurvePreview()).toBeNull();
+  });
+
+  it('emits a cubic Bezier `d` between previous anchor and pending one during drag', () => {
+    const { pen, cmp } = setupOverlay();
+    // Commit a cusp at (0, 0) — the anchor we'll curve FROM.
+    pen.beginPotentialDrag({ x: 0, y: 0 });
+    pen.commitClick();
+    // Start a drag at (50, 50), pull the handle to (80, 50).
+    pen.beginPotentialDrag({ x: 50, y: 50 });
+    pen.updateDrag({ x: 80, y: 50 });
+
+    const d = cmp.dragCurvePreview();
+    expect(d).not.toBeNull();
+    // Previous anchor is cusp at (0,0) → handleOut = anchor → `C` starts
+    // from (0,0). Pending anchor's handleIn = mirror through (50,50) =
+    // (20, 50). Pending anchor point = (50, 50).
+    expect(d).toBe('M0 0 C0 0 20 50 50 50');
+  });
+
+  it('updates the preview reactively as the cursor moves', () => {
+    const { pen, cmp } = setupOverlay();
+    pen.beginPotentialDrag({ x: 0, y: 0 });
+    pen.commitClick();
+    pen.beginPotentialDrag({ x: 100, y: 100 });
+    pen.updateDrag({ x: 120, y: 100 });
+    const first = cmp.dragCurvePreview();
+    pen.updateDrag({ x: 160, y: 100 });
+    const second = cmp.dragCurvePreview();
+    expect(first).not.toBe(second); // computed re-evaluated with new drag state
+    expect(second).toContain('100 100'); // anchor endpoint unchanged
+  });
+
+  it('clears the preview after commitDrag (no more drag state)', () => {
+    const { pen, cmp } = setupOverlay();
+    pen.beginPotentialDrag({ x: 0, y: 0 });
+    pen.commitClick();
+    pen.beginPotentialDrag({ x: 50, y: 50 });
+    pen.updateDrag({ x: 80, y: 50 });
+    expect(cmp.dragCurvePreview()).not.toBeNull();
+    pen.commitDrag();
+    expect(cmp.dragCurvePreview()).toBeNull();
   });
 });
 

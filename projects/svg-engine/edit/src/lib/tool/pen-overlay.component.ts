@@ -73,6 +73,13 @@ const HANDLE_PX = 6;
         <svg:path class="pen-rubber" [attr.d]="rb"></svg:path>
       }
 
+      <!-- In-progress curve segment being formed during a drag — gives
+           real-time feedback of the Bezier the user is creating before
+           release, instead of just showing the handle stems. -->
+      @if (dragCurvePreview(); as cd) {
+        <svg:path class="pen-segment" [attr.d]="cd"></svg:path>
+      }
+
       <!-- In-progress symmetric handle preview during a drag. -->
       @if (dragHandlePreview(); as h) {
         <svg:line
@@ -265,6 +272,45 @@ export class PenOverlay {
     const handleOut = current;
     const handleIn: Point = { x: 2 * start.x - current.x, y: 2 * start.y - current.y };
     return { start, handleIn, handleOut };
+  });
+
+  /**
+   * SVG `d` string for the in-progress curve segment being created
+   * during a press-drag-release. Returns `null` when:
+   *
+   * - No drag is active (`dragHandlePreview()` is also `null`).
+   * - The cursor hasn't moved off the press point (no curvature yet).
+   * - No previous anchor exists (the very first anchor of the path has
+   *   nothing to attach a segment to — only the symmetric handles show).
+   *
+   * Lets the user see the actual Bezier materialise dynamically as
+   * they drag, instead of having to release first to know what curve
+   * the handles will produce. Mirrors the symmetric-handle convention
+   * from {@link PenToolService.commitDrag} (handleIn = mirror of
+   * handleOut around `start`) so the preview is bit-for-bit what the
+   * final committed segment will be.
+   *
+   * Uses {@link segmentD} so the preview is rendered with the exact
+   * same `d` builder as the committed segments and the eventual
+   * serialised path.
+   */
+  protected readonly dragCurvePreview = computed<string | null>(() => {
+    const preview = this.dragHandlePreview();
+    if (preview === null) return null;
+    const anchors = this.pen.anchors();
+    if (anchors.length === 0) return null;
+    const prev = anchors[anchors.length - 1]!;
+    // The pending anchor sits at `start` with the mirrored handleIn we
+    // already computed in `dragHandlePreview`. `handleOut` doesn't
+    // affect the segment going INTO this anchor — it'd only matter for
+    // a hypothetical next segment which doesn't exist yet.
+    const pending: AnchorPoint = {
+      point: preview.start,
+      handleIn: preview.handleIn,
+      handleOut: preview.handleOut,
+      kind: 'symmetric',
+    };
+    return segmentD(prev, pending);
   });
 
   /**

@@ -6,6 +6,50 @@
 
 ---
 
+## 2026-05-22 — Pen Tool: preview da curva durante drag
+
+**Bug reportado pelo usuário**: durante o desenho ponto a ponto, ao
+manter o botão do mouse pressionado para criar a curvatura, o traçado
+da curva não estava sendo exibido em tempo real — apenas as arestas
+(handle stems + knobs) apareciam. O comportamento esperado é que a
+curvatura seja apresentada dinamicamente junto com as arestas enquanto
+o usuário movimenta o mouse com o botão pressionado.
+
+**Causa**: o `PenOverlay` tinha três caminhos de render que não cobriam
+a curva intermediária:
+
+1. `committedSegments()` — apenas pares de âncoras já comprometidas.
+2. `rubberBand()` — escondida durante o drag (`dragState() !== null`).
+3. `dragHandlePreview()` — desenhava só os stems + knobs simétricos.
+
+Resultado: enquanto o usuário arrastava, nenhum `<svg:path>` consumia
+os handles em formação. A curva só "aparecia" depois do `commitDrag`,
+quando o par virava `committedSegments`.
+
+**Fix em `pen-overlay.component.ts`**:
+
+- Novo computed `dragCurvePreview()` que combina:
+  - Última âncora comprometida (`anchors[anchors.length - 1]`).
+  - Âncora pendente sintetizada em `dragState.start` com `handleIn`
+    espelhado (mesma fórmula do `commitDrag`: `2·start − current`).
+- Reutiliza `segmentD()` — o mesmo serializador dos committed segments
+  e do `anchorsToPathD`, garantindo que o preview é bit-for-bit o que
+  vira o `d` final.
+- Renderiza `<svg:path class="pen-segment">` entre rubber-band e o
+  handle preview no template (z-order: stems/knobs ficam por cima).
+- Retorna `null` quando: sem drag, sem âncora anterior (primeira do
+  path), ou cursor ainda no press point (sem curvatura).
+
+**Specs** em `pen-tool.spec.ts` — novo describe `PenOverlay — drag
+curve preview` com 6 casos: estado idle, primeira âncora, sem
+movimento, fórmula do `d` (validada como `M0 0 C0 0 20 50 50 50` para
+drag de (50,50)→(80,50) após cusp em (0,0)), reatividade, limpeza pós
+commit.
+
+**Verificação**: 1281/1282 specs (+6), lint clean, build prod 7.5s.
+
+---
+
 ## 2026-05-22 — D-046 review-10: Sprint 1-4 do audit (execução autônoma)
 
 **Pedido**: executar autonomamente as 4 sprints do relatório de auditoria NLU sem intervenção.
