@@ -88,8 +88,10 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
  * surface small. CDK Tree can replace the recursion later for
  * keyboard-nav / virtualization without changing the public API.
  *
- * **Drag-drop reorder**: deferred to a sub-block (4b-DnD) — needs a
- * new `MoveNodeInTreeCommand` in core for atomic reorder + undo.
+ * **Drag-drop reorder** (Bloco 4b-DnD ✅): each tree row is a drop
+ * target; dragging a row over another fires `MoveNodeInTreeCommand`
+ * (atomic reorder + undo) with auto-scroll for long trees and
+ * before/after/inside drop-zone discrimination based on cursor Y.
  *
  * Usage:
  * ```html

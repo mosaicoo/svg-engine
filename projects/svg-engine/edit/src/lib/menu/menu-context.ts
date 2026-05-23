@@ -7,13 +7,17 @@ import type { MenuContribution, MenuContributionContext } from './menu-contribut
  * context wiring (D-043 fix) is implemented **once** instead of being
  * duplicated and drifting between components.
  *
- * Two helpers are exposed:
+ * Three helpers are exposed:
  *
  * - {@link resolveDisabledSignal}: turns a contribution's `disabled`
  *   field (which may be `null`, a raw `Signal<boolean>`, or a
  *   factory `(injector) => Signal<boolean>`) into a single
  *   `Signal<boolean>` for the consumer's injector. Memoization is
  *   the caller's responsibility (see {@link makeDisabledResolver}).
+ * - {@link makeDisabledResolver}: returns a memoized resolver bound
+ *   to a single injector so each contribution's `disabled` signal is
+ *   instantiated at most once per consumer, even when the dispatch
+ *   table is iterated multiple times per change-detection cycle.
  * - {@link runContribution}: invokes `run()` with the per-fire
  *   `MenuContributionContext` so handlers that opt into lazy service
  *   resolution hit the consumer's scope.

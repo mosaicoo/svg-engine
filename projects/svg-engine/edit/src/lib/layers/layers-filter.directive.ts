@@ -7,7 +7,9 @@ const PREV_DISPLAY_ATTR = 'data-svge-prev-display';
 /**
  * Apply {@link LayersService.hiddenIds} to the rendered SVG.
  *
- * Walks `[data-node-id]` descendants of its host on every CD cycle and
+ * Walks `[data-node-id]` descendants of its host inside an `effect()`
+ * that reacts to {@link LayersService.hiddenIds} (i.e. it re-runs only
+ * when the hidden set actually changes — not on every CD cycle) and
  * sets `style.display = 'none'` on the ones whose id is in `hiddenIds`.
  * On unhide, restores the previously-set inline display (saved in a
  * sentinel attribute so we don't strip user-set display values).
@@ -20,10 +22,10 @@ const PREV_DISPLAY_ATTR = 'data-svge-prev-display';
  * - **No global side effects**: the service stays pure state; touching
  *   the DOM is the directive's job.
  *
- * **Cost**: O(n) DOM walk per CD cycle (where n = nodes with
- * `data-node-id` under the host). For typical documents (≤ 1k nodes)
- * this is negligible (sub-millisecond). Optimization for very large
- * documents (10k+) is a Fase 6 perf concern — a likely path is
+ * **Cost**: O(n) DOM walk per `hiddenIds` change (where n = nodes
+ * with `data-node-id` under the host). For typical documents (≤ 1k
+ * nodes) this is negligible (sub-millisecond). Optimization for very
+ * large documents (10k+) is a Fase 6 perf concern — a likely path is
  * batching via `requestAnimationFrame` and caching the previous
  * `hiddenIds` snapshot to apply diffs only.
  *

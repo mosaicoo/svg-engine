@@ -11,7 +11,7 @@ import type { NaturalLanguageService } from './natural-language.service';
 import type { NluIntent } from './types';
 
 /**
- * **`discoverMenuIntents`** — D-046? Fase 1.
+ * **`discoverMenuIntents`** — D-046 Fase 1.
  *
  * Auto-promove TODAS as contribuições do {@link MenuContributionRegistry}
  * em intents NLU. Cada menu item vira um intent cujo handler executa

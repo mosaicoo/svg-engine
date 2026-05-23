@@ -66,8 +66,11 @@ export interface PluginContext {
  * mismatches with a clear error. Minor/patch differences are accepted.
  *
  * **`dependencies`**: an array of plugin ids that must be installed
- * first. Missing-dep is a hard install error. Circular deps are caught
- * at install time (each install scans its dep chain).
+ * first. Missing-dep is a hard install error — each declared dep is
+ * checked via `has()` at install time. Circular deps are prevented
+ * indirectly (sequential install order means a cycle can never both
+ * have its prerequisite installed) rather than detected with an
+ * explicit cycle-walk.
  *
  * **Lifecycle**:
  * - `install(ctx)`: register contributions; called exactly once per

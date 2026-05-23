@@ -10,7 +10,9 @@ import { SnapService } from '../snap/snap.service';
  *
  * Each guide is a single thin line spanning the visible viewport on the
  * opposite axis (vertical for `axis: 'x'`, horizontal for `axis: 'y'`),
- * coloured by source — magenta for grid, magenta/cyan for objects.
+ * coloured magenta regardless of source (grid or object) — the colour
+ * convention is "magenta = snap is active" so the user learns the
+ * single signal rather than having to discriminate sources mid-drag.
  *
  * Pointer-events disabled: this is purely decorative.
  *

@@ -27,9 +27,10 @@ import { SvgeEditor } from 'svg-engine/ui';
  * projected as children. No manual wireing of toolbar / background /
  * canvas — the shell composes them itself (Material-styled).
  *
- * Compare with the `playground-home` route which wires every primitive
- * by hand (D-018 dogfooding). Both are valid library consumption styles;
- * the shell is for consumers who want the easy mode.
+ * Compare with the `/custom-editor` route (ex `playground-home`, renamed
+ * in D-041) which wires every primitive by hand (D-018 dogfooding). Both
+ * are valid library consumption styles; the shell is for consumers who
+ * want the easy mode.
  *
  * **Limitations of this demo**:
  * - No layers panel / inspector — the shell currently doesn't embed

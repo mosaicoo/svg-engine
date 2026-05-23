@@ -16,7 +16,7 @@
  *   skeleton (pivot only), `<svge-selection-overlay>`,
  *   `<svge-rotation-pivot>` Affinity-grade (free-drag + snap-to-anchors
  *   with Alt-bypass + 3×3 popover + Esc cancel + dbl-click reset).
- * **Bloco 3** ⏳: `TransformService` expanded (drag/resize/rotate);
+ * **Bloco 3** ✅: `TransformService` expanded (drag/resize/rotate);
  *   new commands (`RotateNodeCommand`, `ResizeNodeCommand`).
  * **Bloco 4a** ✅: `<svge-marquee>` + `MarqueeService` + pure
  *   `nodesInsideMarquee` hit-tester (drag-to-select with shift-add).
@@ -38,7 +38,6 @@
  * **Fase 4 foundation** ✅: `WorkspaceService` + `<svge-workspace-background>`
  *   (D-021 resolution: editor presentation state separate from
  *   `SvgDocument`; transparent/solid/image background variants).
- * **Bloco 5** ⏳: `ToolRegistry` (D-020 plugin point).
  */
 
 // Selection (Bloco 1)

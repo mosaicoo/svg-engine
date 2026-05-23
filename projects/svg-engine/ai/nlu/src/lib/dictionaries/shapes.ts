@@ -15,11 +15,11 @@
  * - **Semantic aliases** ("nó" → circle, "conector" → line, "balão"
  *   → group) mapeiam vocabulário UX para shapes existentes.
  *
- * **Limitação Fase 1**: ícones nomeados ("estrela" / "coração" /
- * "engrenagem") mapeiam pra `'polygon'` ou `'path'` mas o handler
- * built-in não renderiza geometria específica deles — isso fica para
- * a fase que integrar uma icon library (Fase 1.x). Por ora caem em
- * stub honesto no `builtinNluPlugin`.
+ * **Geometria por nome**: "estrela" mapeia para `'star'` com geometria
+ * real (5 pontas via `regularStarPoints`); "coração" cai em `'star'`
+ * como fallback semântico até ganhar geometria própria. Outros ícones
+ * nomeados ainda fora do vocabulário ficam para a fase que integrar
+ * uma icon library (Fase 1.x).
  */
 import type { NluShapeKind } from './shapes-canonical';
 import { SHAPE_DICTIONARY_EN } from './shapes-en';

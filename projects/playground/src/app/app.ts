@@ -11,6 +11,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
  * - `/modular-editor`  → ModularEditor      (configurador com 6 checkboxes)
  * - `/embeddable-canvas` → EmbeddableCanvas (canvas com edição sem chrome — Modo 4)
  * - `/pro-editor`      → ProEditor          (`<svge-shell-pro>` completo — Modo 2 pro)
+ * - `/nlu-test`        → NluTest            (editor + `<svge-nlu-input>` lado a lado — D-046)
  * - `/svg-viewer`      → SvgViewer          (read-only puro — só render+io)
  * - `/benchmark`       → Benchmark          (perf harness)
  *

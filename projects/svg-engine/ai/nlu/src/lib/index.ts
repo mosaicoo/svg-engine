@@ -1,5 +1,5 @@
 /**
- * **NLU (Natural Language Understanding) — D-046? Fase 1.**
+ * **NLU (Natural Language Understanding) — D-046 Fase 1.**
  *
  * Rule-based pipeline (regex + dicionário multilíngue PT/EN +
  * Levenshtein fuzzy matching) — zero ML, zero download, funciona

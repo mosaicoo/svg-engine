@@ -33,7 +33,8 @@ import { SvgeShellPro } from 'svg-engine/ui';
  * **Como validar manualmente**:
  *
  * - Topo: clique em File / Edit / Help → dropdowns aparecem
- *   (`menu.*` slots populados pelo `demoMenuBarPlugin`).
+ *   (`menu.*` slots populados pelo `builtinMenuContributionsPlugin`
+ *   — D-043 substituiu o antigo `demoMenuBarPlugin` que era só mocks).
  * - Edit > Transform → submenu cascading funciona.
  * - Tool options bar mostra "No options for this tool" para Select
  *   (placeholder ativo); pressione **K** (Stamp Tool) → bar mostra

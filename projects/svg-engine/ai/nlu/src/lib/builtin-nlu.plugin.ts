@@ -40,7 +40,9 @@ import { NaturalLanguageService } from './natural-language.service';
  *    - `create-shape` — usa slot `kind: 'shape'` que resolve "círculo"
  *      → 'circle', "bola" → 'circle', "retângulo" → 'rect' etc. via
  *      SHAPE_DICTIONARY automaticamente.
- *    - `set-fill` — stub honesto (aguarda SetStyleCommand no core)
+ *    - `set-fill` — dispatcha `SetStylePropertyOnManyCommand` com a
+ *      cor resolvida do COLOR_DICTIONARY, aplicando em todos os nós
+ *      selecionados num único undo step.
  *    - **`move-selected`** — desloca os nós selecionados por `dx, dy`
  *      via `MoveNodeCommand`.
  *    - **`resize-selected`** — escala os nós por fator `sx, sy` via

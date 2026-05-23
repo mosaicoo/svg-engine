@@ -1,5 +1,6 @@
 /**
- * Frame-rate sampler used by the `/perf` page.
+ * Frame-rate sampler used by the `/benchmark` page (ex `/perf`, renamed
+ * in D-041).
  *
  * **How it works**: rAF callback records `performance.now()`; each delta
  * is pushed into a fixed-size ring buffer (`windowFrames`, default 60).

@@ -8,7 +8,8 @@ import {
 } from 'svg-engine/core';
 
 /**
- * Synthetic document generator used by the `/perf` page (Fase 6a).
+ * Synthetic document generator used by the `/benchmark` page (ex `/perf`,
+ * renamed in D-041 — Fase 6a).
  *
  * **Determinism**: a Mulberry32 PRNG seeded by `seed` (default 42) means
  * the SAME (count, seed) ALWAYS produces the SAME tree — so before/after

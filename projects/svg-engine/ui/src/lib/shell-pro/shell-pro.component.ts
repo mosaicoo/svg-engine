@@ -212,7 +212,9 @@ import { SvgeToolsPalette } from '../tools-palette';
       background: var(--mat-sys-surface, transparent);
     }
     .tool-options-row {
-      /* svge-tool-options already paints its own surface + border-bottom */
+      /* No rules — svge-tool-options already paints its own surface +
+         bottom border; we keep the selector so the grid row tracking
+         in the host doesn't shift if a consumer overrides via ::ng-deep. */
     }
     .main {
       display: grid;
@@ -265,7 +267,9 @@ import { SvgeToolsPalette } from '../tools-palette';
       overflow: auto;
     }
     .status-row {
-      /* svge-status-bar paints its own border-top + background */
+      /* No rules — svge-status-bar paints its own top border + background;
+         we keep the selector so the grid row tracking in the host doesn't
+         shift if a consumer overrides via ::ng-deep. */
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,

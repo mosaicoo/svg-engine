@@ -53,15 +53,16 @@ import { CONTEXT_MENU_SLOT, MENU_SLOT, TOOLBAR_SLOT } from '../menu-slots';
  *   first attempt at D-043 fell into (handlers worked-ish but
  *   disabled signals always showed root state).
  *
- * **What's NOT included** (intentional scope, registered in D-043):
- * - Clipboard items (Cut/Copy/Paste) — no `ClipboardService` yet.
- * - Duplicate — no `DuplicateCommand` (deferred).
+ * **What's NOT included** (intentional scope — Cut/Copy/Paste/Duplicate
+ * added in D-044 after `ClipboardService` + `DuplicateNodeCommand`
+ * landed; remaining gaps stay deferred for the reasons listed):
  * - Save / Open / New — depend on consumer's persistence strategy.
  * - Export with dialog / Workspace Settings dialog — require Material
  *   dialog (`MatDialog` lives in `ui`; plugin in `edit` cannot import).
  * - Align / Distribute — require rendered-node bboxes (SVG DOM ref).
  *
- * **What IS included** (31 contributions):
+ * **What IS included** (58 contributions total — counted via
+ * `reg.register` calls; expanded in D-044 with clipboard + duplicate):
  *
  * | Slot                         | Items                                                       |
  * | ---------------------------- | ----------------------------------------------------------- |

@@ -6,6 +6,116 @@
 
 ---
 
+## 2026-05-23 — Limpeza de comentários órfãos do audit (28 correções seguras)
+
+**Pedido do usuário**: "Baseado no relatório previamente gerado, realize
+automaticamente todas as correções consideradas seguras e confiáveis".
+
+Aplicadas 28 correções em 22 arquivos. Cada edit foi validado contra o
+código real antes da aplicação — categorias:
+
+**Typos triviais (7 fixes, 6 arquivos)** — `D-046?` → `D-046`:
+`index.ts`, `menu-intent-discovery.ts`, `natural-language.service.ts`,
+`parsers/levenshtein.ts`, `parsers/tokenize.ts` (×2), `types.ts`.
+
+**Renames de rotas pós-D-041 (4 fixes)**:
+
+- `basic-editor.component.ts`: `/playground-home` → `/custom-editor`.
+- `fps-meter.ts`: `/perf` → `/benchmark`.
+- `synth-doc.ts`: idem.
+- `pro-editor.component.ts`: `demoMenuBarPlugin` → `builtinMenuContributionsPlugin`.
+
+**Contagens / listas defasadas (4 fixes)**:
+
+- `app.ts`: lista de rotas adicionou `/nlu-test`.
+- `modular-editor.component.ts`: "Three checkboxes" → "Six checkboxes"
+  - lista de peças completa no template.
+- `menu-context.ts`: "Two helpers" → "Three helpers".
+- `builtin-menu-contributions.plugin.ts`: "31 contributions" → "58".
+
+**Headers public-api desatualizados (10 fixes em 2 arquivos)**:
+
+- `edit/src/public-api.ts`: Bloco 3 ⏳ → ✅ e remove o duplicado Bloco 5.
+- `ui/src/public-api.ts`: Blocos 4b-4i ⏳ → ✅ (8 itens, todos
+  implementados já listados como exports).
+
+**Listas "What's NOT included" obsoletas (2 fixes)**:
+
+- `builtin-menu-contributions.plugin.ts`: remove menções a Clipboard/
+  Duplicate que JÁ EXISTEM em D-044.
+- `builtin-editor-shortcuts.plugin.ts`: reescreve para diferenciar
+  "serviços existem" vs "atalhos não foram wireados aqui ainda".
+
+**Referências mortas a símbolos / mecanismos inexistentes (7 fixes)**:
+
+- `isolation.service.ts` (2): remove referência a `constructor effect`
+  e `ws.document()` que não existem; reescreve a doc do
+  `breadcrumbPath` explicando o que de fato acontece (stale-target
+  handling sem auto-clear).
+- `marquee.service.ts`: reescreve rationale de export do `rectFromPoints`.
+- `plugin.ts`: doc de "circular deps caught" → descrição real (prevenção
+  indireta via instalação sequencial, sem cycle-walk explícito).
+- `provide-plugin.ts`: exemplo `builtinSelectToolPlugin` → `selectToolPlugin`.
+- `selection-overlay.component.ts`: remove "future TransformService".
+- `page-overlay.component.ts` (2): "centered in viewport" → "top-left
+  anchored at (0,0)" (reverted em 2026-05-18).
+
+**Documentação inconsistente com implementação (5 fixes)**:
+
+- `inspector.component.ts` (2): multi-edit não é "future polish" — está
+  implementado via `SetStylePropertyOnManyCommand`; color pickers idem.
+- `layers-panel.component.ts`: DnD reorder não é "deferred" — feito.
+- `layers-filter.directive.ts`: "every CD cycle" → "effect reagindo a
+  hiddenIds".
+- `snap-guides.component.ts`: "magenta/cyan" → "sempre magenta".
+
+**NLU específicos (3 fixes)**:
+
+- `_helpers.ts`: remove `set-fill` da lista de consumidores de
+  `setStyleOnSelected` (set-fill dispatcha command direto).
+- `builtin-nlu.plugin.ts`: remove rotulagem "stub honesto" do set-fill.
+- `shapes.ts`: atualiza descrição "estrela cai em stub" — agora tem
+  geometria real via `regularStarPoints`.
+
+**Adições documentais (1 fix)**:
+
+- `editor-scope.providers.ts`: adiciona `ClipboardService` (D-044) à
+  lista de serviços edit-scope.
+
+**Não-corrigidos (preservados para revisão manual — preserve_for_manual_review)**:
+
+- `reorder-node.command.ts` L80 (tautologia `newIndex > oldIndex ?
+newIndex : newIndex`): pode ser bug real (faltando `- 1`) OU intenção
+  proposital. Mexer aqui altera lógica funcional — VIOLA regra.
+- `path-anchors.ts` L500-501 (re-export "for downstream tests"): grep
+  mostra zero consumidores, mas remover quebra superfície de API
+  pública. Baixo risco, mas decisão de quebra de contrato.
+- `inspector.component.ts` `.field-row.active-target { }` (regra CSS
+  vazia para "specs antigos"): comentário avisa que remoção quebra
+  specs. Não há como validar sem rodar specs antigos.
+- `shortcut.ts` L142-143 (ternário tautológico `length === 1 ?
+toLowerCase() : toLowerCase()`): É código, não comentário —
+  simplificação é alteração funcional (mesmo idempotente). Skip.
+
+**Verificação**:
+
+- Build prod svg-engine: ✅ 11.9s
+- Specs: ✅ 1291/1292 (zero regressão — mesmo número da baseline)
+- Lint svg-engine: ✅ clean
+- Lint playground: ✅ clean
+- Build dev playground: ✅ 9.1s
+
+**Issue encontrada e resolvida durante o processo**:
+
+- A primeira tentativa de remover as CSS rules vazias em `shell-pro`
+  (`.tool-options-row {}`, `.status-row {}`) quebrou a compilação AOT
+  do Angular ("Failed to resolve @Component.styles"). Comentário CSS
+  órfão sem regra confunde o parser estático. Restaurei o seletor com
+  bloco vazio (documentado) — mantém zero impacto visual mas preserva
+  parseabilidade.
+
+---
+
 ## 2026-05-22 — Paridade do svge-tool-options nas 2 visões ausentes (/custom-editor + /embeddable-canvas)
 
 **Observação do usuário**: "Percebi que o svge-tool-options também é

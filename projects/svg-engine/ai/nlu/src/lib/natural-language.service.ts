@@ -37,7 +37,7 @@ import type {
 } from './types';
 
 /**
- * **`NaturalLanguageService`** — D-046? Fase 1 (rule-based NLU).
+ * **`NaturalLanguageService`** — D-046 Fase 1 (rule-based NLU).
  *
  * Singleton root-provided que registra {@link NluIntent}s e
  * traduz texto livre em comandos dispatcháveis. Composição direta

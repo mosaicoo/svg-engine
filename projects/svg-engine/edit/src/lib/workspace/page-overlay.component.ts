@@ -67,10 +67,11 @@ import { pageBoundsIn, WorkspaceService } from './workspace.service';
     @if (pageBounds(); as p) {
       <!--
         Outer page rectangle — the visible "paper" of the canvas.
-        Anchored at the page's computed origin (centered inside the
-        viewport contentBox via the pageBoundsIn helper). Grid and
-        guides overlays use the same helper so they stay aligned to
-        the same rectangle.
+        Anchored at the page's origin (top-left at 0,0 in document
+        coordinates via the pageBoundsIn helper — reverted from the
+        earlier "centered in viewport" behaviour in 2026-05-18). Grid
+        and guides overlays use the same helper so they stay aligned
+        to the same rectangle.
       -->
       <svg:rect
         class="page-rect"
@@ -120,8 +121,11 @@ export class PageOverlay {
   private readonly viewport = inject(ViewportService);
 
   /**
-   * Page rectangle (in document coordinates) centered inside the
-   * viewport's contentBox via the shared {@link pageBoundsIn} helper.
+   * Page rectangle in document coordinates — top-left anchored at
+   * `(0, 0)` via the shared {@link pageBoundsIn} helper (reverted from
+   * the earlier "centered in viewport" behaviour in 2026-05-18 so the
+   * page matches the document coordinate system).
+   *
    * Returns null when page has zero dims (defensive — patchPage
    * validation rejects that, but tests may stub).
    */

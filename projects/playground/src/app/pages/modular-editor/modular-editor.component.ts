@@ -24,9 +24,10 @@ import { SvgeEditor } from 'svg-engine/ui';
 /**
  * `<svge-editor>` **shell parcial** demo — showcases mode 3 of D-034/D-035.
  *
- * **Three checkboxes**, each toggling one piece of the shell, prove the
- * Mosaicoo invariant: the consumer can have ANY combination of toolbar /
- * status bar / canvas-only, without the shell forcing a layout.
+ * **Six checkboxes** (menu bar / toolbar / status bar / context menu /
+ * tool options / custom status replacement), each toggling one piece
+ * of the shell, prove the Mosaicoo invariant: the consumer can have
+ * ANY combination of shell pieces without the shell forcing a layout.
  *
  * Also demonstrates **custom slot replacement**: tick "custom status bar"
  * to swap the built-in `<svge-status-bar>` for an inline div that just
@@ -54,8 +55,9 @@ import { SvgeEditor } from 'svg-engine/ui';
   template: `
     <header class="bar">
       <p>
-        <strong>Editor modular</strong> — flags individuais controlam toolbar / status bar / canvas.
-        Compare com <a routerLink="/basic-editor">/basic-editor</a> (drop-in básico sem flags) e
+        <strong>Editor modular</strong> — flags individuais controlam menu bar / toolbar / status
+        bar / context menu / tool options. Compare com
+        <a routerLink="/basic-editor">/basic-editor</a> (drop-in básico sem flags) e
         <a routerLink="/custom-editor">/custom-editor</a> (editor customizado, sem
         &lt;svge-editor&gt;).
       </p>

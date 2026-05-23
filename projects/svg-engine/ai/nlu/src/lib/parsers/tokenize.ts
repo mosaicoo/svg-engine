@@ -1,5 +1,5 @@
 /**
- * Tokenizer multilíngue (PT + EN) — D-046? Fase 1.
+ * Tokenizer multilíngue (PT + EN) — D-046 Fase 1.
  *
  * Operações em ordem:
  * 1. Lowercase
@@ -18,7 +18,7 @@
  * quando aplicar `isStopword`.
  *
  * **Por que não usar Intl.Segmenter / NLP libs**: zero-deps é
- * requisito explícito da Fase 1 (D-046?). Tokenização "ingênua"
+ * requisito explícito da Fase 1 (D-046). Tokenização "ingênua"
  * cobre o vocabulário de comandos de editor de SVG sem ruído.
  */
 

@@ -12,14 +12,14 @@
  * directly and build their own UI.
  *
  * **Bloco 4a** ✅: entry point setup + `<svge-editor>` shell.
- * **Bloco 4b** ⏳: `<svge-layers-panel>`.
- * **Bloco 4c** ⏳: `<svge-inspector>`.
- * **Bloco 4d** ⏳: `<svge-color-palette>` + `PaletteService`.
- * **Bloco 4e** ⏳: `<svge-toolbar>` extensible + `MenuContributionRegistry`.
- * **Bloco 4f** ⏳: workspace settings (page/grid/guides/rulers UI).
- * **Bloco 4g** ⏳: shortcuts UI + `ShortcutRegistry`.
- * **Bloco 4h** ⏳: grouping commands.
- * **Bloco 4i** ⏳: `<svge-theme-toggle>` (D-012 part 2).
+ * **Bloco 4b** ✅: `<svge-layers-panel>`.
+ * **Bloco 4c** ✅: `<svge-inspector>`.
+ * **Bloco 4d** ✅: `<svge-color-palette>` + `PaletteService`.
+ * **Bloco 4e** ✅: `<svge-toolbar>` extensible + `MenuContributionRegistry`.
+ * **Bloco 4f** ✅: workspace settings (page/grid/guides/rulers UI).
+ * **Bloco 4g** ✅: shortcuts UI + `ShortcutRegistry`.
+ * **Bloco 4h** ✅: grouping commands.
+ * **Bloco 4i** ✅: `<svge-theme-toggle>` (D-012 part 2).
  */
 
 // Editor shell (Bloco 4a)

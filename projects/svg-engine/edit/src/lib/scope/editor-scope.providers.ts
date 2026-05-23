@@ -51,7 +51,8 @@ import { WorkspaceService } from '../workspace/workspace.service';
  *   `MarqueeService`, `AlignmentService`, `AutoSaveService`,
  *   `ToolHostService`, `AnchorSelectionService`, `PenToolService`,
  *   `ShapeToolService`, `InlineTextEditorService`,
- *   `ViewportCullingService`, `ShortcutService`.
+ *   `ViewportCullingService`, `ShortcutService`, `ClipboardService`
+ *   (D-044).
  *
  * **What's NOT included** (intentionally app-wide):
  *

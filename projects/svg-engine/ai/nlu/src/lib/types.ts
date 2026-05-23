@@ -1,7 +1,7 @@
 import type { Injector } from '@angular/core';
 
 /**
- * **NLU (Natural Language Understanding) types — D-046? Fase 1**
+ * **NLU (Natural Language Understanding) types — D-046 Fase 1**
  *
  * Rule-based natural-language → command pipeline. Zero ML, zero
  * external download — pure regex + dictionary + Levenshtein fuzzy

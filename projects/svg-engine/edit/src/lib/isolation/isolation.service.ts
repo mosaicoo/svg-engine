@@ -59,9 +59,12 @@ export class IsolationService {
    * Example: document root `R` → group `A` → group `B` (isolated):
    *   `[R, A, B]`
    *
-   * Self-healing: if the isolation root is deleted (id no longer in the
-   * tree), the path is empty and `isActive` flips back to `false` —
-   * see the `effect` in the constructor.
+   * Stale-target handling: if the isolation root is deleted (id no
+   * longer in the tree), the walk fails to reach the document root and
+   * this computed returns `[]` — so the breadcrumb hides itself even
+   * though `_isolationRootId` still points at the stale id. Consumers
+   * that care about a still-valid isolation should observe
+   * `breadcrumbPath().length > 0` rather than `isActive()`.
    */
   readonly breadcrumbPath = computed<readonly NodeId[]>(() => {
     const target = this._isolationRootId();
@@ -83,9 +86,13 @@ export class IsolationService {
     }
     if (reversed[reversed.length - 1] !== root.id) {
       // The target was not reachable from the current document root —
-      // tree was mutated out from under us. Bail with empty path; the
-      // ws.document() reactive read above will have already triggered
-      // self-heal via the constructor effect.
+      // tree was mutated out from under us (target was deleted or
+      // reparented). Bail with empty path; consumers checking
+      // `breadcrumbPath().length > 0` will hide the breadcrumb.
+      // We intentionally do NOT auto-clear `_isolationRootId` here
+      // because computeds can't have side-effects — that would also
+      // create a reactive loop. Cleanup is the caller's responsibility
+      // (e.g., the playground's auto-exit-isolation effect).
       return [];
     }
     return reversed.reverse();

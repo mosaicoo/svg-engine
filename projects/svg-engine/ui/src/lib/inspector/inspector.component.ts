@@ -44,10 +44,12 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
  *
  * **States**:
  * - **No selection** → "No selection" placeholder.
- * - **Multi-selection** → "Multiple selection" placeholder with count.
- *   Multi-edit (apply same value across N nodes) is a future polish —
- *   it requires either a `SetPropertyOnManyCommand` or N `SetPropertyCommand`
- *   wrapped in a single undo entry. Defer to refinement block.
+ * - **Multi-selection** → multi-edit mode when the selected nodes share
+ *   editable properties: the inspector renders the same fields and
+ *   each edit dispatches a `SetStylePropertyOnManyCommand` so all N
+ *   nodes change atomically in a single undo entry (`MIXED` sentinel
+ *   covers fields that differ across the selection). Falls back to a
+ *   simple "Multiple selection" placeholder when nothing is shareable.
  * - **Single selection** → header (type + id slice) + sections:
  *   - **Geometry** (per `node.type`): rect/ellipse/line numeric inputs.
  *     Polygon/polyline/path/text/image deferred (need richer editors).
@@ -64,9 +66,11 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
  * once when the user finishes (blur/Enter/picker-close), giving the
  * expected one-edit-one-undo UX.
  *
- * **Why no Material slider for opacity**: keeps imports minimal in v1.
- * Slider is a refinement (Bloco 4c-Polish) along with color pickers
- * powered by `PaletteRegistry` (4d).
+ * **Color editing**: fill and stroke use `<svge-color-picker>` (Sprint
+ * C-ColorPicker — sat/light + hue + inputs + recent swatches + native
+ * EyeDropper API) backed by `PaletteRegistry` for the recent / preset
+ * swatches. Opacity stays as a number input — a Material slider
+ * remains a possible future polish.
  *
  * Usage:
  * ```html

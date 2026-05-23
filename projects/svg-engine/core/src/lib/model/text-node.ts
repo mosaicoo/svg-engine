@@ -1,10 +1,13 @@
 import type { SvgNodeBase } from './svg-node-base';
 
 /**
- * Text element. Maps to SVG `<text>`. Multi-line text and `<tspan>`
- * runs are not modelled in v0; the renderer emits the text as a single
- * inline string. Multi-line support is planned for the `svg-engine/edit`
- * entry point.
+ * Text element. Maps to SVG `<text>`. The `content` field is a single
+ * string — multi-line is expressed by embedding `\n` characters in
+ * `content` and the renderer (see `svg-engine/render` text dispatcher)
+ * splits on `\n` into a sequence of `<tspan dy>` runs. Explicit
+ * `<tspan>` runs with per-run styling are still not modelled at the
+ * data layer — they would require extending this interface with an
+ * optional `runs` field.
  */
 export interface TextNode extends SvgNodeBase {
   readonly type: 'text';

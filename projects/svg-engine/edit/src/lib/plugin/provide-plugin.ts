@@ -24,7 +24,7 @@ import { PluginRegistry } from './plugin-registry.service';
  * ```typescript
  * bootstrapApplication(App, {
  *   providers: [
- *     provideSvgEnginePlugin(builtinSelectToolPlugin),
+ *     provideSvgEnginePlugin(selectToolPlugin),
  *     provideSvgEnginePlugin(pencilToolPlugin),
  *     provideSvgEnginePlugin(myCustomOptimizerPlugin),
  *   ],

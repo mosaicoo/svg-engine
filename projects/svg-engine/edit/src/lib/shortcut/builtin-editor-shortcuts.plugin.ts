@@ -49,11 +49,16 @@ import { ShortcutRegistry } from './shortcut-registry.service';
  * that invoke handlers directly without a `ShortcutContext`.
  *
  * **NOT included** (intentional scope):
- * - `Ctrl+C` / `Ctrl+V` (clipboard) — no `ClipboardService` yet
- * - `Ctrl+S` (save) — depends on consumer's save strategy
- * - `Ctrl+D` (duplicate) — needs `DuplicateCommand` (deferred; can
- *   be added later as the same plugin or as a follow-up)
- * - Arrow nudge — already provided by `selectionNudgePlugin`
+ * - `Ctrl+C` / `Ctrl+V` / `Ctrl+X` (clipboard) — `ClipboardService` +
+ *   the corresponding menu contributions exist since D-044, but the
+ *   keyboard shortcuts aren't wired here yet. Can be added later as
+ *   the same plugin or as a follow-up — gives the consumer a chance
+ *   to opt in/out per editor.
+ * - `Ctrl+S` (save) — depends on consumer's save strategy.
+ * - `Ctrl+D` (duplicate) — `DuplicateNodeCommand` exists since D-044,
+ *   but the keyboard binding isn't registered here yet (same rationale
+ *   as the clipboard shortcuts above).
+ * - Arrow nudge — already provided by `selectionNudgePlugin`.
  *
  * Future expansion: more bindings can be registered by other plugins
  * (or by replacing this one with a customized fork). The shortcut

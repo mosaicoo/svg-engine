@@ -15,7 +15,7 @@
  * benchmarks futuros mostrarem hot spot, adicionar cache LRU
  * Map<`${a}|${b}`, number> com cap pequeno.
  *
- * **Zero deps** (requisito Fase 1 D-046?).
+ * **Zero deps** (requisito Fase 1 D-046).
  */
 
 /**

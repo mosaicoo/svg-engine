@@ -5,9 +5,12 @@ import type { TextNode } from 'svg-engine/core';
  * Apply to `<svg:text>` to bind attributes from a {@link TextNode}.
  *
  * The `<svg:text>` element's text **content** is set in the dispatcher's
- * template via interpolation (`{{ node.content }}`), because directives
- * cannot inject child nodes. Multi-line text and `<tspan>` runs are not
- * modelled in v0.
+ * template, because directives cannot inject child nodes. The dispatcher
+ * splits `node.content` on `\n` and emits one `<tspan dy>` per line, so
+ * multi-line text is rendered by simply embedding line breaks in the
+ * `content` field. Explicit `<tspan>` runs with per-run styling are
+ * still not modelled at the data layer — that would require an extra
+ * `runs` field on `TextNode`.
  */
 @Directive({
   selector: '[svgeText]',

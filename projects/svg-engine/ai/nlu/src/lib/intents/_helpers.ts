@@ -63,8 +63,10 @@ export function selectedIdsOrWarn(runCtx: RunCtx, label: string): readonly NodeI
  * Aplica uma propriedade de style em todos os nós selecionados via
  * `SetStylePropertyOnManyCommand` (single undo step).
  *
- * **Usado por**: set-fill, set-stroke, set-stroke-width, set-opacity,
- * remove-fill, remove-stroke, show, hide.
+ * **Usado por**: set-stroke, set-stroke-width, set-opacity,
+ * remove-fill, remove-stroke, show, hide. (set-fill vive em
+ * builtin-nlu.plugin.ts e dispatcha SetStylePropertyOnManyCommand
+ * direto sem passar por este helper.)
  */
 export function setStyleOnSelected(
   runCtx: RunCtx,

@@ -112,9 +112,10 @@ export class MarqueeService {
  * non-negative width and height (so dragging up/left still produces a
  * valid rect).
  *
- * Exported because the marquee hit-test helper needs the same
- * normalization at call time, and it's useful for any consumer that
- * wants to materialize the marquee box without reading the signal.
+ * Exported as a small utility for consumers that want to materialize a
+ * box from a pair of points without reading the marquee signal — e.g.
+ * test fixtures or custom selection tools that mirror the marquee math
+ * without duplicating the normalization logic.
  */
 export function rectFromPoints(a: Point, b: Point): BoundingBox {
   const x = Math.min(a.x, b.x);

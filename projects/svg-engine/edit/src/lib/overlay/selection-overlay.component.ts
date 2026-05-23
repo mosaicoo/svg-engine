@@ -36,7 +36,12 @@ import { TransformService } from '../transform/transform.service';
 const HANDLE_PX = 8;
 /** Distance (in CSS pixels) from the top-center anchor to the rotation handle. */
 const ROTATION_HANDLE_GAP_PX = 24;
-/** Inner data attribute used by the future TransformService to identify which handle was grabbed. */
+/**
+ * Inner data attribute set on each handle element. Today the overlay
+ * itself passes the `anchor` directly to `TransformService.startResize`
+ * — the attribute is kept exported for consumers / tests / automation
+ * that need to identify which handle was grabbed via DOM inspection.
+ */
 const HANDLE_DATA_ATTR = 'data-svge-handle';
 
 type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
