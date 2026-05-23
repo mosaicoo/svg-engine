@@ -6,6 +6,54 @@
 
 ---
 
+## 2026-05-22 — Pro Editor: overlays de feedback das tools (paridade UX com /custom-editor)
+
+**Bug reportado pelo usuário**: a rota `/pro-editor`
+(`<svge-shell-pro>`) só projetava 5 overlays: SelectionOverlay,
+RotationPivot, AnchorOverlay, Marquee e SnapGuides. Resultado: Pen,
+Pencil, Shape e Text tools não mostravam nenhum feedback visual
+durante a interação — o usuário não via curvatura, traçado livre,
+retângulos/elipses tracejados ou o editor inline de texto.
+Funcionavam (o desenho final aparecia) mas davam impressão de
+ferramentas quebradas.
+
+**Causa**: o template do `pro-editor.component.ts` foi escrito antes
+das tools de criação ganharem overlays próprios. O `<ng-content />`
+projetado no `<svge-shell-pro>` simplesmente não tinha os `<svg:g>`
+necessários — diferente do `/custom-editor` que sempre teve o
+conjunto completo.
+
+**Fix**: adicionar os 4 overlays faltantes em
+`pro-editor.component.ts`, mantendo a ordem de z-index do
+`/custom-editor` (espelha a referência):
+
+1. SelectionOverlay
+2. RotationPivot
+3. AnchorOverlay
+4. Marquee
+5. SnapGuides
+6. **PenOverlay** (novo) — rubber band + handles + preview da curva
+7. **PencilOverlay** (novo) — traçado em tempo real do desenho livre
+8. **ShapeOverlay** (novo) — preview tracejado de rect/ellipse/polygon
+9. **InlineTextEditor** (novo) — foreignObject + contentEditable do
+   Text tool (último na ordem, surface acima de tudo)
+
+Imports + array `imports` do componente também atualizados.
+Comentários inline no template explicando cada overlay e o
+porquê — serve de referência futura para quem for compor outro
+editor com `<svge-shell-pro>`.
+
+**Gap relacionado conhecido**: `/basic-editor` e `/modular-editor`
+têm a mesma carência (só projetam Selection/Rotation/Marquee/Snap).
+Não corrigido neste turno — fora do escopo do pedido pontual do
+usuário. Pode ser abordado em sessão separada quando alguém
+encontrar o mesmo "ferramenta parece quebrada" nessas rotas.
+
+**Verificação**: build dev playground 2.3s, lint clean, sem mudança
+em specs (mudança puramente de wiring no consumer).
+
+---
+
 ## 2026-05-22 — Pencil Tool: preview do traçado durante o drag
 
 **Bug reportado pelo usuário**: durante o desenho à mão livre, ao

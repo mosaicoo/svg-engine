@@ -9,10 +9,14 @@ import {
 } from 'svg-engine/core';
 import {
   AnchorOverlay,
+  InlineTextEditor,
   Marquee,
+  PenOverlay,
+  PencilOverlay,
   provideSvgEngineEditorScope,
   RotationPivot,
   SelectionOverlay,
+  ShapeOverlay,
   SnapGuides,
 } from 'svg-engine/edit';
 import { SvgeShellPro } from 'svg-engine/ui';
@@ -51,6 +55,10 @@ import { SvgeShellPro } from 'svg-engine/ui';
     AnchorOverlay,
     Marquee,
     SnapGuides,
+    PenOverlay,
+    PencilOverlay,
+    ShapeOverlay,
+    InlineTextEditor,
     RouterLink,
   ],
   // D-042: route-scoped editor state — independent document per visit.
@@ -68,11 +76,33 @@ import { SvgeShellPro } from 'svg-engine/ui';
     </header>
     <div class="editor-area">
       <svge-shell-pro [title]="'SVGEngine Pro'">
+        <!--
+          Overlays projetados no slot do svge-renderer. Ordem = z-order
+          (mais tarde = mais à frente). Espelha o conjunto completo do
+          /custom-editor para que o pro-editor tenha paridade total de
+          UX — sem isso, Pen/Pencil/Shape/Text não mostram nenhum
+          feedback durante a interação, dando a impressão de que as
+          ferramentas estão quebradas.
+        -->
         <svg:g svgeSelectionOverlay></svg:g>
         <svg:g svgeRotationPivot></svg:g>
         <svg:g svgeAnchorOverlay></svg:g>
         <svg:g svgeMarquee></svg:g>
         <svg:g svgeSnapGuides></svg:g>
+        <!-- Pen tool: rubber band, in-progress anchors + handles, preview
+             da curva durante o press-drag (D-046 Pen review 2026-05-22). -->
+        <svg:g svgePenOverlay></svg:g>
+        <!-- Pencil tool: traçado em tempo real durante o desenho à mão
+             livre (D-046 Pencil review 2026-05-22). -->
+        <svg:g svgePencilOverlay></svg:g>
+        <!-- Shape tools (Rectangle / Ellipse / Polygon): preview tracejado
+             do bounding box / polígono durante o press-drag. -->
+        <svg:g svgeShapeOverlay></svg:g>
+        <!-- Inline text editor: foreignObject + contentEditable que abre
+             quando InlineTextEditorService.editingId é não-nulo.
+             Renderiza nada caso contrário. DEVE vir por último para o
+             surface de edição ficar acima de todos os outros overlays. -->
+        <svg:g svgeInlineTextEditor></svg:g>
       </svge-shell-pro>
     </div>
   `,
