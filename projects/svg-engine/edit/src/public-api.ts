@@ -118,9 +118,3 @@ export * from './lib/clipboard';
 
 // Route-scoped editor state stack (D-042 — multi-editor in same app)
 export * from './lib/scope';
-
-// NLU (D-046 Fase 1) vive em entry point separado `svg-engine/ai/nlu`
-// desde 2026-05-22 — toda a camada AI fica agrupada sob `ai/` (Fase 1
-// rule-based + Fase 2 `ai/nlu-ml` + Fase 3 `ai/nlu-slm` quando
-// chegarem) e completamente desacoplada do core editor pra que Modo 1
-// (headless puro D-037) não pague custo nenhum quando não usar.

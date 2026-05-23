@@ -6,6 +6,56 @@
 
 ---
 
+## 2026-05-23 — Follow-up: tombstone NLU em edit/public-api.ts (audit miss)
+
+**Pedido do usuário** (após o commit das 28 correções): "em
+edit/src/public-api.ts o código abaixo permanece, ele é um comentário
+órfão, correto: [...] Nenhum código órfão foi retirado. Você analisou
+esses comentários órfãos?"
+
+**Sim, foi um miss meu**. O agente "edit" do audit flagou
+`edit/src/public-api.ts` mas SÓ por causa das 2 marcações `⏳` (Blocos
+3 e 5). O comentário órfão sobre NLU (linhas 122-126) escapou porque:
+
+- Os 5 agentes focaram em "comentário X diz Y, mas código mostra Z"
+  (referências mortas a símbolos / contagens erradas / status falso);
+- Tombstones puros — comentários sem export abaixo apontando para
+  outros entry points — não casavam com nenhum critério da grade
+  de classificação (obsoleto / referência morta / código morto /
+  TODO inválido / doc inconsistente).
+
+**Remoção**: as 5 linhas no fim de `edit/src/public-api.ts`
+explicavam que NLU vive em `svg-engine/ai/nlu`. Isto é tombstone:
+
+- Não há export abaixo (nada para o comentário documentar);
+- Leitor de `edit/public-api` não procura NLU aqui — vai direto ao
+  `ai/nlu/public-api.ts`;
+- O movimento de 2026-05-22 já está plenamente documentado em
+  `docs/08-historico-de-alteracoes.md` (entradas D-046 Refactor +
+  NLU Refactor 2);
+- A racional de "D-017 headless boundary" já vive em
+  `04-decisoes-tecnicas.md`.
+
+**Varredura adicional ampla** por padrões similares (`vive em entry
+point separado`, `moved to`, `foi extraído`, `previously lived`, etc.)
+encontrou 3 outras menções similares em `edit/`, mas todas são
+arquitetonicamente importantes (barrels de re-export ativo, shims
+com rationale D-XXX) — preservadas:
+
+| Arquivo                                          | Veredito                                                       |
+| ------------------------------------------------ | -------------------------------------------------------------- |
+| `edit/src/lib/io/index.ts`                       | ✅ Manter — barrel re-export ativo + rationale backward-compat |
+| `edit/src/lib/optimize/index.ts`                 | ✅ Manter — mesmo padrão                                       |
+| `edit/src/lib/geometry/transform-attr-parser.ts` | ✅ Manter — shim ativo, doc D-026                              |
+
+**Lição**: agents de audit precisam de critério "tombstone puro
+(comentário sem export/código adjacente que o contextualize)" para
+captar esse padrão na próxima rodada.
+
+**Verificação**: build prod 5.9s.
+
+---
+
 ## 2026-05-23 — Limpeza de comentários órfãos do audit (28 correções seguras)
 
 **Pedido do usuário**: "Baseado no relatório previamente gerado, realize
