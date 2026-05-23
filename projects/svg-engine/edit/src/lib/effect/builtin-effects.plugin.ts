@@ -4,9 +4,14 @@ import { BUILTIN_EFFECTS } from './builtin-effects';
 import { EffectRegistry } from './effect-registry.service';
 
 /**
- * Built-in effects plugin — registers the 4 default SVG filter
- * presets (`blur`, `drop-shadow`, `grayscale`, `sepia`) into the
+ * Built-in effects plugin — registers the 19 default SVG filter presets
+ * (4 originals + 15 added in D-047, 2026-05-23) into the
  * {@link EffectRegistry}.
+ *
+ * Presets covered: blur, drop-shadow, inner-shadow, outer-glow,
+ * inner-glow, bevel, emboss, grayscale, sepia, invert, brightness,
+ * contrast, saturate, hue-rotate, noise, displacement-map, chromatic-
+ * aberration, pixelate, posterize.
  *
  * Ship as a separate plugin (not bundled into a "kitchen sink"
  * builtin) for the same reason `pngExporterPlugin` ships separately:
@@ -22,8 +27,8 @@ import { EffectRegistry } from './effect-registry.service';
  */
 export const builtinEffectsPlugin: EditorPlugin = {
   id: 'svge.builtin.effects',
-  version: '1.0.0',
-  name: 'Built-in effects (blur, drop-shadow, grayscale, sepia)',
+  version: '2.0.0',
+  name: 'Built-in effects (19 presets — blur, shadows, glows, color, distortion, pixel art)',
   apiVersion: PLUGIN_API_VERSION,
 
   install(ctx: PluginContext): void {

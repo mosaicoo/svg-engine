@@ -6,6 +6,7 @@ import { AlignmentService } from '../alignment/alignment.service';
 import { AnchorSelectionService } from '../anchor-editor/anchor-selection.service';
 import { AutoSaveService } from '../autosave/autosave.service';
 import { ClipboardService } from '../clipboard/clipboard.service';
+import { ChainFilterRegistry } from '../effect/chain-filter';
 import { IsolationService } from '../isolation/isolation.service';
 import { LayersService } from '../layers/layers.service';
 import { MarqueeService } from '../marquee/marquee.service';
@@ -52,7 +53,7 @@ import { WorkspaceService } from '../workspace/workspace.service';
  *   `ToolHostService`, `AnchorSelectionService`, `PenToolService`,
  *   `ShapeToolService`, `InlineTextEditorService`,
  *   `ViewportCullingService`, `ShortcutService`, `ClipboardService`
- *   (D-044).
+ *   (D-044), `ChainFilterRegistry` (D-047).
  *
  * **What's NOT included** (intentionally app-wide):
  *
@@ -158,5 +159,10 @@ export function provideSvgEngineEditorScope(): Provider[] {
     // ── edit / performance + input ──────────────────────────────
     ViewportCullingService,
     ShortcutService,
+    // ── edit / effects (D-047) ──────────────────────────────────
+    // ChainFilterRegistry derives composed `<filter>` markup from the
+    // current document's nodes — scoped per-editor so two editors
+    // mounted side-by-side compute their chains from their own state.
+    ChainFilterRegistry,
   ];
 }

@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { type BoundingBox, EditorStateService, type SvgNode } from 'svg-engine/core';
 import {
+  ChainFilterRegistry,
+  EffectRegistry,
   GridOverlay,
   GuidesOverlay,
   IsolationService,
@@ -277,6 +279,10 @@ import { SvgeToolsPalette } from '../tools-palette';
 export class SvgeShellPro {
   private readonly state = inject(EditorStateService);
   private readonly isolation = inject(IsolationService);
+  // D-047: feed the renderer's <defs> with filter markup from the
+  // registered effects + composed chain filters in use.
+  private readonly effects = inject(EffectRegistry);
+  private readonly chains = inject(ChainFilterRegistry);
 
   /**
    * **D-040** — Dynamic context-menu slot resolver. Right-click on a
@@ -308,7 +314,18 @@ export class SvgeShellPro {
   protected readonly resolvedViewBox = computed<BoundingBox>(
     () => this.viewBox() ?? this.state.document().viewBox,
   );
-  protected readonly resolvedDefs = computed<string | null>(
-    () => this.state.document().defs ?? null,
-  );
+  /**
+   * Effective `<defs>` fragment fed to `<svge-renderer>`. Concatenates
+   * (a) the document's imported defs (gradients/clipPaths/etc), (b) the
+   * `<filter>` elements from `EffectRegistry`, and (c) the composed
+   * chain filters from `ChainFilterRegistry`. Returns `null` when all
+   * three are empty so the renderer skips defs injection entirely.
+   */
+  protected readonly resolvedDefs = computed<string | null>(() => {
+    const docDefs = this.state.document().defs ?? '';
+    const fxDefs = this.effects.buildAllFiltersMarkup();
+    const chainDefs = this.chains.buildAllChainsMarkup();
+    const merged = [docDefs, fxDefs, chainDefs].filter((s) => s.length > 0).join('\n');
+    return merged.length > 0 ? merged : null;
+  });
 }

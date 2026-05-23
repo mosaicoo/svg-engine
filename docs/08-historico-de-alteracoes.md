@@ -6,6 +6,116 @@
 
 ---
 
+## 2026-05-23 — D-047 Effects ecosystem: 15 novos builtins + chain composer + pipeline editor
+
+**Pedido do usuário**: "Implemente o item 1, todos os itens mencionados
+[...] inner-shadow, outer-glow, inner-glow, bevel, emboss, brightness,
+contrast, saturate, hue-rotate, invert, noise/turbulence, displacement-
+map, chromatic-aberration, pixelate, posterize, Combine multiple
+effects (chain stack na mesma node), Editor visual de filter pipeline".
+
+Sprint dividido em 3 fases lógicas + verificação:
+
+### Fase 1 — 15 novos builtin effects (4 → 19)
+
+`projects/svg-engine/edit/src/lib/effect/builtin-effects.ts` ganha 15
+novos `Effect` entries usando primitivas SVG nativas (feGaussianBlur,
+feColorMatrix, feSpecularLighting, feTurbulence, feDisplacementMap,
+feConvolveMatrix, feComponentTransfer, feBlend, feFlood, feComposite,
+feOffset, feMerge). Categorias adicionadas: `glow`, `stylize`,
+`adjustment`, `distortion` (além das pré-existentes `blur`, `shadow`,
+`color`).
+
+- `innerShadowEffect` — shadow CAST INTO a forma via alpha invertida.
+- `outerGlowEffect` — halo branco em volta da forma.
+- `innerGlowEffect` — halo branco no interior das edges.
+- `bevelEffect` — relevo 3D via feSpecularLighting + height map.
+- `embossEffect` — relevo grayscale via feConvolveMatrix kernel.
+- `invertEffect` — inversão de RGB via feComponentTransfer table.
+- `brightnessEffect` — lift +30% via linear intercept.
+- `contrastEffect` — slope 1.5 / intercept -0.25 (centered mid-gray).
+- `saturateEffect` — feColorMatrix type="saturate" 200%.
+- `hueRotateEffect` — feColorMatrix type="hueRotate" 90°.
+- `noiseEffect` — fractalNoise composto sobre SourceAlpha (film-grain).
+- `displacementMapEffect` — turbulência → feDisplacementMap (warp).
+- `chromaticAberrationEffect` — RGB split via 3 feColorMatrix + offset.
+- `pixelateEffect` — quantize discrete + blur (chunky pixel art).
+- `posterizeEffect` — quantize discrete 4 níveis (poster style).
+
+Plugin `builtinEffectsPlugin` bumped para `v2.0.0` e registra os 19.
+
+### Fase 2 — Effect chain (`ChainFilterRegistry` + `composeChainFilter`)
+
+`chain-filter.ts` novo: utility puro `composeChainFilter(effects[],
+chainId)` que parseia o markup de cada Effect, prefixa todos os
+`result=`/`in=`/`in2=` por step para evitar colisões, rewrites
+SourceGraphic/SourceAlpha em steps ≥ 2 para apontar para o output do
+step anterior (`step{i-1}-out` / `step{i-1}-out-alpha`), e captura o
+output de cada step com um `feOffset` no-op + `feColorMatrix` para
+alpha-only.
+
+**Encoding**: o chain ID é determinístico — `svge-chain-{eid1}__{eid2}__...`.
+Vive em `style.filter` como qualquer URL, então undo/redo, IO export/
+import e D-042 multi-editor scope funcionam de graça (zero estado
+adicional para manter sincronizado).
+
+**Serviço `ChainFilterRegistry`** (scoped per-editor via D-042): walka
+o documento, coleta chain IDs únicos referenciados via `style.filter`,
+deriva `buildAllChainsMarkup()` com o `<filter>` composto pronto pra
+injetar em defs. Validação defensiva: chains com effect IDs não
+registrados são silenciosamente ignorados.
+
+**Wiring nos shells**: tanto `<svge-editor>` quanto `<svge-shell-pro>`
+agora compõem `resolvedDefs` concatenando 3 fontes (`document.defs`
+
+- `EffectRegistry.buildAllFiltersMarkup()` + `ChainFilterRegistry.
+buildAllChainsMarkup()`). Antes os shells só injetavam `document.defs`
+  — o playground `/custom-editor` era a única rota onde effects
+  funcionavam. Agora funcionam em todos os shells.
+
+### Fase 3 — Pipeline editor visual
+
+`svge-effects-panel` refatorado de "toggle on/off single effect" para
+editor visual completo de pipeline:
+
+- **Active pipeline**: lista ordenada (steps 1→N) dos effects atualmente
+  aplicados, com botões `↑` / `↓` (reorder) + `×` (remove) por step +
+  "Clear all".
+- **Add effect**: picker agrupado por categoria — chips com `+`
+  adicionam ao fim do pipeline; effects já na chain mostram `✓` e
+  ficam disabled.
+- Cada mudança dispatcha `SetStylePropertyOnManyCommand` (single undo).
+  Multi-select-aware (aplica em todos os nós selecionados).
+
+### Fase 4 — Verificação
+
+- Specs: **1327 passing** (+36 vs baseline 1291). Cobertura:
+  - `chain-filter.spec.ts` (15 testes): id helpers, composição, registry.
+  - `effect.spec.ts` expandido (29 testes vs 13 antes): todos os 15
+    novos effects validados, contagem 19, plugin install.
+- Build prod svg-engine: 7.6s.
+- Build dev playground: 2.4s.
+- Lint svg-engine: clean.
+
+**Decisão arquitetural (D-047)**: a escolha de encodar a chain no
+próprio `style.filter` URL via prefixo determinístico (`svge-chain-`) +
+separador (`__`), em vez de modelar a chain como campo extra do
+`SvgNode.style`, mantém:
+
+- Zero novo state para undo/redo.
+- IO export/import funciona sem mudança no svgImporter/svgExporter.
+- D-042 multi-editor scope automático (cada `ChainFilterRegistry`
+  scoped vê só seu próprio document state).
+- Backward-compat com o panel v1 (single effect URL continua
+  funcionando — chain só é gerada quando há ≥ 2 effects).
+
+Trade-off documentado: nenhum ID com `__` deve ser usado em effect IDs
+custom de plugins (improvável — convenção reverse-DNS-kebab); o prefix
+`svge-chain-` é namespaced. `ChainFilterRegistry` é scoped per-editor
+(D-042), automaticamente isolando chains entre instâncias.
+
+---
+
 ## 2026-05-23 — Follow-up: tombstone NLU em edit/public-api.ts (audit miss)
 
 **Pedido do usuário** (após o commit das 28 correções): "em

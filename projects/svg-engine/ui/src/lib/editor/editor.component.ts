@@ -12,6 +12,8 @@ import {
 } from 'svg-engine/core';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
 import {
+  ChainFilterRegistry,
+  EffectRegistry,
   GridOverlay,
   GuidesOverlay,
   IsolationService,
@@ -322,6 +324,10 @@ export class SvgeEditor {
   private readonly state = inject(EditorStateService);
   private readonly viewport = inject(ViewportService);
   private readonly isolation = inject(IsolationService);
+  // D-047: feed the renderer's <defs> with filter markup from the
+  // registered effects + composed chain filters in use.
+  private readonly effects = inject(EffectRegistry);
+  private readonly chains = inject(ChainFilterRegistry);
 
   /**
    * **D-040** — Resolver for the dynamic context-menu slot. Bound to
@@ -367,14 +373,29 @@ export class SvgeEditor {
   );
 
   /**
-   * Effective reusable-defs fragment fed to `<svge-renderer>` (Fase 6c-1).
-   * Reads from the current document's `defs` field — populated by the
-   * SVG importer when it encounters `<defs>`/`<linearGradient>`/`<clipPath>`
-   * etc. Null when the document has no defs.
+   * Effective reusable-defs fragment fed to `<svge-renderer>` (Fase 6c-1
+   * + D-047 effects/chain injection).
+   *
+   * Composition order:
+   * 1. `document.defs` (Fase 6c-1) — pass-through of imported `<defs>`
+   *    (gradients, clipPaths, etc.) so `url(#id)` from nodes resolves.
+   * 2. `EffectRegistry.buildAllFiltersMarkup()` — `<filter>` elements
+   *    for every registered effect. Nodes apply via
+   *    `style.filter = url(#effectId)`.
+   * 3. `ChainFilterRegistry.buildAllChainsMarkup()` — composed `<filter>`
+   *    elements for every chain referenced by the current document
+   *    (`style.filter = url(#svge-chain-a__b__c)`).
+   *
+   * Returns `null` when all three are empty so the renderer skips defs
+   * injection entirely (zero cost when no defs / effects in use).
    */
-  protected readonly resolvedDefs = computed<string | null>(
-    () => this.state.document().defs ?? null,
-  );
+  protected readonly resolvedDefs = computed<string | null>(() => {
+    const docDefs = this.state.document().defs ?? '';
+    const fxDefs = this.effects.buildAllFiltersMarkup();
+    const chainDefs = this.chains.buildAllChainsMarkup();
+    const merged = [docDefs, fxDefs, chainDefs].filter((s) => s.length > 0).join('\n');
+    return merged.length > 0 ? merged : null;
+  });
 
   /** Optional title displayed in the toolbar. Defaults to "SVGEngine". */
   readonly title = input<string | null>(null);
