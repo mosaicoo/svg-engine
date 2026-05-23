@@ -110,6 +110,22 @@ import { SvgeEditor } from 'svg-engine/ui';
         />
         Tool options bar (D-038 Phase 3 — press K for Stamp Tool)
       </label>
+      <label>
+        <input
+          type="checkbox"
+          [checked]="showLibrariesPanel()"
+          (change)="showLibrariesPanel.set($any($event.target).checked)"
+        />
+        Libraries panel (D-048 — 8 libraries, left rail)
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          [checked]="showEffectsPanel()"
+          (change)="showEffectsPanel.set($any($event.target).checked)"
+        />
+        Effects panel (D-047 — filter pipeline editor, right rail)
+      </label>
     </header>
     <div class="editor-area">
       <svge-editor
@@ -119,6 +135,8 @@ import { SvgeEditor } from 'svg-engine/ui';
         [showStatusBar]="showStatusBar()"
         [showContextMenu]="showContextMenu()"
         [showToolOptions]="showToolOptions()"
+        [showLibrariesPanel]="showLibrariesPanel()"
+        [showEffectsPanel]="showEffectsPanel()"
         [toolOptionsShowPlaceholder]="true"
       >
         @if (useCustomStatus()) {
@@ -202,6 +220,8 @@ export class ModularEditor {
   protected readonly useCustomStatus = signal(false);
   protected readonly showContextMenu = signal(false);
   protected readonly showToolOptions = signal(false);
+  protected readonly showLibrariesPanel = signal(false);
+  protected readonly showEffectsPanel = signal(false);
 
   protected readonly selectionCountLabel = computed(() => {
     // Selection count is tracked by SelectionService but we don't need

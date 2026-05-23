@@ -100,6 +100,7 @@ import {
   SvgeEffectsPanel,
   SvgeInspector,
   SvgeIsolationBreadcrumb,
+  SvgeLibrariesPanel,
   SvgeRulers,
   SvgeSvgSourceDialogService,
   SvgeThemeToggle,
@@ -164,6 +165,7 @@ const DRAG_START_THRESHOLD_PX = 3;
     SvgeThemeToggle,
     SvgeToolOptions,
     SvgeEffectsPanel,
+    SvgeLibrariesPanel,
   ],
   // D-042: route-scoped editor state stack — each navigation gets its
   // own EditorStateService/CommandBus/IsolationService/Layers/etc. so

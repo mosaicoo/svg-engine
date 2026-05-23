@@ -90,7 +90,13 @@ import { SvgeEditor } from 'svg-engine/ui';
     </div>
 
     <div class="editor-area">
-      <svge-editor title="NLU Test Editor" [showContextMenu]="true" [showToolOptions]="true">
+      <svge-editor
+        title="NLU Test Editor"
+        [showContextMenu]="true"
+        [showToolOptions]="true"
+        [showLibrariesPanel]="true"
+        [showEffectsPanel]="true"
+      >
         <!--
           Conjunto completo de overlays. Particularidade desta rota:
           NLU pode disparar comandos que ativam tools (ex: "criar

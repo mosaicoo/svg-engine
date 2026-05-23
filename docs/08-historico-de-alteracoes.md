@@ -6,6 +6,65 @@
 
 ---
 
+## 2026-05-23 — UX D-047/048: mountar Effects + Libraries panels nas visões editor
+
+**Reporte do usuário**: "AS implementações realizadas [...] já estão
+adicionadas nas visões pertinentes? Não encontrei os recursos nas
+telas (Visões)".
+
+**Diagnóstico (correto)**:
+
+- `<svge-effects-panel>` (D-047) estava mounted APENAS em
+  `/custom-editor`. Invisível em todos os outros shells.
+- `<svge-libraries-panel>` (D-048) estava registrado mas **nunca
+  mounted em lugar nenhum** — só existia como componente.
+
+**UX organizada (seguindo convenções Illustrator/Affinity)**:
+
+### `<svge-shell-pro>` — agora 4 colunas
+
+Antes: `tools | canvas | right-side(2-row: layers/inspector)` (3 cols).
+Agora: `tools | libraries (220px) | canvas | right-side(3-row: layers/
+inspector/effects)` (4 cols). Doc ASCII e tabela de comparação
+atualizadas.
+
+- **Libraries** na 2ª coluna (entre tools e canvas) — convenção
+  Illustrator "Libraries panel" rail à esquerda.
+- **Effects** como 3ª row da right-aside (Layers / Properties /
+  Effects) — segue paradigma "Appearance" panel.
+
+### `<svge-editor>` — 2 inputs opt-in
+
+- `[showLibrariesPanel]` (default `false`) — quando `true`, renderiza
+  Libraries como left rail (220px).
+- `[showEffectsPanel]` (default `false`) — quando `true`, renderiza
+  Effects como right rail (260px).
+- Canvas envolto em novo `.canvas-row` (flex horizontal) para
+  abrigar os rails opcionais sem mover layout quando off.
+
+### Playground — wired em todas as rotas editor
+
+| Rota                      |             Libraries             |            Effects             |
+| ------------------------- | :-------------------------------: | :----------------------------: |
+| `/custom-editor`          |          ✅ left sidebar          |        ✅ right sidebar        |
+| `/pro-editor` (shell-pro) |           ✅ sempre on            |          ✅ sempre on          |
+| `/basic-editor`           | ✅ `[showLibrariesPanel]="true"`  | ✅ `[showEffectsPanel]="true"` |
+| `/modular-editor`         |        ✅ checkbox toggle         |       ✅ checkbox toggle       |
+| `/nlu-test`               | ✅ `[showLibrariesPanel]="true"`  | ✅ `[showEffectsPanel]="true"` |
+| `/embeddable-canvas`      | ❌ (canvas-only ethos preservada) |               ❌               |
+
+**Convenções de design seguidas**:
+
+- Left rail = browsing / asset insertion (Libraries).
+- Right rail = inspection / appearance (Layers / Properties / Effects).
+- Status bar persiste como single horizontal row (não invadida).
+- Canvas mantém `flex: 1` — não é comprimido quando ambos rails ligados.
+
+**Verificação**: 1327/1328 specs (zero break), build prod 7.9s, lint
+svg-engine + playground clean.
+
+---
+
 ## 2026-05-23 — D-048 Libraries ecosystem (8 libraries) + Gradients/Patterns + Vite/Node note
 
 **Pedido do usuário**: "Implemente o item 2 e 3, todos os itens

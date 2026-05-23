@@ -307,9 +307,17 @@
 <svge-tool-options class="tool-options-bar" [showPlaceholder]="true"></svge-tool-options>
 
 <div class="workspace">
-  <aside class="sidebar left" aria-label="Layers panel">
+  <aside class="sidebar left" aria-label="Layers + libraries panels">
     <header class="panel-header">Layers</header>
     <svge-layers-panel></svge-layers-panel>
+    <!--
+      Libraries panel (D-048) — 8 libraries surfaceadas via 6 seções
+      colapsáveis (shapes, templates, gradients, patterns, graphic
+      styles, assets). Drop direto abaixo dos Layers para que o user
+      tenha hierarchy + asset browsing no mesmo eixo visual.
+    -->
+    <header class="panel-header">Libraries</header>
+    <svge-libraries-panel></svge-libraries-panel>
   </aside>
 
   <!-- Canvas surface — `(click)` is used in addition to pointer events

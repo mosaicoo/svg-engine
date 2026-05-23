@@ -27,6 +27,8 @@ import {
   WorkspaceBackground,
 } from 'svg-engine/edit';
 import { CONTEXT_MENU_SLOT, SvgeContextMenuTrigger } from '../context-menu';
+import { SvgeEffectsPanel } from '../effects-panel';
+import { SvgeLibrariesPanel } from '../libraries-panel';
 import { SvgeMenuBar } from '../menu-bar';
 import { SvgeRulers } from '../rulers';
 import { SvgeStatusBar } from '../status-bar';
@@ -110,6 +112,8 @@ import { SvgeToolOptions } from '../tool-options';
     SvgeToolbar,
     SvgeStatusBar,
     SvgeMenuBar,
+    SvgeEffectsPanel,
+    SvgeLibrariesPanel,
     SvgeContextMenuTrigger,
     SvgeToolOptions,
     SvgeShellInteractions,
@@ -183,22 +187,35 @@ import { SvgeToolOptions } from '../tool-options';
     @if (showToolOptions()) {
       <svge-tool-options [showPlaceholder]="toolOptionsShowPlaceholder()" />
     }
-    <div
-      class="canvas-area"
-      svgeCanvasGestures
-      svgeShellInteractions
-      [svgeContextMenu]="showContextMenu() ? contextMenuSlot() : ''"
-      [svgeContextMenuResolver]="showContextMenu() ? contextMenuResolver : null"
-    >
-      <svge-workspace-background>
-        <svge-renderer
-          svgeOutlineFilter
-          [tree]="resolvedTree()"
-          [viewBox]="resolvedViewBox()"
-          [defs]="resolvedDefs()"
-          [ariaLabel]="ariaLabel() ?? 'Editable SVG document'"
-        >
-          <!--
+    <!--
+      Canvas row — horizontal flex container that hosts the canvas and
+      the optional side rails (libraries / effects). Always present so
+      the layout is stable whether the side panels are visible or not.
+    -->
+    <div class="canvas-row">
+      @if (showLibrariesPanel()) {
+        <!-- D-048 — left rail (220px) with the 6 libraries (shapes,
+             templates, gradients, patterns, graphic styles, assets). -->
+        <aside class="libraries-rail" aria-label="Libraries panel">
+          <svge-libraries-panel />
+        </aside>
+      }
+      <div
+        class="canvas-area"
+        svgeCanvasGestures
+        svgeShellInteractions
+        [svgeContextMenu]="showContextMenu() ? contextMenuSlot() : ''"
+        [svgeContextMenuResolver]="showContextMenu() ? contextMenuResolver : null"
+      >
+        <svge-workspace-background>
+          <svge-renderer
+            svgeOutlineFilter
+            [tree]="resolvedTree()"
+            [viewBox]="resolvedViewBox()"
+            [defs]="resolvedDefs()"
+            [ariaLabel]="ariaLabel() ?? 'Editable SVG document'"
+          >
+            <!--
             Page marker — MUST carry the literal svgeBehind attribute
             so SvgeRenderer's ng-content select="[svgeBehind]" slot
             picks it up and projects it UNDER the document content. The
@@ -221,8 +238,8 @@ import { SvgeToolOptions } from '../tool-options';
             resetPage if needed) or just not provisioning it (the shell
             is the only place that auto-includes it).
           -->
-          <svg:g svgePageOverlay svgeBehind></svg:g>
-          <!--
+            <svg:g svgePageOverlay svgeBehind></svg:g>
+            <!--
             Grid overlay — auto-conditional on WorkspaceService.grid().enabled
             (the GridOverlay component itself wraps render in @if (visible())).
             svgeBehind = renders UNDER content (D-043 fix lesson — content
@@ -230,9 +247,9 @@ import { SvgeToolOptions } from '../tool-options';
             Toggled live via View > Show Grid menu item or
             workspace.toggleGrid() programmatic.
           -->
-          <svg:g svgeGridOverlay svgeBehind></svg:g>
-          <ng-content />
-          <!--
+            <svg:g svgeGridOverlay svgeBehind></svg:g>
+            <ng-content />
+            <!--
             Guides overlay — renders horizontal/vertical reference
             lines from WorkspaceService.guides(). Stays in the FRONT
             projection slot (above content) so guides remain visible
@@ -242,16 +259,24 @@ import { SvgeToolOptions } from '../tool-options';
             had this baked into its template; shells inherited the gap
             until this D-043 follow-up.
           -->
-          <svg:g svgeGuidesOverlay></svg:g>
-        </svge-renderer>
-      </svge-workspace-background>
-      <!--
+            <svg:g svgeGuidesOverlay></svg:g>
+          </svge-renderer>
+        </svge-workspace-background>
+        <!--
         Rulers overlay — positions itself absolutely on top + left of
         the canvas. Internally conditional on WorkspaceService.rulers().enabled
         (no extra @if needed here). Toggled live via View > Show Rulers
         menu item or workspace.toggleRulers() programmatic.
       -->
-      <svge-rulers />
+        <svge-rulers />
+      </div>
+      @if (showEffectsPanel()) {
+        <!-- D-047 — right rail (260px) with the Effects pipeline
+             editor for the focused node. -->
+        <aside class="effects-rail" aria-label="Effects panel">
+          <svge-effects-panel />
+        </aside>
+      }
     </div>
     @if (showStatusBar()) {
       <div class="status-area">
@@ -298,8 +323,19 @@ import { SvgeToolOptions } from '../tool-options';
       font-size: 12px;
       opacity: 0.85;
     }
+    /* D-047/048: horizontal row hosting optional left/right panels +
+       the canvas itself. Always present so the flex layout is stable
+       across showLibrariesPanel / showEffectsPanel toggles. */
+    .canvas-row {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: row;
+      overflow: hidden;
+    }
     .canvas-area {
       flex: 1 1 auto;
+      min-width: 0;
       min-height: 0;
       position: relative;
       overflow: hidden;
@@ -309,6 +345,20 @@ import { SvgeToolOptions } from '../tool-options';
     .canvas-area > * {
       position: absolute;
       inset: 0;
+    }
+    .libraries-rail {
+      flex: 0 0 220px;
+      min-width: 0;
+      overflow: auto;
+      border-right: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+      background: var(--mat-sys-surface, transparent);
+    }
+    .effects-rail {
+      flex: 0 0 260px;
+      min-width: 0;
+      overflow: auto;
+      border-left: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+      background: var(--mat-sys-surface, transparent);
     }
     .status-area {
       flex: 0 0 auto;
@@ -510,6 +560,22 @@ export class SvgeEditor {
    * because of how `<ng-content>` fallback content works.
    */
   readonly showStatusBar = input<boolean>(true);
+
+  /**
+   * **D-048** — opt-in `<svge-libraries-panel>` rendered as a
+   * left-side rail (220px wide) between the canvas and the page
+   * gutter. Default `false` keeps the lighter `<svge-editor>` chrome
+   * unchanged for canvas-only consumers; consumers wanting the full
+   * library browser flip this on.
+   */
+  readonly showLibrariesPanel = input<boolean>(false);
+
+  /**
+   * **D-047** — opt-in `<svge-effects-panel>` rendered as a
+   * right-side rail (260px wide) for the focused node's filter
+   * pipeline editor. Default `false`.
+   */
+  readonly showEffectsPanel = input<boolean>(false);
 
   /**
    * Which `MenuContributionRegistry` slot the embedded `<svge-toolbar>`

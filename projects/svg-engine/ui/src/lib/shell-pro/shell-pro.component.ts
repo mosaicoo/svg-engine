@@ -17,8 +17,10 @@ import {
 } from 'svg-engine/edit';
 import { SvgeRenderer } from 'svg-engine/render';
 import { CONTEXT_MENU_SLOT, SvgeContextMenuTrigger } from '../context-menu';
+import { SvgeEffectsPanel } from '../effects-panel';
 import { SvgeInspector } from '../inspector';
 import { LayersPanel } from '../layers-panel';
+import { SvgeLibrariesPanel } from '../libraries-panel';
 import { SvgeMenuBar } from '../menu-bar';
 import { SvgeRulers } from '../rulers';
 import { SvgeStatusBar } from '../status-bar';
@@ -32,33 +34,35 @@ import { SvgeToolsPalette } from '../tools-palette';
  * profissional num layout dockable estilo Illustrator / Affinity / Inkscape:
  *
  * ```
- * ┌──────────────────────────────────────────────────────────┐
- * │ <svge-menu-bar>                                          │  ← top
- * ├──────────────────────────────────────────────────────────┤
- * │ <svge-toolbar slot="toolbar.main"> (plugin contributions)│  ← toolbar
- * ├──────────────────────────────────────────────────────────┤
- * │ <svge-tool-options> (context-sensitive per active tool)  │  ← tool options
- * ├────┬────────────────────────────────────┬────────────────┤
- * │T   │                                    │ <svge-layers-> │
- * │O   │  <svge-renderer>                   │   panel        │
- * │O   │  + projected overlays              │                │
- * │L   │  + page overlay                    ├────────────────┤
- * │S   │  + right-click context menu        │ <svge-inspect> │
- * │    │                                    │                │
- * ├────┴────────────────────────────────────┴────────────────┤
- * │ <svge-status-bar>                                        │  ← status
- * └──────────────────────────────────────────────────────────┘
+ * ┌─────────────────────────────────────────────────────────────────┐
+ * │ <svge-menu-bar>                                                  │  ← top
+ * ├─────────────────────────────────────────────────────────────────┤
+ * │ <svge-toolbar slot="toolbar.main"> (plugin contributions)        │  ← toolbar
+ * ├─────────────────────────────────────────────────────────────────┤
+ * │ <svge-tool-options> (context-sensitive per active tool)          │  ← tool options
+ * ├────┬────────┬─────────────────────────────┬────────────────────┤
+ * │T   │ Lib    │                             │ <svge-layers-panel>│
+ * │O   │ rar    │  <svge-renderer>            ├────────────────────┤
+ * │O   │ ies    │  + projected overlays       │ <svge-inspector>   │
+ * │L   │ (D-048)│  + page overlay             ├────────────────────┤
+ * │S   │        │  + right-click context menu │ <svge-effects-panel│
+ * │    │        │                             │  (D-047 pipeline)  │
+ * ├────┴────────┴─────────────────────────────┴────────────────────┤
+ * │ <svge-status-bar>                                                │  ← status
+ * └─────────────────────────────────────────────────────────────────┘
  * ```
  *
  * **Diferença de `<svge-editor>`**:
  *
- * | Aspecto       | `<svge-editor>` (Bloco 4a + D-034/035/038 opt-in) | `<svge-shell-pro>` (D-038 Phase 4) |
+ * | Aspecto       | `<svge-editor>` (Bloco 4a + D-034/035/038 opt-in) | `<svge-shell-pro>` (D-038 Phase 4 + D-047/048) |
  * | ------------- | ------------------------------------------------- | ---------------------------------- |
  * | Defaults      | toolbar + canvas + status (D-037 modes 2-4)       | TUDO ativo (defaults profissionais) |
- * | Layout        | flexbox vertical simples                          | CSS grid + sidebars dockáveis      |
+ * | Layout        | flexbox vertical simples                          | CSS grid 4-col + sidebars dockáveis |
  * | Tools palette | ❌                                                | ✅ esquerda                         |
- * | Layers panel  | ❌                                                | ✅ direita topo                     |
- * | Inspector     | ❌                                                | ✅ direita baixo                    |
+ * | Libraries     | ❌                                                | ✅ 2ª coluna (D-048)                |
+ * | Layers panel  | ❌                                                | ✅ direita 1/3                      |
+ * | Inspector     | ❌                                                | ✅ direita 2/3                      |
+ * | Effects       | ❌                                                | ✅ direita 3/3 (D-047 pipeline)     |
  * | Menu bar      | opt-in via `[showMenuBar]`                        | sempre on                          |
  *
  * `<svge-editor>` **continua existindo** intocado — é o shell drop-in
@@ -102,6 +106,8 @@ import { SvgeToolsPalette } from '../tools-palette';
     SvgeStatusBar,
     LayersPanel,
     SvgeInspector,
+    SvgeEffectsPanel,
+    SvgeLibrariesPanel,
   ],
   template: `
     <div class="menu-row">
@@ -115,6 +121,16 @@ import { SvgeToolsPalette } from '../tools-palette';
     <div class="main">
       <aside class="tools-side" aria-label="Tools palette">
         <svge-tools-palette />
+      </aside>
+      <!--
+        Libraries column (D-048) — Illustrator-style "Libraries" rail
+        between tools palette and canvas. Self-hides nothing: the
+        component shows section headers even when registries are empty
+        (consumers who don't install any *Plugin will see "empty"
+        sections, which is the intended hint to provision them).
+      -->
+      <aside class="libraries-side" aria-label="Libraries panel">
+        <svge-libraries-panel />
       </aside>
       <div
         class="canvas-cell"
@@ -166,7 +182,7 @@ import { SvgeToolsPalette } from '../tools-palette';
         -->
         <svge-rulers />
       </div>
-      <aside class="right-side" aria-label="Layers and inspector panels">
+      <aside class="right-side" aria-label="Layers, inspector and effects panels">
         <section class="panel layers-section">
           <h3 class="panel-title">Layers</h3>
           <div class="panel-body">
@@ -177,6 +193,18 @@ import { SvgeToolsPalette } from '../tools-palette';
           <h3 class="panel-title">Properties</h3>
           <div class="panel-body">
             <svge-inspector />
+          </div>
+        </section>
+        <!--
+          Effects panel (D-047) — the pipeline editor for the focused
+          node's filter chain. Sits below Inspector so it's visible
+          when working on appearance without competing with hierarchy
+          (Layers) at the top.
+        -->
+        <section class="panel effects-section">
+          <h3 class="panel-title">Effects</h3>
+          <div class="panel-body">
+            <svge-effects-panel />
           </div>
         </section>
       </aside>
@@ -222,12 +250,21 @@ import { SvgeToolsPalette } from '../tools-palette';
     }
     .main {
       display: grid;
-      grid-template-columns: auto 1fr 280px;
+      /* 4-column layout (D-048):
+       * tools-side (auto, ~44px) | libraries-side (220px) | canvas (1fr) | right-side (280px)
+       */
+      grid-template-columns: auto 220px 1fr 280px;
       min-height: 0;
       overflow: hidden;
     }
     .tools-side {
       min-width: 44px;
+    }
+    .libraries-side {
+      min-width: 0;
+      overflow: auto;
+      border-right: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+      background: var(--mat-sys-surface, transparent);
     }
     .canvas-cell {
       position: relative;
@@ -240,7 +277,10 @@ import { SvgeToolsPalette } from '../tools-palette';
     }
     .right-side {
       display: grid;
-      grid-template-rows: 1fr 1fr;
+      /* 3 rows of equal flex height: Layers | Inspector | Effects.
+       * Each section scrolls internally — overflowing content
+       * doesn't push siblings out of view. */
+      grid-template-rows: 1fr 1fr 1fr;
       min-height: 0;
       border-left: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
       background: var(--mat-sys-surface, transparent);
