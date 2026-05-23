@@ -8,6 +8,14 @@ import { AutoSaveService } from '../autosave/autosave.service';
 import { ClipboardService } from '../clipboard/clipboard.service';
 import { ChainFilterRegistry } from '../effect/chain-filter';
 import { IsolationService } from '../isolation/isolation.service';
+import { AssetManagerService } from '../library/assets/asset-manager.service';
+import { BrushLibraryService } from '../library/brushes/brush-library.service';
+import { GradientLibraryService } from '../library/gradients/gradient-library.service';
+import { GraphicStyleLibraryService } from '../library/graphic-styles/graphic-style-library.service';
+import { PatternLibraryService } from '../library/patterns/pattern-library.service';
+import { ShapeLibraryService } from '../library/shapes/shape-library.service';
+import { SymbolLibraryService } from '../library/symbols/symbol-library.service';
+import { TemplateLibraryService } from '../library/templates/template-library.service';
 import { LayersService } from '../layers/layers.service';
 import { MarqueeService } from '../marquee/marquee.service';
 import { SelectionService } from '../selection/selection.service';
@@ -53,7 +61,11 @@ import { WorkspaceService } from '../workspace/workspace.service';
  *   `ToolHostService`, `AnchorSelectionService`, `PenToolService`,
  *   `ShapeToolService`, `InlineTextEditorService`,
  *   `ViewportCullingService`, `ShortcutService`, `ClipboardService`
- *   (D-044), `ChainFilterRegistry` (D-047).
+ *   (D-044), `ChainFilterRegistry` (D-047), `ShapeLibraryService`,
+ *   `GraphicStyleLibraryService`, `GradientLibraryService`,
+ *   `PatternLibraryService`, `TemplateLibraryService`,
+ *   `SymbolLibraryService`, `BrushLibraryService`,
+ *   `AssetManagerService` (D-048).
  *
  * **What's NOT included** (intentionally app-wide):
  *
@@ -164,5 +176,19 @@ export function provideSvgEngineEditorScope(): Provider[] {
     // current document's nodes — scoped per-editor so two editors
     // mounted side-by-side compute their chains from their own state.
     ChainFilterRegistry,
+    // ── edit / libraries (D-048) ────────────────────────────────
+    // Each library is per-editor so two editors can host different
+    // catalogs (brand-specific shapes in A, generic in B). The
+    // gradient + pattern registries also derive defs markup from the
+    // current document (same per-editor isolation pattern as
+    // ChainFilterRegistry).
+    ShapeLibraryService,
+    GraphicStyleLibraryService,
+    GradientLibraryService,
+    PatternLibraryService,
+    TemplateLibraryService,
+    SymbolLibraryService,
+    BrushLibraryService,
+    AssetManagerService,
   ];
 }

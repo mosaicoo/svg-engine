@@ -4,10 +4,16 @@ import { provideRouter } from '@angular/router';
 import {
   builtinEditorShortcutsPlugin,
   builtinEffectsPlugin,
+  builtinGradientsPlugin,
+  builtinGraphicStylesPlugin,
   builtinIoPlugin,
   builtinMenuContributionsPlugin,
   builtinOptimizersPlugin,
   builtinPalettesPlugin,
+  builtinPatternsPlugin,
+  builtinShapesPlugin,
+  builtinTemplatesPlugin,
+  extraPalettesPlugin,
   pencilToolPlugin,
   penToolPlugin,
   pngExporterPlugin,
@@ -92,5 +98,17 @@ export const appConfig: ApplicationConfig = {
     // builtinMenuContributionsPlugin / builtinUiMenuContributionsPlugin
     // para que auto-discovery encontre as contribuições já registradas.
     provideSvgEnginePlugin(builtinNluPlugin),
+    // D-048 — Libraries ecosystem (8 libraries). Each is opt-in via
+    // its own plugin so apps choose what to ship. The Shape/Template/
+    // Gradient/Pattern/GraphicStyle plugins register builtin items;
+    // extra palettes augment the base palette plugin already installed
+    // above. Asset/Symbol/Brush services are zero-cost without
+    // plugins (empty registries).
+    provideSvgEnginePlugin(builtinShapesPlugin),
+    provideSvgEnginePlugin(builtinTemplatesPlugin),
+    provideSvgEnginePlugin(builtinGradientsPlugin),
+    provideSvgEnginePlugin(builtinPatternsPlugin),
+    provideSvgEnginePlugin(builtinGraphicStylesPlugin),
+    provideSvgEnginePlugin(extraPalettesPlugin),
   ],
 };

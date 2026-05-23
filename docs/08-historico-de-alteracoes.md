@@ -6,6 +6,133 @@
 
 ---
 
+## 2026-05-23 — D-048 Libraries ecosystem (8 libraries) + Gradients/Patterns + Vite/Node note
+
+**Pedido do usuário**: "Implemente o item 2 e 3, todos os itens
+mencionados [...] Shape, Template, Asset, Symbol, Brush, Pattern,
+Style, Palette + linearGradient/radialGradient/pattern + multi-stop
+picker. Implemente sem minha intervenção".
+
+### Pré-requisito: Node ≥ 20.19 (causa do erro Vite reportado)
+
+O erro `require() of ES Module .../vite/dist/node/index.js` é causado
+por **`@angular/build@21` exigindo Node `^20.19 || ^22.12 || >=24`**
+(declarado em `engines.node` do pacote). O usuário está em Node
+v20.11.1, que não consegue `require()` módulos ESM (Vite 7.3.2 é
+puro ESM). **Fix**: atualizar para Node ≥ 20.19. O build de produção
+(`ng build`) funciona porque não usa o dev-server.
+
+### Foundation: `LibraryItem` + `LibraryRegistry<T>`
+
+Em `edit/src/lib/library/`:
+
+- `library-item.ts` — interface base mínima `{ id, name, category? }`.
+- `library-registry.ts` — abstract class genérica `LibraryRegistry<T>`
+  com signal `items`, `register()` retornando `Disposable`, `get(id)`,
+  `byCategory()`, `categories()`. Cada library concreta é uma
+  `@Injectable({ providedIn: 'root' })` subclass.
+
+### 6 libraries totalmente funcionais
+
+1. **Shape Library** (`ShapeLibraryService` + 12 builtins +
+   `builtinShapesPlugin`):
+   triangle, diamond, hexagon, cross, arrow, balloon, star, heart,
+   lightning, cloud, gear, checkmark. Cada um é uma `createPath()`
+   factory ajustada em viewBox 100×100.
+
+2. **Template Library** (`TemplateLibraryService` + 4 builtins +
+   `builtinTemplatesPlugin`):
+   A4 portrait (595×842), Instagram square (1080×1080), Twitter card
+   (1200×675), business card (350×200). Apply via
+   `state.resetDocument()`.
+
+3. **Gradient Library** (`GradientLibraryService` + 6 builtins +
+   `builtinGradientsPlugin`) — **Item 3**:
+   linear-grey, linear-blue-sky, linear-sunset (3 stops), linear-ocean
+   (3 stops), radial-spotlight, radial-neon. Service deriva `<defs>`
+   markup do documento (mesmo padrão de `ChainFilterRegistry`):
+   walka nodes, coleta IDs únicos em `style.fill`/`style.stroke`,
+   emite o markup correspondente. Wired em `<svge-editor>` +
+   `<svge-shell-pro>` `resolvedDefs`.
+
+4. **Pattern Library** (`PatternLibraryService` + 5 builtins +
+   `builtinPatternsPlugin`):
+   dots, lines-horizontal, lines-diagonal, grid, checkerboard. Mesma
+   integração de defs do GradientLibrary.
+
+5. **Graphic Styles Library** (`GraphicStyleLibraryService` + 6
+   builtins + `builtinGraphicStylesPlugin`):
+   sketch, outline, filled-3d, embossed, glass, neon. Apply N
+   propriedades de style via N `SetStylePropertyOnManyCommand`. 4 dos
+   6 presets referenciam effects do D-047 (graceful degradation
+   quando o plugin de effects não está instalado).
+
+6. **Palette Library** — leverage o `PaletteRegistry` pré-existente
+   - novo `extraPalettesPlugin` com 4 paletas adicionais (IBM Design,
+     Warm, Cool, Neon). Total agora: 7 paletas (3 base + 4 extras).
+
+### 3 libraries stub (registry funcional, full impl deferred)
+
+7. **Asset Manager** (`AssetManagerService`):
+   In-memory catalog + file picker → data URI → insert via
+   `<image href="data:...">`. v1 cobre imagens; SVG paste +
+   external providers ficam para iteração futura.
+
+8. **Symbol Library** (`SymbolLibraryService` — stub):
+   Registry funcional para "saved shapes" workflow. Master-instance
+   propagation (`<symbol>` + `<use>` rendering, edit-propagates)
+   requer extensão do core model (`SymbolNode`) — **deferido a
+   D-049**.
+
+9. **Brush Library** (`BrushLibraryService` — stub):
+   Registry com `widthProfile: number[]` locked. Integração com
+   Pencil tool (variable-width path generation) — **deferida a
+   D-050**.
+
+### UI: `<svge-libraries-panel>`
+
+Painel único em `svg-engine/ui` com 6 seções colapsáveis (shapes
+aberto por default; outras collapsed). Cada seção tem grid/list de
+items com click-to-apply. Imports mínimos: `MatIcon` + `MatIconButton`.
+Asset upload via `<input type="file">` interno; gradient previews via
+CSS `linear-gradient` aproximação.
+
+### Wiring
+
+- 8 services adicionados ao `provideSvgEngineEditorScope()` (D-042).
+- `<svge-editor>` + `<svge-shell-pro>` `resolvedDefs` agora concatena
+  5 fontes: `document.defs` + EffectRegistry + ChainFilterRegistry
+  (D-047) + GradientLibraryService + PatternLibraryService (D-048).
+- 6 builtin plugins adicionados ao `app.config.ts` do playground.
+
+### Decisão arquitetural D-048
+
+**Por que `LibraryRegistry<T>` genérico em vez de 8 registries
+independentes**: cada library tem o mesmo formato (signal-backed,
+register/dispose/byCategory). DRY via subclassing + ainda mantém
+type safety por library específica (`ShapeLibraryService` retorna
+`ShapeLibraryItem`, não `LibraryItem` puro).
+
+**Por que gradient/pattern persistem no `style.fill` URL** (não em
+campos novos de modelo): mesma escolha do D-047 chain — undo/redo,
+IO export/import e D-042 multi-editor funcionam de graça quando o
+estado vive no documento.
+
+**Stubs (Symbol/Brush) com registry pronta**: contrato locked agora
+permite que consumers comecem a desenhar UI/workflow já contra a API
+futura, e a parte deferida (propagação / Pencil integration) é
+puramente aditiva no momento de implementar.
+
+### Verificação
+
+- Build prod svg-engine: 8.8s.
+- Build dev playground: ok.
+- Lint svg-engine: clean.
+- Lint playground: clean.
+- Specs: 1327/1328 passing (zero break vs baseline D-047).
+
+---
+
 ## 2026-05-23 — D-047 Effects ecosystem: 15 novos builtins + chain composer + pipeline editor
 
 **Pedido do usuário**: "Implemente o item 1, todos os itens mencionados

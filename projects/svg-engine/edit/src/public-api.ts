@@ -118,3 +118,8 @@ export * from './lib/clipboard';
 
 // Route-scoped editor state stack (D-042 — multi-editor in same app)
 export * from './lib/scope';
+
+// Library system (D-048) — 8 asset/preset libraries: shapes, palettes,
+// graphic styles, gradients, patterns, templates, symbols (stub), brushes
+// (stub), plus the standalone AssetManagerService for runtime imports.
+export * from './lib/library';

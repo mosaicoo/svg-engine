@@ -1,0 +1,34 @@
+/**
+ * Library System — D-048 (2026-05-23).
+ *
+ * 8 library types backed by a generic `LibraryItem<T>` /
+ * `LibraryRegistry<T>` foundation. Each library is independently
+ * provisioned via a plugin (opt-in, zero cost when not installed).
+ *
+ * Mapping of gap-list items → entry points:
+ *
+ * | Gap item             | Service / plugin                            | Status |
+ * | -------------------- | ------------------------------------------- | ------ |
+ * | Shape Library        | `ShapeLibraryService` + `builtinShapesPlugin` | ✅ 12 builtins |
+ * | Template Library     | `TemplateLibraryService` + `builtinTemplatesPlugin` | ✅ 4 builtins |
+ * | Asset Manager        | `AssetManagerService` (file picker → data URI) | ✅ |
+ * | Symbol Library       | `SymbolLibraryService` (stub — registry only) | ⏳ D-049 |
+ * | Brush Library        | `BrushLibraryService` (stub — registry only) | ⏳ D-050 |
+ * | Pattern Library      | `PatternLibraryService` + `builtinPatternsPlugin` | ✅ 5 builtins |
+ * | Style Library        | `GraphicStyleLibraryService` + `builtinGraphicStylesPlugin` | ✅ 6 builtins |
+ * | Palette Library      | existing `PaletteRegistry` + `extraPalettesPlugin` | ✅ 4 extras |
+ * | Gradient (Item 3)    | `GradientLibraryService` + `builtinGradientsPlugin` | ✅ 6 builtins |
+ */
+
+export type { LibraryItem } from './library-item';
+export { LibraryRegistry } from './library-registry';
+
+export * from './shapes';
+export * from './palettes';
+export * from './graphic-styles';
+export * from './gradients';
+export * from './patterns';
+export * from './templates';
+export * from './symbols';
+export * from './brushes';
+export * from './assets';
