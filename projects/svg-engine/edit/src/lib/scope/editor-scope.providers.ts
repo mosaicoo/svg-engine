@@ -9,13 +9,6 @@ import { ClipboardService } from '../clipboard/clipboard.service';
 import { ChainFilterRegistry } from '../effect/chain-filter';
 import { IsolationService } from '../isolation/isolation.service';
 import { AssetManagerService } from '../library/assets/asset-manager.service';
-import { BrushLibraryService } from '../library/brushes/brush-library.service';
-import { GradientLibraryService } from '../library/gradients/gradient-library.service';
-import { GraphicStyleLibraryService } from '../library/graphic-styles/graphic-style-library.service';
-import { PatternLibraryService } from '../library/patterns/pattern-library.service';
-import { ShapeLibraryService } from '../library/shapes/shape-library.service';
-import { SymbolLibraryService } from '../library/symbols/symbol-library.service';
-import { TemplateLibraryService } from '../library/templates/template-library.service';
 import { LayersService } from '../layers/layers.service';
 import { MarqueeService } from '../marquee/marquee.service';
 import { SelectionService } from '../selection/selection.service';
@@ -61,11 +54,10 @@ import { WorkspaceService } from '../workspace/workspace.service';
  *   `ToolHostService`, `AnchorSelectionService`, `PenToolService`,
  *   `ShapeToolService`, `InlineTextEditorService`,
  *   `ViewportCullingService`, `ShortcutService`, `ClipboardService`
- *   (D-044), `ChainFilterRegistry` (D-047), `ShapeLibraryService`,
- *   `GraphicStyleLibraryService`, `GradientLibraryService`,
- *   `PatternLibraryService`, `TemplateLibraryService`,
- *   `SymbolLibraryService`, `BrushLibraryService`,
- *   `AssetManagerService` (D-048).
+ *   (D-044), `ChainFilterRegistry` (D-047), `AssetManagerService`
+ *   (D-048 — only scoped library service; the catalog services
+ *   stay root-scoped so plugin registration at bootstrap reaches
+ *   the same instance consumers inject).
  *
  * **What's NOT included** (intentionally app-wide):
  *
@@ -177,18 +169,25 @@ export function provideSvgEngineEditorScope(): Provider[] {
     // mounted side-by-side compute their chains from their own state.
     ChainFilterRegistry,
     // ── edit / libraries (D-048) ────────────────────────────────
-    // Each library is per-editor so two editors can host different
-    // catalogs (brand-specific shapes in A, generic in B). The
-    // gradient + pattern registries also derive defs markup from the
-    // current document (same per-editor isolation pattern as
-    // ChainFilterRegistry).
-    ShapeLibraryService,
-    GraphicStyleLibraryService,
-    GradientLibraryService,
-    PatternLibraryService,
-    TemplateLibraryService,
-    SymbolLibraryService,
-    BrushLibraryService,
+    // **D-048 FIX (UX follow-up)**: Library catalogs are root-scoped
+    // ONLY. Earlier attempt added them here AND used
+    // `@Injectable({ providedIn: 'root' })` simultaneously — that
+    // created TWO instances per route (the same trap D-043 hit with
+    // menu contributions). Plugins register at root → consumers via
+    // the route scope got the empty scoped instance → panels appeared
+    // empty. Removing from here so the catalog flows through a single
+    // root instance everywhere.
+    //
+    // `AssetManagerService` stays scoped because its catalog holds
+    // PER-EDITOR user-uploaded data (the file picker output) — a
+    // single editor's uploads should not pollute siblings.
+    //
+    // Known limitation: `GradientLibraryService` / `PatternLibraryService`
+    // derive ACTIVE defs by walking the current document — since they
+    // are root-scoped, they capture the root `EditorStateService`,
+    // NOT the route-scoped one. Multi-editor scenarios will see the
+    // wrong active set. Single-editor mode is correct. Proper split
+    // (Catalog root + ActiveDerivation scoped) is deferred to D-051.
     AssetManagerService,
   ];
 }

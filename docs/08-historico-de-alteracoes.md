@@ -6,6 +6,75 @@
 
 ---
 
+## 2026-05-23 — Fix D-048: library catalogs invisíveis + color picker scrollbar
+
+**Reporte do usuário** (após mountar os panels): "Não localizei nenhum
+repositório. Arquivos templates, pattern, brush, symbol, shapes,
+lineargradient, radial gradient não achei nenhum desses recursos.
+A paleta de cor fica com barra de rolagem, não deveria."
+
+### Bug 1: Library catalogs invisíveis no panel (mesma armadilha D-043)
+
+**Causa raiz**: serviços de library tinham DUPLA provisão:
+
+1. `@Injectable({ providedIn: 'root' })` na classe → singleton root.
+2. Adicionados a `provideSvgEngineEditorScope()` → instância
+   adicional por route.
+
+Quando os plugins (`builtinShapesPlugin` etc.) instalam em
+`app.config.ts`, eles usam o ROOT injector → registram no ROOT
+instance. Quando `<svge-libraries-panel>` é mounted dentro de uma
+route com `provideSvgEngineEditorScope()`, injeta o instance da
+ROUTE → instância vazia (porque o plugin registrou no root).
+
+Resultado: só a seção "Assets" aparecia (AssetManagerService usa o
+mesmo scope da panel, e seus itens vêm de user upload).
+
+**É a mesma armadilha que D-043 caiu com menu contributions**. A
+lição (já documentada na época) era: serviços que recebem
+registrações via plugin devem ser ÚNICA instância para que plugin
+e consumer falem ao mesmo serviço.
+
+**Fix**: removidos shape/template/gradient/pattern/graphic-style/
+symbol/brush de `provideSvgEngineEditorScope()`. Continuam
+`@Injectable({ providedIn: 'root' })` apenas. Plugins registram
+no root; panels injetam do root; tudo funciona.
+
+`AssetManagerService` mantido scoped (catalog é per-editor user
+uploads, faz sentido isolado).
+
+**Limitação multi-editor documentada**: `GradientLibraryService` /
+`PatternLibraryService` derivam "active defs" walking a current
+document. Como agora são root-only, capturam o root
+`EditorStateService`, não o route-scoped. Multi-editor scenarios
+verão active defs erradas. Single-editor mode (o caso atual) está
+correto. Split em "Catalog (root) + ActiveDerivation (scoped)"
+deferido a **D-051**.
+
+### Bug 2: Color picker popover com scrollbar
+
+**Causa raiz**: o picker é mounted dentro de `<mat-menu>` cujo
+default `max-height: calc(100vh - 96px); overflow: auto` no
+`.mat-mdc-menu-content`. Em viewports pequenos ou em layouts
+densos, o picker excede a altura e scrollbar aparece.
+
+**Fix**:
+
+- Adicionado `panelClass="svge-picker-menu-panel"` em ambos os
+  mat-menu (fill + stroke) no `svge-inspector`.
+- Adicionada regra global em `projects/playground/src/styles.scss`
+  removendo `max-width`/`max-height`/`overflow` no panel + content,
+  e zerando padding (o picker já tem o seu).
+
+### Verificação
+
+- Build prod 11.9s.
+- Build dev playground OK.
+- Lint svg-engine + playground clean.
+- Specs: 1327/1328 ✅ (zero break).
+
+---
+
 ## 2026-05-23 — UX D-047/048: mountar Effects + Libraries panels nas visões editor
 
 **Reporte do usuário**: "AS implementações realizadas [...] já estão

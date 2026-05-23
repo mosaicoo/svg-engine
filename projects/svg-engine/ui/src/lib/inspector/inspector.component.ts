@@ -445,7 +445,12 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
               >
                 <mat-icon>palette</mat-icon>
               </button>
-              <mat-menu #fillPickerMenu="matMenu" xPosition="before" yPosition="below">
+              <mat-menu
+                #fillPickerMenu="matMenu"
+                xPosition="before"
+                yPosition="below"
+                panelClass="svge-picker-menu-panel"
+              >
                 <div
                   class="picker-host"
                   role="presentation"
@@ -518,7 +523,12 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
               >
                 <mat-icon>palette</mat-icon>
               </button>
-              <mat-menu #strokePickerMenu="matMenu" xPosition="before" yPosition="below">
+              <mat-menu
+                #strokePickerMenu="matMenu"
+                xPosition="before"
+                yPosition="below"
+                panelClass="svge-picker-menu-panel"
+              >
                 <div
                   class="picker-host"
                   role="presentation"
