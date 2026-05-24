@@ -1048,8 +1048,14 @@ function newDocument(runCtx: MenuContributionContext | undefined, fromCtx: Resol
   }
   // resetDocument() with no arg creates an empty document; history.clear()
   // wipes undo/redo so the user can't undo back into the discarded state.
+  // Viewport + selection reset mirror what applyTemplate() does in the
+  // libraries panel — without them the user is left with a stale pan/zoom
+  // (likely off-canvas, since the new doc starts at origin) and selection
+  // markers pointing at node ids that no longer exist.
   fromCtx(EditorStateService, runCtx).resetDocument();
   fromCtx(HistoryService, runCtx).clear();
+  fromCtx(ViewportService, runCtx).reset();
+  fromCtx(SelectionService, runCtx).clear();
 }
 
 function importSvgFromFile(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
@@ -1075,6 +1081,11 @@ function importSvgFromFile(runCtx: MenuContributionContext | undefined, fromCtx:
         }
         fromCtx(EditorStateService, runCtx).resetDocument(result.document);
         fromCtx(HistoryService, runCtx).clear();
+        // Same reasoning as newDocument(): the imported doc has a fresh
+        // viewBox, so any prior pan/zoom is meaningless. Selection from
+        // the discarded document is also stale.
+        fromCtx(ViewportService, runCtx).reset();
+        fromCtx(SelectionService, runCtx).clear();
         if (result.warnings.length > 0 && typeof console !== 'undefined') {
           console.warn(`[SVGEngine] Import warnings:\n${result.warnings.join('\n')}`);
         }
