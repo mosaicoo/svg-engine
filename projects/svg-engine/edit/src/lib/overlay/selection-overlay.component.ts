@@ -27,6 +27,7 @@ import {
   getRenderedNodeBBox,
   getRenderedParentMatrix,
 } from '../geometry/node-bbox';
+import { LayersService } from '../layers/layers.service';
 import { SelectionService } from '../selection/selection.service';
 import { DIRECT_SELECT_TOOL_ID } from '../tool/builtin-tools';
 import { ToolHostService } from '../tool/tool-host.service';
@@ -234,12 +235,40 @@ export class SelectionOverlay {
   private readonly transform = inject(TransformService);
   private readonly toolHost = inject(ToolHostService);
   private readonly bus = inject(CommandBus);
+  private readonly layers = inject(LayersService);
 
   private readonly _focusBBox = signal<BoundingBox | null>(null);
   private readonly _hoverBBox = signal<BoundingBox | null>(null);
 
-  /** Bounding box of the focused selection (single id) or composite bbox (multi). */
-  readonly focusBBox = this._focusBBox.asReadonly();
+  /**
+   * Bounding box of the focused selection (single id) or composite bbox
+   * (multi). Returns `null` when:
+   *
+   * - No node is focused (no selection), OR
+   * - The focused node is HIDDEN via the Layer Panel eye toggle
+   *   (`LayersService.hiddenIds`, session-level), OR
+   * - The focused node has `metadata.visible === false` (doc-level
+   *   persistent hide — used by Live Boolean inputs).
+   *
+   * **Why also gate on visibility** (vs. just exposing the raw signal):
+   * the rendered geometry is invisible, so showing the selection bbox
+   * + 8 resize handles + rotation handle around an invisible shape is
+   * visually confusing — handles float in empty space. Illustrator/
+   * Affinity both hide the selection chrome when the target layer is
+   * hidden. The selection state itself stays intact (the row stays
+   * highlighted in the Layer Panel); re-showing the layer restores
+   * the handles immediately. Pointer-down on a hidden handle would
+   * also be impossible anyway because the underlying node is
+   * `display: none` (D-056 follow-up renderer fix).
+   */
+  readonly focusBBox = computed<BoundingBox | null>(() => {
+    const id = this.selection.focusId();
+    if (id === null) return this._focusBBox();
+    if (this.layers.hiddenIds().has(id)) return null;
+    const node = findNodeById(this.state.document().root, id);
+    if (node !== null && node.metadata.visible === false) return null;
+    return this._focusBBox();
+  });
 
   /** Bounding box of the hovered node (when not part of the selection). */
   readonly hoverBBox = this._hoverBBox.asReadonly();
