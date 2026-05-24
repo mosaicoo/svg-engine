@@ -6,6 +6,68 @@
 
 ---
 
+## 2026-05-24 — D-065 follow-up: Auto-trace (D-062d) wired no Object menu
+
+### Demanda
+
+Usuário perguntou se o Auto-trace estava disponível. Auditoria
+honesta mostrou que a ENGINE existia (D-062d shipped:
+`traceImageToPaths` algoritmo puro + `TraceImageCommand`) mas
+NENHUMA entrada de UI tinha sido criada — só dava pra invocar via
+console JS. Logo: estava entregue, mas inutilizável pelo usuário
+final.
+
+### Implementação
+
+**1 nova factory** `noImageSelectionFactory`:
+
+- Require `selection.size === 1 AND node.type === 'image'`
+- Diferente das outras factories (≥2 ou ≥3) — Trace opera em UMA
+  imagem específica produzindo um grupo de paths
+
+**1 nova menu contribution** `svge.builtin.object.trace-image`:
+
+- Slot `MENU_SLOT.OBJECT`, order 80 (após Pathfinder, antes do Help)
+- Label "Trace Image…" (Illustrator convention)
+- Icon `auto_fix_normal`
+- Tooltip explicativo
+
+**Run handler** `runTraceImage(runCtx)` async:
+
+- Resolve selection + state via `fromCtx`
+- Cria `TraceImageCommand(id, { threshold: 128, tolerance: 1 })`
+  (defaults conservadores pra logos/line-art)
+- `await cmd.prepare({ state })` — carrega bitmap, rasteriza, traça
+- `try/catch` com `console.error` + `window.alert` pra erros
+  CORS / decode fail (sem alert silencioso)
+- `bus.dispatch(cmd)` + check `result.ok`
+- `selection.select(groupId)` pra feedback visual (usuário vê o
+  novo grupo selecionado, pode esconder/deletar a imagem original)
+
+### Honest scope (lembrete D-062d)
+
+- Bicromático single-threshold (logos sim, fotos não)
+- Polyline output (sem curve-fitting → facetado em zoom alto)
+- Defaults `threshold=128, tolerance=1` são razoáveis pra inputs
+  típicos; dialog Material com sliders fica como follow-up
+
+### Validação
+
+- 1409 testes ✓ (sem regressão)
+- Lint clean
+- Playground build clean
+
+### Como usar agora
+
+1. Selecionar uma `<image>` no canvas (importada via Library →
+   Assets ou via SVG com `<image href="data:...">`)
+2. Object → Trace Image…
+3. Aguardar o async (geralmente <500ms pra imagens pequenas)
+4. Novo grupo de paths aparece sobre a imagem original; user
+   esconde/deleta a imagem se quiser só o vetor
+
+---
+
 ## 2026-05-24 — D-065: Align / Distribute / Pathfinder submenus no Object
 
 ### Demanda
