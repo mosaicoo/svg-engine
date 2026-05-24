@@ -121,6 +121,30 @@ import { SvgeTextDirective } from './text-renderer.directive';
   host: {
     '[attr.data-node-id]': 'node().id',
     '[attr.transform]': 'transformAttr()',
+    // D-049 (Composition / Clipping): clipPath, mask, and mixBlendMode
+    // belong on the wrapper <g> rather than the inner painted element.
+    //
+    // **Why the wrapper, not the inner element**:
+    // - For GROUPS, the wrapper IS the only element — putting these on
+    //   the inner is impossible because there is no single inner element.
+    // - For LEAF nodes, the wrapper carries the node's `transform`. The
+    //   SVG spec evaluates `clip-path` in the user coordinate space of
+    //   the element it's applied to. Applying it on the wrapper means
+    //   the clip path is in the PARENT's coordinate space (the natural
+    //   user expectation — "clip this shape against this clipPath in
+    //   document coords"). Applying it on the inner would evaluate the
+    //   clip in the wrapper's TRANSFORMED coordinate space, which gives
+    //   surprising results once you rotate or translate the node.
+    // - Mix-blend-mode similarly composites against the parent backdrop;
+    //   the wrapper is the right node for the blend boundary.
+    //
+    // Filter stays on the inner because effects are deeply tied to the
+    // paint operations (they read SourceGraphic = the painted pixels).
+    // Moving filter to the wrapper would change current behaviour and
+    // is out of scope for D-049.
+    '[attr.clip-path]': 'node().style.clipPath ?? null',
+    '[attr.mask]': 'node().style.mask ?? null',
+    '[style.mix-blend-mode]': 'node().style.mixBlendMode ?? null',
   },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

@@ -89,16 +89,25 @@
       <input type="checkbox" [checked]="snap.enabled()" (change)="toggleSnap()" />
       Enabled
     </label>
-    <select
-      [value]="snap.mode()"
-      (change)="setSnapMode($any($event.target).value)"
-      [disabled]="!snap.enabled()"
-      aria-label="Snap mode"
-    >
-      <option value="grid">Grid only</option>
-      <option value="objects">Objects only</option>
-      <option value="both">Both</option>
-    </select>
+    <!--
+      D-051 (Item 12) — was a native <select> that inherited the OS
+      combobox theme (always light on Linux/Win regardless of the
+      app's dark theme). mat-select picks up var(--mat-sys-surface)
+      and friends so the picker matches the surrounding theme.
+    -->
+    <mat-form-field appearance="outline" class="snap-mode-field">
+      <mat-label>Snap mode</mat-label>
+      <mat-select
+        [value]="snap.mode()"
+        [disabled]="!snap.enabled()"
+        (selectionChange)="setSnapMode($event.value)"
+        aria-label="Snap mode"
+      >
+        <mat-option value="grid">Grid only</mat-option>
+        <mat-option value="objects">Objects only</mat-option>
+        <mat-option value="both">Both</mat-option>
+      </mat-select>
+    </mat-form-field>
   </fieldset>
   <fieldset>
     <legend>Align ({{ selectedCount() }} sel)</legend>

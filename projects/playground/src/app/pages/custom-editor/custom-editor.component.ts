@@ -10,6 +10,8 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { MatFormField, MatLabel } from '@angular/material/form-field';
+import { MatOption, MatSelect } from '@angular/material/select';
 import {
   type BoundingBox,
   CommandBus,
@@ -166,6 +168,14 @@ const DRAG_START_THRESHOLD_PX = 3;
     SvgeToolOptions,
     SvgeEffectsPanel,
     SvgeLibrariesPanel,
+    // D-051 (Item 12 — UX polish): mat-select replaces the native
+    // `<select>` so the snap-mode picker (and any future selects in
+    // this view) inherit the active theme (light/dark) automatically
+    // instead of falling back to the host OS's combobox theme.
+    MatFormField,
+    MatLabel,
+    MatSelect,
+    MatOption,
   ],
   // D-042: route-scoped editor state stack — each navigation gets its
   // own EditorStateService/CommandBus/IsolationService/Layers/etc. so

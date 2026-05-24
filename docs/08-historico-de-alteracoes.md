@@ -6,6 +6,104 @@
 
 ---
 
+## 2026-05-24 — D-049 (Item 4) Composição/Recorte + D-050 (Item 5) Tools faltantes + D-051 (Item 12) UX polish
+
+Três decisions implementadas no mesmo ciclo (escopo coeso: completar
+itens 4/5/12 do parking-lot Fase 6).
+
+### D-049 — Composição / Recorte (clipPath + mask + mix-blend-mode)
+
+- **Modelo**: `SvgStyle` ganha `clipPath?`, `mask?`, `mixBlendMode?`.
+  Todos opcionais; defaults SVG aplicam quando ausentes.
+- **Renderer**: bindings adicionados no wrapper `<svg:g>` em
+  `node-renderer.component.ts` (NÃO nas diretivas de leaf). Razão: SVG
+  spec aplica clip-path no user-coord-system do elemento, e o wrapper
+  carrega o `transform` do nó — clip aplicado lá fica em coords do
+  parent (o que o user espera ao desenhar um clipPath em coords do
+  documento). Mix-blend-mode usa `[style.mix-blend-mode]` (CSS-only;
+  SVG não tem atributo equivalente).
+- **Libraries**: dois novos pares com o split Catalog + Active herdado
+  do fix D-048:
+  - `ClipPathLibraryService` (catalog root) + `ActiveClipPathsService`
+    (route-scoped). 5 builtin shapes: circle, ellipse, rounded-rect,
+    star, heart.
+  - `MaskLibraryService` (catalog root) + `ActiveMasksService`
+    (route-scoped). 4 builtin gradient/radial masks: fade-left,
+    fade-bottom, spotlight, soft-circle.
+- **Defs pipeline**: `<svge-editor>` e `<svge-shell-pro>` chamam
+  `buildAllActiveClipPathsMarkup()` + `buildAllActiveMasksMarkup()` no
+  `resolvedDefs` computed; defs do documento + filters + chains +
+  gradients + patterns + clipPaths + masks vão no mesmo `<defs>` block.
+- **Inspector**: nova "Composition" subsection com 3 `<mat-select>`:
+  blend-mode (16 modos CSS, "normal" clear-back-to-default), clip path
+  (lista catalog + "none"), mask (idem). Disabled quando catalog vazio
+  (evita menu inútil). Usa `setCompositionString`/`setCompositionRef`
+  helpers que despacham `SetStylePropertyOnManyCommand` com `undefined`
+  quando o user volta para "(none)" → renderer remove o atributo via
+  binding `?? null`.
+
+### D-050 — Tools faltantes (7 novos tools, 4 wired + 3 stubs)
+
+Arquivo único `tool/extra-tools.ts` contendo:
+
+| Tool            | Shortcut | Estado   | Notas                                                                                                                                                              |
+| --------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Eyedropper      | `i`      | ✅ wired | Click amostra fill; Alt amostra stroke. Aplica à seleção via `SetStylePropertyOnManyCommand`                                                                       |
+| Knife           | `c`      | ✅ wired | Hit-test em path; insere cusp anchor no projection-on-segment mais próximo (tolerância 12 doc-units). Curvas testam contra o chord — visual offset aceitável em v1 |
+| Smooth/Simplify | `s`      | ✅ wired | Ramer-Douglas-Peucker com tolerance=1.5; reduz Pencil traces. Preserva endpoints, drop handles em anchors eliminados                                               |
+| Gradient        | `g`      | ✅ light | Click em nó com `url(#…)` fill seta signal `focusedNodeId` para UI panels reagirem. In-canvas stop handles ficam para futura iteração                              |
+| Width           | `w`      | ⏳ stub  | Variable stroke-width along path. Precisa de novo data field (`widthProfile`) + renderer offset-curve. Deferred para D-052+                                        |
+| Mesh            | `u`      | ⏳ stub  | SVG `<meshgradient>` não tem suporte browser; precisaria canvas-rasterize                                                                                          |
+| Symbol Sprayer  | `o`      | ⏳ stub  | Aguarda SymbolLibraryService completo (hoje é stub D-048)                                                                                                          |
+
+`GradientToolService` adicionado ao `provideSvgEngineEditorScope()`
+(per-editor focus signal). Stubs registram tool no toolbar mas
+pointerdown só loga — ocupa o id pra futura implementação sem precisar
+de novo D-revision.
+
+### D-051 — UX polish (select nativo → mat-select)
+
+- **Auditoria**: grep `<select` no codebase achou apenas 1 native select
+  (custom-editor snap-mode picker). Toda a UI principal já usa
+  `<mat-select>` (Inspector picker D-049 incluído).
+- **Migração**: snap-mode picker converted para `<mat-form-field>` +
+  `<mat-select>` + 3 `<mat-option>`. Imports adicionados:
+  `MatFormField`, `MatLabel`, `MatSelect`, `MatOption`. Comportamento
+  funcional inalterado; agora herda `var(--mat-sys-*)` no tema dark
+  (antes mostrava combobox da OS, sempre claro independente do tema).
+- **Próximos suspects** documentados como follow-up: nenhum encontrado
+  na auditoria atual — UI já está em pleno Material 3.
+
+### Verificação
+
+- `npx ng build svg-engine`: ✅ todos os 9 entry points
+- `npx ng build playground`: ✅ build limpo (avisos pré-existentes só)
+- `npx ng test svg-engine`: ✅ 1327 passed / 1 skipped / 0 failed
+
+---
+
+## 2026-05-23 — Fix Pattern 6 (audit D-048 fix#3): File→New e Import SVG sem reset de viewport/selection
+
+Audit sistemático buscou 6 padrões nos bugs de UX do `/pro-editor`. 5
+clean; 1 bug REAL encontrado em
+`builtin-menu-contributions.plugin.ts`:
+
+- `newDocument()` (File › New, linha 1051) e `importSvgFromFile()`
+  (File › Import SVG, linha 1076) chamavam `resetDocument()` +
+  `history.clear()` mas NÃO chamavam `viewport.reset()` nem
+  `selection.clear()`. Mesmo bug do `applyTemplate()` que já tinha
+  sido corrigido em libraries-panel.
+- **Sintomas**: File › New depois de pan/zoom → tela branca off-canvas
+  (viewBox novo + pan velho). Import SVG → selection apontando para
+  ids do documento descartado.
+- **Fix**: adicionar `fromCtx(ViewportService, runCtx).reset()` +
+  `fromCtx(SelectionService, runCtx).clear()` nos dois handlers.
+  Ambos já importados no arquivo (usados em outras contribuições).
+
+Verificação: build do svg-engine passou 11.6s sem erros.
+
+---
+
 ## 2026-05-23 — Fix D-048 (UX#3): 5 bugs do panel — previews + template + gradient/pattern + color picker
 
 **5 bugs reportados pelo usuário** (todos legítimos):

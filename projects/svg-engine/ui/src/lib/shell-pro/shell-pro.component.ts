@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { type BoundingBox, EditorStateService, type SvgNode } from 'svg-engine/core';
 import {
+  ActiveClipPathsService,
   ActiveGradientsService,
+  ActiveMasksService,
   ActivePatternsService,
   ChainFilterRegistry,
   EffectRegistry,
@@ -332,6 +334,10 @@ export class SvgeShellPro {
   // there at bootstrap.
   private readonly gradients = inject(ActiveGradientsService);
   private readonly patterns = inject(ActivePatternsService);
+  // D-049 (Item 4 — Composição / Recorte): same active-defs pattern
+  // for clipPath + mask URLs referenced in the current document.
+  private readonly clipPaths = inject(ActiveClipPathsService);
+  private readonly masks = inject(ActiveMasksService);
 
   /**
    * **D-040** — Dynamic context-menu slot resolver. Right-click on a
@@ -376,7 +382,10 @@ export class SvgeShellPro {
     const chainDefs = this.chains.buildAllChainsMarkup();
     const gradientDefs = this.gradients.buildAllActiveGradientsMarkup();
     const patternDefs = this.patterns.buildAllActivePatternsMarkup();
-    const merged = [docDefs, fxDefs, chainDefs, gradientDefs, patternDefs]
+    // D-049: clipPath + mask defs derived from style.clipPath / style.mask.
+    const clipPathDefs = this.clipPaths.buildAllActiveClipPathsMarkup();
+    const maskDefs = this.masks.buildAllActiveMasksMarkup();
+    const merged = [docDefs, fxDefs, chainDefs, gradientDefs, patternDefs, clipPathDefs, maskDefs]
       .filter((s) => s.length > 0)
       .join('\n');
     return merged.length > 0 ? merged : null;

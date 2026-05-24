@@ -33,3 +33,17 @@ export { PLACEHOLDER_TEXT, TEXT_TOOL_ID, textToolPlugin } from './text-tool.plug
 export { InlineTextEditorService } from './text-tool.service';
 export { InlineTextEditor } from './inline-text-editor.component';
 export { SvgeShellInteractions } from './shell-interactions.directive';
+// D-050 (Item 5 — Tools faltantes): Eyedropper / Knife / Smooth /
+// Gradient + Width / Mesh / Symbol Sprayer stubs.
+export {
+  EYEDROPPER_TOOL_ID,
+  KNIFE_TOOL_ID,
+  SMOOTH_TOOL_ID,
+  GRADIENT_TOOL_ID,
+  WIDTH_TOOL_ID,
+  MESH_TOOL_ID,
+  SYMBOL_SPRAYER_TOOL_ID,
+  GradientToolService,
+  extraToolsPlugin,
+  simplifySubpath,
+} from './extra-tools';

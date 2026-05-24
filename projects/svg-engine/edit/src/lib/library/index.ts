@@ -32,3 +32,7 @@ export * from './templates';
 export * from './symbols';
 export * from './brushes';
 export * from './assets';
+// D-049 (Item 4 — Composição / Recorte): clipPath + mask libraries
+// with the same Catalog + Active split pattern as gradients/patterns.
+export * from './clip-paths';
+export * from './masks';

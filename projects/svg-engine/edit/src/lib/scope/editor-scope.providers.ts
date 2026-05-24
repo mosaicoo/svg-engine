@@ -9,13 +9,16 @@ import { ClipboardService } from '../clipboard/clipboard.service';
 import { ChainFilterRegistry } from '../effect/chain-filter';
 import { IsolationService } from '../isolation/isolation.service';
 import { AssetManagerService } from '../library/assets/asset-manager.service';
+import { ActiveClipPathsService } from '../library/clip-paths/clip-path-library.service';
 import { ActiveGradientsService } from '../library/gradients/gradient-library.service';
+import { ActiveMasksService } from '../library/masks/mask-library.service';
 import { ActivePatternsService } from '../library/patterns/pattern-library.service';
 import { LayersService } from '../layers/layers.service';
 import { MarqueeService } from '../marquee/marquee.service';
 import { SelectionService } from '../selection/selection.service';
 import { ShortcutService } from '../shortcut/shortcut.service';
 import { SnapService } from '../snap/snap.service';
+import { GradientToolService } from '../tool/extra-tools';
 import { PenToolService } from '../tool/pen-tool.service';
 import { ShapeToolService } from '../tool/shape-tool.service';
 import { InlineTextEditorService } from '../tool/text-tool.service';
@@ -162,6 +165,10 @@ export function provideSvgEngineEditorScope(): Provider[] {
     PenToolService,
     ShapeToolService,
     InlineTextEditorService,
+    // D-050: per-editor focus signal for the Gradient tool. Scoped so
+    // two editors mounted side-by-side don't share the "currently
+    // focused gradient" hint.
+    GradientToolService,
     // ── edit / performance + input ──────────────────────────────
     ViewportCullingService,
     ShortcutService,
@@ -196,5 +203,10 @@ export function provideSvgEngineEditorScope(): Provider[] {
     AssetManagerService,
     ActiveGradientsService,
     ActivePatternsService,
+    // D-049 (Item 4 — Composição / Recorte): same Catalog + Active
+    // split as gradients/patterns. The Active*Service derives active
+    // defs from the editor's document; the catalog stays root-scoped.
+    ActiveClipPathsService,
+    ActiveMasksService,
   ];
 }

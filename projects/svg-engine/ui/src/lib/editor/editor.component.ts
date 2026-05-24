@@ -12,7 +12,9 @@ import {
 } from 'svg-engine/core';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
 import {
+  ActiveClipPathsService,
   ActiveGradientsService,
+  ActiveMasksService,
   ActivePatternsService,
   ChainFilterRegistry,
   EffectRegistry,
@@ -387,6 +389,9 @@ export class SvgeEditor {
   // PatternLibraryService (injected by the Active service internally).
   private readonly gradients = inject(ActiveGradientsService);
   private readonly patterns = inject(ActivePatternsService);
+  // D-049 (Composição / Recorte): clipPath + mask active-defs.
+  private readonly clipPaths = inject(ActiveClipPathsService);
+  private readonly masks = inject(ActiveMasksService);
 
   /**
    * **D-040** — Resolver for the dynamic context-menu slot. Bound to
@@ -454,7 +459,10 @@ export class SvgeEditor {
     const chainDefs = this.chains.buildAllChainsMarkup();
     const gradientDefs = this.gradients.buildAllActiveGradientsMarkup();
     const patternDefs = this.patterns.buildAllActivePatternsMarkup();
-    const merged = [docDefs, fxDefs, chainDefs, gradientDefs, patternDefs]
+    // D-049: clipPath + mask defs.
+    const clipPathDefs = this.clipPaths.buildAllActiveClipPathsMarkup();
+    const maskDefs = this.masks.buildAllActiveMasksMarkup();
+    const merged = [docDefs, fxDefs, chainDefs, gradientDefs, patternDefs, clipPathDefs, maskDefs]
       .filter((s) => s.length > 0)
       .join('\n');
     return merged.length > 0 ? merged : null;

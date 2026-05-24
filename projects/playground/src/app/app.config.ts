@@ -2,11 +2,14 @@ import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter } from '@angular/router';
 import {
+  builtinClipPathsPlugin,
   builtinEditorShortcutsPlugin,
   builtinEffectsPlugin,
+  extraToolsPlugin,
   builtinGradientsPlugin,
   builtinGraphicStylesPlugin,
   builtinIoPlugin,
+  builtinMasksPlugin,
   builtinMenuContributionsPlugin,
   builtinOptimizersPlugin,
   builtinPalettesPlugin,
@@ -110,5 +113,14 @@ export const appConfig: ApplicationConfig = {
     provideSvgEnginePlugin(builtinPatternsPlugin),
     provideSvgEnginePlugin(builtinGraphicStylesPlugin),
     provideSvgEnginePlugin(extraPalettesPlugin),
+    // D-049 (Item 4 — Composição / Recorte): registers built-in clipPath
+    // + mask presets so the Inspector's Composition section dropdowns
+    // have options the moment the editor mounts. Opt-out by omitting.
+    provideSvgEnginePlugin(builtinClipPathsPlugin),
+    provideSvgEnginePlugin(builtinMasksPlugin),
+    // D-050 (Item 5 — Tools faltantes): Eyedropper / Knife / Smooth /
+    // Gradient + 3 stub tools (Width / Mesh / Symbol Sprayer). Opt-out
+    // by omitting; each tool's id is exported for selective install.
+    provideSvgEnginePlugin(extraToolsPlugin),
   ],
 };

@@ -11,6 +11,7 @@ import { MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
 import { MatMenu, MatMenuTrigger } from '@angular/material/menu';
+import { MatOption, MatSelect } from '@angular/material/select';
 import {
   CommandBus,
   ConvertNodeToPathCommand,
@@ -28,9 +29,11 @@ import {
 } from 'svg-engine/core';
 import {
   type BBoxAnchor,
+  ClipPathLibraryService,
   getRenderedNodeBBox,
   getRenderedParentMatrix,
   LayersService,
+  MaskLibraryService,
   SelectionService,
   TransformService,
 } from 'svg-engine/edit';
@@ -88,6 +91,8 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
     MatIconButton,
     MatMenu,
     MatMenuTrigger,
+    MatSelect,
+    MatOption,
     SvgeColorPalette,
     SvgeColorPicker,
     RectFieldPipe,
@@ -572,6 +577,59 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
                 [value]="styleNumber('opacity')"
                 (change)="setStyleNumber('opacity', $any($event.target).value)"
               />
+            </mat-form-field>
+          </div>
+
+          <!--
+            ── Composition subsection (D-049 Item 4) ──
+            Mix-blend-mode is a CSS property (no dedicated SVG attribute);
+            clip-path and mask are SVG attributes that take a url(#id)
+            reference. The dropdowns list registered catalog items
+            (built-in shapes / fades / spotlights) plus an explicit
+            "none" option that clears the property. Disabled when no
+            catalog items are registered to avoid a useless empty menu.
+          -->
+          <div class="style-subsection" aria-labelledby="style-composition-title">
+            <h4 id="style-composition-title" class="style-subsection-title">Composition</h4>
+            <mat-form-field appearance="outline" class="full-width-field">
+              <mat-label>blend mode</mat-label>
+              <mat-select
+                [value]="compositionStringValue('mixBlendMode') ?? 'normal'"
+                [disabled]="isLocked()"
+                (selectionChange)="setCompositionString('mixBlendMode', $event.value)"
+              >
+                @for (mode of BLEND_MODES; track mode) {
+                  <mat-option [value]="mode">{{ mode }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width-field">
+              <mat-label>clip path</mat-label>
+              <mat-select
+                [value]="compositionRefValue('clipPath') ?? ''"
+                [disabled]="isLocked() || clipPathItems().length === 0"
+                (selectionChange)="setCompositionRef('clipPath', $event.value)"
+              >
+                <mat-option [value]="''">(none)</mat-option>
+                @for (cp of clipPathItems(); track cp.id) {
+                  <mat-option [value]="cp.id">{{ cp.name }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width-field">
+              <mat-label>mask</mat-label>
+              <mat-select
+                [value]="compositionRefValue('mask') ?? ''"
+                [disabled]="isLocked() || maskItems().length === 0"
+                (selectionChange)="setCompositionRef('mask', $event.value)"
+              >
+                <mat-option [value]="''">(none)</mat-option>
+                @for (m of maskItems(); track m.id) {
+                  <mat-option [value]="m.id">{{ m.name }}</mat-option>
+                }
+              </mat-select>
             </mat-form-field>
           </div>
         </div>
@@ -1597,6 +1655,103 @@ export class SvgeInspector {
     const current = this.commonStyleValue(field);
     if (current !== MIXED && current === value) return;
     this.bus.dispatch(new SetStylePropertyOnManyCommand(ids, field, value));
+  }
+
+  // ── D-049 (Item 4 — Composição / Recorte) ───────────────────────
+  //
+  // Catalog injections feed the Inspector's clipPath + mask dropdowns.
+  // Both registries are root-scoped (the Catalog half of the D-048-fix
+  // split) so plugin-registered presets show up here regardless of which
+  // route the inspector is mounted in.
+  private readonly clipPathCatalog = inject(ClipPathLibraryService);
+  private readonly maskCatalog = inject(MaskLibraryService);
+
+  /** Live signal of registered clipPath items — drives the dropdown. */
+  protected readonly clipPathItems = this.clipPathCatalog.items;
+
+  /** Live signal of registered mask items — drives the dropdown. */
+  protected readonly maskItems = this.maskCatalog.items;
+
+  /**
+   * Whitelist of CSS `mix-blend-mode` values exposed in the picker.
+   * Matches the CSS Compositing & Blending Level 1 spec (W3C). Listed
+   * in a predictable visual ordering (normal first, then the 12 main
+   * blends grouped by family) instead of alphabetical — designers
+   * scan for "multiply" / "screen" / "overlay" by category, not name.
+   */
+  protected readonly BLEND_MODES = [
+    'normal',
+    'multiply',
+    'screen',
+    'overlay',
+    'darken',
+    'lighten',
+    'color-dodge',
+    'color-burn',
+    'hard-light',
+    'soft-light',
+    'difference',
+    'exclusion',
+    'hue',
+    'saturation',
+    'color',
+    'luminosity',
+  ] as const;
+
+  /**
+   * Read a string style field (mix-blend-mode) as a literal string.
+   * Mixed multi-edit values surface as `undefined` so the dropdown
+   * doesn't pick an arbitrary one. Used by the blend-mode picker.
+   */
+  protected compositionStringValue(field: 'mixBlendMode'): string | undefined {
+    const v = this.commonStyleValue(field);
+    if (v === MIXED || typeof v !== 'string') return undefined;
+    return v;
+  }
+
+  /**
+   * Read a url(#id) style field (clipPath, mask) and unwrap to bare
+   * `id` — that's what the dropdown's mat-option values use. Returns
+   * `undefined` for mixed/missing values (dropdown falls back to `''`,
+   * which is the "(none)" option).
+   */
+  protected compositionRefValue(field: 'clipPath' | 'mask'): string | undefined {
+    const v = this.commonStyleValue(field);
+    if (v === MIXED || typeof v !== 'string' || v.length === 0) return undefined;
+    // Extract id from "url(#id)" — tolerant of whitespace + quotes.
+    const m = /^url\(\s*['"]?#([^'"\s)]+)['"]?\s*\)$/.exec(v.trim());
+    return m === null ? undefined : m[1];
+  }
+
+  /**
+   * Write a string style field with the "clear when value === default"
+   * sugar. `mixBlendMode: 'normal'` is the CSS default — writing it
+   * explicitly would persist the attribute on the SVG even though it
+   * has no visual effect, so we clear instead. The user's choice of
+   * "normal" in the dropdown thus reverts to the implicit default.
+   */
+  protected setCompositionString(field: 'mixBlendMode', value: string): void {
+    const ids = this.editableIdsForStyle();
+    if (ids.length === 0) return;
+    const newValue: string | undefined = value === 'normal' ? undefined : value;
+    const current = this.commonStyleValue(field);
+    if (current !== MIXED && current === newValue) return;
+    this.bus.dispatch(new SetStylePropertyOnManyCommand(ids, field, newValue));
+  }
+
+  /**
+   * Write a clipPath / mask reference by wrapping the bare id in
+   * `url(#id)`. The "(none)" option's value is `''` — that clears the
+   * property (passes `undefined` to the command, the renderer's `?? null`
+   * then removes the attribute).
+   */
+  protected setCompositionRef(field: 'clipPath' | 'mask', id: string): void {
+    const ids = this.editableIdsForStyle();
+    if (ids.length === 0) return;
+    const newValue: string | undefined = id === '' ? undefined : `url(#${id})`;
+    const current = this.commonStyleValue(field);
+    if (current !== MIXED && current === newValue) return;
+    this.bus.dispatch(new SetStylePropertyOnManyCommand(ids, field, newValue));
   }
 }
 
