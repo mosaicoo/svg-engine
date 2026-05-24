@@ -6,6 +6,48 @@
 
 ---
 
+## 2026-05-24 — Bug fix: pro-editor não respeitava visibility hide (D-056 follow-up)
+
+### Sintoma reportado
+
+No /pro-editor, criar Live Subtract sobre 3 shapes faz as 3 vírem como "hidden" no Layer Panel (eye-with-slash icon), mas elas continuam renderizando no canvas — sobrepõem o resultado da boolean. No /custom-editor a mesma operação esconde corretamente.
+
+### Causa raiz (dois bugs distintos)
+
+**Bug 1 (pré-existente, latente)**: `<svge-editor>` e `<svge-shell-pro>` aplicavam apenas `svgeOutlineFilter` no `<svge-renderer>`, **faltando** `svgeLayersFilter` (toggle de olho no Layer Panel) e `svgeIsolationFilter` (modo de isolamento). O `<svge-renderer>` no `custom-editor.component.html` tem os três. Esse bug afetava o eye-toggle do Layer Panel de forma totalmente independente da Live Boolean — só não tinha aparecido até agora porque ninguém testou hide manual no pro-editor.
+
+**Bug 2 (D-056 follow-up)**: meu `MakeLiveBooleanCommand` setava `metadata.visible = false` nos inputs para escondê-los, mas **nenhum consumer da renderização lia esse campo**. Por design, `metadata.visible` era doc-level state distinto de `LayersService.hiddenIds` (runtime session), mas nada o aplicava ao DOM. Resultado: meus inputs hidden ficavam visíveis sempre, sem importar o shell.
+
+### Fixes aplicados
+
+**Fix 1 — Shells passam a aplicar layer/isolation filters**:
+
+- `svge-editor.component.ts`: importa `LayersFilter`, `IsolationFilter` → adicionados a `imports` e ao `<svge-renderer svgeLayersFilter svgeIsolationFilter svgeOutlineFilter>`.
+- `svge-shell-pro.component.ts`: mesma alteração.
+
+Restaura o eye-toggle do Layer Panel + modo isolation em ambos os shells. Custom-editor continua igual (já estava certo).
+
+**Fix 2 — Renderer respeita `metadata.visible === false`**:
+
+- `node-renderer.component.ts`: novo host binding `'[style.display]': "node().metadata.visible === false ? 'none' : null"`.
+- Aplica em qualquer renderer, sem depender de directives externas — `metadata.visible` é doc-level (persistido), `LayersService.hiddenIds` é session.
+- `display: none` (não `visibility: hidden`) — colapsa hit-testing também, evita que o usuário clique através do resultado e selecione um input invisível.
+- Default `undefined` mantém o nó visível (backward-compat).
+
+### Por que ambos os fixes (não só um)
+
+- Sem Fix 1: o eye-toggle do Layer Panel continuaria quebrado nos shells.
+- Sem Fix 2: meu Live Boolean continuaria não escondendo os inputs (ele não escreve em `LayersService.hiddenIds`, escreve em `metadata.visible` — e os shells não fazem a ponte).
+- Fix 2 também documenta a separação intencional: `metadata.visible` (doc) ≠ `LayersService.hiddenIds` (session). Ambos hideen agora funcionam, com semânticas distintas.
+
+### Verificação
+
+- `ng build svg-engine`: ✅ 9 entry points
+- `ng test svg-engine`: ✅ **1361 passed** / 1 skipped / 0 failed
+- `ng lint svg-engine`: ✅ clean
+
+---
+
 ## 2026-05-24 — D-053 / D-054 / D-055 / D-056 / D-057 (Item 6 — Edição avançada)
 
 Sprint dedicado ao Item 6 "Edição avançada" do parking-lot, com 5 decisões

@@ -156,6 +156,27 @@ import { SvgeTextDirective } from './text-renderer.directive';
     '[attr.clip-path]': 'node().style.clipPath ?? null',
     '[attr.mask]': 'node().style.mask ?? null',
     '[style.mix-blend-mode]': 'node().style.mixBlendMode ?? null',
+    // D-056 follow-up — `metadata.visible === false` hides the node
+    // from rendering at the DOCUMENT level. Distinct from
+    // `LayersService.hiddenIds` (which is editor-session only, applied
+    // imperatively by `[svgeLayersFilter]`): `metadata.visible` is
+    // persisted in the doc, survives export/import, and applies
+    // regardless of which renderer the consumer wired up.
+    //
+    // **Use cases**:
+    // - Boolean Live (D-056): inputs are kept as children for
+    //   editability but should not paint (the derived result paints).
+    // - Future: doc-level "always hidden" layers (e.g., reference
+    //   guides authored in the document, not just session state).
+    //
+    // **Why `display: none` (not `visibility: hidden`)**: full hide,
+    // collapses hit-testing too — exactly what we want for boolean
+    // inputs (otherwise the user could click them through the result).
+    // `visibility: hidden` leaves them hit-testable, which is wrong here.
+    //
+    // Only applies when explicitly `false` — `undefined` (the default)
+    // leaves the node visible (treats absence as "no hide preference").
+    '[style.display]': "node().metadata.visible === false ? 'none' : null",
   },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

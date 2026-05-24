@@ -20,7 +20,9 @@ import {
   EffectRegistry,
   GridOverlay,
   GuidesOverlay,
+  IsolationFilter,
   IsolationService,
+  LayersFilter,
   OutlineFilter,
   PageOverlay,
   resolveSelectableNodeId,
@@ -109,6 +111,8 @@ import { SvgeToolOptions } from '../tool-options';
     GridOverlay,
     GuidesOverlay,
     OutlineFilter,
+    LayersFilter,
+    IsolationFilter,
     SvgeRulers,
     SvgeCanvasGestures,
     SvgeToolbar,
@@ -211,6 +215,8 @@ import { SvgeToolOptions } from '../tool-options';
       >
         <svge-workspace-background>
           <svge-renderer
+            svgeLayersFilter
+            svgeIsolationFilter
             svgeOutlineFilter
             [tree]="resolvedTree()"
             [viewBox]="resolvedViewBox()"
