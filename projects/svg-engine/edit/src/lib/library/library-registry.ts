@@ -67,6 +67,41 @@ export abstract class LibraryRegistry<T extends LibraryItem> {
   }
 
   /**
+   * Replace an existing item in-place (preserves its position in the
+   * insertion-order array). Returns `true` on success, `false` when no
+   * item with that id exists. The new item must have the same `id` as
+   * the existing one — mismatch throws.
+   *
+   * **Why a dedicated method** (vs. dispose + re-register): re-registration
+   * moves the item to the end, which is wrong for library pickers where
+   * authored order matters (e.g., the user expects "their" gradient to
+   * stay where they put it on the list). `update()` preserves position
+   * AND triggers the signal so UIs react.
+   *
+   * **D-058 use case** (Gradient inline editor): each edit (stop color,
+   * offset, geometry change) dispatches `SetGradientCommand` which
+   * calls this method with a fresh item. Builtin items can also be
+   * edited — they're regular `GradientLibraryItem`s; the only effect
+   * of editing a builtin is the user's session-local override of the
+   * builtin's content (the builtin's source code is untouched, so a
+   * reload restores the original).
+   */
+  update(id: string, replacement: T): boolean {
+    if (replacement.id !== id) {
+      throw new Error(
+        `${this.constructor.name}.update: replacement.id "${replacement.id}" must match target id "${id}"`,
+      );
+    }
+    const current = this._items();
+    const idx = current.findIndex((item) => item.id === id);
+    if (idx < 0) return false;
+    const next = current.slice();
+    next[idx] = replacement;
+    this._items.set(next);
+    return true;
+  }
+
+  /**
    * Filter items by category. Useful for picker UIs that group items
    * by intent. Pass `undefined` to get items without an explicit
    * category.

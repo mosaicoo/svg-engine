@@ -6,6 +6,85 @@
 
 ---
 
+## 2026-05-24 — D-058: Gradient inline editor — panel + canvas overlay (opção C)
+
+Substitui o stub "state-only" do D-050 Gradient Tool por um editor real
+de gradient com **duas surfaces coordenadas**:
+
+### 1. Inline overlay no canvas (`<svge-gradient-overlay>`)
+
+Novo overlay em `svg-engine/edit/lib/library/gradients/`. Renderiza
+quando a seleção tem fill = `url(#id)` resolvendo a um gradient catalogado:
+
+- **Linha tracejada** (gradients lineares) ou **círculo** (radiais)
+  mostrando a direção/extensão do gradient sobre o bbox do nó
+- **Pontos coloridos** ao longo da linha — um por stop, cor igual ao
+  `stop-color`. Selecionado ganha ring laranja
+- **Drag** num stop → muda offset em tempo real (preview in-place);
+  release commita 1 undo via `SetGradientCommand`
+- **Click** num stop (sem drag) → seleciona stop pra edição no panel
+- **Click na linha/círculo** (não em stop) → insere novo stop no
+  offset clicado, cor interpolada RGB dos vizinhos
+
+Headless boundary respeitado — overlay é puro SVG/signals, sem
+`@angular/material`. Color picker fica no panel UI-side.
+
+### 2. Panel `<svge-gradient-editor>` em `svg-engine/ui`
+
+Section adicionada à coluna Properties do `<svge-shell-pro>`. Auto-hides
+quando seleção não tem gradient (gate via `GradientEditingService`).
+
+- Header com toggle Linear/Radial
+- Lista de stops, cada um com:
+  - Swatch colorido clicável → abre `<svge-color-picker>` em mat-menu
+    (mesmo pattern do Inspector fill/stroke)
+  - Input number 0–100 pra offset
+  - Botão de remoção (desabilitado quando restariam < 2 stops)
+- Botões "Add stop" (insere no mid + cor interpolada) e "Reverse"
+- Linha selecionada do panel highlight quando user clica stop no canvas
+  e vice-versa (signal compartilhado `GradientEditingService.selectedStopIndex`)
+
+### Foundation
+
+- `LibraryRegistry.update(id, item)` — novo método que preserva posição
+  no array e dispara o signal (evita dispose+register que joga item no
+  fim).
+- `GradientGeometry` interface opcional adicionada a `GradientLibraryItem`
+  com `x1/y1/x2/y2` (linear) ou `cx/cy/r/fx/fy` (radial). Coordenadas
+  `objectBoundingBox` (0..1). Default quando ausente = horizontal linear
+  / centered radial — backward-compat total com builtins pré-D-058.
+- `buildGradientMarkup(item)` helper exportado — emite
+  `<linearGradient>` / `<radialGradient>` honrando geometry.
+- `GradientEditingService` (scoped via `provideSvgEngineEditorScope`):
+  - `activeGradientId` computed — deriva do `fill`/`stroke` do nó
+    selecionado
+  - `targetNodeId` — id do nó pra leitura de bbox
+  - `selectedStopIndex` — signal compartilhado overlay ↔ panel
+- `SetGradientCommand` — 1 undo por mudança (stops/geometry/kind/name).
+  Factory `SetGradientCommand.for(injector, id, patch)`.
+
+### Wire-up
+
+- `<svge-editor>` + `<svge-shell-pro>`: overlay no renderer
+- `<svge-shell-pro>` ganha `<svge-gradient-editor />` na Properties
+- `custom-editor` playground: também ganha o overlay
+
+### Scope deferido v2
+
+- Endpoint dragging (mover x1/y1/x2/y2 ou cx/cy/r via canvas) — arquitetura
+  pronta, só falta registrar 4 handles adicionais no overlay
+- Focal point (fx/fy) para radiais
+- Reorder de stops via drag no panel
+
+### Verificação
+
+- `ng build svg-engine` ✅ 9 entry points
+- `ng build playground` ✅ limpo
+- `ng test svg-engine` ✅ **1361 passed** / 1 skipped / 0 failed
+- `ng lint svg-engine` ✅ clean
+
+---
+
 ## 2026-05-24 — Bug fix: pro-editor não respeitava visibility hide (D-056 follow-up)
 
 ### Sintoma reportado

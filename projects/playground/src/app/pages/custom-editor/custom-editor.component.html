@@ -376,6 +376,11 @@
           <!-- FRONT slot (default): everything below renders ON TOP
                of the content. Order = z-order (later = topmost). -->
           <svg:g svgeGuidesOverlay></svg:g>
+          <!-- D-058: gradient inline editor overlay (renders direction
+               line + stop dots when selection has gradient fill;
+               auto-hides otherwise). Goes BEFORE selection-overlay so
+               selection chrome paints on top of gradient line. -->
+          <svg:g svgeGradientOverlay></svg:g>
           <svg:g svgeSelectionOverlay></svg:g>
           <svg:g svgeAnchorOverlay></svg:g>
           <svg:g svgeRotationPivot></svg:g>

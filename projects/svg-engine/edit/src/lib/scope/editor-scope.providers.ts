@@ -10,6 +10,7 @@ import { ChainFilterRegistry } from '../effect/chain-filter';
 import { IsolationService } from '../isolation/isolation.service';
 import { AssetManagerService } from '../library/assets/asset-manager.service';
 import { ActiveClipPathsService } from '../library/clip-paths/clip-path-library.service';
+import { GradientEditingService } from '../library/gradients/gradient-editing.service';
 import { ActiveGradientsService } from '../library/gradients/gradient-library.service';
 import { ActiveMasksService } from '../library/masks/mask-library.service';
 import { ActivePatternsService } from '../library/patterns/pattern-library.service';
@@ -203,6 +204,10 @@ export function provideSvgEngineEditorScope(): Provider[] {
     AssetManagerService,
     ActiveGradientsService,
     ActivePatternsService,
+    // D-058 — per-editor gradient inline editor state (active gradient
+    // derived from current selection + selected-stop index for the
+    // overlay's focus ring + the Inspector's color picker target).
+    GradientEditingService,
     // D-049 (Item 4 — Composição / Recorte): same Catalog + Active
     // split as gradients/patterns. The Active*Service derives active
     // defs from the editor's document; the catalog stays root-scoped.

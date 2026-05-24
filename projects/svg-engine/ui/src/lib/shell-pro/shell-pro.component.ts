@@ -7,6 +7,7 @@ import {
   ActivePatternsService,
   ChainFilterRegistry,
   EffectRegistry,
+  GradientOverlay,
   GridOverlay,
   GuidesOverlay,
   IsolationFilter,
@@ -22,6 +23,7 @@ import {
 import { SvgeRenderer } from 'svg-engine/render';
 import { CONTEXT_MENU_SLOT, SvgeContextMenuTrigger } from '../context-menu';
 import { SvgeEffectsPanel } from '../effects-panel';
+import { SvgeGradientEditor } from '../gradient-editor';
 import { SvgeInspector } from '../inspector';
 import { LayersPanel } from '../layers-panel';
 import { SvgeLibrariesPanel } from '../libraries-panel';
@@ -101,6 +103,7 @@ import { SvgeToolsPalette } from '../tools-palette';
     OutlineFilter,
     LayersFilter,
     IsolationFilter,
+    GradientOverlay,
     SvgeRulers,
     SvgeCanvasGestures,
     SvgeShellInteractions,
@@ -112,6 +115,7 @@ import { SvgeToolsPalette } from '../tools-palette';
     SvgeStatusBar,
     LayersPanel,
     SvgeInspector,
+    SvgeGradientEditor,
     SvgeEffectsPanel,
     SvgeLibrariesPanel,
   ],
@@ -181,6 +185,8 @@ import { SvgeToolsPalette } from '../tools-palette';
               line baked into its template.
             -->
             <svg:g svgeGuidesOverlay></svg:g>
+            <!-- D-058: gradient inline editor overlay (auto-hides). -->
+            <svg:g svgeGradientOverlay></svg:g>
           </svge-renderer>
         </svge-workspace-background>
         <!--
@@ -201,6 +207,12 @@ import { SvgeToolsPalette } from '../tools-palette';
           <h3 class="panel-title">Properties</h3>
           <div class="panel-body">
             <svge-inspector />
+            <!--
+              D-058 — Gradient inline editor panel. Auto-hides via its
+              internal active() computed when selection has no gradient
+              fill, so it sits inert when irrelevant (no spacer needed).
+            -->
+            <svge-gradient-editor />
           </div>
         </section>
         <!--

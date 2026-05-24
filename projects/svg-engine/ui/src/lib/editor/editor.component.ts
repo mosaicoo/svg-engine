@@ -18,6 +18,7 @@ import {
   ActivePatternsService,
   ChainFilterRegistry,
   EffectRegistry,
+  GradientOverlay,
   GridOverlay,
   GuidesOverlay,
   IsolationFilter,
@@ -113,6 +114,7 @@ import { SvgeToolOptions } from '../tool-options';
     OutlineFilter,
     LayersFilter,
     IsolationFilter,
+    GradientOverlay,
     SvgeRulers,
     SvgeCanvasGestures,
     SvgeToolbar,
@@ -268,6 +270,12 @@ import { SvgeToolOptions } from '../tool-options';
             until this D-043 follow-up.
           -->
             <svg:g svgeGuidesOverlay></svg:g>
+            <!--
+              D-058 — inline gradient editor overlay. Renders direction
+              line + stop dots when selection has a gradient fill.
+              Auto-hides otherwise (computed gate inside).
+            -->
+            <svg:g svgeGradientOverlay></svg:g>
           </svge-renderer>
         </svge-workspace-background>
         <!--

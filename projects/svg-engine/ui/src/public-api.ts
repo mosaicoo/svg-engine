@@ -60,6 +60,11 @@ export * from './lib/libraries-panel';
 // Pro-grade color picker (Sprint C-ColorPicker)
 export * from './lib/color-picker';
 
+// Gradient inline editor panel (D-058) — Inspector-side controls
+// for editing the active gradient's stops/kind. Pairs with the
+// GradientOverlay from `svg-engine/edit` for canvas interactions.
+export * from './lib/gradient-editor';
+
 // SVG source viewer dialog (Inkscape "XML Editor" / Boxy SVG "Source" parity)
 export * from './lib/svg-source-dialog';
 

@@ -29,15 +29,110 @@ export interface GradientStop {
 
 export type GradientKind = 'linear' | 'radial';
 
+/**
+ * **D-058** — explicit geometry for editable gradients.
+ *
+ * All values are in **objectBoundingBox** units (0..1 normalized to
+ * the filled node's bbox) per SVG 2 default. This matches the
+ * existing builtin gradients and works without a node-specific
+ * coordinate conversion at render time — the browser handles the
+ * normalization automatically.
+ *
+ * **Linear**: line from `(x1, y1)` to `(x2, y2)`. Defaults are
+ * left-to-right horizontal sweep `(0, 0) → (1, 0)`.
+ *
+ * **Radial**: circle centered at `(cx, cy)` with radius `r`. Optional
+ * focal point `(fx, fy)` for off-center "spotlight" effects (defaults
+ * to center). Defaults are `(0.5, 0.5)` center, `0.5` radius.
+ *
+ * **Why optional**: backward compat with pre-D-058 builtin gradients
+ * whose `buildMarkup()` hard-codes geometry. When omitted, the inline
+ * editor's overlay shows the default geometry and the user can edit
+ * it — the next `update()` call carries the explicit values forward.
+ */
+export interface GradientGeometry {
+  // Linear
+  readonly x1?: number;
+  readonly y1?: number;
+  readonly x2?: number;
+  readonly y2?: number;
+  // Radial
+  readonly cx?: number;
+  readonly cy?: number;
+  readonly r?: number;
+  readonly fx?: number;
+  readonly fy?: number;
+}
+
 export interface GradientLibraryItem extends LibraryItem {
   readonly kind: GradientKind;
   /** Stops in offset order. Empty array is invalid. */
   readonly stops: readonly GradientStop[];
   /**
+   * Optional explicit geometry (D-058). When omitted, `buildMarkup()`
+   * is fully responsible for emitting position attributes (legacy
+   * pre-D-058 pattern). When present, the inline editor uses these
+   * values for handle positioning and updates them on drag.
+   */
+  readonly geometry?: GradientGeometry;
+  /**
    * Build the `<linearGradient>` / `<radialGradient>` SVG markup.
    * Must include `id="${this.id}"` so URL references resolve.
+   *
+   * **Convention** (post-D-058): when `geometry` is set, prefer the
+   * shared {@link buildGradientMarkup} helper which honors it. Items
+   * that have a custom `buildMarkup` predate the geometry field and
+   * still work (the editor renders default handles for them).
    */
   buildMarkup(): string;
+}
+
+/**
+ * Shared builder — emits `<linearGradient>` / `<radialGradient>` from
+ * a `GradientLibraryItem`. The inline editor uses this for every
+ * `update()` so freshly-edited items round-trip their geometry
+ * through `buildMarkup()`.
+ *
+ * **Defaults** (when `geometry` field is omitted): horizontal linear
+ * 0%→100%, centered radial r=50%.
+ *
+ * Exported so plugin authors writing custom gradient items can
+ * delegate to it instead of hand-rolling markup.
+ */
+export function buildGradientMarkup(item: GradientLibraryItem): string {
+  const stopsXml = item.stops.map(stopMarkup).join('\n    ');
+  if (item.kind === 'linear') {
+    const g = item.geometry ?? {};
+    const x1 = pct(g.x1 ?? 0);
+    const y1 = pct(g.y1 ?? 0);
+    const x2 = pct(g.x2 ?? 1);
+    const y2 = pct(g.y2 ?? 0);
+    return `<linearGradient id="${item.id}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">
+    ${stopsXml}
+  </linearGradient>`;
+  }
+  // radial
+  const g = item.geometry ?? {};
+  const cx = pct(g.cx ?? 0.5);
+  const cy = pct(g.cy ?? 0.5);
+  const r = pct(g.r ?? 0.5);
+  // Focal point — emit only when explicit (avoids forcing the renderer
+  // to recompute when the user hasn't asked for an off-center focal).
+  const fxAttr = g.fx !== undefined ? ` fx="${pct(g.fx)}"` : '';
+  const fyAttr = g.fy !== undefined ? ` fy="${pct(g.fy)}"` : '';
+  return `<radialGradient id="${item.id}" cx="${cx}" cy="${cy}" r="${r}"${fxAttr}${fyAttr}>
+    ${stopsXml}
+  </radialGradient>`;
+}
+
+function pct(v: number): string {
+  return `${(v * 100).toFixed(2).replace(/\.?0+$/, '')}%`;
+}
+
+function stopMarkup(stop: GradientStop): string {
+  const op = stop.opacity ?? 1;
+  const opAttr = op !== 1 ? ` stop-opacity="${op}"` : '';
+  return `<stop offset="${(stop.offset * 100).toFixed(2).replace(/\.?0+$/, '')}%" stop-color="${stop.color}"${opAttr} />`;
 }
 
 /**
