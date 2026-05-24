@@ -421,15 +421,13 @@
   </section>
 
   <!--
-    Right rail (D-061) — 2 panel-groups stacked vertically
-    (Properties | Appearance). Mirrors `<svge-shell-pro>` structure;
-    Layers lives in the LEFT rail here so the dogfooded layout
-    intentionally exercises a different docking pattern from the
-    Pro shell (Layers on the left next to Libraries, like Sketch /
-    Affinity Designer; Properties + Appearance on the right).
+    Right rail (D-061 follow-up 3) — UM único panel-group com abas
+    (Properties | Appearance). Layers segue no LEFT rail junto com
+    Libraries (padrão Sketch / Affinity Designer dogfoodado aqui).
+    Painel ativo ocupa altura cheia do rail; troca por click na aba.
   -->
   <aside class="sidebar right" aria-label="Properties and appearance">
-    <svge-panel-group class="rs-group" title="Properties">
+    <svge-panel-group class="rs-group">
       <ng-template
         svgePanelGroupTab
         svgePanelGroupTabId="properties"
@@ -439,12 +437,10 @@
         <svge-inspector></svge-inspector>
         <svge-gradient-editor></svge-gradient-editor>
       </ng-template>
-    </svge-panel-group>
-    <svge-panel-group class="rs-group" title="Appearance">
       <ng-template
         svgePanelGroupTab
-        svgePanelGroupTabId="effects"
-        label="Effects"
+        svgePanelGroupTabId="appearance"
+        label="Appearance"
         icon="auto_awesome"
       >
         <svge-effects-panel></svge-effects-panel>

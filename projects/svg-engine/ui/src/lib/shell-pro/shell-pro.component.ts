@@ -43,23 +43,21 @@ import { SvgeToolsPalette } from '../tools-palette';
  * ├─────────────────────────────────────────────────────────────────┤
  * │ <svge-tool-options> (context-sensitive per active tool)          │  ← tool options
  * ├────┬────────┬─────────────────────────────┬────────────────────┤
- * │T   │ Lib    │                             │ Layers ▾           │
- * │O   │ rari   │  <svge-renderer>            │ <svge-layers-panel>│
- * │O   │ es     │  + projected overlays       ├────────────────────┤
- * │L   │ (D-048)│  + page overlay             │ Properties ▾       │
- * │S   │ tabs   │  + right-click context menu │ <svge-inspector>   │
- * │    │        │                             ├────────────────────┤
- * │    │        │                             │ Appearance ▾       │
- * │    │        │                             │ <svge-effects-panel│
+ * │T   │ Lib    │                             │[Layers│Props│Appea]│
+ * │O   │ rari   │  <svge-renderer>            │ ──────────────────  │
+ * │O   │ es     │  + projected overlays       │                    │
+ * │L   │ (D-048)│  + page overlay             │ (active tab body — │
+ * │S   │ tabs   │  + right-click context menu │  ocupa 100% da     │
+ * │    │        │                             │  altura do rail)   │
  * ├────┴────────┴─────────────────────────────┴────────────────────┤
  * │ <svge-status-bar>                                                │  ← status
  * └─────────────────────────────────────────────────────────────────┘
  *
- * **D-061**: right rail is composed of 3 `<svge-panel-group>` docks
- * (Layers | Properties | Appearance). Each dock has a tab strip (1
- * tab today, ready to grow with future Pages/Symbols/Transform/
- * Swatches panels). Single-tab groups auto-hide the strip — the
- * title text becomes the header.
+ * **D-061 follow-up 3**: right rail é UM único `<svge-panel-group>`
+ * com 3 abas (Layers | Properties | Appearance). Antes eram 3
+ * grupos empilhados verticalmente (1/3 da altura cada); agora o
+ * painel ativo ocupa o rail inteiro, troca por click na aba.
+ * Padrão Photoshop / Figma right panel.
  * ```
  *
  * **Diferença de `<svge-editor>`**:
@@ -203,19 +201,18 @@ import { SvgeToolsPalette } from '../tools-palette';
         <svge-rulers />
       </div>
       <!--
-        Right rail (D-061) — 3 panel-groups stacked vertically. Each
-        group is a dock zone with a tab strip (currently 1 tab each
-        but ready to grow: Layers→+Pages/Symbols, Properties→+Transform,
-        Appearance→+Swatches/Brushes preview). Single-tab groups
-        auto-hide the strip and show the title in the header instead.
+        Right rail (D-061 follow-up 3) — UM único panel-group com 3
+        abas (Layers | Properties | Appearance). Antes eram 3 grupos
+        empilhados verticalmente; usuário pediu pra agrupar tudo num
+        container só pra ver UM painel por vez, com mais altura útil
+        e troca rápida via aba (padrão Photoshop / Figma right panel).
+        Painéis internos intactos — só remontados num único contêiner.
       -->
       <aside class="right-side" aria-label="Layers, properties and appearance panels">
-        <svge-panel-group class="rs-group" title="Layers">
+        <svge-panel-group class="rs-group">
           <ng-template svgePanelGroupTab svgePanelGroupTabId="layers" label="Layers" icon="layers">
             <svge-layers-panel />
           </ng-template>
-        </svge-panel-group>
-        <svge-panel-group class="rs-group" title="Properties">
           <ng-template
             svgePanelGroupTab
             svgePanelGroupTabId="properties"
@@ -230,12 +227,10 @@ import { SvgeToolsPalette } from '../tools-palette';
             -->
             <svge-gradient-editor />
           </ng-template>
-        </svge-panel-group>
-        <svge-panel-group class="rs-group" title="Appearance">
           <ng-template
             svgePanelGroupTab
-            svgePanelGroupTabId="effects"
-            label="Effects"
+            svgePanelGroupTabId="appearance"
+            label="Appearance"
             icon="auto_awesome"
           >
             <svge-effects-panel />
@@ -310,23 +305,20 @@ import { SvgeToolsPalette } from '../tools-palette';
       inset: 0;
     }
     .right-side {
-      display: grid;
-      /* 3 rows of equal flex height: Layers | Properties | Appearance.
-       * Each panel-group scrolls internally — overflowing content
-       * doesn't push siblings out of view. Equal split mirrors
-       * Illustrator's default dock layout; user can drag-resize in a
-       * future iteration. */
-      grid-template-rows: 1fr 1fr 1fr;
+      display: flex;
+      flex-direction: column;
+      /* D-061 follow-up 3 — single tabbed container. The lone
+       * panel-group expands to fill the full rail height; tabs
+       * (Layers | Properties | Appearance) trocam o body. Cada
+       * painel ganha 100% da altura quando ativo (vs 33% antes). */
       min-height: 0;
       border-left: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
       background: var(--mat-sys-surface, transparent);
     }
     .rs-group {
+      flex: 1 1 auto;
       min-height: 0;
       overflow: hidden;
-    }
-    .rs-group + .rs-group {
-      border-top: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
     }
     .status-row {
       /* No rules — svge-status-bar paints its own top border + background;

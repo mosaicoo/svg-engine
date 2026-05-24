@@ -129,18 +129,18 @@
   min-height: 0;
 }
 
-/* D-061 — panel-group docks stack within each sidebar. Each group
- * gets equal flex height and scrolls internally so overflowing
- * content doesn't push siblings out of view (matches the right rail
- * pattern in <svge-shell-pro>). */
+/* D-061 — panel-group docks stack within each sidebar.
+ * Left rail: 2 docks empilhados (Layers + Libraries), cada um flex 1.
+ * Right rail: 1 dock único com abas (Properties | Appearance), flex 1.
+ * Cada dock scrolla internamente — overflow não empurra sibling.
+ */
 .ls-group,
 .rs-group {
   flex: 1 1 0;
   min-height: 0;
   overflow: hidden;
 }
-.ls-group + .ls-group,
-.rs-group + .rs-group {
+.ls-group + .ls-group {
   border-top: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
 }
 

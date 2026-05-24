@@ -6,6 +6,56 @@
 
 ---
 
+## 2026-05-24 — D-061 follow-up 3: right rail consolidado em UM panel-group com abas
+
+### Demanda
+
+Usuário enviou screenshot do `/pro-editor` mostrando os 3 panel-groups
+empilhados (Layers / Properties / Appearance, cada um com 1/3 da
+altura do rail) e pediu pra "colocar os painéis num container por
+abas pra ver melhor cada um clicando na aba — não alterar os painéis,
+apenas disponibilizá-los no container por aba".
+
+### Implementação
+
+**`<svge-shell-pro>`** — substituí os 3 `<svge-panel-group>` separados
+do right rail por UM único `<svge-panel-group>` com 3
+`<ng-template svgePanelGroupTab>`:
+
+- `[Layers]` (icon `layers`) → `<svge-layers-panel>`
+- `[Properties]` (icon `tune`) → `<svge-inspector>` + `<svge-gradient-editor>`
+- `[Appearance]` (icon `auto_awesome`) → `<svge-effects-panel>`
+
+CSS do `.right-side` mudou de `grid-template-rows: 1fr 1fr 1fr`
+(3 docks empilhados) para `display: flex; flex-direction: column`
+com `.rs-group { flex: 1 1 auto }` (1 dock ocupa rail inteiro).
+
+**`/custom-editor`** — mesma consolidação no right rail. 2 docks
+(Properties + Appearance) viraram 1 dock com 2 abas. Left rail
+mantém os 2 docks separados (Layers + Libraries) porque ali a
+hierarquia de informação é diferente (queremos os dois sempre
+visíveis num eixo vertical único, padrão Sketch / Affinity).
+
+**Painéis intocados** — `<svge-layers-panel>`, `<svge-inspector>`,
+`<svge-gradient-editor>` e `<svge-effects-panel>` são exatamente
+os mesmos componentes, só re-encaixados num único dock.
+
+### Ganho de UX
+
+- Painel ativo ocupa **100% da altura do rail** (vs 33% antes).
+  Inspector e Effects panel param de scrollar.
+- Tab strip horizontal compacta no topo (3 abas com icon + label
+  cabem com folga em 280px).
+- Padrão idêntico ao Photoshop / Figma right panel.
+
+### Validação
+
+- 1403 testes ✓ (panel-group já cobre tabs com múltiplos
+  ng-template; nenhum spec novo necessário)
+- Lint clean, playground build clean
+
+---
+
 ## 2026-05-24 — D-061 follow-up 2: libraries-panel responsivo (sem scrollbar horizontal)
 
 ### Sintomas reportados (screenshots)
