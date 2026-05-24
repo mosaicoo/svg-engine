@@ -1,15 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { type BoundingBox, EditorStateService, type SvgNode } from 'svg-engine/core';
 import {
+  ActiveGradientsService,
+  ActivePatternsService,
   ChainFilterRegistry,
   EffectRegistry,
-  GradientLibraryService,
   GridOverlay,
   GuidesOverlay,
   IsolationService,
   OutlineFilter,
   PageOverlay,
-  PatternLibraryService,
   resolveSelectableNodeId,
   SvgeCanvasGestures,
   SvgeShellInteractions,
@@ -325,10 +325,13 @@ export class SvgeShellPro {
   // registered effects + composed chain filters in use.
   private readonly effects = inject(EffectRegistry);
   private readonly chains = inject(ChainFilterRegistry);
-  // D-048: feed the renderer's <defs> with gradient + pattern markup
-  // for every gradient/pattern URL referenced by the current document.
-  private readonly gradients = inject(GradientLibraryService);
-  private readonly patterns = inject(PatternLibraryService);
+  // D-048 (fix UX#2 — split): scoped active-defs derivation for
+  // gradient + pattern URLs in the current document. Catalog lookup
+  // (which the Active services do internally) hits the root-scoped
+  // GradientLibraryService / PatternLibraryService — plugins register
+  // there at bootstrap.
+  private readonly gradients = inject(ActiveGradientsService);
+  private readonly patterns = inject(ActivePatternsService);
 
   /**
    * **D-040** — Dynamic context-menu slot resolver. Right-click on a

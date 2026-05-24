@@ -1,5 +1,6 @@
 export {
   GradientLibraryService,
+  ActiveGradientsService,
   type GradientLibraryItem,
   type GradientStop,
   type GradientKind,

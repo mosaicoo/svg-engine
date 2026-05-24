@@ -9,6 +9,8 @@ import { ClipboardService } from '../clipboard/clipboard.service';
 import { ChainFilterRegistry } from '../effect/chain-filter';
 import { IsolationService } from '../isolation/isolation.service';
 import { AssetManagerService } from '../library/assets/asset-manager.service';
+import { ActiveGradientsService } from '../library/gradients/gradient-library.service';
+import { ActivePatternsService } from '../library/patterns/pattern-library.service';
 import { LayersService } from '../layers/layers.service';
 import { MarqueeService } from '../marquee/marquee.service';
 import { SelectionService } from '../selection/selection.service';
@@ -169,25 +171,30 @@ export function provideSvgEngineEditorScope(): Provider[] {
     // mounted side-by-side compute their chains from their own state.
     ChainFilterRegistry,
     // ── edit / libraries (D-048) ────────────────────────────────
-    // **D-048 FIX (UX follow-up)**: Library catalogs are root-scoped
-    // ONLY. Earlier attempt added them here AND used
-    // `@Injectable({ providedIn: 'root' })` simultaneously — that
-    // created TWO instances per route (the same trap D-043 hit with
-    // menu contributions). Plugins register at root → consumers via
-    // the route scope got the empty scoped instance → panels appeared
-    // empty. Removing from here so the catalog flows through a single
-    // root instance everywhere.
+    // **D-048 FIX (UX follow-up #2)**: Library architecture is split
+    // by responsibility:
     //
-    // `AssetManagerService` stays scoped because its catalog holds
-    // PER-EDITOR user-uploaded data (the file picker output) — a
-    // single editor's uploads should not pollute siblings.
+    // - **CATALOGS** (Shape/Template/GraphicStyle/Symbol/Brush/
+    //   Gradient/Pattern *Library*Service): root-only via
+    //   `@Injectable({ providedIn: 'root' })`. Plugins register at
+    //   bootstrap against the root injector; panels inject from the
+    //   same root → both see the same registry. Removing them from
+    //   THIS array is intentional — adding them WOULD create a
+    //   second empty instance per route (the D-043 trap, hit twice
+    //   already in D-048).
     //
-    // Known limitation: `GradientLibraryService` / `PatternLibraryService`
-    // derive ACTIVE defs by walking the current document — since they
-    // are root-scoped, they capture the root `EditorStateService`,
-    // NOT the route-scoped one. Multi-editor scenarios will see the
-    // wrong active set. Single-editor mode is correct. Proper split
-    // (Catalog root + ActiveDerivation scoped) is deferred to D-051.
+    // - **ACTIVE-DEFS DERIVATION** (ActiveGradientsService,
+    //   ActivePatternsService): route-scoped — they walk the current
+    //   editor's `EditorStateService` document to collect URLs in
+    //   use. Without scoping they'd capture the root state and miss
+    //   the route's document. They consume the root catalog for
+    //   markup lookup.
+    //
+    // - **`AssetManagerService`**: scoped — its catalog holds
+    //   PER-EDITOR user uploads (file picker output). A single
+    //   editor's uploads should not leak to siblings.
     AssetManagerService,
+    ActiveGradientsService,
+    ActivePatternsService,
   ];
 }

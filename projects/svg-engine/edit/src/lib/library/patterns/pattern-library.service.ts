@@ -7,10 +7,11 @@ import { LibraryRegistry } from '../library-registry';
  * A pattern entry — registered SVG `<pattern>` markup that can be
  * referenced from `style.fill`/`style.stroke` as `url(#id)`.
  *
- * **Why integrate with the document not the registry**: same rationale
- * as gradients (see {@link GradientLibraryService}) — patterns
- * referenced in `style.fill` are the source of truth. The registry
- * just provides the markup when the document asks for it via defs.
+ * **Why integrate with the document, not the registry**: same
+ * rationale as gradients (see {@link GradientLibraryService}) —
+ * patterns referenced in `style.fill` are the source of truth. The
+ * registry just provides the markup when the document asks for it
+ * via defs.
  */
 export interface PatternLibraryItem extends LibraryItem {
   /**
@@ -23,15 +24,27 @@ export interface PatternLibraryItem extends LibraryItem {
 }
 
 /**
- * Registry of `PatternLibraryItem`s — D-048. Mirrors
- * `GradientLibraryService` shape: scans the document to derive which
- * patterns are active, emits their markup for defs injection.
- *
- * Scope: per-editor via D-042.
+ * **Catalog** of `PatternLibraryItem`s — D-048. Root-scoped registry
+ * for plugin registration. See {@link GradientLibraryService} for the
+ * full rationale of the split.
  */
 @Injectable({ providedIn: 'root' })
-export class PatternLibraryService extends LibraryRegistry<PatternLibraryItem> {
+export class PatternLibraryService extends LibraryRegistry<PatternLibraryItem> {}
+
+/**
+ * **Active patterns derivation** — route-scoped service that walks
+ * the route's `EditorStateService` document, collects pattern IDs
+ * referenced via `style.fill`/`style.stroke`, and emits `<pattern>`
+ * markup for the renderer's `<defs>` block.
+ *
+ * **Split rationale**: see {@link ActiveGradientsService} — plugins
+ * register into the root catalog, route-scoped service derives the
+ * active set from the route's document.
+ */
+@Injectable({ providedIn: 'root' })
+export class ActivePatternsService {
   private readonly state = inject(EditorStateService);
+  private readonly catalog = inject(PatternLibraryService);
 
   /** Pattern IDs actively referenced in the current document. */
   readonly activePatternIds = computed<readonly string[]>(() => {
@@ -40,7 +53,7 @@ export class PatternLibraryService extends LibraryRegistry<PatternLibraryItem> {
       collectId(node.style.fill, seen);
       collectId(node.style.stroke, seen);
     });
-    return [...seen].filter((id) => this.get(id) !== null);
+    return [...seen].filter((id) => this.catalog.get(id) !== null);
   });
 
   /** Concatenated `<pattern>` markup for every active pattern. */
@@ -48,7 +61,7 @@ export class PatternLibraryService extends LibraryRegistry<PatternLibraryItem> {
     const ids = this.activePatternIds();
     if (ids.length === 0) return '';
     return ids
-      .map((id) => this.get(id)?.buildMarkup() ?? '')
+      .map((id) => this.catalog.get(id)?.buildMarkup() ?? '')
       .filter((s) => s.length > 0)
       .join('\n');
   }

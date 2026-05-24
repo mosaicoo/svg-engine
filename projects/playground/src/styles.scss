@@ -81,16 +81,25 @@ body {
 
 /* D-048 follow-up — color picker popover (mat-menu) should not show
    scrollbars. mat-menu's default `overflow: auto` triggers them when
-   the picker's intrinsic size approaches the menu's max-height. We
-   target the panelClass="svge-picker-menu-panel" used by the
-   inspector's fill/stroke pickers and remove the overflow + max-height
-   constraints so the picker shows fully without scroll. */
-.svge-picker-menu-panel.mat-mdc-menu-panel {
+   the picker's intrinsic size approaches the menu's max-height.
+
+   Selectors target multiple ancestor levels to win specificity vs
+   Material's defaults regardless of style ordering: the cdk-overlay
+   wrapper, the mat-mdc-menu-panel itself, and its inner content
+   container all need overflow: visible + no max constraints. */
+.cdk-overlay-pane:has(> .svge-picker-menu-panel),
+.cdk-overlay-pane > .svge-picker-menu-panel,
+.mat-mdc-menu-panel.svge-picker-menu-panel,
+.svge-picker-menu-panel {
   max-width: none !important;
   max-height: none !important;
+  overflow: visible !important;
 }
-.svge-picker-menu-panel .mat-mdc-menu-content {
+.svge-picker-menu-panel .mat-mdc-menu-content,
+.svge-picker-menu-panel > .mat-mdc-menu-content {
   padding: 0 !important;
   overflow: visible !important;
   max-height: none !important;
+  max-width: none !important;
+  width: max-content !important;
 }

@@ -41,26 +41,43 @@ export interface GradientLibraryItem extends LibraryItem {
 }
 
 /**
- * Registry of `GradientLibraryItem`s — D-048. Doubles as a defs-
- * injection source: walks the current document, collects every
- * gradient ID referenced via `style.fill`/`style.stroke`, and emits
- * the markup for the renderer's `<defs>` block.
+ * **Catalog** of `GradientLibraryItem`s — D-048. Root-scoped registry
+ * that plugins register against (e.g., `builtinGradientsPlugin` from
+ * `app.config.ts`). Pickers (`<svge-libraries-panel>`) inject this to
+ * list available gradients.
  *
- * **Why scan the document instead of "active set" tracking**:
- * - Zero new state to keep in sync (the document IS the truth).
- * - Undo/redo works for free (the filter URL in style is the entity).
- * - IO round-trip works for free (export/import handle `style.fill`
- *   like any string).
- *
- * **Defs injection**: callers (the shell's `resolvedDefs` computed)
- * call `buildAllActiveGradientsMarkup()` and concatenate with the
- * effect / chain filter outputs. Gradients NOT in use don't pay any
- * render cost — only the URLs that actually appear in node styles
- * are emitted.
+ * **Why root-only**: a plugin installed at app bootstrap registers
+ * against the root injector. If the registry were also route-scoped,
+ * the scoped instance would be empty (same trap D-043/D-048-fix1 hit).
+ * The catalog is global; only the *active* defs derivation needs to
+ * be scoped — that lives in {@link ActiveGradientsService}.
  */
 @Injectable({ providedIn: 'root' })
-export class GradientLibraryService extends LibraryRegistry<GradientLibraryItem> {
+export class GradientLibraryService extends LibraryRegistry<GradientLibraryItem> {}
+
+/**
+ * **Active gradients derivation** — D-048 fix follow-up (D-051 pulled
+ * forward). Route-scoped service that walks the route's
+ * `EditorStateService` document, collects gradient IDs referenced via
+ * `style.fill`/`style.stroke`, and emits `<linearGradient>` /
+ * `<radialGradient>` markup for the renderer's `<defs>` block.
+ *
+ * **Why split from `GradientLibraryService`**: the plugin-installed
+ * catalog is global (root), but the active-defs derivation must read
+ * the editor's document, which is per-editor (D-042). Same registry
+ * for both would force a choice — and the previous attempt chose
+ * "scoped", which broke plugin registration (catalog appeared empty
+ * in the panel). The split serves both: plugins register into the
+ * root catalog; the shell's `resolvedDefs` injects this scoped
+ * service to derive active defs from its OWN document.
+ *
+ * **Bootstrap**: provided via `provideSvgEngineEditorScope()` — every
+ * route that creates an editor gets its own instance.
+ */
+@Injectable({ providedIn: 'root' })
+export class ActiveGradientsService {
   private readonly state = inject(EditorStateService);
+  private readonly catalog = inject(GradientLibraryService);
 
   /**
    * Set of unique gradient IDs in use by the current document
@@ -73,9 +90,10 @@ export class GradientLibraryService extends LibraryRegistry<GradientLibraryItem>
       collectGradientId(node.style.fill, seen);
       collectGradientId(node.style.stroke, seen);
     });
-    // Only emit IDs that are actually registered (defensive: broken
-    // refs render as no-fill rather than a phantom <linearGradient>).
-    return [...seen].filter((id) => this.get(id) !== null);
+    // Only emit IDs that are actually registered in the catalog
+    // (defensive: broken refs render as no-fill rather than a phantom
+    // <linearGradient>).
+    return [...seen].filter((id) => this.catalog.get(id) !== null);
   });
 
   /**
@@ -89,7 +107,7 @@ export class GradientLibraryService extends LibraryRegistry<GradientLibraryItem>
     if (ids.length === 0) return '';
     const parts: string[] = [];
     for (const id of ids) {
-      const item = this.get(id);
+      const item = this.catalog.get(id);
       if (item !== null) parts.push(item.buildMarkup());
     }
     return parts.join('\n');

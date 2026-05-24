@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import { MatIcon } from '@angular/material/icon';
 import { MatIconButton } from '@angular/material/button';
 import {
@@ -6,9 +7,11 @@ import {
   EditorStateService,
   InsertNodeCommand,
   type NodeId,
+  type PathNode,
   SetStylePropertyOnManyCommand,
   type SvgStyle,
 } from 'svg-engine/core';
+import { ViewportService } from 'svg-engine/render';
 import {
   AssetManagerService,
   GradientLibraryService,
@@ -68,9 +71,27 @@ import {
         </button>
         @if (open().shapes) {
           <div class="grid">
-            @for (item of shapesItems(); track item.id) {
+            @for (item of shapePreviews(); track item.id) {
               <button type="button" class="cell" [title]="item.name" (click)="insertShape(item.id)">
-                <span class="cell-icon">▢</span>
+                <!-- Mini SVG preview of the actual shape geometry. The
+                     d attribute comes from item.build() (a PathNode) —
+                     same path the user will insert. Style is the same
+                     as the inserted node so the thumbnail honestly
+                     previews the result. -->
+                <svg
+                  class="shape-thumb"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="xMidYMid meet"
+                  aria-hidden="true"
+                >
+                  <path
+                    [attr.d]="item.d"
+                    fill="#90caf9"
+                    stroke="#1565c0"
+                    stroke-width="2"
+                    stroke-linejoin="round"
+                  />
+                </svg>
                 <span class="cell-label">{{ item.name }}</span>
               </button>
             }
@@ -91,13 +112,21 @@ import {
         </button>
         @if (open().templates) {
           <div class="list">
-            @for (item of templatesItems(); track item.id) {
+            @for (item of templatePreviews(); track item.id) {
               <button
                 type="button"
                 class="list-item"
                 [title]="'Replace document with ' + item.name"
                 (click)="applyTemplate(item.id)"
               >
+                <!-- Mini page-aspect preview — shows orientation/ratio
+                     of the template at a glance (portrait vs landscape
+                     vs square). -->
+                <span
+                  class="template-thumb"
+                  [style.aspect-ratio]="item.aspectRatio"
+                  aria-hidden="true"
+                ></span>
                 <span class="list-name">{{ item.name }}</span>
                 @if (item.dimensions) {
                   <span class="list-meta">{{ item.dimensions }}</span>
@@ -148,7 +177,7 @@ import {
         </button>
         @if (open().patterns) {
           <div class="grid">
-            @for (item of patternsItems(); track item.id) {
+            @for (item of patternPreviews(); track item.id) {
               <button
                 type="button"
                 class="cell"
@@ -156,7 +185,19 @@ import {
                 [disabled]="!hasSelection()"
                 (click)="applyFillUrl(item.id, 'pattern')"
               >
-                <span class="cell-icon">▦</span>
+                <!-- Mini SVG embedding the actual pattern markup so
+                     the user sees what it looks like before applying.
+                     [innerHTML] is used so the literal defs + rect get
+                     parsed as SVG nodes (bypassSecurityTrustHtml on
+                     the SafeHtml — source is our own builtin builder
+                     so it is trusted by design). -->
+                <svg
+                  class="pattern-thumb"
+                  viewBox="0 0 40 40"
+                  preserveAspectRatio="xMidYMid slice"
+                  aria-hidden="true"
+                  [innerHTML]="item.svgInner"
+                ></svg>
                 <span class="cell-label">{{ item.name }}</span>
               </button>
             }
@@ -322,6 +363,32 @@ import {
       line-height: 1;
       opacity: 0.7;
     }
+    /* D-048 follow-up: inline SVG previews for shape + pattern cells.
+       Both fit a 32×32 box so the grid stays compact and visually
+       balanced with gradient swatches (32×18). */
+    .shape-thumb {
+      display: block;
+      width: 32px;
+      height: 32px;
+    }
+    .pattern-thumb {
+      display: block;
+      width: 32px;
+      height: 32px;
+      border-radius: 2px;
+      border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.1));
+    }
+    .template-thumb {
+      display: inline-block;
+      flex-shrink: 0;
+      max-height: 28px;
+      max-width: 28px;
+      min-height: 18px;
+      min-width: 18px;
+      background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.06));
+      border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.18));
+      border-radius: 2px;
+    }
     .cell-swatch {
       display: block;
       width: 32px;
@@ -418,7 +485,9 @@ export class SvgeLibrariesPanel {
   private readonly assets = inject(AssetManagerService);
   private readonly selection = inject(SelectionService);
   private readonly state = inject(EditorStateService);
+  private readonly viewport = inject(ViewportService);
   private readonly bus = inject(CommandBus);
+  private readonly sanitizer = inject(DomSanitizer);
 
   /** Reactive section open/closed state. Shapes start open as the
    *  most-frequently-used library; others collapsed by default to
@@ -441,6 +510,58 @@ export class SvgeLibrariesPanel {
 
   protected readonly hasSelection = computed(() => this.selection.selectedIds().size > 0);
 
+  /**
+   * Shape items enriched with their `d` attribute for inline preview.
+   * `build()` is called once per item per render (memoized by the
+   * computed) — the resulting nodes are then disposed; only the
+   * geometry `d` string survives for the SVG thumbnail.
+   */
+  protected readonly shapePreviews = computed<readonly { id: string; name: string; d: string }[]>(
+    () => {
+      return this.shapesItems().map((item) => {
+        const node = item.build() as PathNode;
+        return { id: item.id, name: item.name, d: node.d };
+      });
+    },
+  );
+
+  /**
+   * Template items enriched with an aspect-ratio for a mini page
+   * preview rect. Parses the `dimensions` "W×H" hint string when
+   * present; falls back to 1 (square) when missing.
+   */
+  protected readonly templatePreviews = computed<
+    readonly { id: string; name: string; dimensions: string | undefined; aspectRatio: string }[]
+  >(() => {
+    return this.templatesItems().map((item) => ({
+      id: item.id,
+      name: item.name,
+      dimensions: item.dimensions,
+      aspectRatio: parseAspectRatio(item.dimensions),
+    }));
+  });
+
+  /**
+   * Pattern items enriched with the inner SVG markup of the pattern
+   * (defs + a 40×40 rect filled with `url(#patternId)`) so the
+   * thumbnail shows the actual tiling. Bound via `[innerHTML]`.
+   */
+  protected readonly patternPreviews = computed<
+    readonly { id: string; name: string; svgInner: SafeHtml }[]
+  >(() => {
+    return this.patternsItems().map((item) => {
+      const inner = `<defs>${item.buildMarkup()}</defs><rect width="40" height="40" fill="url(#${item.id})" />`;
+      // bypassSecurityTrustHtml is required so Angular's DomSanitizer
+      // doesn't strip <defs>/<pattern> from the [innerHTML] binding.
+      // Source is our own builtin pattern markup — trusted by design.
+      return {
+        id: item.id,
+        name: item.name,
+        svgInner: this.sanitizer.bypassSecurityTrustHtml(inner),
+      };
+    });
+  });
+
   protected toggle(key: keyof ReturnType<typeof this.open>): void {
     this.open.update((s) => ({ ...s, [key]: !s[key] }));
   }
@@ -453,11 +574,38 @@ export class SvgeLibrariesPanel {
     this.bus.dispatch(new InsertNodeCommand(this.state.document().root.id, node));
   }
 
-  /** Replace the whole document with a template. */
+  /**
+   * Replace the whole document with a template + reset the viewport
+   * so the new page fits the canvas. Also clears the selection (stale
+   * ids from the old document would otherwise dangle).
+   *
+   * Confirms before replacing when the current document has content —
+   * applying a template wipes everything in the canvas, which a user
+   * mid-design would not appreciate.
+   */
   protected applyTemplate(id: string): void {
     const item = this.templates.get(id);
     if (item === null) return;
+    // Confirm only when the current document already has shapes
+    // (empty doc → no-op confirmation makes the UX feel paranoid).
+    const root = this.state.document().root;
+    if (root.type === 'group' && root.children.length > 0) {
+      const ok =
+        typeof window !== 'undefined'
+          ? window.confirm(
+              `Replace current document with template "${item.name}"? This will discard all unsaved shapes.`,
+            )
+          : true;
+      if (!ok) return;
+    }
     this.state.resetDocument(item.build());
+    // Reset viewport so the new page (which may have a very different
+    // viewBox) fits the canvas — without this, the user keeps the old
+    // zoom and may not even see the new page.
+    this.viewport.reset();
+    // Clear stale selection — ids from the old document no longer
+    // exist in the new tree.
+    this.selection.clear();
   }
 
   /**
@@ -537,4 +685,16 @@ export class SvgeLibrariesPanel {
       ? `linear-gradient(to right, ${stopsCss})`
       : `radial-gradient(circle, ${stopsCss})`;
   }
+}
+
+/**
+ * Parse a "W×H" or "WxH" dimensions string into a CSS `aspect-ratio`
+ * value (`"<w> / <h>"`). Returns `'1'` (square) when parsing fails so
+ * the thumbnail always has a fallback shape.
+ */
+function parseAspectRatio(dims: string | undefined): string {
+  if (dims === undefined) return '1';
+  const m = /(\d+)\s*[×x]\s*(\d+)/.exec(dims);
+  if (m === null) return '1';
+  return `${m[1]} / ${m[2]}`;
 }

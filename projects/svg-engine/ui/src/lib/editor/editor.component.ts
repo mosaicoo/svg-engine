@@ -12,15 +12,15 @@ import {
 } from 'svg-engine/core';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
 import {
+  ActiveGradientsService,
+  ActivePatternsService,
   ChainFilterRegistry,
   EffectRegistry,
-  GradientLibraryService,
   GridOverlay,
   GuidesOverlay,
   IsolationService,
   OutlineFilter,
   PageOverlay,
-  PatternLibraryService,
   resolveSelectableNodeId,
   SvgeCanvasGestures,
   SvgeShellInteractions,
@@ -380,10 +380,13 @@ export class SvgeEditor {
   // registered effects + composed chain filters in use.
   private readonly effects = inject(EffectRegistry);
   private readonly chains = inject(ChainFilterRegistry);
-  // D-048: feed the renderer's <defs> with gradient + pattern markup
-  // for every gradient/pattern URL referenced by the current document.
-  private readonly gradients = inject(GradientLibraryService);
-  private readonly patterns = inject(PatternLibraryService);
+  // D-048 (fix UX#2 — split): feed the renderer's <defs> with gradient
+  // + pattern markup derived from the CURRENT route's document. Active
+  // services are route-scoped and read the route's EditorStateService;
+  // catalog lookup goes to the root-scoped GradientLibraryService /
+  // PatternLibraryService (injected by the Active service internally).
+  private readonly gradients = inject(ActiveGradientsService);
+  private readonly patterns = inject(ActivePatternsService);
 
   /**
    * **D-040** — Resolver for the dynamic context-menu slot. Bound to

@@ -6,6 +6,73 @@
 
 ---
 
+## 2026-05-23 — Fix D-048 (UX#3): 5 bugs do panel — previews + template + gradient/pattern + color picker
+
+**5 bugs reportados pelo usuário** (todos legítimos):
+
+1. Botões de shapes mostram retângulo genérico, deveriam mostrar a geometria que vão criar
+2. Template clicado não faz nada visível
+3. Gradient aplicado deixa o objeto transparente
+4. Pattern não aplica
+5. Color picker popup ainda com scrollbar (fix anterior incompleto)
+
+### Bug 1 (shape previews): ícone genérico → SVG inline real
+
+`shapePreviews()` computed novo enriquece cada shape com o `d` extraído de
+`item.build() as PathNode`. Template renderiza `<svg viewBox="0 0 100 100">
+<path [attr.d]="item.d" .../></svg>` — exatamente a geometria que será
+inserida, com a mesma cor (preview honesto). Mesma técnica para
+templates (`templatePreviews()` com aspect-ratio CSS) e patterns
+(`patternPreviews()` com `[innerHTML]` da pattern markup via
+`bypassSecurityTrustHtml` — source confiável).
+
+### Bug 2 (template apply): viewport não atualizava
+
+`applyTemplate()` chamava só `state.resetDocument()`. Agora também:
+
+- `viewport.reset()` para ajustar zoom/pan ao novo viewBox
+- `selection.clear()` para descartar ids stale do doc antigo
+- `window.confirm()` antes do replace quando o doc atual tem shapes
+  (UX best practice para ação destrutiva)
+
+### Bugs 3+4 (gradient/pattern transparente): split Catalog + Active
+
+**Root cause identificada** (D-051 antecipado): `GradientLibraryService` /
+`PatternLibraryService` eram root-only e injetavam `EditorStateService`
+do root. Mas a route tem seu próprio `EditorStateService` scoped via
+D-042. Walking root document encontra empty → `activeGradientIds`
+retorna `[]` → defs sem gradient → `fill="url(#xyz)"` aponta para id
+inexistente → renderiza transparente.
+
+**Split**:
+
+- `GradientLibraryService` / `PatternLibraryService` (catalog, root)
+  — só `register()` / `items()` / `get()`. Plugins registram aqui.
+- `ActiveGradientsService` / `ActivePatternsService` (NOVOS, scoped)
+  — walka `EditorStateService` scoped, deriva URLs em uso, busca
+  markup no catalog root. Adicionados a `provideSvgEngineEditorScope`.
+- `<svge-editor>` + `<svge-shell-pro>` agora injetam os serviços
+  Active (não Library) para o `resolvedDefs` injection.
+
+### Bug 5 (color picker scrollbar): CSS mais agressivo
+
+Fix anterior tinha selector simples que perdia especificidade vs
+defaults Material. CSS revisado:
+
+- `.cdk-overlay-pane:has(> .svge-picker-menu-panel)`,
+- `.mat-mdc-menu-panel.svge-picker-menu-panel` (compound class)
+- `.svge-picker-menu-panel .mat-mdc-menu-content` com `width: max-content`
+
+Todos com `!important` + `max-width/height: none` + `overflow: visible`.
+
+### Verificação
+
+- 1327/1328 specs ✅ (zero break)
+- Build prod 12.3s ✅
+- Lint svg-engine + playground ✅
+
+---
+
 ## 2026-05-23 — Fix D-048: library catalogs invisíveis + color picker scrollbar
 
 **Reporte do usuário** (após mountar os panels): "Não localizei nenhum

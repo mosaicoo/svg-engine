@@ -1,4 +1,8 @@
-export { PatternLibraryService, type PatternLibraryItem } from './pattern-library.service';
+export {
+  PatternLibraryService,
+  ActivePatternsService,
+  type PatternLibraryItem,
+} from './pattern-library.service';
 export {
   BUILTIN_PATTERNS,
   checkerboardPattern,
