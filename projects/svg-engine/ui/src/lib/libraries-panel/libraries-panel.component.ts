@@ -1,9 +1,17 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import { MatIcon } from '@angular/material/icon';
 import {
   CommandBus,
   EditorStateService,
+  findNodeById,
   InsertNodeCommand,
   type NodeId,
   type PathNode,
@@ -17,6 +25,7 @@ import {
   BrushSelectionService,
   expandStrokeWithProfile,
   GradientLibraryService,
+  GRADIENT_TOOL_ID,
   InsertSymbolInstanceCommand,
   SymbolLibraryService,
   SymbolSelectionService,
@@ -80,7 +89,13 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
   standalone: true,
   imports: [MatIcon, SvgePanelGroup, SvgePanelGroupTab],
   template: `
-    <svge-panel-group title="Libraries" [compact]="true" orientation="vertical">
+    <svge-panel-group
+      title="Libraries"
+      [compact]="true"
+      orientation="vertical"
+      [activeTab]="activeTab()"
+      (activeTabChange)="onTabChange($event)"
+    >
       <!-- SHAPES -->
       @if (shapesItems().length > 0) {
         <ng-template
@@ -160,7 +175,12 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
               <button
                 type="button"
                 class="cell"
-                [title]="'Apply ' + item.name + ' as fill'"
+                [class.gradient-active]="appliedGradientId() === item.id"
+                [title]="
+                  appliedGradientId() === item.id
+                    ? item.name + ' — currently applied to selection'
+                    : 'Apply ' + item.name + ' as fill'
+                "
                 [disabled]="!hasSelection()"
                 (click)="applyFillUrl(item.id, 'gradient')"
               >
@@ -463,6 +483,16 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
     .cell.symbol-active .symbol-thumb {
       color: var(--mat-sys-on-primary-container, #1a3370);
     }
+    /* D-062-fix — visually flag the gradient cell that's currently
+       applied to the selection. Helps the user immediately see "this
+       is what's painted on my shape" when the auto-routing snaps the
+       panel to the Gradients tab. Same look as brush-active /
+       symbol-active for consistency. */
+    .cell.gradient-active {
+      background: var(--mat-sys-primary-container, #d6e4ff);
+      outline: 2px solid var(--mat-sys-primary, #1976d2);
+      outline-offset: -1px;
+    }
     .brush-thumb {
       /* Responsive: take full cell width up to 64px so the silhouette
          stays sharp on the standard rail but doesn't overflow when
@@ -612,6 +642,103 @@ export class SvgeLibrariesPanel {
   protected readonly assetEntries = this.assets.catalog;
 
   protected readonly hasSelection = computed(() => this.selection.selectedIds().size > 0);
+
+  // ─── D-062-fix: auto-routing + applied-gradient detection ───────────
+
+  /**
+   * Controlled active tab for the inner `<svge-panel-group>`. The
+   * panel switches tabs in two cases:
+   *
+   * 1. **Tool activation** (`onActivate`-like effect below): when
+   *    the user activates Symbol Sprayer or Gradient tool, the
+   *    library panel snaps to the matching tab — this is the
+   *    discoverability flow ("I just picked the tool, now I see
+   *    what to pick").
+   * 2. **Selection change with applied library gradient**: when the
+   *    user clicks a shape that has `fill="url(#libGradientId)"`,
+   *    we snap to Gradients tab so the cell that's painting the
+   *    shape gets visible (it's highlighted with `.gradient-active`
+   *    for instant recognition).
+   *
+   * Manual clicks on tab headers (via `onTabChange`) override these
+   * auto-routes — once the user has picked a tab manually, the
+   * panel respects their choice until the next auto-route trigger.
+   */
+  private readonly _activeTab = signal<string | null>(null);
+  protected readonly activeTab = this._activeTab.asReadonly();
+
+  /**
+   * Id of the gradient (from `GradientLibraryService`) currently
+   * painting at least one selected node — `null` if no selection or
+   * if the selection's fill isn't a `url(#…)` reference to a known
+   * gradient. Used to highlight the matching cell in the Gradients
+   * tab and to drive the auto-route effect.
+   */
+  protected readonly appliedGradientId = computed<string | null>(() => {
+    const ids = Array.from(this.selection.selectedIds()) as NodeId[];
+    if (ids.length === 0) return null;
+    const root = this.state.document().root;
+    // Single-pass: first selected node whose fill matches a library
+    // gradient id wins. (Multi-selection with mixed gradients picks
+    // the first; the user can disambiguate by selecting one shape.)
+    const gradientIds = new Set(this.gradientsItems().map((g) => g.id));
+    for (const id of ids) {
+      const node = findNodeById(root, id);
+      if (node === null) continue;
+      const fill = node.style?.fill;
+      if (typeof fill !== 'string') continue;
+      const match = /^url\(#([^)]+)\)$/.exec(fill);
+      if (match === null) continue;
+      const gid = match[1]!;
+      if (gradientIds.has(gid)) return gid;
+    }
+    return null;
+  });
+
+  constructor() {
+    // Auto-route on tool activation: Symbol Sprayer → Symbols tab
+    // (+ auto-select first symbol if nothing picked yet); Gradient
+    // tool → Gradients tab. Runs untracked of manual tab changes —
+    // user clicks override the snap until the next activation.
+    effect(() => {
+      const tool = this.toolHost.activeId();
+      if (tool === SYMBOL_SPRAYER_TOOL_ID) {
+        this._activeTab.set('symbols');
+        // Pre-select the first available symbol so the user can
+        // immediately drag-spray. Only when nothing's already
+        // selected — preserves a deliberate prior pick.
+        if (this.symbolSelection.selectedSymbolId() === null) {
+          const first = this.symbolsItems()[0];
+          if (first !== undefined) {
+            this.symbolSelection.select(first.id);
+          }
+        }
+      } else if (tool === GRADIENT_TOOL_ID) {
+        this._activeTab.set('gradients');
+      }
+    });
+
+    // Auto-route on selection change to a library-gradient-filled
+    // node. Independent of tool activation — gives the user "here's
+    // what's painting your shape" feedback whenever they select
+    // something with a known gradient, regardless of active tool.
+    effect(() => {
+      const gid = this.appliedGradientId();
+      if (gid !== null) {
+        this._activeTab.set('gradients');
+      }
+    });
+  }
+
+  /**
+   * Manual tab click — the user pressed a tab in the strip. We
+   * surface this back to the controlled signal so subsequent
+   * auto-routes start from the user's pick rather than the panel's
+   * default.
+   */
+  protected onTabChange(id: string): void {
+    this._activeTab.set(id);
+  }
 
   /**
    * Shape items enriched with their `d` attribute for inline preview.

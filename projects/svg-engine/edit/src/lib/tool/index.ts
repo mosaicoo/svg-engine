@@ -34,7 +34,10 @@ export { InlineTextEditorService } from './text-tool.service';
 export { InlineTextEditor } from './inline-text-editor.component';
 export { SvgeShellInteractions } from './shell-interactions.directive';
 // D-050 (Item 5 — Tools faltantes): Eyedropper / Knife / Smooth /
-// Gradient + D-062 real implementations for Width / Mesh / Symbol Sprayer.
+// Gradient + D-062 real implementations for Width / Symbol Sprayer.
+//
+// MESH_TOOL_ID stays exported as a no-op constant for back-compat
+// (see D-062c removal note in extra-tools.ts).
 export {
   EYEDROPPER_TOOL_ID,
   KNIFE_TOOL_ID,
@@ -47,9 +50,6 @@ export {
   // D-062b
   WidthToolService,
   type WidthProfilePreset,
-  // D-062c
-  MeshToolService,
-  type MeshStop,
   // D-062a
   SymbolSprayerService,
   extraToolsPlugin,

@@ -510,159 +510,25 @@ class WidthTool implements Tool {
   }
 }
 
-// ── 6. Mesh tool (D-062c) ────────────────────────────────────────────
-
-/**
- * **D-062c** — Mesh tool **(honest approximation)**.
- *
- * **Limitation up front**: SVG 1.1 has no mesh gradient primitive,
- * and SVG 2's `<meshgradient>` has zero browser implementation. A
- * real mesh would require canvas rasterization + an image fill —
- * deferred indefinitely (no demand, high cost). What we ship instead
- * is a **multi-stop radial gradient approximation**:
- *
- * 1. User selects a node (any shape with a fill).
- * 2. User activates the Mesh tool.
- * 3. User clicks 2-4 points anywhere; each click adds a color stop
- *    at that position using the **current fill** of the selected
- *    node sampled at that coordinate. (For v1 we use the active
- *    `MeshToolService.activeColor` palette pick — Eyedropper-style
- *    sampling within the bbox is a polish for a follow-up.)
- * 4. After ≥ 2 stops, an "Apply" gesture (right-click or double-
- *    click) commits a `<radialGradient>` definition whose `fx`/`fy`
- *    + multiple stops emulate a single-direction mesh interpolation.
- *
- * The output is **not** a true mesh — it's a radial gradient with
- * the picked stops. Users wanting true mesh shading should
- * rasterize externally and import as `<image>`. The tool surfaces
- * this clearly with a one-time console hint on activation.
- *
- * **What's real vs. fake**:
- * - **Real**: pointer-down adds to the stop array; dbl-click
- *   commits via a real `SetStylePropertyOnManyCommand` setting
- *   `fill = url(#meshXxx)` after registering the radial gradient.
- * - **Fake**: it's a 1D radial gradient masquerading as a 2D mesh.
- *
- * Future work: integrate with `GradientLibraryService` to register
- * the synthesized gradient as a reusable preset.
- */
-export interface MeshStop {
-  readonly x: number;
-  readonly y: number;
-  readonly color: string;
-}
-
-@Injectable({ providedIn: 'root' })
-export class MeshToolService {
-  /** Accumulated stops for the in-progress mesh. */
-  private readonly _stops = signal<readonly MeshStop[]>([]);
-  /** Active color used for each new stop click. Defaults to magenta
-   *  so the user sees something land on the first click without
-   *  having to wire a color picker. */
-  private readonly _activeColor = signal<string>('#e91e63');
-
-  readonly stops = this._stops.asReadonly();
-  readonly activeColor = this._activeColor.asReadonly();
-
-  addStop(stop: MeshStop): void {
-    this._stops.update((s) => [...s, stop]);
-  }
-  clearStops(): void {
-    this._stops.set([]);
-  }
-  setActiveColor(color: string): void {
-    this._activeColor.set(color);
-  }
-}
-
-class MeshTool implements Tool {
-  readonly id = MESH_TOOL_ID;
-  readonly label = 'Mesh';
-  readonly icon = 'grid_on';
-  readonly cursor = 'crosshair';
-  readonly shortcut = 'u';
-
-  onActivate(ctx: ToolContext): void {
-    ctx.injector.get(MeshToolService).clearStops();
-    console.info(
-      '[Mesh] honest approximation — radial gradient with multi-stops; SVG has no native mesh.',
-    );
-  }
-
-  onPointerDown(event: ToolPointerEvent, ctx: ToolContext): void {
-    const mesh = ctx.injector.get(MeshToolService);
-    // Double-click commits the current stops as a radial gradient on
-    // the active selection.
-    if (event.raw.detail >= 2) {
-      this.commit(ctx);
-      return;
-    }
-    mesh.addStop({
-      x: event.docPoint.x,
-      y: event.docPoint.y,
-      color: mesh.activeColor(),
-    });
-    console.info(
-      `[Mesh] stop #${mesh.stops().length} at (${event.docPoint.x.toFixed(1)}, ${event.docPoint.y.toFixed(1)}) — dbl-click to commit.`,
-    );
-  }
-
-  private commit(ctx: ToolContext): void {
-    const mesh = ctx.injector.get(MeshToolService);
-    const stops = mesh.stops();
-    if (stops.length < 2) {
-      console.info('[Mesh] need at least 2 stops to commit');
-      return;
-    }
-    const sel = ctx.injector.get(SelectionService);
-    const ids = Array.from(sel.selectedIds());
-    if (ids.length === 0) {
-      console.info('[Mesh] commit failed — select a target shape first');
-      return;
-    }
-    // Emit a stable id derived from the stop coordinates so repeated
-    // commits with the same stops dedupe in defs.
-    const seed = stops.map((s) => `${s.x.toFixed(1)},${s.y.toFixed(1)},${s.color}`).join('|');
-    const gradientId = `svge-mesh-${hashString(seed)}`;
-
-    // Approximate the mesh as a radial gradient centered at the
-    // centroid of the stops, with each stop's color distributed
-    // along the offset axis by distance from the centroid.
-    const cx = stops.reduce((acc, s) => acc + s.x, 0) / stops.length;
-    const cy = stops.reduce((acc, s) => acc + s.y, 0) / stops.length;
-    const distances = stops.map((s) => Math.hypot(s.x - cx, s.y - cy));
-    const maxD = Math.max(...distances, 1);
-    const stopsXml = stops
-      .map((s, i) => {
-        const offset = distances[i]! / maxD;
-        return `<stop offset="${offset.toFixed(3)}" stop-color="${escapeXmlAttr(s.color)}" />`;
-      })
-      .join('');
-    const radius = Math.max(maxD, 1);
-    const gradientXml = `<radialGradient id="${gradientId}" gradientUnits="userSpaceOnUse" cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${radius.toFixed(2)}">${stopsXml}</radialGradient>`;
-
-    // Append the gradient definition to the document defs so the
-    // browser resolves url(#id) at paint time. Document defs is a
-    // round-trip-safe field (D-058 exporter coverage).
-    const state = ctx.injector.get(EditorStateService);
-    const doc = state.document();
-    const existingDefs = doc.defs ?? '';
-    if (!existingDefs.includes(gradientId)) {
-      state.setDocument({ ...doc, defs: existingDefs + gradientXml });
-    }
-
-    const bus = ctx.injector.get(CommandBus);
-    bus.dispatch(
-      new SetStylePropertyOnManyCommand(
-        ids,
-        'fill',
-        `url(#${gradientId})`,
-        `Apply mesh-approx gradient to ${ids.length} node(s)`,
-      ),
-    );
-    mesh.clearStops();
-  }
-}
+// ── 6. Mesh tool — REMOVED (D-062c rationale closed) ────────────────
+//
+// The Mesh tool was prototyped in D-062c as an "honest approximation"
+// using multi-stop radial gradients (SVG 1.1 has no <meshgradient>
+// primitive; SVG 2's spec exists but no browser implements it). User
+// testing showed the radial fallback produced no visible value over
+// just applying a built-in radial gradient from the Libraries panel.
+//
+// **Decision**: tool removed. The MESH_TOOL_ID constant is kept as a
+// no-op export so external consumers that imported it don't break at
+// build time, but it no longer registers a Tool in the registry. A
+// real mesh implementation would require canvas rasterization + image
+// fill (heavy, browser-specific, breaks SVG round-trip) — deferred
+// indefinitely until there's concrete demand and a maintainable
+// vector primitive.
+//
+// **Users wanting mesh-like shading**: rasterize externally
+// (Illustrator / Inkscape / Photoshop) and import as `<image>`. The
+// AssetManager + ImageNode pipeline carries the result intact.
 
 // ── 7. Symbol Sprayer (D-062a) ───────────────────────────────────────
 
@@ -817,8 +683,8 @@ class SymbolSprayerTool implements Tool {
  */
 export const extraToolsPlugin: EditorPlugin = {
   id: 'com.svge.tools.extra',
-  name: 'Extra Tools (Eyedropper, Knife, Smooth, Gradient, Width, Mesh, Symbol Sprayer)',
-  version: '2.0.0',
+  name: 'Extra Tools (Eyedropper, Knife, Smooth, Gradient, Width, Symbol Sprayer)',
+  version: '2.1.0',
   apiVersion: PLUGIN_API_VERSION,
   install(ctx) {
     const reg = ctx.injector.get(ToolRegistry);
@@ -826,14 +692,16 @@ export const extraToolsPlugin: EditorPlugin = {
     ctx.track(reg.register(new KnifeTool()));
     ctx.track(reg.register(new SmoothTool()));
     ctx.track(reg.register(new GradientTool()));
-    // D-062 — Width, Mesh, Symbol Sprayer are now REAL tools (no
-    // longer stubs). Width and Symbol Sprayer ship with full
-    // implementations; Mesh is an honest radial-gradient
-    // approximation since SVG has no native mesh primitive
-    // (documented limitation — see MeshTool docstring).
+    // D-062b — Width tool: apply variable stroke profile to a path.
     ctx.track(reg.register(new WidthTool()));
-    ctx.track(reg.register(new MeshTool()));
+    // D-062a — Symbol Sprayer: drag to spray instances of the active
+    // symbol from the Libraries panel.
     ctx.track(reg.register(new SymbolSprayerTool()));
+    // D-062c REMOVED — Mesh tool. SVG has no usable mesh primitive
+    // (1.1 lacks it, 2.0's <meshgradient> has zero browser support).
+    // The radial-gradient approximation added no visible value over
+    // just applying a built-in radial from the Libraries panel.
+    // MESH_TOOL_ID stays exported as a no-op constant for back-compat.
   },
 };
 
@@ -911,29 +779,7 @@ function simplifyRecursive(
   }
 }
 
-// ── String / XML helpers (D-062c Mesh tool) ──────────────────────────
-
-/**
- * Fast 32-bit FNV-1a hash → short hex string. Used to derive a
- * deterministic id for synthesized mesh gradients so repeated commits
- * with the same stops dedupe in `<defs>`. Not cryptographic.
- */
-function hashString(s: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
-  }
-  return h.toString(16).padStart(8, '0');
-}
-
-/**
- * Minimal XML attribute-value escape — sufficient for the synthesized
- * gradient stop colors emitted by the Mesh tool. We don't need full
- * XML escaping here because the inputs are color tokens from the
- * MeshToolService (hex / rgb / named colors); the escape is a
- * defensive measure for user-supplied colors that could contain `"`.
- */
-function escapeXmlAttr(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-}
+// (D-062c Mesh tool removal also retired the hashString / escapeXmlAttr
+// helpers — both were only used by the synthesized radial-gradient
+// emitter. Re-add when a future feature needs deterministic gradient
+// ids or attribute escaping.)

@@ -6,6 +6,80 @@
 
 ---
 
+## 2026-05-24 — D-062 fixes UX: Mesh removido + auto-routing Gradient & Symbol Sprayer
+
+### Demanda
+
+Após testar D-062, usuário reportou 3 problemas:
+
+1. **Gradient tool** — não abre o painel Libraries nem destaca o
+   gradient aplicado. Deveria ser automático quando o gradient da
+   seleção é da biblioteca.
+2. **Mesh tool** — sem efeito real visível. Se não melhorável,
+   remover.
+3. **Symbol Sprayer** — funciona mas não abre Libraries → Symbols
+   automaticamente. Deveria ser automático + auto-selecionar
+   primeiro item.
+
+### Decisões
+
+**Mesh removido** — confirmação da limitação fundamental:
+SVG 1.1 sem `<meshgradient>`, SVG 2.0 sem suporte browser. A
+aproximação radial-multi-stop não trazia valor sobre simplesmente
+aplicar um radial built-in da biblioteca. Tool desregistrado do
+`extraToolsPlugin`; `MESH_TOOL_ID` permanece exportado como no-op
+constante pra back-compat. `MeshToolService` + `MeshStop` removidos
+do public API.
+
+**Auto-routing implementado** — `libraries-panel` controla
+`<svge-panel-group>` via `[activeTab]` e snap automaticamente em
+3 gatilhos:
+
+- **Tool Gradient ativado** → snap pra tab `gradients`
+- **Tool Symbol Sprayer ativado** → snap pra tab `symbols` +
+  auto-seleciona primeiro símbolo se nenhum estava selecionado
+- **Seleção contém shape com `fill="url(#libGradientId)"`** →
+  snap pra tab `gradients` (independente do tool ativo)
+
+User pode override clicando manualmente em outra tab — o
+`onTabChange` atualiza o signal local, e o próximo trigger
+de auto-routing parte daí.
+
+### Detalhes técnicos
+
+**`appliedGradientId` computed** — varre os ids selecionados,
+extrai `url(#id)` do fill via regex, retorna o primeiro que existe
+na `GradientLibraryService.items`. Multi-select com gradients
+diferentes: primeiro vence.
+
+**Visual highlight** — cell ativa do gradient ganha
+`.gradient-active` (mesma classe-pattern de `.brush-active` e
+`.symbol-active`: background container + outline primary).
+
+**Effects (signal-based)** — 2 `effect()`s no constructor do
+component: um pra `toolHost.activeId()`, outro pra
+`appliedGradientId()`. Independentes — ativar Gradient tool e
+selecionar gradient shape em qualquer ordem produz o mesmo
+resultado.
+
+### Validação
+
+- 1413 testes ✓ (sem regressão)
+- Lint clean (removidos `hashString`/`escapeXmlAttr` órfãos que
+  só serviam ao Mesh tool)
+- Playground build clean
+
+### Premissas honradas
+
+- D-017: panel-group ainda só usa `MatIcon` (Material light)
+- D-042: scoped services intactos
+- Zero regressão: tabs manualmente trocadas continuam funcionando;
+  só o snap automático é novo
+- Honestidade sobre limitações: Mesh REMOVIDO em vez de manter
+  feature que não entrega valor (anti-stub)
+
+---
+
 ## 2026-05-24 — D-062: 4 tools reais (Symbol Sprayer + Width + Mesh + Auto-trace)
 
 ### Demanda
