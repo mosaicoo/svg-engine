@@ -10,6 +10,7 @@ import { SvgePathDirective } from './path-renderer.directive';
 import { SvgePolygonDirective } from './polygon-renderer.directive';
 import { SvgePolylineDirective } from './polyline-renderer.directive';
 import { SvgeRectDirective } from './rect-renderer.directive';
+import { SvgeSymbolUseDirective } from './symbol-use-renderer.directive';
 import { SvgeTextDirective } from './text-renderer.directive';
 
 /**
@@ -57,6 +58,7 @@ import { SvgeTextDirective } from './text-renderer.directive';
     SvgePathDirective,
     SvgeTextDirective,
     SvgeImageDirective,
+    SvgeSymbolUseDirective,
     NgComponentOutlet,
   ],
   template: `
@@ -116,6 +118,15 @@ import { SvgeTextDirective } from './text-renderer.directive';
       }
       @case ('image') {
         <svg:image [svgeImage]="$any(node())" />
+      }
+      @case ('symbol-use') {
+        <!--
+          D-059 — Symbol instance via SVG use href. The symbol
+          definition is contributed to defs by ActiveSymbolsService
+          (svg-engine/edit) when this id appears in the document tree.
+          Browser handles the expansion + transform/style inheritance.
+        -->
+        <svg:use [svgeSymbolUse]="$any(node())" />
       }
       @case ('group') {
         @for (child of groupChildren(); track child.id) {

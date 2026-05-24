@@ -6,4 +6,5 @@ export { SvgePathDirective } from './path-renderer.directive';
 export { SvgePolygonDirective } from './polygon-renderer.directive';
 export { SvgePolylineDirective } from './polyline-renderer.directive';
 export { SvgeRectDirective } from './rect-renderer.directive';
+export { SvgeSymbolUseDirective } from './symbol-use-renderer.directive';
 export { SvgeTextDirective } from './text-renderer.directive';

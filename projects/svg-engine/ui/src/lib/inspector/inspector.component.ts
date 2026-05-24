@@ -1206,6 +1206,9 @@ export class SvgeInspector {
         return 'text_fields';
       case 'image':
         return 'image';
+      case 'symbol-use':
+        // D-059 — symbol instance (mirror layers panel icon choice).
+        return 'star_outline';
     }
   }
 

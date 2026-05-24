@@ -13,6 +13,7 @@ import type { PolygonNode } from './polygon-node';
 import type { PolylineNode } from './polyline-node';
 import type { RectNode } from './rect-node';
 import type { SvgNode } from './svg-node';
+import type { SymbolUseNode } from './symbol-use-node';
 import type { TextNode } from './text-node';
 
 /**
@@ -196,5 +197,35 @@ export function createGroup(
     style: opts.style ?? DEFAULT_STYLE,
     metadata: opts.metadata ?? EMPTY_METADATA,
     children,
+  };
+}
+
+interface SymbolUseInit {
+  /** Id of the symbol master in `SymbolLibraryService`. */
+  readonly symbolId: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width?: number;
+  readonly height?: number;
+}
+
+/**
+ * **D-059** — Construct a `SymbolUseNode` (instance of a registered
+ * symbol). The renderer emits `<use href="#{symbolId}">`; the
+ * `<symbol id="...">` definition is contributed to `<defs>` by
+ * `ActiveSymbolsService` (similar to gradient/pattern active-defs).
+ */
+export function createSymbolUse(init: SymbolUseInit, opts: NodeFactoryOptions = {}): SymbolUseNode {
+  return {
+    type: 'symbol-use',
+    id: opts.id ?? generateNodeId(),
+    transform: opts.transform ?? IDENTITY_TRANSFORM,
+    style: opts.style ?? DEFAULT_STYLE,
+    metadata: opts.metadata ?? EMPTY_METADATA,
+    symbolId: init.symbolId,
+    x: init.x,
+    y: init.y,
+    width: init.width,
+    height: init.height,
   };
 }

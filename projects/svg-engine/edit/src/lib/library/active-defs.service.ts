@@ -6,6 +6,7 @@ import { ActiveClipPathsService } from './clip-paths/clip-path-library.service';
 import { ActiveGradientsService } from './gradients/gradient-library.service';
 import { ActiveMasksService } from './masks/mask-library.service';
 import { ActivePatternsService } from './patterns/pattern-library.service';
+import { ActiveSymbolsService } from './symbols/symbol-library.service';
 
 /**
  * **D-058 export fix** — central composition of the `<defs>` fragment
@@ -66,6 +67,10 @@ export class ActiveDefsService {
   private readonly patterns = inject(ActivePatternsService);
   private readonly clipPaths = inject(ActiveClipPathsService);
   private readonly masks = inject(ActiveMasksService);
+  // D-059 — symbols added to the active-defs composition. Same
+  // pattern: per-editor service derives <symbol> markup from
+  // SymbolUseNode references in the document.
+  private readonly symbols = inject(ActiveSymbolsService);
 
   /**
    * Reactive composed defs for the runtime renderer. Recomputes when
@@ -93,6 +98,7 @@ export class ActiveDefsService {
       this.patterns.buildAllActivePatternsMarkup(),
       this.clipPaths.buildAllActiveClipPathsMarkup(),
       this.masks.buildAllActiveMasksMarkup(),
+      this.symbols.buildAllActiveSymbolsMarkup(),
     ].filter((s) => s.length > 0);
     return parts.length > 0 ? parts.join('\n') : null;
   });

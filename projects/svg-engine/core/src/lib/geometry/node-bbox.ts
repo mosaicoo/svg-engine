@@ -106,6 +106,20 @@ export function getNodeBBox(
       return bboxOfImage(node, t);
     case 'group':
       return bboxOfGroup(node, t);
+    case 'symbol-use':
+      // D-059 — symbol instance. We don't have the master's geometry
+      // here (the catalog lives in /edit), so use the explicit
+      // width/height when set, else fall back to a default 100×100
+      // (matches the SVG `<symbol viewBox>` default). The DOM-based
+      // `getRenderedNodeBBox` in /edit gives the precise bbox at
+      // render time for interactive editing; this is the
+      // geometry-only fallback for headless / pre-render use cases.
+      return aabbOfPoints(t, [
+        [node.x, node.y],
+        [node.x + (node.width ?? 100), node.y],
+        [node.x + (node.width ?? 100), node.y + (node.height ?? 100)],
+        [node.x, node.y + (node.height ?? 100)],
+      ]);
   }
 }
 

@@ -5,6 +5,11 @@ import {
   InsertNodeCommand,
   type Point,
 } from 'svg-engine/core';
+import {
+  BrushLibraryService,
+  BrushSelectionService,
+} from '../library/brushes/brush-library.service';
+import { expandStrokeWithProfile } from '../library/brushes/expand-stroke';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../plugin/plugin';
 import { SelectionService } from '../selection/selection.service';
 import { PencilToolService } from './pencil-tool.service';
@@ -136,6 +141,38 @@ class PencilTool implements Tool {
     if (!pencil.drawing()) return;
     const captured = pencil.finish();
     if (captured.length < 2) return;
+
+    // **D-060** — Brush integration. When a brush is selected via
+    // BrushSelectionService, expand the captured polyline through
+    // the brush's widthProfile to a filled-outline path (variable
+    // width along the stroke). When no brush is active (or the
+    // selected id doesn't resolve in the catalog — defensive against
+    // a brush being unregistered mid-session), fall back to the
+    // standard centerline + stroke output (backward-compat, zero
+    // regression for apps that don't install builtinBrushesPlugin).
+    const brushSel = ctx.injector.get(BrushSelectionService);
+    const brushId = brushSel.selectedBrushId();
+    if (brushId !== null) {
+      const brush = ctx.injector.get(BrushLibraryService).get(brushId);
+      if (brush !== null) {
+        const baseWidth = brush.baseWidth ?? 8;
+        const expanded = expandStrokeWithProfile(captured, baseWidth, brush.widthProfile);
+        if (expanded.length > 0) {
+          const node = createPath(expanded, {
+            // Brush stroke = filled polygon outline. No stroke
+            // (the outline IS the stroke). Black fill matches the
+            // default centerline color.
+            style: { fill: '#000000', stroke: 'none' },
+          });
+          const root = ctx.injector.get(EditorStateService).document().root;
+          ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(root.id, node));
+          return;
+        }
+        // Empty `expanded` (degenerate stroke) falls through to the
+        // centerline emit below — better than dropping the user's
+        // gesture entirely.
+      }
+    }
 
     const d = pointsToPathD(captured);
     const node = createPath(d, {

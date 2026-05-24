@@ -12,8 +12,8 @@
  * | Shape Library        | `ShapeLibraryService` + `builtinShapesPlugin` | ✅ 12 builtins |
  * | Template Library     | `TemplateLibraryService` + `builtinTemplatesPlugin` | ✅ 4 builtins |
  * | Asset Manager        | `AssetManagerService` (file picker → data URI) | ✅ |
- * | Symbol Library       | `SymbolLibraryService` (stub — registry only) | ⏳ D-049 |
- * | Brush Library        | `BrushLibraryService` (stub — registry only) | ⏳ D-050 |
+ * | Symbol Library       | `SymbolLibraryService` + `builtinSymbolsPlugin` | ✅ 4 builtins (D-059 — master/instance via SymbolUseNode) |
+ * | Brush Library        | `BrushLibraryService` + `builtinBrushesPlugin` | ✅ 3 builtins (D-060 — Pencil expansion via widthProfile) |
  * | Pattern Library      | `PatternLibraryService` + `builtinPatternsPlugin` | ✅ 5 builtins |
  * | Style Library        | `GraphicStyleLibraryService` + `builtinGraphicStylesPlugin` | ✅ 6 builtins |
  * | Palette Library      | existing `PaletteRegistry` + `extraPalettesPlugin` | ✅ 4 extras |

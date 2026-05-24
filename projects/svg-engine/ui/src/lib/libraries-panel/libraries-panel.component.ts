@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import { MatIcon } from '@angular/material/icon';
-import { MatIconButton } from '@angular/material/button';
 import {
   CommandBus,
   EditorStateService,
@@ -14,7 +13,12 @@ import {
 import { ViewportService } from 'svg-engine/render';
 import {
   AssetManagerService,
+  BrushLibraryService,
+  BrushSelectionService,
+  expandStrokeWithProfile,
   GradientLibraryService,
+  InsertSymbolInstanceCommand,
+  SymbolLibraryService,
   GraphicStyleLibraryService,
   PatternLibraryService,
   SelectionService,
@@ -36,7 +40,7 @@ import {
  *   in a future iteration (consumers can compose à la carte). For v1
  *   the consolidated panel covers the dominant use case.
  *
- * **Headless boundary**: imports only `MatIcon` + `MatIconButton` —
+ * **Headless boundary**: imports only `MatIcon` —
  * no `MatExpansionPanel` to keep the bundle thin (collapse state
  * is a local signal).
  *
@@ -57,7 +61,7 @@ import {
 @Component({
   selector: 'svge-libraries-panel',
   standalone: true,
-  imports: [MatIcon, MatIconButton],
+  imports: [MatIcon],
   template: `
     <header class="lib-header">Libraries</header>
 
@@ -239,6 +243,77 @@ import {
       </section>
     }
 
+    <!-- SYMBOLS (D-059) — master/instance: click drops a SymbolUseNode
+         referencing the master. Editing the master propagates to every
+         instance via <use> resolution in <defs>. -->
+    @if (symbolsItems().length > 0) {
+      <section class="lib-section">
+        <button class="section-head" type="button" (click)="toggle('symbols')">
+          <mat-icon class="caret">{{ open().symbols ? 'expand_more' : 'chevron_right' }}</mat-icon>
+          <span>Symbols</span>
+          <span class="count">{{ symbolsItems().length }}</span>
+        </button>
+        @if (open().symbols) {
+          <div class="grid">
+            @for (item of symbolsItems(); track item.id) {
+              <button
+                type="button"
+                class="cell"
+                [title]="'Insert ' + item.name + ' instance'"
+                (click)="insertSymbolInstance(item.id)"
+              >
+                <mat-icon class="symbol-thumb" aria-hidden="true">{{
+                  symbolThumbIcon(item.id)
+                }}</mat-icon>
+                <span class="cell-label">{{ item.name }}</span>
+              </button>
+            }
+          </div>
+        }
+      </section>
+    }
+
+    <!-- BRUSHES (D-060) — click selects/deselects the active brush.
+         Selected brush expands subsequent Pencil strokes through its
+         widthProfile into a filled-outline path. Click again to
+         deselect (return to plain Pencil centerline stroke). -->
+    @if (brushesItems().length > 0) {
+      <section class="lib-section">
+        <button class="section-head" type="button" (click)="toggle('brushes')">
+          <mat-icon class="caret">{{ open().brushes ? 'expand_more' : 'chevron_right' }}</mat-icon>
+          <span>Brushes</span>
+          <span class="count">{{ brushesItems().length }}</span>
+        </button>
+        @if (open().brushes) {
+          <div class="grid">
+            @for (item of brushesItems(); track item.id) {
+              <button
+                type="button"
+                class="cell"
+                [class.brush-active]="activeBrushId() === item.id"
+                [title]="
+                  activeBrushId() === item.id
+                    ? 'Active brush — click again to deselect'
+                    : 'Activate ' + item.name + ' brush (Pencil tool will use it)'
+                "
+                (click)="toggleBrush(item.id)"
+              >
+                <svg
+                  class="brush-thumb"
+                  viewBox="0 0 80 24"
+                  preserveAspectRatio="xMidYMid meet"
+                  aria-hidden="true"
+                >
+                  <path [attr.d]="brushThumbD(item.id)" fill="currentColor"></path>
+                </svg>
+                <span class="cell-label">{{ item.name }}</span>
+              </button>
+            }
+          </div>
+        }
+      </section>
+    }
+
     <!-- ASSETS -->
     <section class="lib-section">
       <button class="section-head" type="button" (click)="toggle('assets')">
@@ -404,6 +479,27 @@ import {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    /* D-059 — symbol thumb (Material icon preview of the master). */
+    .symbol-thumb {
+      font-size: 28px;
+      width: 28px;
+      height: 28px;
+      color: var(--mat-sys-on-surface, #444);
+    }
+    /* D-060 — brush thumb shows the actual expanded silhouette. */
+    .brush-thumb {
+      width: 64px;
+      height: 20px;
+      color: var(--mat-sys-on-surface, #444);
+    }
+    .cell.brush-active {
+      background: var(--mat-sys-primary-container, #d6e4ff);
+      outline: 2px solid var(--mat-sys-primary, #1976d2);
+      outline-offset: -1px;
+    }
+    .cell.brush-active .brush-thumb {
+      color: var(--mat-sys-on-primary-container, #1a3370);
+    }
     .list {
       display: flex;
       flex-direction: column;
@@ -482,6 +578,12 @@ export class SvgeLibrariesPanel {
   private readonly gradients = inject(GradientLibraryService);
   private readonly patterns = inject(PatternLibraryService);
   private readonly graphicStyles = inject(GraphicStyleLibraryService);
+  private readonly symbols = inject(SymbolLibraryService);
+  // D-060 — brushes catalog + per-editor selection state. Click on a
+  // brush cell selects/deselects it; Pencil strokes from then on are
+  // expanded through the brush's widthProfile until deselected.
+  private readonly brushes = inject(BrushLibraryService);
+  private readonly brushSelection = inject(BrushSelectionService);
   private readonly assets = inject(AssetManagerService);
   private readonly selection = inject(SelectionService);
   private readonly state = inject(EditorStateService);
@@ -498,6 +600,8 @@ export class SvgeLibrariesPanel {
     gradients: false,
     patterns: false,
     graphicStyles: false,
+    symbols: false,
+    brushes: false,
     assets: false,
   });
 
@@ -506,6 +610,9 @@ export class SvgeLibrariesPanel {
   protected readonly gradientsItems = this.gradients.items;
   protected readonly patternsItems = this.patterns.items;
   protected readonly graphicStylesItems = this.graphicStyles.items;
+  protected readonly symbolsItems = this.symbols.items;
+  protected readonly brushesItems = this.brushes.items;
+  protected readonly activeBrushId = this.brushSelection.selectedBrushId;
   protected readonly assetEntries = this.assets.catalog;
 
   protected readonly hasSelection = computed(() => this.selection.selectedIds().size > 0);
@@ -572,6 +679,75 @@ export class SvgeLibrariesPanel {
     if (item === null) return;
     const node = item.build();
     this.bus.dispatch(new InsertNodeCommand(this.state.document().root.id, node));
+  }
+
+  /**
+   * **D-059** — insert a symbol INSTANCE (SymbolUseNode referencing
+   * the master) at the visible viewport center. Distinct from
+   * `insertShape` which clones a Shape tree — symbol instances are
+   * live references; editing the master propagates to every instance.
+   */
+  protected insertSymbolInstance(id: string): void {
+    const item = this.symbols.get(id);
+    if (item === null) return;
+    // Default size = 64px at the visible viewport center. Matches the
+    // D-052 Insert > Shape sizing rationale (clamped to 25% of visible
+    // dim) so instances always land at a sensible scale.
+    const vb = this.viewport.viewBox();
+    const naturalW = item.viewBox?.width ?? 64;
+    const naturalH = item.viewBox?.height ?? 64;
+    const targetSize = Math.max(40, Math.min(400, Math.min(vb.width, vb.height) * 0.2));
+    const scale = targetSize / Math.max(naturalW, naturalH);
+    const w = naturalW * scale;
+    const h = naturalH * scale;
+    const cx = vb.x + vb.width / 2;
+    const cy = vb.y + vb.height / 2;
+    this.bus.dispatch(new InsertSymbolInstanceCommand(id, cx - w / 2, cy - h / 2, w, h));
+  }
+
+  /**
+   * Material icon for a symbol's thumbnail in the panel. We hand-map
+   * the builtin ids to their semantically-closest Material glyph so
+   * the user gets a recognizable preview without rasterizing the
+   * master. Unknown ids fall back to a generic "star_outline".
+   */
+  protected symbolThumbIcon(id: string): string {
+    if (id.endsWith('.star')) return 'star';
+    if (id.endsWith('.arrow')) return 'arrow_forward';
+    if (id.endsWith('.heart')) return 'favorite';
+    if (id.endsWith('.gear')) return 'settings';
+    return 'star_outline';
+  }
+
+  /**
+   * **D-060** — toggle a brush selection (click to activate, click
+   * the active brush to deactivate → Pencil reverts to centerline).
+   */
+  protected toggleBrush(id: string): void {
+    const current = this.brushSelection.selectedBrushId();
+    this.brushSelection.select(current === id ? null : id);
+  }
+
+  /**
+   * Thumbnail preview `d` for a brush — runs the actual
+   * `expandStrokeWithProfile` algorithm on a horizontal centerline
+   * (sampled across the thumb's 80×24 viewBox). The user sees EXACTLY
+   * the silhouette that their Pencil stroke would get — no separate
+   * approximation logic to drift from the runtime behavior.
+   */
+  protected brushThumbD(id: string): string {
+    const item = this.brushes.get(id);
+    if (item === null) return '';
+    // Horizontal centerline from (6, 12) to (74, 12), 21 evenly-spaced
+    // sample points. The expand algorithm picks up the per-point width
+    // from the profile; 21 points is dense enough to see the curve.
+    const centerline = Array.from({ length: 21 }, (_, i) => ({
+      x: 6 + (i / 20) * 68,
+      y: 12,
+    }));
+    // Thumb base width = 14 (about 60% of thumb height) — gives
+    // enough visual room for the tapered profile to show its shape.
+    return expandStrokeWithProfile(centerline, 14, item.widthProfile);
   }
 
   /**

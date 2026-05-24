@@ -190,6 +190,18 @@ function roundNode(node: SvgNode): SvgNode {
       };
     case 'group':
       return { ...node, transform: roundTransform(node.transform), style: roundStyle(node.style) };
+    case 'symbol-use':
+      // D-059 — round x/y + optional width/height. Keep `symbolId`
+      // verbatim (it's an id string, not a coord).
+      return {
+        ...node,
+        x: roundN(node.x)!,
+        y: roundN(node.y)!,
+        width: roundN(node.width),
+        height: roundN(node.height),
+        transform: roundTransform(node.transform),
+        style: roundStyle(node.style),
+      };
   }
 }
 

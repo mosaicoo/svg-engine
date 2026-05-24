@@ -264,14 +264,26 @@ class SmoothTool implements Tool {
   }
 }
 
-// ── 4. Gradient tool (state-only stub for v1) ────────────────────────
+// ── 4. Gradient tool ─────────────────────────────────────────────────
 
 /**
  * Per-editor state for the Gradient tool. Holds the id of the node the
- * user clicked while the gradient tool is active — the gradient editor
- * panel watches this signal to scroll the focused gradient into view
- * (and, in a future iteration, render in-canvas drag handles for the
- * gradient's stops).
+ * user clicked while the gradient tool is active — `<svge-libraries-panel>`
+ * watches this signal to scroll the focused gradient into view.
+ *
+ * **D-058 update**: the tool itself stays intentionally MINIMAL (routes
+ * focus, doesn't draw chrome) because the heavy editing UX moved to two
+ * always-on surfaces that activate whenever the selected node has a
+ * gradient fill — regardless of which tool is active:
+ *
+ * - **`<svge-gradient-overlay>`** (canvas) — draggable stop dots + axis,
+ *   click-to-insert-stop, color picker pop-out
+ * - **`<svge-gradient-editor>`** (Properties panel) — stop list with
+ *   color/offset/delete + Add/Reverse + Linear/Radial toggle
+ *
+ * Users rarely need to "activate the Gradient tool" explicitly anymore
+ * — selecting the shape is enough. The tool entry remains for the
+ * focus-routing affordance and Toolbar discoverability.
  */
 @Injectable({ providedIn: 'root' })
 export class GradientToolService {
@@ -296,16 +308,13 @@ export class GradientToolService {
 }
 
 /**
- * Gradient tool — first-pass implementation: clicking a node with a
- * `url(#id)` fill sets the GradientToolService focus signal, which the
- * libraries panel will use to surface the matching gradient editor.
- *
- * **Why not in-canvas stop handles in v1**: requires a new overlay
- * component (similar to AnchorOverlay) and per-stop drag math against
- * the gradient's coordinate system (`userSpaceOnUse` vs the default
- * `objectBoundingBox`). The state surface here is forward-compatible:
- * a future overlay can subscribe to `focusedNodeId` and render handles
- * for the gradient bound to that node.
+ * Gradient tool — focus router. Clicking a node with a `url(#id)` fill
+ * sets `GradientToolService.focusedNodeId` so the libraries panel can
+ * scroll the matching catalog entry into view. The actual editing
+ * happens via `<svge-gradient-overlay>` + `<svge-gradient-editor>`
+ * (D-058) which auto-activate based on the current selection — they
+ * don't require this tool to be active. See `GradientToolService`
+ * JSDoc above for the design rationale.
  */
 class GradientTool implements Tool {
   readonly id = GRADIENT_TOOL_ID;

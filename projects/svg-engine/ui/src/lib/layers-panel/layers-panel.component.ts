@@ -58,6 +58,8 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
   path: 'gesture',
   text: 'text_fields',
   image: 'image',
+  // D-059 — symbol instance (renders via <use href="#id">).
+  'symbol-use': 'star_outline',
 };
 
 /**

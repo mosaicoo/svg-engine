@@ -6,6 +6,7 @@ import type { PathNode } from './path-node';
 import type { PolygonNode } from './polygon-node';
 import type { PolylineNode } from './polyline-node';
 import type { RectNode } from './rect-node';
+import type { SymbolUseNode } from './symbol-use-node';
 import type { TextNode } from './text-node';
 
 /**
@@ -29,7 +30,8 @@ export type SvgNode =
   | PathNode
   | TextNode
   | ImageNode
-  | GroupNode;
+  | GroupNode
+  | SymbolUseNode;
 
 /** All concrete node `type` discriminators as a tuple. */
 export const SVG_NODE_TYPES = [
@@ -42,6 +44,7 @@ export const SVG_NODE_TYPES = [
   'text',
   'image',
   'group',
+  'symbol-use',
 ] as const;
 
 /** Literal union of every node `type` value. */

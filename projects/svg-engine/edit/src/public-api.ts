@@ -120,6 +120,8 @@ export * from './lib/clipboard';
 export * from './lib/scope';
 
 // Library system (D-048) — 8 asset/preset libraries: shapes, palettes,
-// graphic styles, gradients, patterns, templates, symbols (stub), brushes
-// (stub), plus the standalone AssetManagerService for runtime imports.
+// graphic styles, gradients, patterns, templates, symbols (D-059 full
+// master/instance via SymbolUseNode), brushes (D-060 Pencil-tool
+// expansion via widthProfile), plus the standalone AssetManagerService
+// for runtime imports.
 export * from './lib/library';

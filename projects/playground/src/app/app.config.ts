@@ -16,7 +16,9 @@ import {
   builtinOptimizersPlugin,
   builtinPalettesPlugin,
   builtinPatternsPlugin,
+  builtinBrushesPlugin,
   builtinShapesPlugin,
+  builtinSymbolsPlugin,
   builtinTemplatesPlugin,
   extraPalettesPlugin,
   pencilToolPlugin,
@@ -122,6 +124,15 @@ export const appConfig: ApplicationConfig = {
     // above. Asset/Symbol/Brush services are zero-cost without
     // plugins (empty registries).
     provideSvgEnginePlugin(builtinShapesPlugin),
+    // D-059 — Symbol library (4 builtins: star, arrow, heart, gear).
+    // Each insertion creates a SymbolUseNode referencing the master;
+    // editing the master propagates to every instance.
+    provideSvgEnginePlugin(builtinSymbolsPlugin),
+    // D-060 — Brush library (3 calligraphic profiles: uniform,
+    // tapered, calligraphic). Active brush expands the Pencil tool's
+    // captured polyline through expand-stroke into a filled outline
+    // with variable width along the stroke.
+    provideSvgEnginePlugin(builtinBrushesPlugin),
     provideSvgEnginePlugin(builtinTemplatesPlugin),
     provideSvgEnginePlugin(builtinGradientsPlugin),
     provideSvgEnginePlugin(builtinPatternsPlugin),

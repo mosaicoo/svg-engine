@@ -12,6 +12,7 @@ import {
   type SvgDocument,
   type SvgNode,
   type SvgStyle,
+  type SymbolUseNode,
   type TextNode,
   type Transform,
 } from 'svg-engine/core';
@@ -116,7 +117,21 @@ function renderNode(node: SvgNode, depth: number): string {
       return renderText(node, depth);
     case 'image':
       return renderImage(node, depth);
+    case 'symbol-use':
+      return renderSymbolUse(node, depth);
   }
+}
+
+function renderSymbolUse(node: SymbolUseNode, depth: number): string {
+  const indent = '  '.repeat(depth);
+  const attrs: [string, string][] = [
+    ['href', `#${node.symbolId}`],
+    ['x', fmt(node.x)],
+    ['y', fmt(node.y)],
+  ];
+  if (node.width !== undefined) attrs.push(['width', fmt(node.width)]);
+  if (node.height !== undefined) attrs.push(['height', fmt(node.height)]);
+  return `${indent}<use${attrsStr([...attrs, ...baseAttrs(node)])} />`;
 }
 
 function renderGroup(node: GroupNode, depth: number): string {

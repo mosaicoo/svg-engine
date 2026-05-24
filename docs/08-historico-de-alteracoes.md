@@ -6,6 +6,153 @@
 
 ---
 
+## 2026-05-24 — D-059 (Symbol Library master/instance) + D-060 (Brush Library) + comment cleanup
+
+### Escopo
+
+Eliminar as 3 últimas pendências de stubs em `library/`:
+
+1. **Limpeza dos comentários** legados que marcavam `GradientTool` como
+   "state-only stub for v1" — após D-058 (gradient inline editor) o
+   tool ganhou overlay + painel reais, então a label estava errada.
+2. **D-059 — Symbol Library** elevada a master/instance real: insere
+   `SymbolUseNode` (novo node type) que referencia um master via
+   `<symbol id="...">` + `<use href="#id">`. Editar o master propaga
+   instantaneamente para todas as instâncias (semântica nativa do
+   browser).
+3. **D-060 — Brush Library** elevada a expansão real do traço: o
+   `PencilTool` consome o `widthProfile` do brush ativo via algoritmo
+   Sutherland-ribbon (centerline + offset perpendicular modulado por
+   amostragem do profile) e gera um path fechado `fill`-ado. Sem
+   brush selecionado, comportamento original preservado (zero
+   regressão).
+
+### D-059 — Symbol Library
+
+**Novo node type `SymbolUseNode`** (`core/lib/model/symbol-use-node.ts`)
+com `symbolId`, `x`, `y`, `width?`, `height?`. Adicionado à union
+`SvgNode` + tuple `SVG_NODE_TYPES`. Switches exaustivos atualizados
+em `node-bbox`, `scale-bake`, `builtin-optimizers`, `layers-panel`,
+`inspector`.
+
+**Renderer** `svge-symbol-use` (directive standalone em
+`render/lib/renderers/`) emite `<svg:use href="#id" x y width height>`.
+Dispatcher central já reconhece o tipo.
+
+**Catalog + Active split** (mesmo padrão de gradients/patterns):
+
+- `SymbolLibraryService` (root, registry de masters `LibraryItem` +
+  `master: SvgNode` + `viewBox?` + `buildMarkup()`).
+- `ActiveSymbolsService` (scoped via `provideSvgEngineEditorScope`)
+  walks o doc, deriva o set de `symbolId`s referenciados e produz o
+  markup `<symbol>` correspondente.
+- `ActiveDefsService.composed()` estendido para 7 sources (era 6) —
+  exporter passa a emitir os `<symbol>`s automaticamente.
+
+**`InsertSymbolInstanceCommand`** cria `SymbolUseNode` + insere via
+tree-ops (undo remove por id).
+
+**4 builtins** (star, arrow, heart, gear) com viewBox 64×64 e master
+path `fill="currentColor"`. `builtinSymbolsPlugin` registra todos.
+
+**UI**: nova seção `Symbols` no `libraries-panel`, com thumbnails
+material-icon (`star`/`arrow_forward`/`favorite`/`settings`) e
+`insertSymbolInstance()` ao click.
+
+**Exporter**: `renderSymbolUse()` em `io/lib/svg-exporter.ts` emite
+`<use href="#id" x y width height>`.
+
+**Spec** `symbol-library.spec.ts`: catalog registration, derivação
+do `ActiveSymbolsService`, `InsertSymbolInstanceCommand` insert+undo,
+e prova de master/instance (editar master → todas as instâncias
+viram juntas, semântica de `<use>`).
+
+### D-060 — Brush Library
+
+**Algoritmo de expansão** (`brushes/expand-stroke.ts`) — função pura
+sem DI:
+
+```ts
+expandStrokeWithProfile(
+  points: { x: number; y: number }[],
+  baseWidth: number,
+  widthProfile: number[],
+): string  // d-attribute (closed polygon)
+```
+
+Sutherland ribbon: para cada ponto, calcula tangente suavizada
+(prev + next), perpendicular, e amostra `widthProfile` em `t = i/(n-1)`
+(linear interpolation via `sampleProfile`). Emite 2N vértices (N
+left rail + N right rail invertido) fechados com `Z`. Trata
+degenerate cases (pontos coincidentes → usa tangente anterior, sem
+NaN).
+
+**Catalog** `BrushLibraryService` (root) + `BrushSelectionService`
+(scoped, signal `selectedBrushId`).
+
+**3 builtins**:
+
+- `uniform` — widthProfile=1.0 plano (sem modulação), baseWidth=6.
+- `tapered` — `sin(t·π)` (0 nos endpoints, max no meio),
+  baseWidth=12.
+- `calligraphic` — ramp 0.2 → 1.0 → 0.3 (entrada fina, meio cheio,
+  saída média), baseWidth=10.
+
+`builtinBrushesPlugin` registra todos.
+
+**Integração no `PencilTool.onPointerUp`**: se `BrushSelectionService.
+selectedBrushId() !== null`, busca o item, expande a polyline
+capturada via `expandStrokeWithProfile`, e dispatch `InsertNodeCommand`
+com `createPath(d, { style: { fill: '#000000', stroke: 'none' } })`.
+Sem brush selecionado → fallback ao comportamento original
+(`stroke-only` polyline). **Zero regressão garantida**.
+
+**UI**: nova seção `Brushes` no `libraries-panel`. Thumbnails
+mostram a silhueta real (chama `expandStrokeWithProfile` em
+centerline horizontal de 21 pontos × 14px base) — o que o usuário
+vê na thumb é exatamente o que sai do pincel. Click toggla
+selected/deselected.
+
+**Spec** `brush-library.spec.ts`: catalog registration,
+`sampleProfile` (5 cases — empty/single/2-sample/clamp/4-sample),
+`expandStrokeWithProfile` (6 cases — empty/short, baseWidth ≤ 0,
+horizontal rect, sanity bbox, profile [0,1,0] tapered, pontos
+coincidentes sem NaN), `BrushSelectionService` (signal lifecycle).
+
+### Validação
+
+- `ng test svg-engine` — **1398 testes ✓** (102 arquivos, 1 skipped).
+  +17 testes novos (D-059 + D-060) sem regressão.
+- `ng lint svg-engine` — clean (corrigi `let` → `const` em
+  `expand-stroke.ts` linhas 73-74; removi `MatIconButton` não usado em
+  `libraries-panel`).
+- `ng build playground` — clean, ambos os plugins instalados.
+
+### Arquivos novos
+
+- `core/lib/model/symbol-use-node.ts`
+- `render/lib/renderers/symbol-use-renderer.directive.ts`
+- `edit/lib/library/symbols/insert-symbol-instance.command.ts`
+- `edit/lib/library/symbols/builtin-symbols.ts`
+- `edit/lib/library/symbols/symbol-library.spec.ts`
+- `edit/lib/library/brushes/expand-stroke.ts`
+- `edit/lib/library/brushes/builtin-brushes.ts`
+- `edit/lib/library/brushes/brush-library.spec.ts`
+
+### Premissas honradas
+
+- D-017 (headless): nenhum dos novos arquivos em `edit/`, `core/`,
+  `render/`, `io/`, `optimize/` importa `@angular/material`. Toda a
+  UI Material vive em `svg-engine/ui/libraries-panel`.
+- D-042 (multi-editor): `ActiveSymbolsService` + `BrushSelectionService`
+  são scoped via `provideSvgEngineEditorScope` (cada editor tem seu
+  próprio estado derivado / brush ativo).
+- D-043 (factory pattern): n/a — sem novos menu items.
+- Zero regressão: `PencilTool` sem brush = comportamento original
+  preservado.
+
+---
+
 ## 2026-05-24 — Bug fix CRÍTICO: exporter omitia gradients/effects/etc + style fields D-049/D-053
 
 ### Sintoma reportado

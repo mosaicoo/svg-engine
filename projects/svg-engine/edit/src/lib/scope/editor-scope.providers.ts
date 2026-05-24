@@ -11,10 +11,12 @@ import { IsolationService } from '../isolation/isolation.service';
 import { AssetManagerService } from '../library/assets/asset-manager.service';
 import { ActiveClipPathsService } from '../library/clip-paths/clip-path-library.service';
 import { ActiveDefsService } from '../library/active-defs.service';
+import { BrushSelectionService } from '../library/brushes/brush-library.service';
 import { GradientEditingService } from '../library/gradients/gradient-editing.service';
 import { ActiveGradientsService } from '../library/gradients/gradient-library.service';
 import { ActiveMasksService } from '../library/masks/mask-library.service';
 import { ActivePatternsService } from '../library/patterns/pattern-library.service';
+import { ActiveSymbolsService } from '../library/symbols/symbol-library.service';
 import { LayersService } from '../layers/layers.service';
 import { MarqueeService } from '../marquee/marquee.service';
 import { SelectionService } from '../selection/selection.service';
@@ -221,5 +223,16 @@ export function provideSvgEngineEditorScope(): Provider[] {
     // defs from the editor's document; the catalog stays root-scoped.
     ActiveClipPathsService,
     ActiveMasksService,
+    // D-059 — symbols Catalog+Active split (same pattern). The
+    // ActiveSymbolsService walks the document for SymbolUseNode
+    // instances and emits <symbol> markup for the renderer's <defs>.
+    ActiveSymbolsService,
+    // D-060 — per-editor active brush selection. Drives the Pencil
+    // tool's commit step: when non-null, expands the captured
+    // polyline through the brush's widthProfile into a filled
+    // outline; when null, Pencil keeps its centerline+stroke output
+    // (backward-compat, zero regression for apps that don't install
+    // builtinBrushesPlugin).
+    BrushSelectionService,
   ];
 }

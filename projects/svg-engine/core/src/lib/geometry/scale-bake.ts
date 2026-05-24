@@ -331,5 +331,18 @@ export function bakeScaleIntoNode(
       return bakeGroup(node, sx, sy, frameAnchor, (child) =>
         bakeScaleIntoNode(child, sx, sy, localAnchor, null),
       );
+    case 'symbol-use':
+      // D-059 — symbol instance. Scale the box dimensions (width/height)
+      // and reposition x/y around the anchor. Default width/height of
+      // 100 mirrors the bbox fallback. Translation in node.transform is
+      // preserved by the base shape pattern (anchor-shift baked into
+      // x/y, scale baked into width/height).
+      return {
+        ...node,
+        x: localAnchor.x + (node.x - localAnchor.x) * sx,
+        y: localAnchor.y + (node.y - localAnchor.y) * sy,
+        width: (node.width ?? 100) * sx,
+        height: (node.height ?? 100) * sy,
+      };
   }
 }
