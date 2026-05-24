@@ -23,6 +23,7 @@ import {
 } from '../library/symbols/insert-symbol-instances-batch.command';
 import { SymbolLibraryService } from '../library/symbols/symbol-library.service';
 import { SymbolSelectionService } from '../library/symbols/symbol-selection.service';
+import { SymbolSprayerPreviewService } from '../library/symbols/symbol-sprayer-preview.service';
 import type { Tool, ToolContext, ToolPointerEvent } from './tool';
 import { ToolRegistry } from './tool-registry.service';
 
@@ -607,6 +608,11 @@ class SymbolSprayerTool implements Tool {
     this.dragging = true;
     this.buffer = [];
     this.lastDropPoint = null;
+    // D-063b — open the live preview buffer. The overlay reads from
+    // SymbolSprayerPreviewService to paint ghosted <use>s in real
+    // time while the user drags; on pointer-up the preview clears
+    // and the batch command commits the same drops to the doc.
+    ctx.injector.get(SymbolSprayerPreviewService).begin(symbolId);
     // Drop one on press so a click-without-drag still produces an
     // instance (Illustrator's Sprayer behavior).
     this.emitDropAt(event.docPoint, ctx, symbolId);
@@ -628,23 +634,31 @@ class SymbolSprayerTool implements Tool {
   onPointerUp(_event: ToolPointerEvent, ctx: ToolContext): void {
     if (!this.dragging) return;
     this.dragging = false;
+    const preview = ctx.injector.get(SymbolSprayerPreviewService);
     const symbolId = ctx.injector.get(SymbolSelectionService).selectedSymbolId();
     if (symbolId === null || this.buffer.length === 0) {
       this.buffer = [];
       this.lastDropPoint = null;
+      preview.clear();
       return;
     }
-    // Commit the entire spray as a single undo entry.
+    // Commit the entire spray as a single undo entry. **The
+    // batch command IS the source of truth** — the preview was
+    // just a visual mirror; clearing it AFTER dispatch avoids a
+    // momentary flicker where the preview is gone but the
+    // committed nodes haven't repainted yet.
     const bus = ctx.injector.get(CommandBus);
     bus.dispatch(new InsertSymbolInstancesBatchCommand(symbolId, this.buffer));
     this.buffer = [];
     this.lastDropPoint = null;
+    preview.clear();
   }
 
-  onPointerCancel(): void {
+  onPointerCancel(_event: ToolPointerEvent, ctx: ToolContext): void {
     this.dragging = false;
     this.buffer = [];
     this.lastDropPoint = null;
+    ctx.injector.get(SymbolSprayerPreviewService).clear();
   }
 
   private emitDropAt(p: Point, ctx: ToolContext, symbolId: string): void {
@@ -662,12 +676,18 @@ class SymbolSprayerTool implements Tool {
     const scale = 1 + (Math.random() * 2 - 1) * jitter;
     const w = baseSize * scale * aspect;
     const h = baseSize * scale;
-    this.buffer.push({
+    const drop: SprayDrop = {
       x: p.x - w / 2,
       y: p.y - h / 2,
       width: w,
       height: h,
-    });
+    };
+    this.buffer.push(drop);
+    // D-063b — mirror into the preview buffer so the overlay paints
+    // immediately. The signal update triggers the overlay's
+    // recompute; @for track-by-index keeps existing DOM nodes
+    // stable (no flicker).
+    ctx.injector.get(SymbolSprayerPreviewService).append(drop);
     this.lastDropPoint = p;
   }
 }

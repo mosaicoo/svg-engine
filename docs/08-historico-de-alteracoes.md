@@ -6,6 +6,123 @@
 
 ---
 
+## 2026-05-24 — D-063: Symbol Sprayer live preview + custom-editor defs fix
+
+### Demandas
+
+1. **Preview em tempo real do Symbol Sprayer** — antes só aparecia
+   no pointer-up. UX queria ver as instâncias dropando durante o
+   arrasto, com performance + sem flickering.
+2. **Custom editor não mostrava o efeito aplicado** — bug:
+   `defs()` computed do custom-editor só mergiava docDefs + effects;
+   pulava gradients/patterns/clipPaths/masks/**symbols**/chains. O
+   `<use href="#sym-id">` paintava nada porque o `<symbol>` nunca
+   chegava em `<defs>`.
+
+### Implementação
+
+**D-063a — custom-editor defs fix**:
+
+- `defs()` substituído por `ActiveDefsService.buildExportDefs()` —
+  mesmo composer que o shell-pro + svg exporter usam.
+- Agora 7 sources entram nos defs (era 2): docDefs, effects,
+  chains, gradients, patterns, clipPaths, masks, symbols.
+- `EffectRegistry` import removido (não mais usado).
+
+**D-063b — SymbolSprayerPreviewService** (scoped per-editor, D-042):
+
+- Signals `drops: SprayDrop[]` + `symbolId: string | null`
+- API: `begin(symbolId)` / `append(drop)` / `clear()`
+- Tool escreve em sincronia com seu próprio buffer (não há mudança
+  na lógica de commit — apenas duplica writes em preview)
+- Registrado em `provideSvgEngineEditorScope`
+
+**D-063c — SymbolSprayerOverlay** (`<svg:g svgeSymbolSprayerOverlay>`):
+
+- Standalone component em `lib/library/symbols/`
+- Inline `<svg:defs>` com `<symbol>` master via `buildSymbolMarkup`
+  (necessário porque preview drops ainda não estão no doc → defs
+  composer não emitiu o symbol)
+- N `<svg:use href="#…">` (um por drop) com `@for track $index`
+- Opacity 0.65 pra distinguir preview de committed
+- `pointer-events: none` (decorativo, tool segue recebendo eventos)
+
+**SymbolSprayerTool** atualizado:
+
+- `onPointerDown` → `preview.begin(symbolId)` + emite primeiro drop
+- `emitDropAt` → push em buffer local AND `preview.append(drop)`
+- `onPointerUp` → dispatch batch command + `preview.clear()`
+- `onPointerCancel` → `preview.clear()`
+- **Lógica final inalterada**: o `InsertSymbolInstancesBatchCommand`
+  segue sendo a fonte de verdade; preview é apenas espelho visual.
+
+**D-063d — Overlay wired em todas as visões**:
+
+- `/custom-editor` (HTML template + TS imports)
+- `/basic-editor` (inline template + TS imports)
+- `/modular-editor` (idem)
+- `/pro-editor` (projeta no `<ng-content>` do shell-pro)
+- shell-pro e svge-editor não precisam mudar — só projetam content
+  via `<ng-content>`.
+
+### Performance e UX honestas
+
+- **Anti-flicker**: preview clear acontece DEPOIS do
+  `bus.dispatch()` — quando o commit pinta as instâncias reais, o
+  preview some no mesmo tick. Sem janela onde tudo desaparece.
+- **Anti-acumulação**: cada drop usa as MESMAS coords (centro,
+  scale, jitter) calculadas uma vez em `emitDropAt`; preview e
+  commit são bit-for-bit idênticos.
+- **DOM stability**: `@for ... track $index` evita re-render dos
+  `<use>`s anteriores quando um novo é appended (Angular só
+  insere um node no DOM por append).
+- **Defs duplicados** (preview + ActiveSymbolsService): se o doc já
+  tem instâncias do mesmo símbolo, há dois `<symbol id="X">` no SVG.
+  Spec marca como undefined behavior; browsers tipicamente honram o
+  primeiro. Conteúdo idêntico (mesmo master) → paint correto em
+  ambos os casos.
+
+### Validação
+
+- 1413 testes ✓ (sem regressão; nenhum spec novo necessário —
+  overlay é puro visual, lógica de spray já coberta por
+  `InsertSymbolInstancesBatchCommand.spec`)
+- Lint clean
+- Playground build clean
+
+### Arquivos novos
+
+- `edit/lib/library/symbols/symbol-sprayer-preview.service.ts`
+- `edit/lib/library/symbols/symbol-sprayer-overlay.component.ts`
+
+### Arquivos modificados
+
+- `edit/lib/library/symbols/index.ts` (re-exports)
+- `edit/lib/scope/editor-scope.providers.ts` (preview service)
+- `edit/lib/tool/extra-tools.ts` (SymbolSprayerTool integra preview)
+- `playground/pages/custom-editor/custom-editor.component.ts`
+  (ActiveDefsService import; EffectRegistry removido;
+  SymbolSprayerOverlay adicionado)
+- `playground/pages/custom-editor/custom-editor.component.html`
+  (overlay projetado)
+- `playground/pages/basic-editor/basic-editor.component.ts`
+- `playground/pages/modular-editor/modular-editor.component.ts`
+- `playground/pages/pro-editor/pro-editor.component.ts`
+
+### Premissas honradas
+
+- D-017: SymbolSprayerOverlay vive em `svg-engine/edit`; usa
+  `DomSanitizer` (`@angular/platform-browser`, OK pra edit-side)
+  e zero `@angular/material`
+- D-042: SymbolSprayerPreviewService é scoped (preview de A não
+  vaza pra B)
+- Zero regressão: lógica de commit (batch command) intocada;
+  preview é puro visual mirror
+- Sem implementação fictícia: bit-for-bit identical entre preview
+  e commit (mesmas coords/scale/jitter calculadas uma vez)
+
+---
+
 ## 2026-05-24 — D-062 fixes UX: Mesh removido + auto-routing Gradient & Symbol Sprayer
 
 ### Demanda

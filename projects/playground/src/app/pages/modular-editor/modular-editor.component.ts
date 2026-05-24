@@ -18,6 +18,7 @@ import {
   SelectionOverlay,
   ShapeOverlay,
   SnapGuides,
+  SymbolSprayerOverlay,
 } from 'svg-engine/edit';
 import { SvgeEditor } from 'svg-engine/ui';
 
@@ -47,6 +48,7 @@ import { SvgeEditor } from 'svg-engine/ui';
     PenOverlay,
     PencilOverlay,
     ShapeOverlay,
+    SymbolSprayerOverlay,
     InlineTextEditor,
     RouterLink,
   ],
@@ -159,6 +161,7 @@ import { SvgeEditor } from 'svg-engine/ui';
         <svg:g svgePenOverlay></svg:g>
         <svg:g svgePencilOverlay></svg:g>
         <svg:g svgeShapeOverlay></svg:g>
+        <svg:g svgeSymbolSprayerOverlay></svg:g>
         <svg:g svgeInlineTextEditor></svg:g>
       </svge-editor>
     </div>

@@ -48,7 +48,7 @@ import {
   capturePointer,
   DIRECT_SELECT_TOOL_ID,
   type DistributeAxis,
-  EffectRegistry,
+  ActiveDefsService,
   ExporterRegistry,
   findRenderedNode,
   getRenderedNodeBBox,
@@ -78,6 +78,7 @@ import {
   releasePointer,
   renderPng,
   ShapeOverlay,
+  SymbolSprayerOverlay,
   resolveNodeIdFromEvent,
   resolveSelectableNodeId,
   RotationPivot,
@@ -165,6 +166,7 @@ const DRAG_START_THRESHOLD_PX = 3;
     PenOverlay,
     PencilOverlay,
     ShapeOverlay,
+    SymbolSprayerOverlay,
     InlineTextEditor,
     SvgeCanvasGestures,
     SvgeRulers,
@@ -215,7 +217,11 @@ export class CustomEditor implements OnDestroy {
   private readonly importers = inject(ImporterRegistry);
   private readonly exporters = inject(ExporterRegistry);
   private readonly optimizers = inject(OptimizerRegistry);
-  private readonly effects = inject(EffectRegistry);
+  // D-058 / D-059 / D-062 — central composer for runtime defs
+  // (gradients, patterns, clipPaths, masks, symbols, effects chains).
+  // Without this, symbols inserted via the Sprayer don't paint here
+  // because their <symbol> definitions never reach <defs>.
+  private readonly activeDefs = inject(ActiveDefsService);
   protected readonly isolation = inject(IsolationService);
   private readonly autoSave = inject(AutoSaveService);
   private readonly anchorSelection = inject(AnchorSelectionService);
@@ -238,21 +244,26 @@ export class CustomEditor implements OnDestroy {
   protected readonly tree = computed(() => this.state.document().root);
   protected readonly viewBox = computed(() => this.state.document().viewBox);
   /**
-   * Combined defs fragment passed to `<svge-renderer>`:
-   * - `document.defs` (Fase 6c-1): pass-through of imported `<defs>`
-   *   (gradients, clipPaths, etc.) so `url(#id)` from nodes resolves
-   * - Effects markup (Fase 6d): `<filter>` elements from every
-   *   `EffectRegistry` entry. Nodes apply via `style.filter = url(#id)`
+   * Combined defs fragment passed to `<svge-renderer>`. Delegates to
+   * {@link ActiveDefsService.buildExportDefs} — the same central
+   * composer used by `<svge-shell-pro>` and the SVG exporter, so
+   * canvas paint, exported file, and this custom dogfooding view all
+   * see identical defs:
    *
-   * Concatenation order doesn't matter — both contribute disjoint id
-   * spaces (effects use the reverse-DNS id, doc defs keep their
-   * original ids). Returns `null` when both are empty so the renderer
-   * skips defs injection entirely.
+   * - `document.defs` (imported defs round-trip)
+   * - Effects + effect chains (`<filter>`)
+   * - Gradients (built-ins + active doc gradients)
+   * - Patterns
+   * - ClipPaths
+   * - Masks
+   * - Symbols (D-059 — auto-tracked from `SymbolUseNode` references)
+   *
+   * Before D-063 this view only merged `docDefs + effects` so symbols
+   * inserted by D-062a Sprayer never had their `<symbol>` definition
+   * reach `<defs>` here, and the `<use href="#…">` painted nothing.
    */
   protected readonly defs = computed<string | null>(() => {
-    const docDefs = this.state.document().defs ?? '';
-    const fxDefs = this.effects.buildAllFiltersMarkup();
-    const merged = [docDefs, fxDefs].filter((s) => s.length > 0).join('\n');
+    const merged = this.activeDefs.buildExportDefs(this.state.document().defs);
     return merged.length > 0 ? merged : null;
   });
   protected readonly nodeCount = this.state.nodeCount;

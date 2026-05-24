@@ -18,6 +18,7 @@ import { ActiveMasksService } from '../library/masks/mask-library.service';
 import { ActivePatternsService } from '../library/patterns/pattern-library.service';
 import { ActiveSymbolsService } from '../library/symbols/symbol-library.service';
 import { SymbolSelectionService } from '../library/symbols/symbol-selection.service';
+import { SymbolSprayerPreviewService } from '../library/symbols/symbol-sprayer-preview.service';
 import { LayersService } from '../layers/layers.service';
 import { MarqueeService } from '../marquee/marquee.service';
 import { SelectionService } from '../selection/selection.service';
@@ -241,5 +242,10 @@ export function provideSvgEngineEditorScope(): Provider[] {
     // pointer event. Per-editor scope so two editors can spray
     // different symbols independently.
     SymbolSelectionService,
+    // D-063b — per-editor in-progress Sprayer preview buffer. Tool
+    // writes drops here during drag; SymbolSprayerOverlay reads
+    // them and paints ghosted `<use>`s. Scoped so two editors don't
+    // see each other's in-flight preview.
+    SymbolSprayerPreviewService,
   ];
 }

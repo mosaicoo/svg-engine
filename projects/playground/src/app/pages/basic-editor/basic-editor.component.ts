@@ -18,6 +18,7 @@ import {
   SelectionOverlay,
   ShapeOverlay,
   SnapGuides,
+  SymbolSprayerOverlay,
 } from 'svg-engine/edit';
 import { SvgeEditor } from 'svg-engine/ui';
 
@@ -54,6 +55,7 @@ import { SvgeEditor } from 'svg-engine/ui';
     PenOverlay,
     PencilOverlay,
     ShapeOverlay,
+    SymbolSprayerOverlay,
     InlineTextEditor,
     RouterLink,
   ],
@@ -98,6 +100,10 @@ import { SvgeEditor } from 'svg-engine/ui';
         <!-- Shape tools (Rectangle / Ellipse / Polygon): preview tracejado
              do bounding box / polígono durante o press-drag. -->
         <svg:g svgeShapeOverlay></svg:g>
+        <!-- Symbol Sprayer (D-063c): preview em tempo real das
+             instâncias enquanto o usuário arrasta. Limpa em pointer-up
+             quando o batch command efetiva as instâncias no documento. -->
+        <svg:g svgeSymbolSprayerOverlay></svg:g>
         <!-- Inline text editor (Text tool): foreignObject +
              contentEditable. Deve vir por último — surface acima de
              todos os outros overlays. -->

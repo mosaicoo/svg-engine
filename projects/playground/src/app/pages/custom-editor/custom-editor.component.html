@@ -410,6 +410,10 @@
           <!-- Shape tools overlay: dashed preview of rect/ellipse/polygon
                being created via press+drag. Hidden when no draft. -->
           <svg:g svgeShapeOverlay></svg:g>
+          <!-- D-063c — Symbol Sprayer live preview: ghosted <use>
+               instances rendered while the user drags. Cleared on
+               pointer-up so the committed instances take over. -->
+          <svg:g svgeSymbolSprayerOverlay></svg:g>
           <!-- Inline text editor: foreignObject + contentEditable that
                opens whenever InlineTextEditorService.editingId is non-null.
                Renders nothing otherwise. Must come AFTER all other

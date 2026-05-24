@@ -18,6 +18,7 @@ import {
   SelectionOverlay,
   ShapeOverlay,
   SnapGuides,
+  SymbolSprayerOverlay,
 } from 'svg-engine/edit';
 import { SvgeShellPro } from 'svg-engine/ui';
 
@@ -59,6 +60,7 @@ import { SvgeShellPro } from 'svg-engine/ui';
     PenOverlay,
     PencilOverlay,
     ShapeOverlay,
+    SymbolSprayerOverlay,
     InlineTextEditor,
     RouterLink,
   ],
@@ -99,6 +101,10 @@ import { SvgeShellPro } from 'svg-engine/ui';
         <!-- Shape tools (Rectangle / Ellipse / Polygon): preview tracejado
              do bounding box / polígono durante o press-drag. -->
         <svg:g svgeShapeOverlay></svg:g>
+        <!-- D-063c — Symbol Sprayer live preview: instâncias ghosted
+             aparecem em tempo real enquanto o usuário arrasta; limpa
+             em pointer-up quando o batch command efetiva no doc. -->
+        <svg:g svgeSymbolSprayerOverlay></svg:g>
         <!-- Inline text editor: foreignObject + contentEditable que abre
              quando InlineTextEditorService.editingId é não-nulo.
              Renderiza nada caso contrário. DEVE vir por último para o

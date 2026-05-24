@@ -11,3 +11,5 @@ export {
   type SprayDrop,
 } from './insert-symbol-instances-batch.command';
 export { SymbolSelectionService } from './symbol-selection.service';
+export { SymbolSprayerPreviewService } from './symbol-sprayer-preview.service';
+export { SymbolSprayerOverlay } from './symbol-sprayer-overlay.component';
