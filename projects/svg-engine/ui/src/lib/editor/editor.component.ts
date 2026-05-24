@@ -1,16 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
-import { MatIconButton } from '@angular/material/button';
-import { MatIcon } from '@angular/material/icon';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { MatToolbar } from '@angular/material/toolbar';
-import { MatTooltip } from '@angular/material/tooltip';
-import {
-  type BoundingBox,
-  CommandBus,
-  EditorStateService,
-  HistoryService,
-  type SvgNode,
-} from 'svg-engine/core';
-import { SvgeRenderer, ViewportService } from 'svg-engine/render';
+import { type BoundingBox, EditorStateService, type SvgNode } from 'svg-engine/core';
+import { SvgeRenderer } from 'svg-engine/render';
 import {
   ActiveDefsService,
   GradientOverlay,
@@ -99,9 +90,6 @@ import { SvgeToolOptions } from '../tool-options';
   standalone: true,
   imports: [
     MatToolbar,
-    MatIconButton,
-    MatIcon,
-    MatTooltip,
     SvgeRenderer,
     WorkspaceBackground,
     PageOverlay,
@@ -134,60 +122,21 @@ import { SvgeToolOptions } from '../tool-options';
       <mat-toolbar class="editor-toolbar">
         <span class="title">{{ title() ?? 'SVGEngine' }}</span>
         <span class="spacer"></span>
-        <!-- Plugin-contributed toolbar items (left side of built-ins). -->
+        <!--
+          Plugin-contributed toolbar items (the single source of truth
+          for top-level actions). D-064 collapsed the previously
+          hardcoded Undo/Redo/Zoom buttons into registry entries
+          (builtinMenuContributionsPlugin registers them at slot
+          toolbar.main) so the same chrome shows across all shells
+          + custom-editor without duplication.
+
+          Live zoom % feedback still surfaces via svge-status-bar
+          (which reads viewport.zoom); we don't need a second
+          indicator in the toolbar.
+        -->
         <svge-toolbar [slot]="toolbarSlot()" />
-        <!-- Consumer-projected extras between contributions and built-ins. -->
+        <!-- Consumer-projected extras after registry contributions. -->
         <ng-content select="[toolbar-extras]" />
-        <span class="separator" aria-hidden="true">|</span>
-        <button
-          mat-icon-button
-          type="button"
-          matTooltip="Undo"
-          [disabled]="!canUndo()"
-          (click)="undo()"
-          aria-label="Undo"
-        >
-          <mat-icon>undo</mat-icon>
-        </button>
-        <button
-          mat-icon-button
-          type="button"
-          matTooltip="Redo"
-          [disabled]="!canRedo()"
-          (click)="redo()"
-          aria-label="Redo"
-        >
-          <mat-icon>redo</mat-icon>
-        </button>
-        <span class="separator" aria-hidden="true">|</span>
-        <button
-          mat-icon-button
-          type="button"
-          matTooltip="Zoom out"
-          (click)="zoomOut()"
-          aria-label="Zoom out"
-        >
-          <mat-icon>zoom_out</mat-icon>
-        </button>
-        <span class="zoom-pct" aria-live="polite">{{ zoomPct() }}</span>
-        <button
-          mat-icon-button
-          type="button"
-          matTooltip="Zoom in"
-          (click)="zoomIn()"
-          aria-label="Zoom in"
-        >
-          <mat-icon>zoom_in</mat-icon>
-        </button>
-        <button
-          mat-icon-button
-          type="button"
-          matTooltip="Reset view"
-          (click)="resetView()"
-          aria-label="Reset view"
-        >
-          <mat-icon>fit_screen</mat-icon>
-        </button>
       </mat-toolbar>
     }
     @if (showToolOptions()) {
@@ -397,10 +346,7 @@ import { SvgeToolOptions } from '../tool-options';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SvgeEditor {
-  private readonly bus = inject(CommandBus);
-  private readonly history = inject(HistoryService);
   private readonly state = inject(EditorStateService);
-  private readonly viewport = inject(ViewportService);
   private readonly isolation = inject(IsolationService);
   // D-058 export fix — single composer for the dynamic `<defs>` block
   // (gradients, patterns, effects, chains, clipPaths, masks). Replaces
@@ -602,38 +548,13 @@ export class SvgeEditor {
    */
   readonly toolbarSlot = input<string>('toolbar.main');
 
-  /**
-   * Emitted when the user clicks Undo/Redo from the toolbar — useful
-   * for consumers that want to react (status bar update, telemetry).
-   * The undo/redo themselves run automatically via {@link CommandBus}.
-   */
-  readonly undoTriggered = output<void>();
-  readonly redoTriggered = output<void>();
-
-  protected readonly canUndo = this.history.canUndo;
-  protected readonly canRedo = this.history.canRedo;
-
-  protected readonly zoomPct = computed(() => `${Math.round(this.viewport.zoom() * 100)}%`);
-
-  protected undo(): void {
-    this.bus.undo();
-    this.undoTriggered.emit();
-  }
-
-  protected redo(): void {
-    this.bus.redo();
-    this.redoTriggered.emit();
-  }
-
-  protected zoomIn(): void {
-    this.viewport.zoomIn();
-  }
-
-  protected zoomOut(): void {
-    this.viewport.zoomOut();
-  }
-
-  protected resetView(): void {
-    this.viewport.reset();
-  }
+  // D-064 — Undo/Redo/Zoom buttons (and the associated `canUndo` /
+  // `canRedo` / `zoomPct` computeds, the `undo` / `redo` / `zoomIn`
+  // / `zoomOut` / `resetView` handlers, and the `undoTriggered` /
+  // `redoTriggered` outputs) were removed when those actions migrated
+  // to the `toolbar.main` slot of `MenuContributionRegistry`
+  // (`builtinMenuContributionsPlugin`). Consumers that need to react
+  // to history events should subscribe to `CommandBus` /
+  // `HistoryService` directly — the registry contribution is the
+  // single source of truth for the button + handler pair.
 }

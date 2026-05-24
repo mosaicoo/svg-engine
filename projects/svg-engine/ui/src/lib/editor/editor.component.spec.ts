@@ -3,16 +3,12 @@ import { TestBed } from '@angular/core/testing';
 import {
   bbox,
   type BoundingBox,
-  CommandBus,
   createEmptyDocument,
   createGroup,
   createRect,
   EditorStateService,
-  HistoryService,
-  InsertNodeCommand,
   type SvgNode,
 } from 'svg-engine/core';
-import { ViewportService } from 'svg-engine/render';
 import { SvgeEditor } from './editor.component';
 
 @Component({
@@ -26,22 +22,6 @@ class TestHost {
   readonly title = signal<string | null>(null);
   readonly tree = signal<SvgNode | null>(null);
   readonly viewBox = signal<BoundingBox | null>(null);
-}
-
-@Component({
-  standalone: true,
-  imports: [SvgeEditor],
-  template: `<svge-editor (undoTriggered)="onUndo()"></svge-editor>`,
-})
-class TestHostListening {
-  undoCount = 0;
-  onUndo(): void {
-    this.undoCount += 1;
-  }
-}
-
-function findButton(host: HTMLElement, label: string): HTMLButtonElement | null {
-  return host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
 }
 
 describe('SvgeEditor — composition', () => {
@@ -123,57 +103,13 @@ describe('SvgeEditor — input fallbacks', () => {
   });
 });
 
-describe('SvgeEditor — toolbar buttons', () => {
-  beforeEach(() => {
-    TestBed.configureTestingModule({ imports: [TestHost] });
-  });
-
-  it('Undo button is disabled when history is empty, enabled after a dispatch', () => {
-    const state = TestBed.inject(EditorStateService);
-    state.resetDocument(createEmptyDocument());
-    TestBed.inject(HistoryService).clear();
-    const fixture = TestBed.createComponent(TestHost);
-    document.body.appendChild(fixture.nativeElement);
-    fixture.detectChanges();
-    const undoBtn = findButton(fixture.nativeElement, 'Undo');
-    expect(undoBtn?.disabled).toBe(true);
-
-    TestBed.inject(CommandBus).dispatch(
-      new InsertNodeCommand(
-        state.document().root.id,
-        createRect({ x: 0, y: 0, width: 5, height: 5 }),
-      ),
-    );
-    fixture.detectChanges();
-    expect(undoBtn?.disabled).toBe(false);
-  });
-
-  it('Zoom % updates when ViewportService.zoomIn() runs', () => {
-    const fixture = TestBed.createComponent(TestHost);
-    document.body.appendChild(fixture.nativeElement);
-    fixture.detectChanges();
-    const before = fixture.nativeElement.querySelector('.zoom-pct')?.textContent?.trim();
-    expect(before).toBe('100%');
-    TestBed.inject(ViewportService).zoomIn();
-    fixture.detectChanges();
-    const after = fixture.nativeElement.querySelector('.zoom-pct')?.textContent?.trim();
-    expect(after).not.toBe('100%');
-  });
-
-  it('Reset view button resets viewport to 100%', () => {
-    const fixture = TestBed.createComponent(TestHost);
-    document.body.appendChild(fixture.nativeElement);
-    fixture.detectChanges();
-    const viewport = TestBed.inject(ViewportService);
-    viewport.zoomIn();
-    viewport.zoomIn();
-    fixture.detectChanges();
-    const resetBtn = findButton(fixture.nativeElement, 'Reset view');
-    resetBtn?.click();
-    fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.zoom-pct')?.textContent?.trim()).toBe('100%');
-  });
-});
+// D-064 — describe block "SvgeEditor — toolbar buttons" removed. The
+// Undo / Redo / Zoom-In / Zoom-Out / Reset-View buttons no longer
+// live in `<svge-editor>`'s template; they ship as toolbar.main
+// contributions via `builtinMenuContributionsPlugin` and are exercised
+// by that plugin's own spec. The shell test here is now just
+// "renders the <svge-toolbar slot> placeholder" (covered by the
+// MODE specs below).
 
 describe('SvgeEditor — THREE MODES guarantee (D-034 + D-035)', () => {
   /**
@@ -302,26 +238,7 @@ describe('SvgeEditor — custom status bar slot (replace default)', () => {
   });
 });
 
-describe('SvgeEditor — output emission', () => {
-  beforeEach(() => {
-    TestBed.configureTestingModule({ imports: [TestHostListening] });
-  });
-
-  it('Undo button click emits undoTriggered output', () => {
-    const state = TestBed.inject(EditorStateService);
-    state.resetDocument(createEmptyDocument());
-    TestBed.inject(CommandBus).dispatch(
-      new InsertNodeCommand(
-        state.document().root.id,
-        createRect({ x: 0, y: 0, width: 5, height: 5 }),
-      ),
-    );
-    const fixture = TestBed.createComponent(TestHostListening);
-    document.body.appendChild(fixture.nativeElement);
-    fixture.detectChanges();
-
-    findButton(fixture.nativeElement, 'Undo')?.click();
-    fixture.detectChanges();
-    expect(fixture.componentInstance.undoCount).toBe(1);
-  });
-});
+// D-064 — describe block "SvgeEditor — output emission" removed
+// alongside the `undoTriggered` / `redoTriggered` outputs. Consumers
+// that need to react to history events now subscribe to `CommandBus`
+// or `HistoryService` directly (matches every other editor service).

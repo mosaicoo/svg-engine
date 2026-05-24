@@ -708,6 +708,52 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+    // D-064 — Zoom controls on toolbar.main. Centralizes
+    // history+zoom in a single bar (replacing the buttons that
+    // <svge-editor> used to hardcode and the standalone ones in
+    // /custom-editor). Same handlers as MENU_SLOT.VIEW so behavior
+    // matches the menu version; ordered LAST in toolbar.main so the
+    // edit cluster (undo/redo/delete/copy/paste/group) stays at the
+    // top and the viewport cluster sits at the right.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.toolbar.zoom-out',
+        slot: TOOLBAR_SLOT.MAIN,
+        label: 'Zoom Out',
+        icon: 'zoom_out',
+        tooltip: 'Zoom out',
+        order: 60,
+        run(runCtx) {
+          fromCtx(ViewportService, runCtx).zoomOut();
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.toolbar.zoom-in',
+        slot: TOOLBAR_SLOT.MAIN,
+        label: 'Zoom In',
+        icon: 'zoom_in',
+        tooltip: 'Zoom in',
+        order: 70,
+        run(runCtx) {
+          fromCtx(ViewportService, runCtx).zoomIn();
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.toolbar.zoom-reset',
+        slot: TOOLBAR_SLOT.MAIN,
+        label: 'Reset View',
+        icon: 'fit_screen',
+        tooltip: 'Reset zoom + pan to fit',
+        order: 80,
+        run(runCtx) {
+          fromCtx(ViewportService, runCtx).reset();
+        },
+      }),
+    );
 
     // ── Context.canvas ─────────────────────────────────────────────
     ctx.track(

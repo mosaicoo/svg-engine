@@ -6,6 +6,90 @@
 
 ---
 
+## 2026-05-24 — D-064: centralizar Undo/Redo/Zoom na Toolbar principal
+
+### Demanda
+
+User reportou que `<svge-editor>` mostra Undo/Redo duplicados (uma
+vez via `<svge-toolbar slot="toolbar.main">` rendering o registry,
+outra vez via botões hardcoded à direita do toolbar). Pediu pra
+centralizar Undo/Redo/Zoom-In/Zoom-Out/Reset na Toolbar principal e
+remover os botões soltos.
+
+Auditoria confirmou:
+
+- `<svge-editor>` template tinha 5 botões hardcoded (Undo/Redo +
+  Zoom-Out/Zoom%/Zoom-In/Reset) DEPOIS do `<svge-toolbar>` slot
+- Undo/Redo já estavam no slot `toolbar.main` do
+  `builtinMenuContributionsPlugin`
+- **Zoom NÃO estava** no slot → `<svge-shell-pro>` (que só consome
+  o registry) ficava sem botões de zoom
+- `/custom-editor` tinha sua própria toolbar com 5 botões duplicados
+
+### Implementação
+
+**D-064a — Registrar Zoom no `toolbar.main`**:
+
+- `builtinMenuContributionsPlugin` agora registra Zoom Out (order 60),
+  Zoom In (order 70), Reset View (order 80) no `TOOLBAR_SLOT.MAIN`
+- Mesmos handlers que MENU_SLOT.VIEW pra consistência
+- Ordens 10-50 (history+edit) ficam no início; 60-80 (viewport) no fim
+
+**D-064b — `<svge-editor>` shell**:
+
+- Removidos os 5 botões hardcoded da template
+- Removidos `undoTriggered`/`redoTriggered` outputs (consumers que
+  precisam usam `CommandBus`/`HistoryService` diretamente)
+- Removidos métodos `undo`/`redo`/`zoomIn`/`zoomOut`/`resetView` +
+  computeds `canUndo`/`canRedo`/`zoomPct`
+- Removidas DI de `CommandBus`/`HistoryService`/`ViewportService` +
+  imports de Material (`MatIconButton`/`MatIcon`/`MatTooltip`)
+- Shell agora só renderiza `<svge-toolbar slot="toolbar.main">` —
+  single source of truth
+
+**D-064c — `/custom-editor`**:
+
+- Removidos 5 botões soltos dos fieldsets Edit + Viewport
+- Adicionado `<svge-toolbar slot="toolbar.main">` num novo fieldset
+  "History & Viewport" no topo da toolbar customizada
+- Removidos métodos `undo`/`redo`/`zoomIn`/`zoomOut`/`resetView` +
+  computeds `canUndo`/`canRedo`
+
+**Spec migration**:
+
+- Removidos 2 describe blocks obsoletos do
+  `editor.component.spec.ts` (4 specs): "toolbar buttons" e
+  "output emission" — testavam comportamento hardcoded que migrou
+  pro registry. `builtinMenuContributionsPlugin.spec.ts` já cobre
+  o pipeline novo.
+
+### Ganho
+
+- **Consistência visual** total entre `<svge-editor>`,
+  `<svge-shell-pro>`, `/custom-editor` — todos consomem o mesmo
+  `toolbar.main` slot
+- **Zero duplicação** — botões aparecem uma única vez
+- **`<svge-shell-pro>` agora mostra Zoom** (era "quebrado")
+- **Plugin developers** podem extender ações via
+  `MenuContributionRegistry` (vale pra zoom também agora)
+- **Atalhos preservados** (D-040 já registrava Ctrl+Z/Y; wheel
+  zoom continua pelo canvas)
+
+### Validação
+
+- 1409 testes ✓ (-4 obsoletos)
+- Lint clean
+- Playground build clean
+
+### Premissas honradas
+
+- D-017: shell mais leve (menos Material imports)
+- Zero regressão funcional (handlers idênticos aos antigos)
+- Anti-duplicação: única fonte de verdade pra Undo/Redo/Zoom
+- Plugin-extensibility: novas ações só precisam ir no registry
+
+---
+
 ## 2026-05-24 — D-063: Symbol Sprayer live preview + custom-editor defs fix
 
 ### Demandas

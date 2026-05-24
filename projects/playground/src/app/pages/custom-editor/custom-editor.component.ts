@@ -111,6 +111,7 @@ import {
   SvgeRulers,
   SvgeSvgSourceDialogService,
   SvgeThemeToggle,
+  SvgeToolbar,
   SvgeToolOptions,
   SvgeWorkspaceSettingsDialogService,
 } from 'svg-engine/ui';
@@ -172,6 +173,7 @@ const DRAG_START_THRESHOLD_PX = 3;
     SvgeRulers,
     SvgeIsolationBreadcrumb,
     SvgeThemeToggle,
+    SvgeToolbar,
     SvgeToolOptions,
     SvgeEffectsPanel,
     SvgeGradientEditor,
@@ -267,8 +269,11 @@ export class CustomEditor implements OnDestroy {
     return merged.length > 0 ? merged : null;
   });
   protected readonly nodeCount = this.state.nodeCount;
-  protected readonly canUndo = this.history.canUndo;
-  protected readonly canRedo = this.history.canRedo;
+  // D-064 — canUndo / canRedo computeds removed (the Undo / Redo
+  // buttons that consumed them migrated to the central toolbar.main
+  // contributions, which read the same history state via their own
+  // `disabled` factory). HistoryService stays injected because other
+  // commands (Pathfinder / Boolean Live / etc.) still query it.
 
   /**
    * Whether the current focus is a group (so the Ungroup button can
@@ -833,25 +838,11 @@ export class CustomEditor implements OnDestroy {
     this.bus.dispatch(new RemoveNodeCommand(first.id));
   }
 
-  protected undo(): void {
-    this.bus.undo();
-  }
-
-  protected redo(): void {
-    this.bus.redo();
-  }
-
-  protected zoomIn(): void {
-    this.viewport.zoomIn();
-  }
-
-  protected zoomOut(): void {
-    this.viewport.zoomOut();
-  }
-
-  protected resetView(): void {
-    this.viewport.reset();
-  }
+  // D-064 — undo/redo/zoomIn/zoomOut/resetView handlers removed.
+  // Those buttons migrated to the centralized toolbar.main slot of
+  // MenuContributionRegistry; the registry contribution does the
+  // CommandBus / ViewportService call directly. Keyboard shortcuts
+  // (Ctrl+Z, Ctrl+Y) keep working via builtinEditorShortcutsPlugin.
 
   protected toggleSnap(): void {
     this.snap.setEnabled(!this.snap.enabled());

@@ -1,4 +1,17 @@
 <section class="toolbar" aria-label="Editor commands">
+  <!--
+    D-064 — central toolbar (the single source of truth for
+    history + zoom + clipboard + grouping actions). Renders the
+    contributions registered at slot toolbar.main by
+    builtinMenuContributionsPlugin (Undo / Redo / Delete / Copy /
+    Paste / Duplicate / Group / Ungroup / Zoom Out / Zoom In /
+    Reset View). Replaces the per-fieldset Undo/Redo/Zoom buttons
+    this view used to ship — they were duplicating the registry.
+  -->
+  <fieldset class="primary-toolbar">
+    <legend>History & Viewport</legend>
+    <svge-toolbar slot="toolbar.main"></svge-toolbar>
+  </fieldset>
   <fieldset>
     <legend>Tool</legend>
     @for (t of toolRegistry.tools(); track t.id) {
@@ -72,16 +85,17 @@
     >
       ⤒
     </button>
-    <span aria-hidden="true">·</span>
-    <button type="button" (click)="undo()" [disabled]="!canUndo()">Undo</button>
-    <button type="button" (click)="redo()" [disabled]="!canRedo()">Redo</button>
-  </fieldset>
-  <fieldset>
-    <legend>Viewport</legend>
-    <button type="button" (click)="zoomOut()" aria-label="Zoom out">−</button>
-    <span class="zoom-pct" aria-live="polite">{{ zoomPct() }}</span>
-    <button type="button" (click)="zoomIn()" aria-label="Zoom in">+</button>
-    <button type="button" (click)="resetView()">Reset</button>
+    <!--
+      D-064 — Undo/Redo and Viewport (Zoom In/Out/Reset) buttons
+      removed from this view. They were duplicating actions that now
+      live in the centralized toolbar.main slot of the
+      MenuContributionRegistry. Users access them via:
+      - the upcoming <svge-toolbar> rendered elsewhere on the page
+        (if/when this view chooses to mount it), OR
+      - keyboard shortcuts already registered by
+        builtinEditorShortcutsPlugin (D-040): Ctrl+Z / Ctrl+Y, and
+        the wheel zoom for viewport control.
+    -->
   </fieldset>
   <fieldset>
     <legend>Snap</legend>
