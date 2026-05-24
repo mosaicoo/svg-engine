@@ -74,6 +74,11 @@ export * from './lib/gradient-editor';
 // SVG source viewer dialog (Inkscape "XML Editor" / Boxy SVG "Source" parity)
 export * from './lib/svg-source-dialog';
 
+// Trace Image options dialog (D-066c) — Material wrapper for D-062d
+// autotrace with threshold/tolerance/minPoints sliders + hide-source
+// checkbox + Apply/Cancel.
+export * from './lib/trace-image-dialog';
+
 // Status bar (D-035 — shell-refinement; standalone OR via <svge-editor>)
 export * from './lib/status-bar';
 

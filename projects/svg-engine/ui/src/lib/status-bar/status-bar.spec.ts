@@ -9,7 +9,12 @@ import {
   InsertNodeCommand,
   type SvgDocument,
 } from 'svg-engine/core';
-import { SelectionService, SnapService, WorkspaceService } from 'svg-engine/edit';
+import {
+  SelectionService,
+  SnapService,
+  TraceProgressService,
+  WorkspaceService,
+} from 'svg-engine/edit';
 import { ViewportService } from 'svg-engine/render';
 import { SvgeStatusBar, STATUS_BAR_SECTIONS } from './status-bar.component';
 
@@ -35,10 +40,11 @@ describe('SvgeStatusBar — sections render', () => {
     fixture.detectChanges();
   });
 
-  it('renders all default sections (except isolation/dirty which are conditional)', () => {
+  it('renders all default sections (except isolation/tracing/dirty which are conditional)', () => {
     const sections = fixture.nativeElement.querySelectorAll('.section');
     // tool + selection + cursor + zoom + snap = 5 always-on by default
-    // isolation hidden (no isolation active), dirty hidden (fresh doc)
+    // isolation hidden (no isolation active), tracing hidden (no run in
+    // flight), dirty hidden (fresh doc)
     expect(sections.length).toBe(5);
   });
 
@@ -59,8 +65,49 @@ describe('SvgeStatusBar — sections render', () => {
       'zoom',
       'snap',
       'isolation',
+      'tracing',
       'dirty',
     ]);
+  });
+});
+
+describe('SvgeStatusBar — tracing section (D-066e)', () => {
+  let fixture: ComponentFixture<SvgeStatusBar>;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideZonelessChangeDetection(), provideNoopAnimations()],
+    });
+    TestBed.inject(EditorStateService).resetDocument(seedDoc());
+    fixture = TestBed.createComponent(SvgeStatusBar);
+    fixture.detectChanges();
+  });
+
+  it('does not render the tracing pill while idle', () => {
+    expect(fixture.nativeElement.querySelector('.section-tracing')).toBeNull();
+  });
+
+  it('renders the tracing pill while TraceProgressService.running()', () => {
+    const tp = TestBed.inject(TraceProgressService);
+    tp.start();
+    fixture.detectChanges();
+    const pill = fixture.nativeElement.querySelector('.section-tracing');
+    expect(pill).not.toBeNull();
+    expect(pill.querySelector('.value').textContent).toContain('Tracing');
+    tp.stop();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.section-tracing')).toBeNull();
+  });
+
+  it('pluralizes label when multiple traces run concurrently', () => {
+    const tp = TestBed.inject(TraceProgressService);
+    tp.start();
+    tp.start();
+    fixture.detectChanges();
+    const text = fixture.nativeElement.querySelector('.section-tracing .value').textContent;
+    expect(text).toContain('2');
+    tp.stop();
+    tp.stop();
   });
 });
 

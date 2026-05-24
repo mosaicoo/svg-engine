@@ -19,6 +19,7 @@ import { ActivePatternsService } from '../library/patterns/pattern-library.servi
 import { ActiveSymbolsService } from '../library/symbols/symbol-library.service';
 import { SymbolSelectionService } from '../library/symbols/symbol-selection.service';
 import { SymbolSprayerPreviewService } from '../library/symbols/symbol-sprayer-preview.service';
+import { TraceProgressService } from '../autotrace/trace-progress.service';
 import { LayersService } from '../layers/layers.service';
 import { MarqueeService } from '../marquee/marquee.service';
 import { SelectionService } from '../selection/selection.service';
@@ -247,5 +248,11 @@ export function provideSvgEngineEditorScope(): Provider[] {
     // them and paints ghosted `<use>`s. Scoped so two editors don't
     // see each other's in-flight preview.
     SymbolSprayerPreviewService,
+    // D-066 — per-editor "tracing in progress" counter. Status bar
+    // reads `running` to show the "Tracing…" pill; the dialog handler
+    // calls start()/stop() around the async prepare() pass. Scoped
+    // so editor A's status doesn't light up because editor B is
+    // tracing.
+    TraceProgressService,
   ];
 }

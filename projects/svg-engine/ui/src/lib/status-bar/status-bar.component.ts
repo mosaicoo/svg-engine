@@ -15,6 +15,7 @@ import {
   SnapService,
   ToolHostService,
   ToolRegistry,
+  TraceProgressService,
   WorkspaceService,
 } from 'svg-engine/edit';
 import { ViewportService } from 'svg-engine/render';
@@ -36,6 +37,7 @@ export const STATUS_BAR_SECTIONS = [
   'zoom',
   'snap',
   'isolation',
+  'tracing',
   'dirty',
 ] as const;
 export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
@@ -57,6 +59,9 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
  * - `zoom` — viewport zoom percentage
  * - `snap` — snap enabled flag + mode (grid / objects / both)
  * - `isolation` — current isolation breadcrumb when active
+ * - `tracing` — D-066e: animated pill while one or more Trace Image
+ *   commands are running (`TraceProgressService.running()`). Hidden
+ *   when idle so it never takes layout space during normal editing.
  * - `dirty` — document dirty indicator (`●` glyph)
  *
  * All sections are **passive** — they only read state, never mutate.
@@ -134,6 +139,17 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
         <span class="value">{{ isolationLabel() }}</span>
       </span>
     }
+    @if (showSection('tracing') && isTracing()) {
+      <span
+        class="section section-tracing"
+        role="status"
+        aria-live="polite"
+        [matTooltip]="tracingTooltip()"
+      >
+        <mat-icon class="icon spin" aria-hidden="true">progress_activity</mat-icon>
+        <span class="value">{{ tracingLabel() }}</span>
+      </span>
+    }
     @if (showSection('dirty') && isDirty()) {
       <span class="section section-dirty" matTooltip="Unsaved changes" aria-label="Unsaved changes">
         <span class="dirty-dot" aria-hidden="true">●</span>
@@ -186,6 +202,37 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
       font-size: 12px;
       line-height: 1;
     }
+    /* D-066e: Tracing pill — accented background + spinning icon so the
+       user sees clearly that a background task is in flight. Auto-hides
+       when idle (the @if wraps the whole section), so the rule below
+       only applies during active traces. */
+    .section-tracing {
+      background: var(--mat-sys-secondary-container, rgba(25, 118, 210, 0.08));
+      color: var(--mat-sys-on-secondary-container, inherit);
+      border-radius: 999px;
+      padding-left: 0.5rem;
+      padding-right: 0.6rem;
+      margin: 0 0.25rem;
+      border-right-color: transparent;
+    }
+    .section-tracing .icon {
+      opacity: 1;
+      color: var(--mat-sys-primary, #1976d2);
+    }
+    .icon.spin {
+      animation: svge-status-spin 1s linear infinite;
+      transform-origin: 50% 50%;
+    }
+    @keyframes svge-status-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .icon.spin {
+        animation: none;
+      }
+    }
     /* D-044: snap section as a button. Reset native button styles so it
        blends with the surrounding info-bar look + add hover/active
        affordances since this section is interactive (others are display
@@ -220,6 +267,7 @@ export class SvgeStatusBar {
   private readonly tools = inject(ToolRegistry);
   private readonly snap = inject(SnapService);
   private readonly isolation = inject(IsolationService);
+  private readonly traceProgress = inject(TraceProgressService);
 
   /**
    * Which sections to render. Order in the array = render order.
@@ -320,6 +368,31 @@ export class SvgeStatusBar {
     const depth = path.length - 1; // root counts as depth 0
     const focusId = path[path.length - 1];
     return focusId !== undefined ? `L${depth} · ${focusId.slice(0, 6)}` : `L${depth}`;
+  });
+
+  // ── Tracing section (D-066e) ────────────────────────────────────
+
+  /**
+   * Reflects {@link TraceProgressService.running} — `true` while one or
+   * more Trace Image commands are in flight. Drives the conditional
+   * render of the tracing pill so the section is invisible when idle
+   * (no layout shift, no animated icon stealing attention).
+   */
+  protected readonly isTracing = computed(() => this.traceProgress.running());
+
+  /**
+   * Pluralized label so a parallel multi-trace scenario stays readable.
+   * The current trigger paths (menu + Ctrl+Alt+T) start one at a time
+   * but plugins could fire concurrent traces, so we already support it.
+   */
+  protected readonly tracingLabel = computed(() => {
+    const n = this.traceProgress.count();
+    return n <= 1 ? 'Tracing…' : `Tracing ${n}…`;
+  });
+
+  protected readonly tracingTooltip = computed(() => {
+    const n = this.traceProgress.count();
+    return n <= 1 ? 'Converting image to vector paths' : `Converting ${n} images to vector paths`;
   });
 
   // ── Dirty section ───────────────────────────────────────────────

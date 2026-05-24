@@ -13,3 +13,4 @@
 
 export { traceImageToPaths, type TraceOptions } from './trace-bitmap';
 export { TraceImageCommand } from './trace-image.command';
+export { TraceProgressService } from './trace-progress.service';

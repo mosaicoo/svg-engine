@@ -6,6 +6,123 @@
 
 ---
 
+## 2026-05-24 — D-066: Auto-trace polish — Material dialog + Ctrl+Alt+T + status pill
+
+### Demanda
+
+User pediu execução de TODOS os 3 follow-ups sugeridos sobre o
+D-065-fix (Auto-trace só com defaults hardcoded):
+
+1. Dialog Material com sliders (`threshold` / `tolerance` /
+   `minPoints` + checkbox "hide source")
+2. Atalho de teclado `Ctrl+Alt+T`
+3. Status bar "Tracing…" durante o async (sem feedback hoje)
+
+### Reorganização estrutural prévia (D-066a + D-066b)
+
+Antes de codar UI, **moveu a Trace Image entry pra `svg-engine/ui`**
+(`builtinUiMenuContributionsPlugin`) porque o dialog Material só
+pode viver lá (D-017 — headless boundary impede `svg-engine/edit`
+de importar `@angular/material`):
+
+- **D-066a** — `TraceProgressService` em `svg-engine/edit/autotrace`:
+  contador-based (não boolean) pra suportar traces concorrentes,
+  `running: Signal<boolean>` derivado, `start()/stop()` driven by
+  caller (NÃO acoplado a `TraceImageCommand` — mantém o command
+  puro / sem DI). Registrado no `provideSvgEngineEditorScope` pra
+  isolamento per-editor (D-042).
+- **D-066b** — `builtinMenuContributionsPlugin` (edit-side) **perdeu**
+  a entry `svge.builtin.object.trace-image` + `noImageSelectionFactory`
+  - `runTraceImage`. Substituídos por comentário-âncora apontando
+    pro novo home em `svg-engine/ui`.
+
+### Implementação (D-066c + D-066d + D-066e)
+
+**D-066c — Dialog Material `<svge-trace-image-dialog>`**
+(`projects/svg-engine/ui/src/lib/trace-image-dialog`):
+
+- `SvgeTraceImageDialog` standalone, dentro do `SvgeDialogShell`
+  (chrome consistente — D-044 sizing system, bucket `sm`)
+- 3 sliders nativos (`<input type="range">`) com hint contextual:
+  - `Threshold` 0..255 (default 128) — cutoff luminância ink/paper
+  - `Tolerance` 0..10px step 0.1 (default 1) — Douglas-Peucker
+  - `Min points` 3..20 (default 4) — drop noise speckles
+- Checkbox `hide source after trace` (default ON)
+- Footer Apply / Cancel — Apply fecha com `TraceImageDialogResult`,
+  Cancel fecha com `null`
+- `SvgeTraceImageDialogService` (`@Injectable({ providedIn: 'root' })`)
+  encapsula `MatDialog.open` + `svgeDialogConfig('sm', { injector })`
+  pra propagar o injector D-042-safe
+
+**D-066d — Menu + Shortcut no UI plugin**
+(`builtinUiMenuContributionsPlugin`):
+
+- Menu `svge.builtin.ui.object.trace-image` em `MENU_SLOT.OBJECT`
+  ordem 80, label "Trace Image…", icon `auto_fix_normal`,
+  shortcut display `Ctrl+Alt+T`, `disabled: noImageSelectionFactory`
+- Shortcut `svge.builtin.shortcut.trace-image` combo `Ctrl+Alt+T`
+  registrado via `ShortcutRegistry` (que vive em `svg-engine/edit`
+  — UI pode importar livremente porque UI é downstream de edit)
+- Ambos (menu + shortcut) chamam o mesmo helper
+  `openTraceImageDialog(injector)`:
+  1. Valida selection (1 node, type 'image')
+  2. Abre dialog + `await firstValueFrom(ref.afterClosed())`
+  3. `progress.start()` → `try { await cmd.prepare({ state }) }
+catch (alert) } finally { progress.stop() }`
+  4. `bus.dispatch(cmd)` + check `result.ok`
+  5. Se `hideSource`: `SetPropertyCommand<ImageNode, 'metadata'>(...)`
+     com `visible: false`
+  6. `selection.select(groupId)` pra feedback visual
+
+**D-066e — Status bar Tracing pill**
+(`SvgeStatusBar`):
+
+- Nova seção `'tracing'` adicionada ao `STATUS_BAR_SECTIONS`
+  (entre `isolation` e `dirty`)
+- `inject(TraceProgressService)` + `isTracing = computed(...)` +
+  `tracingLabel` (plural-aware: "Tracing…" ou "Tracing 2…")
+- Render condicional `@if (showSection('tracing') && isTracing())`
+  — invisível quando idle (sem layout shift / sem ícone animado
+  roubando atenção)
+- Visual: pill arredondado com fundo `secondary-container`, ícone
+  `progress_activity` spinning (1s linear infinite), respeita
+  `prefers-reduced-motion`
+
+### Validação
+
+- ng test svg-engine ✓ (sem regressão; +3 specs novos no status-bar)
+- ng lint svg-engine ✓ All files pass linting
+- ng build playground ✓ (UI plugin compila com novos imports
+  cross-package: core + edit + ui)
+
+### Como usar agora
+
+1. Selecionar uma `<image>` no canvas
+2. **Menu**: Object → Trace Image… **OU** **Atalho**: `Ctrl+Alt+T`
+3. Dialog abre — ajustar sliders + checkbox conforme o input
+   (logo limpo? `threshold=180`. Foto JPEG? `tolerance=2,
+minPoints=8` pra filtrar ruído.)
+4. Clicar **Apply** — pill "Tracing…" pulsa no status bar
+   durante o async (fetch + canvas + marching squares +
+   Douglas-Peucker; geralmente <500ms pra imagens pequenas)
+5. Resultado: novo grupo de paths aparece selecionado;
+   imagem original some (se `hideSource` ON) — reversível pelo
+   Layer Panel ou Undo
+
+### Decisões importantes
+
+- **Dialog devolve options (não faz o trace)** — mantém o
+  componente puro-UI, facilita testes + reuso futuro
+- **Counter, não boolean, no TraceProgressService** — defensive
+  contra traces paralelos, custo zero
+- **`hideSource` via `SetPropertyCommand` separado** — fica numa
+  entrada de undo independente (user pode reverter SÓ o hide sem
+  desfazer o trace inteiro)
+- **Mesmo handler menu + shortcut** — single source of truth, não
+  duplica a state machine
+
+---
+
 ## 2026-05-24 — D-065 follow-up: Auto-trace (D-062d) wired no Object menu
 
 ### Demanda

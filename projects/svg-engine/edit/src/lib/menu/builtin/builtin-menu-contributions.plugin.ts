@@ -29,7 +29,6 @@ import {
   type DistributeAxis,
   type NodeBBox,
 } from '../../alignment';
-import { TraceImageCommand } from '../../autotrace';
 import { ClipboardService } from '../../clipboard/clipboard.service';
 import { getRenderedNodeBBox } from '../../geometry/node-bbox';
 import { ActiveDefsService } from '../../library/active-defs.service';
@@ -160,21 +159,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
       const selection = injector.get(SelectionService);
       return computed(() => selection.selectedIds().size < 2);
     };
-    // D-065 follow-up — Trace Image requires EXACTLY one selected
-    // node AND that node must be of type 'image'. Pathfinder-style
-    // ≥2 doesn't apply: the tracer reads a single bitmap → emits a
-    // group of polygon paths (operates on one input, produces N
-    // outputs). Multi-select would be ambiguous — which image?
-    const noImageSelectionFactory = (injector: Injector): Signal<boolean> => {
-      const selection = injector.get(SelectionService);
-      const state = injector.get(EditorStateService);
-      return computed(() => {
-        const ids = Array.from(selection.selectedIds());
-        if (ids.length !== 1) return true;
-        const node = findNodeById(state.document().root, ids[0]!);
-        return node === null || node.type !== 'image';
-      });
-    };
+    // D-066 — noImageSelectionFactory moved to
+    // builtinUiMenuContributionsPlugin (same place as the Trace Image
+    // menu entry that consumes it).
 
     // ── Lazy injector helper for run() handlers (D-043 fix) ────────
     // Always reads from `runCtx.injector` when present (the editor
@@ -930,85 +917,20 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
       }),
     );
 
-    // ── D-065 follow-up — Object › Trace Image (D-062d wired) ──────
+    // ── D-066 — Trace Image moved to builtinUiMenuContributionsPlugin
     //
-    // Bridges the headless `TraceImageCommand` (D-062d) into the
-    // menu chrome. Was previously only invocable from console — now
-    // surfaces under Object after Pathfinder (Illustrator places its
-    // Image Trace under Object too).
+    // The D-065 follow-up registered a simple no-dialog Trace Image
+    // entry here (defaults threshold=128, tolerance=1). D-066 replaces
+    // it with a Material-dialog version (sliders + hide-source
+    // checkbox + status pill) that lives in
+    // builtinUiMenuContributionsPlugin — the edit/ headless plugin
+    // can't open dialogs (Material is svg-engine/ui only).
     //
-    // **Honest scope** (from D-062d): single-threshold bicromático
-    // (one cut-off between "ink" and "paper") + polyline output (no
-    // curve fitting). Logos / icons / line-art trace cleanly;
-    // photographs degrade into silhouettes — algorithm working as
-    // designed, not a bug. Defaults `threshold=128, tolerance=1`
-    // (median luminance, 1px Douglas-Peucker simplification) are
-    // sensible for typical inputs; a follow-up could expose a
-    // Material dialog with sliders (lives in `svg-engine/ui`, not
-    // here — see `builtinUiMenuContributionsPlugin`).
-    //
-    // **Async pattern**: `TraceImageCommand.prepare()` is async
-    // (loads the bitmap, rasterizes via canvas2d). The CommandBus
-    // contract is sync, so we await prepare() FIRST, then dispatch.
-    // Errors (CORS-tainted canvas, broken href, decode failure) are
-    // surfaced via console + alert — non-fatal: the document stays
-    // unchanged.
-    ctx.track(
-      reg.register({
-        id: 'svge.builtin.object.trace-image',
-        slot: MENU_SLOT.OBJECT,
-        label: 'Trace Image…',
-        icon: 'auto_fix_normal',
-        tooltip: 'Convert the selected image to vector paths (single-threshold)',
-        order: 80,
-        disabled: noImageSelectionFactory,
-        run(runCtx) {
-          void runTraceImage(runCtx);
-        },
-      }),
-    );
-    const runTraceImage = async (runCtx: MenuContributionContext | undefined): Promise<void> => {
-      const selection = fromCtx(SelectionService, runCtx);
-      const ids = Array.from(selection.selectedIds());
-      if (ids.length !== 1) return;
-      const imageNodeId = ids[0]!;
-      const state = fromCtx(EditorStateService, runCtx);
-      const node = findNodeById(state.document().root, imageNodeId);
-      if (node === null || node.type !== 'image') return;
-      // Defaults are deliberately conservative — threshold=128
-      // (mid-luminance binarization) + tolerance=1px (gentle DP
-      // simplification). They land sensible-looking output on
-      // logos/line-art; users tuning for photos would need finer
-      // control (deferred to a future Material dialog).
-      const cmd = new TraceImageCommand(imageNodeId, {
-        threshold: 128,
-        tolerance: 1,
-      });
-      try {
-        await cmd.prepare({ state });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error('[Trace Image] prepare failed:', msg);
-        // Surface to the user — without this, a CORS-tainted canvas
-        // or a broken href just fails silently.
-        if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-          window.alert(`Trace Image failed: ${msg}`);
-        }
-        return;
-      }
-      const bus = fromCtx(CommandBus, runCtx);
-      const result = bus.dispatch(cmd);
-      if (!result.ok) {
-        console.warn('[Trace Image] dispatch failed:', result.error);
-        return;
-      }
-      // Select the new group so the user immediately sees the
-      // result (and can hide / delete the source image).
-      const groupId = cmd.getInsertedGroupId();
-      if (groupId !== null) {
-        selection.select(groupId);
-      }
-    };
+    // Headless consumers that want Trace Image without the dialog
+    // can construct their own contribution that calls
+    // `new TraceImageCommand(id, opts)` directly. The command is
+    // still exported from svg-engine/edit/autotrace and works
+    // standalone (no DI coupling, no dialog requirement).
 
     // ── Help menu ──────────────────────────────────────────────────
     ctx.track(
