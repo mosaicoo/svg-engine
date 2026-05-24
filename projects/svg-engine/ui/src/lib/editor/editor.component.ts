@@ -12,12 +12,7 @@ import {
 } from 'svg-engine/core';
 import { SvgeRenderer, ViewportService } from 'svg-engine/render';
 import {
-  ActiveClipPathsService,
-  ActiveGradientsService,
-  ActiveMasksService,
-  ActivePatternsService,
-  ChainFilterRegistry,
-  EffectRegistry,
+  ActiveDefsService,
   GradientOverlay,
   GridOverlay,
   GuidesOverlay,
@@ -392,20 +387,12 @@ export class SvgeEditor {
   private readonly state = inject(EditorStateService);
   private readonly viewport = inject(ViewportService);
   private readonly isolation = inject(IsolationService);
-  // D-047: feed the renderer's <defs> with filter markup from the
-  // registered effects + composed chain filters in use.
-  private readonly effects = inject(EffectRegistry);
-  private readonly chains = inject(ChainFilterRegistry);
-  // D-048 (fix UX#2 — split): feed the renderer's <defs> with gradient
-  // + pattern markup derived from the CURRENT route's document. Active
-  // services are route-scoped and read the route's EditorStateService;
-  // catalog lookup goes to the root-scoped GradientLibraryService /
-  // PatternLibraryService (injected by the Active service internally).
-  private readonly gradients = inject(ActiveGradientsService);
-  private readonly patterns = inject(ActivePatternsService);
-  // D-049 (Composição / Recorte): clipPath + mask active-defs.
-  private readonly clipPaths = inject(ActiveClipPathsService);
-  private readonly masks = inject(ActiveMasksService);
+  // D-058 export fix — single composer for the dynamic `<defs>` block
+  // (gradients, patterns, effects, chains, clipPaths, masks). Replaces
+  // the 6 individual inject() calls previously duplicated here. Same
+  // service feeds the exporter (built-in File › Export SVG menu) so
+  // canvas vs exported file stay in sync.
+  private readonly activeDefs = inject(ActiveDefsService);
 
   /**
    * **D-040** — Resolver for the dynamic context-menu slot. Bound to
@@ -468,17 +455,7 @@ export class SvgeEditor {
    * injection entirely (zero cost when no defs / effects in use).
    */
   protected readonly resolvedDefs = computed<string | null>(() => {
-    const docDefs = this.state.document().defs ?? '';
-    const fxDefs = this.effects.buildAllFiltersMarkup();
-    const chainDefs = this.chains.buildAllChainsMarkup();
-    const gradientDefs = this.gradients.buildAllActiveGradientsMarkup();
-    const patternDefs = this.patterns.buildAllActivePatternsMarkup();
-    // D-049: clipPath + mask defs.
-    const clipPathDefs = this.clipPaths.buildAllActiveClipPathsMarkup();
-    const maskDefs = this.masks.buildAllActiveMasksMarkup();
-    const merged = [docDefs, fxDefs, chainDefs, gradientDefs, patternDefs, clipPathDefs, maskDefs]
-      .filter((s) => s.length > 0)
-      .join('\n');
+    const merged = this.activeDefs.buildExportDefs(this.state.document().defs);
     return merged.length > 0 ? merged : null;
   });
 

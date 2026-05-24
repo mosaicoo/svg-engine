@@ -8,6 +8,7 @@ import {
   type PolygonNode,
   type PolylineNode,
   type RectNode,
+  roundPathCorners,
   type SvgDocument,
   type SvgNode,
   type SvgStyle,
@@ -85,6 +86,17 @@ export const svgExporter: Exporter = {
 // ── Element renderers ─────────────────────────────────────────────
 
 function renderNode(node: SvgNode, depth: number): string {
+  // **Visibility gate** — `metadata.visible === false` means the node
+  // is doc-level hidden (D-056 Live Boolean inputs use this to keep
+  // their shapes as group children without painting). The renderer
+  // applies `display: none` to such nodes; the exporter mirrors that
+  // by SKIPPING them entirely so the exported file matches what the
+  // canvas paints. (Alternative: emit with `style="display:none"`;
+  // chose skip-on-export because the typical use case is "I want my
+  // file to render what I see" — hidden nodes are session-level
+  // intent, not part of the visual.) Round-tripping requires the
+  // editor to re-derive these from Live Boolean groups on import.
+  if (node.metadata.visible === false) return '';
   switch (node.type) {
     case 'group':
       return renderGroup(node, depth);
@@ -116,7 +128,11 @@ function renderGroup(node: GroupNode, depth: number): string {
   }
   const lines = [`${indent}<g${attrsStr(attrs)}>`];
   for (const child of node.children) {
-    lines.push(renderNode(child, depth + 1));
+    // Filter empty strings — renderNode returns '' for hidden nodes
+    // (metadata.visible === false). Skip them so we don't emit blank
+    // lines inside the group.
+    const rendered = renderNode(child, depth + 1);
+    if (rendered.length > 0) lines.push(rendered);
   }
   lines.push(`${indent}</g>`);
   return lines.join('\n');
@@ -173,7 +189,15 @@ function renderPolyline(node: PolylineNode, depth: number): string {
 
 function renderPath(node: PathNode, depth: number): string {
   const indent = '  '.repeat(depth);
-  const attrs: [string, string][] = [['d', node.d]];
+  // D-055 Live Corners — when cornerRadius > 0, the renderer paints
+  // the ROUNDED `d` (derived via roundPathCorners). Exporter mirrors:
+  // emit the rounded `d` so the exported SVG looks identical to the
+  // canvas. The authored `d` is dropped — there's no SVG attribute
+  // to carry "original d before rounding" + round-trip preserves
+  // the visual; user re-applies cornerRadius via Inspector if needed.
+  const r = node.cornerRadius ?? 0;
+  const effectiveD = r > 0 ? roundPathCorners(node.d, r) : node.d;
+  const attrs: [string, string][] = [['d', effectiveD]];
   return `${indent}<path${attrsStr([...attrs, ...baseAttrs(node)])} />`;
 }
 
@@ -187,6 +211,40 @@ function renderText(node: TextNode, depth: number): string {
   if (node.fontFamily !== undefined) attrs.push(['font-family', node.fontFamily]);
   if (node.fontWeight !== undefined) attrs.push(['font-weight', String(node.fontWeight)]);
   if (node.textAnchor !== undefined) attrs.push(['text-anchor', node.textAnchor]);
+  // D-053 — Variable Fonts + OpenType + letter spacing. These are CSS
+  // properties (no native SVG attributes); the renderer emits them as
+  // host-bound styles. Exporter mirrors via inline `style=""` so the
+  // exported file applies them when opened in a browser or design tool
+  // that honors CSS in SVG (every modern viewer does).
+  const styleProps: string[] = [];
+  if (node.fontVariationSettings !== undefined) {
+    styleProps.push(`font-variation-settings: ${node.fontVariationSettings}`);
+  }
+  if (node.fontFeatureSettings !== undefined) {
+    styleProps.push(`font-feature-settings: ${node.fontFeatureSettings}`);
+  }
+  if (node.letterSpacing !== undefined) {
+    // SVG also has a `letter-spacing` attribute. We emit as CSS for
+    // parity with the renderer's `[style.letter-spacing]` binding.
+    styleProps.push(`letter-spacing: ${fmt(node.letterSpacing)}px`);
+  }
+  if (styleProps.length > 0) attrs.push(['style', styleProps.join('; ')]);
+
+  // D-053 — Text on path. When textPathRef is set, content lives inside
+  // a <textPath href="#id"> child instead of as direct text. The
+  // renderer pre-collapses whitespace; mirror that to avoid the
+  // typical \n-to-space stretch issue.
+  const ref = node.textPathRef;
+  if (ref !== undefined && ref !== null && ref !== '') {
+    const flat = node.content.replace(/\s+/g, ' ');
+    const startOffset = node.textPathStartOffset;
+    const offsetAttr =
+      startOffset !== undefined && startOffset !== null && startOffset !== ''
+        ? ` startOffset="${escapeAttr(startOffset)}"`
+        : '';
+    return `${indent}<text${attrsStr([...attrs, ...baseAttrs(node)])}>\n${'  '.repeat(depth + 1)}<textPath href="#${escapeAttr(ref)}"${offsetAttr}>${escapeXml(flat)}</textPath>\n${indent}</text>`;
+  }
+
   return `${indent}<text${attrsStr([...attrs, ...baseAttrs(node)])}>${escapeXml(node.content)}</text>`;
 }
 
@@ -220,14 +278,34 @@ function baseAttrs(node: SvgNode): [string, string][] {
 function styleAttrs(style: SvgStyle): [string, string][] {
   const out: [string, string][] = [];
   // Canonical alphabetical order — predictable diffs.
+  // D-049 — composition / clipping. These belong on the wrapper <g>
+  // in the renderer (see node-renderer.component for the reasoning),
+  // but for export we attach them as direct attributes on the painted
+  // element because the exporter doesn't emit a wrapper <g> per leaf.
+  // Visually identical for non-grouped nodes; for groups, both renderer
+  // and exporter attach to the same element so it round-trips clean.
+  if (style.clipPath !== undefined) out.push(['clip-path', style.clipPath]);
   if (style.fill !== undefined) out.push(['fill', style.fill]);
   if (style.fillOpacity !== undefined) out.push(['fill-opacity', fmt(style.fillOpacity)]);
   if (style.filter !== undefined) out.push(['filter', style.filter]);
+  if (style.mask !== undefined) out.push(['mask', style.mask]);
   if (style.opacity !== undefined) out.push(['opacity', fmt(style.opacity)]);
   if (style.stroke !== undefined) out.push(['stroke', style.stroke]);
+  if (style.strokeDasharray !== undefined && style.strokeDasharray.length > 0) {
+    out.push(['stroke-dasharray', style.strokeDasharray.map(fmt).join(' ')]);
+  }
+  if (style.strokeLinecap !== undefined) out.push(['stroke-linecap', style.strokeLinecap]);
+  if (style.strokeLinejoin !== undefined) out.push(['stroke-linejoin', style.strokeLinejoin]);
   if (style.strokeOpacity !== undefined) out.push(['stroke-opacity', fmt(style.strokeOpacity)]);
   if (style.strokeWidth !== undefined) out.push(['stroke-width', fmt(style.strokeWidth)]);
   if (style.visibility !== undefined) out.push(['visibility', style.visibility]);
+  // D-049 — mix-blend-mode is a CSS property (no SVG attribute), so
+  // it goes inline as style="...". Kept LAST so it appears at the end
+  // of the attribute list (visually separable from native SVG attrs
+  // in a diff / hand-edit).
+  if (style.mixBlendMode !== undefined) {
+    out.push(['style', `mix-blend-mode: ${style.mixBlendMode}`]);
+  }
   return out;
 }
 

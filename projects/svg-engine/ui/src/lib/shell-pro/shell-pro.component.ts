@@ -1,12 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { type BoundingBox, EditorStateService, type SvgNode } from 'svg-engine/core';
 import {
-  ActiveClipPathsService,
-  ActiveGradientsService,
-  ActiveMasksService,
-  ActivePatternsService,
-  ChainFilterRegistry,
-  EffectRegistry,
+  ActiveDefsService,
   GradientOverlay,
   GridOverlay,
   GuidesOverlay,
@@ -341,21 +336,10 @@ import { SvgeToolsPalette } from '../tools-palette';
 export class SvgeShellPro {
   private readonly state = inject(EditorStateService);
   private readonly isolation = inject(IsolationService);
-  // D-047: feed the renderer's <defs> with filter markup from the
-  // registered effects + composed chain filters in use.
-  private readonly effects = inject(EffectRegistry);
-  private readonly chains = inject(ChainFilterRegistry);
-  // D-048 (fix UX#2 — split): scoped active-defs derivation for
-  // gradient + pattern URLs in the current document. Catalog lookup
-  // (which the Active services do internally) hits the root-scoped
-  // GradientLibraryService / PatternLibraryService — plugins register
-  // there at bootstrap.
-  private readonly gradients = inject(ActiveGradientsService);
-  private readonly patterns = inject(ActivePatternsService);
-  // D-049 (Item 4 — Composição / Recorte): same active-defs pattern
-  // for clipPath + mask URLs referenced in the current document.
-  private readonly clipPaths = inject(ActiveClipPathsService);
-  private readonly masks = inject(ActiveMasksService);
+  // D-058 export fix — central composer for dynamic <defs> (gradients,
+  // patterns, effects, chains, clipPaths, masks). Same service feeds
+  // the exporter so the exported SVG matches the canvas paint.
+  private readonly activeDefs = inject(ActiveDefsService);
 
   /**
    * **D-040** — Dynamic context-menu slot resolver. Right-click on a
@@ -388,24 +372,12 @@ export class SvgeShellPro {
     () => this.viewBox() ?? this.state.document().viewBox,
   );
   /**
-   * Effective `<defs>` fragment fed to `<svge-renderer>`. Concatenates
-   * (a) the document's imported defs (gradients/clipPaths/etc), (b) the
-   * `<filter>` elements from `EffectRegistry`, and (c) the composed
-   * chain filters from `ChainFilterRegistry`. Returns `null` when all
-   * three are empty so the renderer skips defs injection entirely.
+   * Effective `<defs>` fragment fed to `<svge-renderer>`. Delegates to
+   * `ActiveDefsService.buildExportDefs()` — same composer the exporter
+   * uses, so canvas paint and exported file see identical defs.
    */
   protected readonly resolvedDefs = computed<string | null>(() => {
-    const docDefs = this.state.document().defs ?? '';
-    const fxDefs = this.effects.buildAllFiltersMarkup();
-    const chainDefs = this.chains.buildAllChainsMarkup();
-    const gradientDefs = this.gradients.buildAllActiveGradientsMarkup();
-    const patternDefs = this.patterns.buildAllActivePatternsMarkup();
-    // D-049: clipPath + mask defs derived from style.clipPath / style.mask.
-    const clipPathDefs = this.clipPaths.buildAllActiveClipPathsMarkup();
-    const maskDefs = this.masks.buildAllActiveMasksMarkup();
-    const merged = [docDefs, fxDefs, chainDefs, gradientDefs, patternDefs, clipPathDefs, maskDefs]
-      .filter((s) => s.length > 0)
-      .join('\n');
+    const merged = this.activeDefs.buildExportDefs(this.state.document().defs);
     return merged.length > 0 ? merged : null;
   });
 }

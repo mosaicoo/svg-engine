@@ -10,6 +10,7 @@ import { ChainFilterRegistry } from '../effect/chain-filter';
 import { IsolationService } from '../isolation/isolation.service';
 import { AssetManagerService } from '../library/assets/asset-manager.service';
 import { ActiveClipPathsService } from '../library/clip-paths/clip-path-library.service';
+import { ActiveDefsService } from '../library/active-defs.service';
 import { GradientEditingService } from '../library/gradients/gradient-editing.service';
 import { ActiveGradientsService } from '../library/gradients/gradient-library.service';
 import { ActiveMasksService } from '../library/masks/mask-library.service';
@@ -208,6 +209,13 @@ export function provideSvgEngineEditorScope(): Provider[] {
     // derived from current selection + selected-stop index for the
     // overlay's focus ring + the Inspector's color picker target).
     GradientEditingService,
+    // D-058 export fix — composes Effect/Chain/Gradient/Pattern/ClipPath/
+    // Mask defs from the editor's active state. Scoped so the exporter
+    // sees the current editor's defs (not a sibling editor's). Replaces
+    // the inline 6-source composition that previously lived in each
+    // shell's `resolvedDefs` computed AND fixes the exporter bug where
+    // user-added gradients were dropped from the exported file.
+    ActiveDefsService,
     // D-049 (Item 4 — Composição / Recorte): same Catalog + Active
     // split as gradients/patterns. The Active*Service derives active
     // defs from the editor's document; the catalog stays root-scoped.

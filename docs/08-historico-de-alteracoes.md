@@ -6,6 +6,100 @@
 
 ---
 
+## 2026-05-24 — Bug fix CRÍTICO: exporter omitia gradients/effects/etc + style fields D-049/D-053
+
+### Sintoma reportado
+
+Usuário aplicou gradient num shape (`fill="url(#blueSky)"`). No canvas
+renderizou corretamente. Ao clicar File › Export SVG, o arquivo baixado
+abria com o shape **transparente** — a definição `<linearGradient>`
+não estava no `<defs>` do arquivo exportado.
+
+### Causa raiz
+
+Bug pré-existente que afetava QUALQUER consumer do exporter:
+
+1. **`svgExporter.export(doc)` só emitia `doc.defs`**, que é o campo
+   round-trip dos defs IMPORTADOS. Defs criados pelo editor durante a
+   sessão (gradients aplicados via Libraries panel, patterns,
+   clipPaths, masks, effects, chains de filter) viviam em registries
+   separados (`GradientLibraryService` + `ActiveGradientsService`,
+   `PatternLibraryService` + `ActivePatternsService`, etc.) — **não em
+   `doc.defs`**.
+
+2. **O renderer no canvas** compunha tudo via `editor.component.ts
+resolvedDefs()` computed que injetava 6 services e concatenava.
+   **O exporter NUNCA fez essa composição** — chamava
+   `state.document()` direto e passava ao `svgExporter`. Resultado:
+   referências `url(#id)` chegavam no arquivo exportado sem a
+   definição correspondente.
+
+### Auditoria adicional — outros gaps no exporter
+
+Aproveitei para fechar todas as lacunas entre "o que paint no canvas"
+e "o que vai pro arquivo":
+
+| Campo                                                     | Renderer emite  | Exporter (antes)   | Exporter (agora)      |
+| --------------------------------------------------------- | --------------- | ------------------ | --------------------- |
+| `style.fill/stroke/opacity/strokeWidth/visibility/filter` | ✅              | ✅                 | ✅                    |
+| `style.clipPath` (D-049)                                  | ✅              | ❌                 | ✅                    |
+| `style.mask` (D-049)                                      | ✅              | ❌                 | ✅                    |
+| `style.mixBlendMode` (D-049)                              | ✅              | ❌                 | ✅ inline style       |
+| `style.strokeDasharray/Linecap/Linejoin`                  | ✅              | ❌                 | ✅                    |
+| TextNode `fontVariationSettings` (D-053)                  | ✅              | ❌                 | ✅ inline style       |
+| TextNode `fontFeatureSettings` (D-053)                    | ✅              | ❌                 | ✅ inline style       |
+| TextNode `letterSpacing` (D-053)                          | ✅              | ❌                 | ✅ inline style px    |
+| TextNode `textPathRef` (D-053)                            | ✅              | ❌                 | ✅ `<textPath>` child |
+| PathNode `cornerRadius` (D-055)                           | ✅ derived d    | ❌ raw d           | ✅ derived d          |
+| `metadata.visible === false` (D-056)                      | ✅ display:none | ❌ paintava normal | ✅ skip do export     |
+
+### Solução arquitetural
+
+**`ActiveDefsService`** novo em `svg-engine/edit/lib/library/`:
+
+- Centraliza a composição dos 6 sources dinâmicos (Effects, Chains,
+  Gradients, Patterns, ClipPaths, Masks).
+- Método `composed()` (computed reativo) para o renderer.
+- Método `buildExportDefs(documentDefs)` para o exporter — concatena
+  `document.defs` + dynamic.
+- Scoped via `provideSvgEngineEditorScope()` — multi-editor safe.
+
+**Refatoração dos consumers**:
+
+- `editor.component.ts` + `shell-pro.component.ts`: 6 inject() →
+  1 inject(ActiveDefsService); `resolvedDefs()` agora 1 linha.
+- `builtin-menu-contributions.plugin.ts exportAndDownload()`: clona
+  o doc com `defs: activeDefs.buildExportDefs(doc.defs)` antes de
+  chamar `svgExporter.export()`.
+
+**Exporter melhorias**:
+
+- `styleAttrs()` ganhou clip-path, mask, mix-blend-mode, dasharray,
+  linecap, linejoin (todos D-049 + tap fields antigos que faltavam)
+- `renderText()` ganhou as 4 propriedades D-053 + branch para
+  `<textPath>`
+- `renderPath()` aplica `roundPathCorners(d, cornerRadius)` quando
+  `cornerRadius > 0` (D-055) — exporta a versão visualmente igual ao
+  canvas
+- `renderNode()` skip total quando `metadata.visible === false`
+  (D-056) — match com `display: none` do renderer
+
+### Verificação
+
+- `ng build svg-engine` ✅ 9 entry points
+- `ng test svg-engine` ✅ **1373 passed** (+12 novos exporter specs)
+  / 1 skipped / 0 failed
+- `ng lint svg-engine` ✅ clean
+
+### Test coverage
+
+Novo spec `svg-exporter.spec.ts` com 12 testes cobrindo cada gap:
+clip-path, mask, mix-blend-mode, stroke-dash/cap/join, font-variation,
+font-feature, letter-spacing, textPath wrap, cornerRadius rounded,
+metadata.visible skip, sibling-survives-in-group quando um child hidden.
+
+---
+
 ## 2026-05-24 — D-058: Gradient inline editor — panel + canvas overlay (opção C)
 
 Substitui o stub "state-only" do D-050 Gradient Tool por um editor real

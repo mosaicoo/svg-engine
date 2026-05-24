@@ -17,6 +17,7 @@ import { OptimizeCommand, OptimizerRegistry } from 'svg-engine/optimize';
 import { ViewportService } from 'svg-engine/render';
 
 import { ClipboardService } from '../../clipboard/clipboard.service';
+import { ActiveDefsService } from '../../library/active-defs.service';
 import { type EditorPlugin } from '../../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../../plugin/plugin';
 import { SelectionService } from '../../selection/selection.service';
@@ -1104,7 +1105,19 @@ async function exportAndDownload(
 ): Promise<void> {
   if (typeof document === 'undefined' || typeof URL === 'undefined') return;
   const state = fromCtx(EditorStateService, runCtx);
-  const doc = state.document();
+  const docRaw = state.document();
+  // **Critical fix (bug)**: merge runtime-derived defs (gradients,
+  // patterns, effects, chains, clipPaths, masks) with the document's
+  // round-trip `defs` field BEFORE handing to the exporter. Without
+  // this, shapes with `fill="url(#gradId)"` exported as transparent
+  // because the `<linearGradient>` definition only lived in the
+  // editor's runtime registries, not in `state.document().defs`.
+  // The renderer composes these via `<svge-editor>.resolvedDefs()`,
+  // but the exporter path skipped the composition — the only consumer
+  // of `state.document()` that needed defs merged. Centralized via
+  // `ActiveDefsService` so renderer + exporter stay in sync.
+  const activeDefs = fromCtx(ActiveDefsService, runCtx);
+  const doc = { ...docRaw, defs: activeDefs.buildExportDefs(docRaw.defs) };
   const exporter = format === 'svg' ? svgExporter : pngExporter;
   // `Exporter.export` may return `string` (SVG) or `Promise<string | Blob>`
   // (PNG). Normalize both branches into a Blob for download.

@@ -36,3 +36,5 @@ export * from './assets';
 // with the same Catalog + Active split pattern as gradients/patterns.
 export * from './clip-paths';
 export * from './masks';
+// D-058 export fix — central defs composer used by shells + exporter.
+export { ActiveDefsService } from './active-defs.service';
