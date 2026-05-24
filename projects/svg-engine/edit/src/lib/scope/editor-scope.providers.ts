@@ -17,6 +17,7 @@ import { ActiveGradientsService } from '../library/gradients/gradient-library.se
 import { ActiveMasksService } from '../library/masks/mask-library.service';
 import { ActivePatternsService } from '../library/patterns/pattern-library.service';
 import { ActiveSymbolsService } from '../library/symbols/symbol-library.service';
+import { SymbolSelectionService } from '../library/symbols/symbol-selection.service';
 import { LayersService } from '../layers/layers.service';
 import { MarqueeService } from '../marquee/marquee.service';
 import { SelectionService } from '../selection/selection.service';
@@ -234,5 +235,11 @@ export function provideSvgEngineEditorScope(): Provider[] {
     // (backward-compat, zero regression for apps that don't install
     // builtinBrushesPlugin).
     BrushSelectionService,
+    // D-062a — per-editor active symbol selection (Symbol Sprayer).
+    // Same pattern as BrushSelectionService: a signal that the
+    // libraries panel sets and the SymbolSprayerTool reads on each
+    // pointer event. Per-editor scope so two editors can spray
+    // different symbols independently.
+    SymbolSelectionService,
   ];
 }

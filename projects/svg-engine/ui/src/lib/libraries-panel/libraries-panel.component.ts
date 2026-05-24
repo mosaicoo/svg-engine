@@ -19,11 +19,14 @@ import {
   GradientLibraryService,
   InsertSymbolInstanceCommand,
   SymbolLibraryService,
+  SymbolSelectionService,
+  SYMBOL_SPRAYER_TOOL_ID,
   GraphicStyleLibraryService,
   PatternLibraryService,
   SelectionService,
   ShapeLibraryService,
   TemplateLibraryService,
+  ToolHostService,
 } from 'svg-engine/edit';
 import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
 
@@ -245,8 +248,15 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
               <button
                 type="button"
                 class="cell"
-                [title]="'Insert ' + item.name + ' instance'"
-                (click)="insertSymbolInstance(item.id)"
+                [class.symbol-active]="isSymbolSprayerActive() && activeSymbolId() === item.id"
+                [title]="
+                  isSymbolSprayerActive()
+                    ? activeSymbolId() === item.id
+                      ? 'Active for Sprayer — click again to deselect'
+                      : 'Activate ' + item.name + ' for Symbol Sprayer'
+                    : 'Insert ' + item.name + ' instance'
+                "
+                (click)="onSymbolCellClick(item.id)"
               >
                 <mat-icon class="symbol-thumb" aria-hidden="true">{{
                   symbolThumbIcon(item.id)
@@ -445,6 +455,14 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
       height: 28px;
       color: var(--mat-sys-on-surface, #444);
     }
+    .cell.symbol-active {
+      background: var(--mat-sys-primary-container, #d6e4ff);
+      outline: 2px solid var(--mat-sys-primary, #1976d2);
+      outline-offset: -1px;
+    }
+    .cell.symbol-active .symbol-thumb {
+      color: var(--mat-sys-on-primary-container, #1a3370);
+    }
     .brush-thumb {
       /* Responsive: take full cell width up to 64px so the silhouette
          stays sharp on the standard rail but doesn't overflow when
@@ -566,6 +584,12 @@ export class SvgeLibrariesPanel {
   // expanded through the brush's widthProfile until deselected.
   private readonly brushes = inject(BrushLibraryService);
   private readonly brushSelection = inject(BrushSelectionService);
+  // D-062a — when the Symbol Sprayer tool is active, clicking a
+  // symbol cell SELECTS it for spraying instead of inserting a
+  // single instance. Lets the user pick "what to spray" via the
+  // same panel they'd use to insert one-off.
+  private readonly symbolSelection = inject(SymbolSelectionService);
+  private readonly toolHost = inject(ToolHostService);
   private readonly assets = inject(AssetManagerService);
   private readonly selection = inject(SelectionService);
   private readonly state = inject(EditorStateService);
@@ -581,6 +605,10 @@ export class SvgeLibrariesPanel {
   protected readonly symbolsItems = this.symbols.items;
   protected readonly brushesItems = this.brushes.items;
   protected readonly activeBrushId = this.brushSelection.selectedBrushId;
+  protected readonly activeSymbolId = this.symbolSelection.selectedSymbolId;
+  protected readonly isSymbolSprayerActive = computed(
+    () => this.toolHost.activeId() === SYMBOL_SPRAYER_TOOL_ID,
+  );
   protected readonly assetEntries = this.assets.catalog;
 
   protected readonly hasSelection = computed(() => this.selection.selectedIds().size > 0);
@@ -643,6 +671,23 @@ export class SvgeLibrariesPanel {
     if (item === null) return;
     const node = item.build();
     this.bus.dispatch(new InsertNodeCommand(this.state.document().root.id, node));
+  }
+
+  /**
+   * **D-062a** — dual-mode click handler:
+   * - When the Symbol Sprayer tool is active, toggles the
+   *   {@link SymbolSelectionService} so the tool knows what to
+   *   spray.
+   * - Otherwise (any other active tool), falls back to the D-059
+   *   single-shot insert at the viewport center.
+   */
+  protected onSymbolCellClick(id: string): void {
+    if (this.isSymbolSprayerActive()) {
+      const current = this.symbolSelection.selectedSymbolId();
+      this.symbolSelection.select(current === id ? null : id);
+      return;
+    }
+    this.insertSymbolInstance(id);
   }
 
   /**

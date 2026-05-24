@@ -34,7 +34,7 @@ export { InlineTextEditorService } from './text-tool.service';
 export { InlineTextEditor } from './inline-text-editor.component';
 export { SvgeShellInteractions } from './shell-interactions.directive';
 // D-050 (Item 5 — Tools faltantes): Eyedropper / Knife / Smooth /
-// Gradient + Width / Mesh / Symbol Sprayer stubs.
+// Gradient + D-062 real implementations for Width / Mesh / Symbol Sprayer.
 export {
   EYEDROPPER_TOOL_ID,
   KNIFE_TOOL_ID,
@@ -44,6 +44,14 @@ export {
   MESH_TOOL_ID,
   SYMBOL_SPRAYER_TOOL_ID,
   GradientToolService,
+  // D-062b
+  WidthToolService,
+  type WidthProfilePreset,
+  // D-062c
+  MeshToolService,
+  type MeshStop,
+  // D-062a
+  SymbolSprayerService,
   extraToolsPlugin,
   simplifySubpath,
 } from './extra-tools';

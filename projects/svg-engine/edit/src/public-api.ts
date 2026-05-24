@@ -125,3 +125,8 @@ export * from './lib/scope';
 // expansion via widthProfile), plus the standalone AssetManagerService
 // for runtime imports.
 export * from './lib/library';
+
+// Auto-trace (D-062d) — single-threshold raster → vector tracing.
+// Pure function (`traceImageToPaths`) + `TraceImageCommand` wrapper.
+// Honest scope: bicromático, polyline output (no curve fitting).
+export * from './lib/autotrace';

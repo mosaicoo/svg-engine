@@ -6,3 +6,8 @@ export {
 } from './symbol-library.service';
 export { builtinSymbolsPlugin, BUILTIN_SYMBOLS } from './builtin-symbols';
 export { InsertSymbolInstanceCommand } from './insert-symbol-instance.command';
+export {
+  InsertSymbolInstancesBatchCommand,
+  type SprayDrop,
+} from './insert-symbol-instances-batch.command';
+export { SymbolSelectionService } from './symbol-selection.service';

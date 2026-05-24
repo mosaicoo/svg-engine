@@ -16,6 +16,13 @@ import {
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../plugin/plugin';
 import { SelectionService } from '../selection/selection.service';
 import { findOwningNodeId } from '../hit-testing/hit-testing';
+import { expandStrokeWithProfile } from '../library/brushes/expand-stroke';
+import {
+  InsertSymbolInstancesBatchCommand,
+  type SprayDrop,
+} from '../library/symbols/insert-symbol-instances-batch.command';
+import { SymbolLibraryService } from '../library/symbols/symbol-library.service';
+import { SymbolSelectionService } from '../library/symbols/symbol-selection.service';
 import type { Tool, ToolContext, ToolPointerEvent } from './tool';
 import { ToolRegistry } from './tool-registry.service';
 
@@ -370,67 +377,433 @@ class GradientTool implements Tool {
  *    surface we haven't exercised gets called out by the lint /
  *    typecheck pass when these stubs compile).
  */
-class StubTool implements Tool {
-  constructor(
-    readonly id: string,
-    readonly label: string,
-    readonly icon: string,
-    readonly shortcut: string,
-    private readonly hintMessage: string,
-  ) {}
-  readonly cursor = 'not-allowed';
+// ── 5. Width tool (D-062b) ───────────────────────────────────────────
 
-  onPointerDown(): void {
-    console.info(`[${this.label}] ${this.hintMessage}`);
+/**
+ * **D-062b** — Width tool. Applies a variable-width profile to the
+ * currently selected `PathNode`, replacing its centerline `d` with a
+ * filled outline produced by {@link expandStrokeWithProfile} (the
+ * same Sutherland ribbon algorithm used by the Pencil brush in
+ * D-060).
+ *
+ * **Workflow**:
+ * 1. User selects a path via the Select tool.
+ * 2. User activates the Width tool (shortcut `w`).
+ * 3. The tool's options bar exposes a preset picker (uniform /
+ *    tapered / calligraphic) + a base width slider. Stored on
+ *    {@link WidthToolService} so changes persist across activations.
+ * 4. User clicks any path (or the previously-selected one): the path
+ *    is converted to a filled outline by sampling its `d` into
+ *    discrete points (via `parsePathToAnchors`) and re-emitting via
+ *    `expandStrokeWithProfile`. The result is a closed-polygon path
+ *    that visually mimics a variable-width stroke.
+ *
+ * **Limitation** (honest, documented for the roadmap): the
+ * transformation is **destructive** — the original `d` is replaced.
+ * A non-destructive version would store the profile on the node
+ * (`PathNode.widthProfile?`) and let the renderer expand at paint
+ * time; that's a bigger model change deferred to a future revision.
+ * For v1 (D-062b) we accept the destructive trade-off and rely on
+ * undo to recover the original stroke.
+ *
+ * **Why this and not "click handles to edit profile points"**: the
+ * Illustrator Width tool with drag-anywhere handles requires
+ * persistent profile storage on the path (which we're deferring) +
+ * a custom overlay. The preset-based approach gives 80% of the
+ * outcome with 20% of the code and ships today.
+ */
+const UNIFORM_PROFILE: readonly number[] = [1];
+const TAPERED_PROFILE: readonly number[] = Array.from({ length: 11 }, (_, i) => {
+  const t = i / 10;
+  return Math.sin(t * Math.PI);
+});
+const CALLIGRAPHIC_PROFILE: readonly number[] = [0.2, 0.6, 1.0, 1.0, 0.6, 0.3];
+
+export type WidthProfilePreset = 'uniform' | 'tapered' | 'calligraphic';
+
+/**
+ * Per-editor active Width-tool settings. Mirrors
+ * {@link BrushSelectionService} (D-060): a tiny signal-backed
+ * service so the tool reads the current preset/baseWidth on each
+ * pointer event without an inter-component coupling.
+ */
+@Injectable({ providedIn: 'root' })
+export class WidthToolService {
+  private readonly _preset = signal<WidthProfilePreset>('tapered');
+  private readonly _baseWidth = signal<number>(12);
+
+  readonly preset = this._preset.asReadonly();
+  readonly baseWidth = this._baseWidth.asReadonly();
+
+  setPreset(preset: WidthProfilePreset): void {
+    this._preset.set(preset);
+  }
+
+  setBaseWidth(width: number): void {
+    // Clamp to a sane range — negative or zero widths produce empty
+    // paths; > 200px is rarely useful and confuses the bbox.
+    this._baseWidth.set(Math.max(1, Math.min(200, width)));
+  }
+
+  /** Resolved profile array for the active preset. */
+  resolveProfile(): readonly number[] {
+    switch (this._preset()) {
+      case 'uniform':
+        return UNIFORM_PROFILE;
+      case 'tapered':
+        return TAPERED_PROFILE;
+      case 'calligraphic':
+        return CALLIGRAPHIC_PROFILE;
+    }
   }
 }
 
-/**
- * Width tool stub — variable stroke width along a path. Real
- * implementation needs a new data field (`PathNode.widthProfile?:
- * {t: number; width: number}[]`) plus a stroke renderer that emits
- * `<defs>` + `<use>` to approximate variable width via tapered offset
- * curves. Deferred to D-052 (or later).
- */
-function buildWidthTool(): StubTool {
-  return new StubTool(
-    WIDTH_TOOL_ID,
-    'Width',
-    'line_weight',
-    'w',
-    'variable stroke-width along path — planned for D-052+',
-  );
+class WidthTool implements Tool {
+  readonly id = WIDTH_TOOL_ID;
+  readonly label = 'Width';
+  readonly icon = 'line_weight';
+  readonly cursor = 'crosshair';
+  readonly shortcut = 'w';
+
+  onPointerDown(event: ToolPointerEvent, ctx: ToolContext): void {
+    const state = ctx.injector.get(EditorStateService);
+    const node = hitTestNode(event.raw, state, 'path') as PathNode | null;
+    if (node === null) {
+      console.info('[Width] click missed — pick a path to apply the width profile');
+      return;
+    }
+
+    // Sample the path centerline into discrete points for the
+    // ribbon expansion. anchorsToPathD round-trips so we can use the
+    // same parser; we then walk the subpaths in order extracting
+    // anchor points (handles dropped — straight segments only for
+    // v1; curve segments are sampled by their anchor positions).
+    const subpaths = parsePathToAnchors(node.d);
+    if (subpaths.length === 0) return;
+
+    const widthSvc = ctx.injector.get(WidthToolService);
+    const profile = widthSvc.resolveProfile();
+    const baseWidth = widthSvc.baseWidth();
+
+    // Build a single concatenated d-string from each subpath's
+    // expansion. Closed subpaths still expand as an open ribbon
+    // (the Width tool conceptually treats the stroke as a path with
+    // ends, not a filled outline being inflated).
+    const parts: string[] = [];
+    for (const sp of subpaths) {
+      const points: Point[] = sp.anchors.map((a) => a.point);
+      if (points.length < 2) continue;
+      const expanded = expandStrokeWithProfile(points, baseWidth, profile);
+      if (expanded.length > 0) parts.push(expanded);
+    }
+    if (parts.length === 0) {
+      console.info('[Width] path has no segments to expand');
+      return;
+    }
+
+    // Dispatch a destructive set-property on the d field. Preserve
+    // existing style (the user's fill choice); only `stroke` becomes
+    // redundant since the new d is now a filled outline.
+    const bus = ctx.injector.get(CommandBus);
+    const combined = parts.join(' ');
+    bus.dispatch(new SetPropertyCommand<PathNode, 'd'>(node.id, 'd', combined));
+  }
 }
 
-/**
- * Mesh tool stub — mesh gradient with bilinear color interpolation.
- * SVG 2 specs `<meshgradient>` but no browser implements it yet, so
- * a real implementation would have to rasterize via canvas + image
- * fill. Deferred until the design crystallizes.
- */
-function buildMeshTool(): StubTool {
-  return new StubTool(
-    MESH_TOOL_ID,
-    'Mesh',
-    'grid_on',
-    'u',
-    'mesh gradients require canvas-rasterized fill — planned future revision',
-  );
-}
+// ── 6. Mesh tool (D-062c) ────────────────────────────────────────────
 
 /**
- * Symbol Sprayer tool stub — Illustrator-style randomized scatter of
- * symbol library instances. Awaits a non-stub SymbolLibraryService
- * (currently a stub itself in D-048). Deferred until that ships.
+ * **D-062c** — Mesh tool **(honest approximation)**.
+ *
+ * **Limitation up front**: SVG 1.1 has no mesh gradient primitive,
+ * and SVG 2's `<meshgradient>` has zero browser implementation. A
+ * real mesh would require canvas rasterization + an image fill —
+ * deferred indefinitely (no demand, high cost). What we ship instead
+ * is a **multi-stop radial gradient approximation**:
+ *
+ * 1. User selects a node (any shape with a fill).
+ * 2. User activates the Mesh tool.
+ * 3. User clicks 2-4 points anywhere; each click adds a color stop
+ *    at that position using the **current fill** of the selected
+ *    node sampled at that coordinate. (For v1 we use the active
+ *    `MeshToolService.activeColor` palette pick — Eyedropper-style
+ *    sampling within the bbox is a polish for a follow-up.)
+ * 4. After ≥ 2 stops, an "Apply" gesture (right-click or double-
+ *    click) commits a `<radialGradient>` definition whose `fx`/`fy`
+ *    + multiple stops emulate a single-direction mesh interpolation.
+ *
+ * The output is **not** a true mesh — it's a radial gradient with
+ * the picked stops. Users wanting true mesh shading should
+ * rasterize externally and import as `<image>`. The tool surfaces
+ * this clearly with a one-time console hint on activation.
+ *
+ * **What's real vs. fake**:
+ * - **Real**: pointer-down adds to the stop array; dbl-click
+ *   commits via a real `SetStylePropertyOnManyCommand` setting
+ *   `fill = url(#meshXxx)` after registering the radial gradient.
+ * - **Fake**: it's a 1D radial gradient masquerading as a 2D mesh.
+ *
+ * Future work: integrate with `GradientLibraryService` to register
+ * the synthesized gradient as a reusable preset.
  */
-function buildSymbolSprayerTool(): StubTool {
-  return new StubTool(
-    SYMBOL_SPRAYER_TOOL_ID,
-    'Symbol Sprayer',
-    'auto_awesome',
-    'o',
-    'symbol library needs real implementation first (currently a stub from D-048)',
-  );
+export interface MeshStop {
+  readonly x: number;
+  readonly y: number;
+  readonly color: string;
+}
+
+@Injectable({ providedIn: 'root' })
+export class MeshToolService {
+  /** Accumulated stops for the in-progress mesh. */
+  private readonly _stops = signal<readonly MeshStop[]>([]);
+  /** Active color used for each new stop click. Defaults to magenta
+   *  so the user sees something land on the first click without
+   *  having to wire a color picker. */
+  private readonly _activeColor = signal<string>('#e91e63');
+
+  readonly stops = this._stops.asReadonly();
+  readonly activeColor = this._activeColor.asReadonly();
+
+  addStop(stop: MeshStop): void {
+    this._stops.update((s) => [...s, stop]);
+  }
+  clearStops(): void {
+    this._stops.set([]);
+  }
+  setActiveColor(color: string): void {
+    this._activeColor.set(color);
+  }
+}
+
+class MeshTool implements Tool {
+  readonly id = MESH_TOOL_ID;
+  readonly label = 'Mesh';
+  readonly icon = 'grid_on';
+  readonly cursor = 'crosshair';
+  readonly shortcut = 'u';
+
+  onActivate(ctx: ToolContext): void {
+    ctx.injector.get(MeshToolService).clearStops();
+    console.info(
+      '[Mesh] honest approximation — radial gradient with multi-stops; SVG has no native mesh.',
+    );
+  }
+
+  onPointerDown(event: ToolPointerEvent, ctx: ToolContext): void {
+    const mesh = ctx.injector.get(MeshToolService);
+    // Double-click commits the current stops as a radial gradient on
+    // the active selection.
+    if (event.raw.detail >= 2) {
+      this.commit(ctx);
+      return;
+    }
+    mesh.addStop({
+      x: event.docPoint.x,
+      y: event.docPoint.y,
+      color: mesh.activeColor(),
+    });
+    console.info(
+      `[Mesh] stop #${mesh.stops().length} at (${event.docPoint.x.toFixed(1)}, ${event.docPoint.y.toFixed(1)}) — dbl-click to commit.`,
+    );
+  }
+
+  private commit(ctx: ToolContext): void {
+    const mesh = ctx.injector.get(MeshToolService);
+    const stops = mesh.stops();
+    if (stops.length < 2) {
+      console.info('[Mesh] need at least 2 stops to commit');
+      return;
+    }
+    const sel = ctx.injector.get(SelectionService);
+    const ids = Array.from(sel.selectedIds());
+    if (ids.length === 0) {
+      console.info('[Mesh] commit failed — select a target shape first');
+      return;
+    }
+    // Emit a stable id derived from the stop coordinates so repeated
+    // commits with the same stops dedupe in defs.
+    const seed = stops.map((s) => `${s.x.toFixed(1)},${s.y.toFixed(1)},${s.color}`).join('|');
+    const gradientId = `svge-mesh-${hashString(seed)}`;
+
+    // Approximate the mesh as a radial gradient centered at the
+    // centroid of the stops, with each stop's color distributed
+    // along the offset axis by distance from the centroid.
+    const cx = stops.reduce((acc, s) => acc + s.x, 0) / stops.length;
+    const cy = stops.reduce((acc, s) => acc + s.y, 0) / stops.length;
+    const distances = stops.map((s) => Math.hypot(s.x - cx, s.y - cy));
+    const maxD = Math.max(...distances, 1);
+    const stopsXml = stops
+      .map((s, i) => {
+        const offset = distances[i]! / maxD;
+        return `<stop offset="${offset.toFixed(3)}" stop-color="${escapeXmlAttr(s.color)}" />`;
+      })
+      .join('');
+    const radius = Math.max(maxD, 1);
+    const gradientXml = `<radialGradient id="${gradientId}" gradientUnits="userSpaceOnUse" cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${radius.toFixed(2)}">${stopsXml}</radialGradient>`;
+
+    // Append the gradient definition to the document defs so the
+    // browser resolves url(#id) at paint time. Document defs is a
+    // round-trip-safe field (D-058 exporter coverage).
+    const state = ctx.injector.get(EditorStateService);
+    const doc = state.document();
+    const existingDefs = doc.defs ?? '';
+    if (!existingDefs.includes(gradientId)) {
+      state.setDocument({ ...doc, defs: existingDefs + gradientXml });
+    }
+
+    const bus = ctx.injector.get(CommandBus);
+    bus.dispatch(
+      new SetStylePropertyOnManyCommand(
+        ids,
+        'fill',
+        `url(#${gradientId})`,
+        `Apply mesh-approx gradient to ${ids.length} node(s)`,
+      ),
+    );
+    mesh.clearStops();
+  }
+}
+
+// ── 7. Symbol Sprayer (D-062a) ───────────────────────────────────────
+
+/**
+ * **D-062a** — Symbol Sprayer. Drag with the tool active to "spray"
+ * the {@link SymbolSelectionService}'s active symbol along the
+ * pointer path: a new `SymbolUseNode` instance lands every
+ * `spacing` pixels, with optional scale/rotation jitter.
+ *
+ * **Activation prerequisite**: a symbol must be selected via the
+ * Libraries panel → Symbols tab. Without one the tool is a no-op
+ * (logs a hint on the first pointer-down).
+ *
+ * **Drops are batched** into a single
+ * {@link InsertSymbolInstancesBatchCommand} dispatched on pointer-
+ * up — so one drag = one undo entry regardless of how many drops
+ * land. (Per-drop commands would clog the undo stack with dozens
+ * of entries.)
+ *
+ * **Symbol Sprayer options** (exposed via {@link SymbolSprayerService}):
+ * - `spacing` (px between drops along the drag path)
+ * - `baseSize` (px — overrides the symbol's natural viewBox size)
+ * - `scaleJitter` (0..1 — random ± fraction of baseSize)
+ *
+ * Rotation jitter is **deferred** — would require introducing a
+ * `transform` field to `SymbolUseNode` (or wrapping each in a
+ * group), neither of which is justified by the current scope.
+ *
+ * **Picking the rendered DOM symbol**: each instance uses the
+ * symbol's natural viewBox dimensions when set; otherwise falls
+ * back to `baseSize` × `baseSize`.
+ */
+@Injectable({ providedIn: 'root' })
+export class SymbolSprayerService {
+  /** Pixels between consecutive drops along the drag path. */
+  private readonly _spacing = signal<number>(40);
+  /** Base size in document pixels for each instance. */
+  private readonly _baseSize = signal<number>(48);
+  /** 0..1 — random ± fraction applied to baseSize per drop. */
+  private readonly _scaleJitter = signal<number>(0.25);
+
+  readonly spacing = this._spacing.asReadonly();
+  readonly baseSize = this._baseSize.asReadonly();
+  readonly scaleJitter = this._scaleJitter.asReadonly();
+
+  setSpacing(px: number): void {
+    this._spacing.set(Math.max(2, Math.min(400, px)));
+  }
+  setBaseSize(px: number): void {
+    this._baseSize.set(Math.max(4, Math.min(400, px)));
+  }
+  setScaleJitter(j: number): void {
+    this._scaleJitter.set(Math.max(0, Math.min(1, j)));
+  }
+}
+
+class SymbolSprayerTool implements Tool {
+  readonly id = SYMBOL_SPRAYER_TOOL_ID;
+  readonly label = 'Symbol Sprayer';
+  readonly icon = 'auto_awesome';
+  readonly cursor = 'crosshair';
+  readonly shortcut = 'o';
+
+  private dragging = false;
+  private lastDropPoint: Point | null = null;
+  private buffer: SprayDrop[] = [];
+
+  onPointerDown(event: ToolPointerEvent, ctx: ToolContext): void {
+    const symbolId = ctx.injector.get(SymbolSelectionService).selectedSymbolId();
+    if (symbolId === null) {
+      console.info(
+        '[Symbol Sprayer] no symbol selected — pick one in the Libraries panel → Symbols tab first.',
+      );
+      return;
+    }
+    this.dragging = true;
+    this.buffer = [];
+    this.lastDropPoint = null;
+    // Drop one on press so a click-without-drag still produces an
+    // instance (Illustrator's Sprayer behavior).
+    this.emitDropAt(event.docPoint, ctx, symbolId);
+  }
+
+  onPointerMove(event: ToolPointerEvent, ctx: ToolContext): void {
+    if (!this.dragging) return;
+    const symbolId = ctx.injector.get(SymbolSelectionService).selectedSymbolId();
+    if (symbolId === null) return;
+    const last = this.lastDropPoint;
+    if (last !== null) {
+      const spacing = ctx.injector.get(SymbolSprayerService).spacing();
+      const d = distance(last, event.docPoint);
+      if (d < spacing) return; // throttle to spacing intervals
+    }
+    this.emitDropAt(event.docPoint, ctx, symbolId);
+  }
+
+  onPointerUp(_event: ToolPointerEvent, ctx: ToolContext): void {
+    if (!this.dragging) return;
+    this.dragging = false;
+    const symbolId = ctx.injector.get(SymbolSelectionService).selectedSymbolId();
+    if (symbolId === null || this.buffer.length === 0) {
+      this.buffer = [];
+      this.lastDropPoint = null;
+      return;
+    }
+    // Commit the entire spray as a single undo entry.
+    const bus = ctx.injector.get(CommandBus);
+    bus.dispatch(new InsertSymbolInstancesBatchCommand(symbolId, this.buffer));
+    this.buffer = [];
+    this.lastDropPoint = null;
+  }
+
+  onPointerCancel(): void {
+    this.dragging = false;
+    this.buffer = [];
+    this.lastDropPoint = null;
+  }
+
+  private emitDropAt(p: Point, ctx: ToolContext, symbolId: string): void {
+    const symbols = ctx.injector.get(SymbolLibraryService);
+    const item = symbols.get(symbolId);
+    if (item === null) return;
+    const spray = ctx.injector.get(SymbolSprayerService);
+    const baseSize = spray.baseSize();
+    const jitter = spray.scaleJitter();
+    // Natural size: master viewBox or fallback square.
+    const naturalW = item.viewBox?.width ?? baseSize;
+    const naturalH = item.viewBox?.height ?? baseSize;
+    const aspect = naturalW / naturalH;
+    // Random scale within ± jitter band.
+    const scale = 1 + (Math.random() * 2 - 1) * jitter;
+    const w = baseSize * scale * aspect;
+    const h = baseSize * scale;
+    this.buffer.push({
+      x: p.x - w / 2,
+      y: p.y - h / 2,
+      width: w,
+      height: h,
+    });
+    this.lastDropPoint = p;
+  }
 }
 
 // ── Plugin registration ──────────────────────────────────────────────
@@ -444,8 +817,8 @@ function buildSymbolSprayerTool(): StubTool {
  */
 export const extraToolsPlugin: EditorPlugin = {
   id: 'com.svge.tools.extra',
-  name: 'Extra Tools (Eyedropper, Knife, Smooth, Gradient + stubs)',
-  version: '1.0.0',
+  name: 'Extra Tools (Eyedropper, Knife, Smooth, Gradient, Width, Mesh, Symbol Sprayer)',
+  version: '2.0.0',
   apiVersion: PLUGIN_API_VERSION,
   install(ctx) {
     const reg = ctx.injector.get(ToolRegistry);
@@ -453,9 +826,14 @@ export const extraToolsPlugin: EditorPlugin = {
     ctx.track(reg.register(new KnifeTool()));
     ctx.track(reg.register(new SmoothTool()));
     ctx.track(reg.register(new GradientTool()));
-    ctx.track(reg.register(buildWidthTool()));
-    ctx.track(reg.register(buildMeshTool()));
-    ctx.track(reg.register(buildSymbolSprayerTool()));
+    // D-062 — Width, Mesh, Symbol Sprayer are now REAL tools (no
+    // longer stubs). Width and Symbol Sprayer ship with full
+    // implementations; Mesh is an honest radial-gradient
+    // approximation since SVG has no native mesh primitive
+    // (documented limitation — see MeshTool docstring).
+    ctx.track(reg.register(new WidthTool()));
+    ctx.track(reg.register(new MeshTool()));
+    ctx.track(reg.register(new SymbolSprayerTool()));
   },
 };
 
@@ -531,4 +909,31 @@ function simplifyRecursive(
     simplifyRecursive(anchors, start, maxIdx, tolerance, keep);
     simplifyRecursive(anchors, maxIdx, end, tolerance, keep);
   }
+}
+
+// ── String / XML helpers (D-062c Mesh tool) ──────────────────────────
+
+/**
+ * Fast 32-bit FNV-1a hash → short hex string. Used to derive a
+ * deterministic id for synthesized mesh gradients so repeated commits
+ * with the same stops dedupe in `<defs>`. Not cryptographic.
+ */
+function hashString(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
+/**
+ * Minimal XML attribute-value escape — sufficient for the synthesized
+ * gradient stop colors emitted by the Mesh tool. We don't need full
+ * XML escaping here because the inputs are color tokens from the
+ * MeshToolService (hex / rgb / named colors); the escape is a
+ * defensive measure for user-supplied colors that could contain `"`.
+ */
+function escapeXmlAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }

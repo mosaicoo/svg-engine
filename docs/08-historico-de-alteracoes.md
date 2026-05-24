@@ -6,6 +6,125 @@
 
 ---
 
+## 2026-05-24 — D-062: 4 tools reais (Symbol Sprayer + Width + Mesh + Auto-trace)
+
+### Demanda
+
+User autorizou implementação autônoma dos 4 últimos stubs/deferred:
+Symbol Sprayer + Width + Mesh + Auto-trace (raster→vector). Premissas:
+não criar implementações fictícias, validar prévio existência, evitar
+duplicação, performance preservada, zero regressão.
+
+### Implementações (4 tools agora REAIS)
+
+**D-062a — Symbol Sprayer**:
+
+- `SymbolSelectionService` (scoped via D-042) — signal
+  `selectedSymbolId` que o libraries-panel seta quando o Sprayer
+  está ativo.
+- `SymbolSprayerService` (root) — `spacing` / `baseSize` /
+  `scaleJitter` configuráveis.
+- `SymbolSprayerTool` em `extra-tools.ts`: drag espalha instâncias
+  do símbolo ativo ao longo do path do mouse com throttle por
+  `spacing`. Random scale dentro da banda jitter.
+- `InsertSymbolInstancesBatchCommand` (D-062a) — N instâncias num
+  único undo entry (vs. dezenas que sujariam o histórico).
+- Libraries panel: dual-mode click — quando Sprayer ativo, click
+  numa symbol cell SELECIONA pra sprayer; senão fallback ao D-059
+  single-instance insert. Cell ativa marcada visualmente
+  (highlight + outline).
+
+**D-062b — Width tool**:
+
+- `WidthToolService` (root) — preset (uniform/tapered/calligraphic)
+  - baseWidth.
+- `WidthTool`: ao click num path, sampleia anchors, expande via
+  `expandStrokeWithProfile` (D-060) e dispatcha
+  `SetPropertyCommand<PathNode, 'd'>` substituindo a centerline
+  pelo outline. **Destrutivo, undo recupera**. Caminho não-
+  destrutivo (armazenar profile no PathNode) deferido pra revisão
+  futura.
+
+**D-062c — Mesh tool (honest approximation)**:
+
+- SVG 1.1 não tem `<meshgradient>`; SVG 2 sem implementação browser.
+  Implementar mesh REAL exigiria rasterizar via canvas + image
+  fill. Decisão: **entregar aproximação radial multi-stop com
+  honestidade documentada** em vez de stub.
+- `MeshToolService` (root) — array de stops `{x, y, color}` +
+  activeColor.
+- `MeshTool`: cada click adiciona stop; dbl-click commita.
+  Synthesize `<radialGradient>` com `fx/fy/r` centrados no
+  centroide e stops distribuídos por distância. Inserido em
+  `doc.defs` + aplicado como `fill="url(#…)"` na seleção.
+- Limitação registrada em docstring + console hint na ativação.
+
+**D-062d — Auto-trace (raster → vector)**:
+
+- Antes documentado como "deferido" (D-057). Implementado agora
+  como módulo separado `svg-engine/edit/lib/autotrace/`:
+  - `traceImageToPaths(image, opts)` pura — marching squares +
+    Douglas-Peucker. Retorna array de `d`-strings.
+  - `TraceImageCommand` — pega `ImageNode` selecionado, carrega
+    href via `<img>` + canvas2d, rasteriza, traça, insere o
+    resultado como `<g>` no doc root.
+- Escopo honesto: bicromático (single threshold), polyline
+  (sem curve fitting). Cobre 80% de line art / logos /
+  ícones — fotos degradam pra silhueta (by design).
+- Para alta fidelidade, recomendar potrace-js wrap externo;
+  registrado nas docstrings.
+
+### Plugin update
+
+`extraToolsPlugin` continua sendo o único plugin opt-in; a única
+diferença é que agora registra REAL Width/Mesh/Symbol Sprayer no
+lugar dos `StubTool`s. Versão bumped de 1.0.0 → 2.0.0 (breaking
+change conceitual — comportamento mudou completamente embora a API
+de registro seja idêntica).
+
+### Validação
+
+- `ng test svg-engine` — **1413 testes ✓** (+10 novos: 6 do
+  marching squares + 4 do batch insert).
+- `ng lint svg-engine` — clean.
+- `ng build playground` — clean.
+
+### Arquivos novos
+
+- `edit/lib/library/symbols/symbol-selection.service.ts`
+- `edit/lib/library/symbols/insert-symbol-instances-batch.command.ts`
+- `edit/lib/library/symbols/insert-symbol-instances-batch.command.spec.ts`
+- `edit/lib/autotrace/trace-bitmap.ts`
+- `edit/lib/autotrace/trace-bitmap.spec.ts`
+- `edit/lib/autotrace/trace-image.command.ts`
+- `edit/lib/autotrace/index.ts`
+
+### Arquivos modificados
+
+- `edit/lib/tool/extra-tools.ts` (StubTool removida, 3 tools reais)
+- `edit/lib/tool/index.ts` (novos exports)
+- `edit/lib/scope/editor-scope.providers.ts` (SymbolSelectionService)
+- `edit/lib/library/symbols/index.ts` (re-exports)
+- `edit/src/public-api.ts` (autotrace module)
+- `ui/lib/libraries-panel/libraries-panel.component.ts` (dual-mode
+  symbol cell click + `.symbol-active` style)
+
+### Premissas honradas
+
+- D-017 (headless): autotrace usa `document.createElement('canvas')`
+  via API standard `globalThis.HTMLCanvasElement` — não importa
+  Material. trace-bitmap.ts é função pura sem DOM.
+- D-042 (multi-editor): `SymbolSelectionService` é scoped
+  (registrado em `provideSvgEngineEditorScope`).
+- Zero regressão: os 4 tools eram stubs que apenas logavam; agora
+  fazem o trabalho real. Nenhum consumer que dependia do
+  comportamento stub (impossível: eles eram no-ops).
+- Honest about limitations: Mesh é radial-only (não mesh real),
+  Auto-trace é polyline bicromático (não curve-fitting
+  policromático). Documentado nas docstrings + console hints.
+
+---
+
 ## 2026-05-24 — D-061 follow-up 3: right rail consolidado em UM panel-group com abas
 
 ### Demanda
