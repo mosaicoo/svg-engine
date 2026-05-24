@@ -1,22 +1,36 @@
 import { computed, type Injector, type ProviderToken, type Signal } from '@angular/core';
 import {
   CommandBus,
+  ConvertNodeToPathCommand,
+  DivideCommand,
   DuplicateNodeCommand,
   EditorStateService,
+  ExcludeCommand,
   findNodeById,
   GroupSelectionCommand,
   HistoryService,
   InsertNodeCommand,
+  IntersectCommand,
+  type NodeId,
   RemoveNodeCommand,
   ReorderNodeCommand,
   type ReorderDirection,
+  SubtractCommand,
   UngroupCommand,
+  UnionCommand,
 } from 'svg-engine/core';
 import { pngExporter, svgExporter, svgImporter } from 'svg-engine/io';
 import { OptimizeCommand, OptimizerRegistry } from 'svg-engine/optimize';
 import { ViewportService } from 'svg-engine/render';
 
+import {
+  type AlignAxis,
+  AlignmentService,
+  type DistributeAxis,
+  type NodeBBox,
+} from '../../alignment';
 import { ClipboardService } from '../../clipboard/clipboard.service';
+import { getRenderedNodeBBox } from '../../geometry/node-bbox';
 import { ActiveDefsService } from '../../library/active-defs.service';
 import { type EditorPlugin } from '../../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../../plugin/plugin';
@@ -118,6 +132,32 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     const noClipboardFactory = (injector: Injector): Signal<boolean> => {
       const clipboard = injector.get(ClipboardService);
       return computed(() => !clipboard.hasContent());
+    };
+    // D-065 — Align needs ≥ 2 selected nodes (otherwise there's
+    // nothing to align against). Same threshold as Group, but kept
+    // as a distinct factory so the disabled signal's reactivity
+    // tracks the same source-of-truth signal (no chance of drift if
+    // requirements ever diverge).
+    const cantAlignFactory = (injector: Injector): Signal<boolean> => {
+      const selection = injector.get(SelectionService);
+      return computed(() => selection.selectedIds().size < 2);
+    };
+    // D-065 — Distribute needs ≥ 3 nodes (2 nodes have nothing
+    // "between" them to space; 3+ have at least one inner node to
+    // redistribute). Matches the canDistribute computed used by the
+    // dogfooded custom-editor.
+    const cantDistributeFactory = (injector: Injector): Signal<boolean> => {
+      const selection = injector.get(SelectionService);
+      return computed(() => selection.selectedIds().size < 3);
+    };
+    // D-065 — Pathfinder needs ≥ 2 path-compatible nodes. The
+    // commands auto-convert rect/ellipse/line/polygon/polyline →
+    // path internally, so we just gate on count here; the run
+    // handler skips groups/text/image-only selections by short-
+    // circuiting at command-dispatch time.
+    const cantPathfinderFactory = (injector: Injector): Signal<boolean> => {
+      const selection = injector.get(SelectionService);
+      return computed(() => selection.selectedIds().size < 2);
     };
 
     // ── Lazy injector helper for run() handlers (D-043 fix) ────────
@@ -574,6 +614,302 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         disabled: noSelectionFactory,
         run(runCtx) {
           reorder('toBack', runCtx);
+        },
+      }),
+    );
+
+    // ── D-065 — Object › Align / Distribute / Pathfinder submenus ──
+    //
+    // Industry-standard placement (Illustrator → Object, Inkscape →
+    // Object/Path, Affinity → Layer/Arrange). All three live as
+    // submenus under Object to keep the menu chrome compact and the
+    // discoverability path consistent ("everything that mutates
+    // multiple shapes at once lives here").
+    //
+    // **Reusable selection helper** — both Align and Distribute call
+    // `alignment.align/distribute(items, axis)` where `items` is a
+    // `NodeBBox[]` collected from the rendered SVG. Pathfinder takes
+    // the raw id list. We query the DOM once per fire (matches the
+    // proven custom-editor pattern; `<svge-renderer>` mounts a single
+    // <svg> root that's always reachable via querySelector).
+    const collectSelectedBBoxes = (
+      runCtx: MenuContributionContext | undefined,
+    ): readonly NodeBBox[] => {
+      const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+      if (svg === null) return [];
+      const sel = fromCtx(SelectionService, runCtx);
+      const out: NodeBBox[] = [];
+      for (const id of sel.selectedIds()) {
+        const bb = getRenderedNodeBBox(svg, id);
+        if (bb !== null) out.push({ id, bbox: bb });
+      }
+      return out;
+    };
+
+    // ── Align ▶ parent ─────────────────────────────────────────────
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.align',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Align',
+        icon: 'align_horizontal_center',
+        order: 50,
+        disabled: cantAlignFactory,
+        run() {
+          /* submenu parent — children drive the actual alignment */
+        },
+      }),
+    );
+    // Align children — horizontal axis (X)
+    const registerAlign = (
+      id: string,
+      label: string,
+      icon: string,
+      order: number,
+      axis: AlignAxis,
+    ): void => {
+      ctx.track(
+        reg.register({
+          id,
+          parentId: 'svge.builtin.object.align',
+          slot: MENU_SLOT.OBJECT,
+          label,
+          icon,
+          order,
+          disabled: cantAlignFactory,
+          run(runCtx) {
+            const items = collectSelectedBBoxes(runCtx);
+            if (items.length < 2) return;
+            fromCtx(AlignmentService, runCtx).align(items, axis);
+          },
+        }),
+      );
+    };
+    registerAlign(
+      'svge.builtin.object.align.left',
+      'Align Left',
+      'align_horizontal_left',
+      10,
+      'left',
+    );
+    registerAlign(
+      'svge.builtin.object.align.center-h',
+      'Center Horizontal',
+      'align_horizontal_center',
+      20,
+      'center-x',
+    );
+    registerAlign(
+      'svge.builtin.object.align.right',
+      'Align Right',
+      'align_horizontal_right',
+      30,
+      'right',
+    );
+    // Divider between H and V axes inside the Align submenu.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.align.divider1',
+        parentId: 'svge.builtin.object.align',
+        slot: MENU_SLOT.OBJECT,
+        label: '',
+        order: 40,
+        divider: true,
+        run() {
+          /* divider */
+        },
+      }),
+    );
+    registerAlign('svge.builtin.object.align.top', 'Align Top', 'align_vertical_top', 50, 'top');
+    registerAlign(
+      'svge.builtin.object.align.center-v',
+      'Center Vertical',
+      'align_vertical_center',
+      60,
+      'center-y',
+    );
+    registerAlign(
+      'svge.builtin.object.align.bottom',
+      'Align Bottom',
+      'align_vertical_bottom',
+      70,
+      'bottom',
+    );
+
+    // ── Distribute ▶ parent ────────────────────────────────────────
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.distribute',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Distribute',
+        icon: 'horizontal_distribute',
+        order: 60,
+        disabled: cantDistributeFactory,
+        run() {
+          /* submenu parent */
+        },
+      }),
+    );
+    const registerDistribute = (
+      id: string,
+      label: string,
+      icon: string,
+      order: number,
+      axis: DistributeAxis,
+    ): void => {
+      ctx.track(
+        reg.register({
+          id,
+          parentId: 'svge.builtin.object.distribute',
+          slot: MENU_SLOT.OBJECT,
+          label,
+          icon,
+          order,
+          disabled: cantDistributeFactory,
+          run(runCtx) {
+            const items = collectSelectedBBoxes(runCtx);
+            if (items.length < 3) return;
+            fromCtx(AlignmentService, runCtx).distribute(items, axis);
+          },
+        }),
+      );
+    };
+    registerDistribute(
+      'svge.builtin.object.distribute.h',
+      'Horizontally',
+      'horizontal_distribute',
+      10,
+      'horizontal',
+    );
+    registerDistribute(
+      'svge.builtin.object.distribute.v',
+      'Vertically',
+      'vertical_distribute',
+      20,
+      'vertical',
+    );
+
+    // ── Pathfinder ▶ parent ────────────────────────────────────────
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.pathfinder',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Pathfinder',
+        icon: 'join_inner',
+        order: 70,
+        disabled: cantPathfinderFactory,
+        run() {
+          /* submenu parent */
+        },
+      }),
+    );
+    // Helper: auto-convert non-path leaves before applying boolean op.
+    // Matches /custom-editor behavior (rect/ellipse/line/polygon/
+    // polyline are upgraded to paths; group/text/image are left to
+    // the command's own validation, which fails silently).
+    const dispatchPathfinder = (
+      runCtx: MenuContributionContext | undefined,
+      Ctor:
+        | typeof UnionCommand
+        | typeof IntersectCommand
+        | typeof SubtractCommand
+        | typeof ExcludeCommand
+        | typeof DivideCommand,
+    ): void => {
+      const sel = fromCtx(SelectionService, runCtx);
+      const ids = Array.from(sel.selectedIds()) as NodeId[];
+      if (ids.length < 2) return;
+      const state = fromCtx(EditorStateService, runCtx);
+      const bus = fromCtx(CommandBus, runCtx);
+      for (const id of ids) {
+        const node = findNodeById(state.document().root, id);
+        if (node === null) continue;
+        if (
+          node.type === 'rect' ||
+          node.type === 'ellipse' ||
+          node.type === 'line' ||
+          node.type === 'polygon' ||
+          node.type === 'polyline'
+        ) {
+          bus.dispatch(new ConvertNodeToPathCommand(id));
+        }
+      }
+      bus.dispatch(new Ctor(ids));
+      // Operand A keeps its id; re-select for visual confirmation.
+      sel.select(ids[0]!);
+    };
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.pathfinder.union',
+        parentId: 'svge.builtin.object.pathfinder',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Union',
+        icon: 'join_inner',
+        tooltip: 'Merge overlapping shapes into one (A ∪ B)',
+        order: 10,
+        disabled: cantPathfinderFactory,
+        run(runCtx) {
+          dispatchPathfinder(runCtx, UnionCommand);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.pathfinder.intersect',
+        parentId: 'svge.builtin.object.pathfinder',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Intersect',
+        icon: 'join_full',
+        tooltip: 'Keep only the overlapping area (A ∩ B)',
+        order: 20,
+        disabled: cantPathfinderFactory,
+        run(runCtx) {
+          dispatchPathfinder(runCtx, IntersectCommand);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.pathfinder.subtract',
+        parentId: 'svge.builtin.object.pathfinder',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Subtract',
+        icon: 'join_left',
+        tooltip: 'Remove the others from the first shape (A \\ B)',
+        order: 30,
+        disabled: cantPathfinderFactory,
+        run(runCtx) {
+          dispatchPathfinder(runCtx, SubtractCommand);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.pathfinder.divide',
+        parentId: 'svge.builtin.object.pathfinder',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Divide',
+        icon: 'call_split',
+        tooltip: 'Split into non-overlapping regions',
+        order: 40,
+        disabled: cantPathfinderFactory,
+        run(runCtx) {
+          dispatchPathfinder(runCtx, DivideCommand);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.pathfinder.exclude',
+        parentId: 'svge.builtin.object.pathfinder',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Exclude',
+        icon: 'join_right',
+        tooltip: 'Keep non-overlapping areas (symmetric difference)',
+        order: 50,
+        disabled: cantPathfinderFactory,
+        run(runCtx) {
+          dispatchPathfinder(runCtx, ExcludeCommand);
         },
       }),
     );

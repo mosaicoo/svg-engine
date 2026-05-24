@@ -6,6 +6,129 @@
 
 ---
 
+## 2026-05-24 — D-065: Align / Distribute / Pathfinder submenus no Object
+
+### Demanda
+
+User pediu pra adicionar Align, Distribute e Pathfinder à menu bar
+seguindo padrões profissionais. Auditoria confirmou:
+
+- `AlignmentService` (6 align axes + 2 distribute axes) já existia
+  no headless mas NÃO tinha entrada de menu
+- 5 Pathfinder commands (Union/Intersect/Subtract/Divide/Exclude)
+  só estavam acessíveis via toolbar customizada do `/custom-editor`
+- `MenuContributionRegistry` suporta submenus via `parentId` (D-038)
+  - dividers internos via `divider: true`
+- Menu Object existente só tinha reorder (Bring to Front/Forward/
+  Backward/Send to Back)
+
+### Estrutura (padrão Illustrator/Inkscape)
+
+```
+Object
+├── Bring to Front          (10)
+├── Bring Forward           (20)
+├── Send Backward           (30)
+├── Send to Back            (40)
+├── Align          ▶        (50, require ≥ 2)
+│   ├── Align Left
+│   ├── Center Horizontal
+│   ├── Align Right
+│   ├── ─────────
+│   ├── Align Top
+│   ├── Center Vertical
+│   └── Align Bottom
+├── Distribute     ▶        (60, require ≥ 3)
+│   ├── Horizontally
+│   └── Vertically
+└── Pathfinder     ▶        (70, require ≥ 2)
+    ├── Union               (A ∪ B — merge overlapping)
+    ├── Intersect           (A ∩ B — keep only overlap)
+    ├── Subtract            (A \ B — remove others from first)
+    ├── Divide              (split into non-overlapping regions)
+    └── Exclude             (symmetric difference)
+```
+
+### Implementação
+
+**3 novas factories de disabled** (`builtinMenuContributionsPlugin`):
+
+- `cantAlignFactory` — selection.size < 2
+- `cantDistributeFactory` — selection.size < 3
+- `cantPathfinderFactory` — selection.size < 2 (commands rejeitam
+  group/text/image internamente)
+
+**13 novas contribuições** no slot `MENU_SLOT.OBJECT`:
+
+- 3 parents (Align / Distribute / Pathfinder) — sem `run` real
+- 7 children Align (6 axes + 1 divider)
+- 2 children Distribute
+- 5 children Pathfinder
+
+**Helper compartilhado** `collectSelectedBBoxes(runCtx)`:
+
+- Query `document.querySelector('svge-renderer svg')` pra obter raiz
+  do SVG renderizado
+- Itera `selection.selectedIds()` e chama `getRenderedNodeBBox`
+- Retorna `NodeBBox[]` no formato esperado pelo AlignmentService
+- Reusa exatamente o padrão do `/custom-editor.collectSelectionBBoxes`
+
+**Helper Pathfinder** `dispatchPathfinder(runCtx, Ctor)`:
+
+- Auto-convert rect/ellipse/line/polygon/polyline → path via
+  `ConvertNodeToPathCommand` (Affinity/Illustrator convention)
+- Dispatch o command Boolean (operand A wins, keeps id)
+- Re-seleciona operand A pra feedback visual
+
+### Validação
+
+- 1409 testes ✓ (sem regressão)
+- Lint clean
+- Playground build clean
+- Build svg-engine clean
+
+### Premissas honradas
+
+- D-017 (headless): plugin vive em `svg-engine/edit`, nenhum
+  Material import
+- D-042 (multi-editor): factories usam `injector` lazy resolution;
+  `run` handlers passam `runCtx?.injector` via `fromCtx` helper
+- D-043 (factory pattern de disabled): consistente com os 6
+  factories pré-existentes (canUndo/canRedo/noSelection/cantGroup/
+  cantUngroup/noClipboard)
+- Plugin-extensibility: consumers podem substituir qualquer ação
+  registrando ids equivalentes
+
+### Ganho de UX
+
+- **Align + Distribute** agora acessíveis em qualquer view com
+  `<svge-menu-bar>` (basic/modular/shell-pro/custom-editor) — antes
+  só rolava em custom-editor via toolbar customizada
+- **Pathfinder ops** ganham descoberta visual (5 itens com
+  tooltips explicativos: `A ∪ B`, `A ∩ B`, `A \ B`, etc.)
+- **Disabled signals reativos** — itens dimam imediatamente quando
+  seleção fica menor que o mínimo necessário
+
+### Icons (Material 3)
+
+| Item         | Icon                      |
+| ------------ | ------------------------- |
+| Align Left   | `align_horizontal_left`   |
+| Center H     | `align_horizontal_center` |
+| Align Right  | `align_horizontal_right`  |
+| Align Top    | `align_vertical_top`      |
+| Center V     | `align_vertical_center`   |
+| Align Bottom | `align_vertical_bottom`   |
+| Distribute H | `horizontal_distribute`   |
+| Distribute V | `vertical_distribute`     |
+| Union        | `join_inner`              |
+| Intersect    | `join_full`               |
+| Subtract     | `join_left`               |
+| Divide       | `call_split`              |
+| Exclude      | `join_right`              |
+
+---
+
 ## 2026-05-24 — D-064: centralizar Undo/Redo/Zoom na Toolbar principal
 
 ### Demanda
