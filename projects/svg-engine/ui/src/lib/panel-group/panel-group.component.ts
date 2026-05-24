@@ -360,7 +360,15 @@ export class SvgePanelGroupTab {
     .pg-body {
       flex: 1 1 auto;
       min-height: 0;
-      overflow: auto;
+      min-width: 0;
+      overflow-y: auto;
+      /* Side rails are narrow (e.g. 184px after the 36px vertical
+         strip). Allowing horizontal scroll inside the body produces
+         a visible scrollbar at the bottom — UX-poor and signals that
+         the consumer's grid is busted. Hide it; consumers should
+         size their content with responsive grids (auto-fill /
+         minmax) so it shrinks to fit. */
+      overflow-x: hidden;
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,

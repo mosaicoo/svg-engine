@@ -267,7 +267,7 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
           icon="brush"
           tooltip="Brushes (Pencil expansion)"
         >
-          <div class="grid">
+          <div class="grid grid--brushes">
             @for (item of brushesItems(); track item.id) {
               <button
                 type="button"
@@ -340,6 +340,7 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
       display: flex;
       flex-direction: column;
       min-height: 0;
+      min-width: 0;
       width: 100%;
       height: 100%;
       font-size: 13px;
@@ -348,12 +349,30 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
     svge-panel-group {
       flex: 1 1 auto;
       min-height: 0;
+      min-width: 0;
     }
+    /* Responsive grid (D-061 follow-up — fixes overflow in narrow side
+       rail). auto-fill + minmax lets the column count adapt to the
+       available width instead of forcing 3 columns.
+       Sizing math: a 220px libraries rail minus the 36px vertical
+       strip = 184px shell width; minus the panel-body intrinsic
+       1px border + 16px padding ≈ 167px content area. With a 50px
+       minimum + 4px gap, auto-fill picks 3 cols at ~53px each
+       (mirrors the previous fixed repeat 3 1fr layout but adapts
+       to wider rails: a 280px rail fits 4 cols). */
     .grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(auto-fill, minmax(50px, 1fr));
       gap: 4px;
       padding: 8px;
+    }
+    /* Brushes need wider cells because the silhouette thumb is 64px
+       wide; cramming 3 brush cells into a 167px content area cuts
+       both the thumb and the labels ("Calligraphic" → "C..."). 75px
+       min keeps the thumb visible and gives 2 cols at ~81px in the
+       standard rail. */
+    .grid--brushes {
+      grid-template-columns: repeat(auto-fill, minmax(75px, 1fr));
     }
     .cell {
       display: flex;
@@ -368,6 +387,10 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
       cursor: pointer;
       font-size: 10px;
       transition: background 0.1s;
+      /* min-width: 0 allows the cell to shrink below its intrinsic
+         content width — critical for the label ellipsis to kick in
+         instead of the cell pushing the grid wider than its track. */
+      min-width: 0;
     }
     .cell:hover:not(:disabled) {
       background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.04));
@@ -409,6 +432,8 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
     .cell-label {
       font-size: 10px;
       text-align: center;
+      width: 100%;
+      min-width: 0;
       max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -421,7 +446,12 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
       color: var(--mat-sys-on-surface, #444);
     }
     .brush-thumb {
-      width: 64px;
+      /* Responsive: take full cell width up to 64px so the silhouette
+         stays sharp on the standard rail but doesn't overflow when
+         the cell shrinks below 75px (e.g. user resized a wider
+         consumer rail). */
+      width: 100%;
+      max-width: 64px;
       height: 20px;
       color: var(--mat-sys-on-surface, #444);
     }
@@ -438,6 +468,8 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
       flex-direction: column;
       gap: 2px;
       padding: 8px;
+      /* Container query target — list-meta auto-hides under 200px. */
+      container-type: inline-size;
     }
     .list-item {
       display: flex;
@@ -451,17 +483,34 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
       cursor: pointer;
       text-align: left;
       font-size: 12px;
+      /* min-width: 0 allows the inner name/meta to truncate instead
+         of pushing the row wider than the rail. */
+      min-width: 0;
     }
     .list-item:hover {
       background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.04));
     }
     .list-name {
       flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .list-meta {
+      flex: 0 0 auto;
       font-size: 10px;
       opacity: 0.55;
       font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    /* In very narrow rails (≤ 200px) the dimensions meta crowds out
+       the name. Hide it under that threshold — the title attribute on
+       the row already exposes the same info on hover. */
+    @container (max-width: 200px) {
+      .list-meta {
+        display: none;
+      }
     }
     .assets-body {
       padding: 8px;

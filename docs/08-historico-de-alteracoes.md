@@ -6,6 +6,70 @@
 
 ---
 
+## 2026-05-24 — D-061 follow-up 2: libraries-panel responsivo (sem scrollbar horizontal)
+
+### Sintomas reportados (screenshots)
+
+Após o D-061 vertical, todas as 7 abas (Shapes/Templates/Gradients/
+Patterns/Brushes/Symbols/Styles) exibiam **scrollbar horizontal no
+rodapé** do body. Cells e labels cortavam: "Speech balloon" →
+"Speech balloo", "Calligraphic" → "C...", "Twitter / X card"
+quebrava feio.
+
+### Causa raiz
+
+- `panel-group.pg-body` permitia `overflow: auto` (horizontal e
+  vertical), então conteúdo largo gerava scrollbar
+- `.grid { grid-template-columns: repeat(3, 1fr) }` força 3
+  colunas independente da largura disponível. Cells sem `min-width: 0`
+  não shrinkavam abaixo do tamanho intrínseco do label, empurrando
+  a grid para fora do body
+- Brushes especificamente: thumb de 64px num cell de ~55px gerava
+  overflow imediato
+- Templates: `.list-item` sem `min-width: 0` permitia o name +
+  dimensions empurrarem a linha além do rail
+
+### Fix
+
+**panel-group body**: `overflow-x: hidden` (vertical-only scroll
+no body — scroll horizontal num side rail é UX ruim e mascara
+problemas de layout).
+
+**libraries-panel CSS**:
+
+- Grid genérico: `repeat(auto-fill, minmax(50px, 1fr))` — adapta
+  número de colunas à largura do body. Em rail de 220px (167px
+  content area) → 3 cols ~53px; em rail mais largo → 4+ cols
+- Variante `.grid--brushes`: `minmax(75px, 1fr)` pra acomodar a
+  silhueta do brush (64px). Em rail padrão → 2 cols ~81px
+- `.cell { min-width: 0 }` — permite shrink abaixo do intrínseco
+  pra ellipsis funcionar
+- `.cell-label { width: 100%; min-width: 0 }` — garante container
+  pro `text-overflow: ellipsis`
+- `.brush-thumb { width: 100%; max-width: 64px }` — responsivo,
+  encolhe se cell ficar menor que 64+padding
+- `.list-item { min-width: 0 }` + `.list-name { min-width: 0;
+overflow: hidden; text-overflow: ellipsis }` — name trunca em
+  vez de empurrar a row
+- `@container (max-width: 200px) { .list-meta { display: none } }`
+  - `container-type: inline-size` no `.list` — dimensions ocultam
+    em rails muito estreitos (info preservada no title attribute)
+
+### Pattern 5 strike redux
+
+Comentários CSS dentro do template literal `styles: \`...\`` tinham
+backticks (\`auto-fill + minmax\`, \`repeat(3, 1fr)\`) que fecharam
+o outer template e quebraram parsing. Removidos. Vou registrar essa
+recorrência no audit pattern catalog.
+
+### Validação
+
+- 1403 testes ✓ (nenhum quebrou)
+- Lint clean
+- Playground build clean
+
+---
+
 ## 2026-05-24 — D-061 follow-up: vertical tab strip no panel-group
 
 ### Demanda
