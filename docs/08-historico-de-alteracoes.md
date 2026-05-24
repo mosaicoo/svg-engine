@@ -6,6 +6,51 @@
 
 ---
 
+## 2026-05-24 — D-061 follow-up: vertical tab strip no panel-group
+
+### Demanda
+
+Após o D-061 (panel-groups em todas as visões com painéis), usuário
+notou que os 8 tabs ícone-only do `libraries-panel` ficavam apertados
+no topo horizontal mesmo em compact mode — e que ficaria "mais
+intuitivo na lateral esquerda de cima pra baixo por limitação de
+espaço". Padrão Photoshop / Affinity Designer pra side rails.
+
+### Implementação
+
+**Novo input** `[orientation]="'horizontal' | 'vertical'"` no
+`<svge-panel-group>` (default horizontal). Quando `vertical`:
+
+- Tab strip vira coluna estreita (~36px) à ESQUERDA do body
+- Active indicator move da borda inferior → borda esquerda
+  (convenção Photoshop)
+- A11y: `aria-orientation="vertical"` no role tablist
+- Body header (quando `title` setado) passa a refletir o LABEL do
+  tab ativo — usuário sempre vê textualmente qual painel está
+  aberto, sem precisar hover nos ícones
+
+**Aplicação**: `libraries-panel` agora usa
+`orientation="vertical"` (8 categorias num rail de 220px → strip
+36px + body 184px). Outros panel-groups (Layers/Properties/
+Appearance no shell-pro e custom-editor) mantêm orientação
+horizontal pois têm 1-3 tabs em rails ≥ 280px — horizontal continua
+mais natural.
+
+### Validação
+
+- 1403 testes ✓ (+1 spec novo cobrindo strip vertical + label
+  reativo no header)
+- Lint clean, playground build clean
+
+### Premissas
+
+- Backward compatible: omitir `orientation` mantém comportamento
+  horizontal original
+- A11y: `aria-orientation` setado conforme padrão ARIA pra tablists
+- D-017 (headless): sem mudança — continua só `MatIcon`
+
+---
+
 ## 2026-05-24 — D-061: Panel reorganization — Illustrator-style panel-groups + Figma top-tabs
 
 ### Demanda

@@ -41,8 +41,12 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
  *   practice (Illustrator's "Libraries" panel, Affinity's "Assets"
  *   studio) keeps each category as a tab so only one grid is
  *   visible — focus stays on the active library.
- * - The tab strip uses icon-only chips (with tooltips) in `compact`
- *   mode so all 8 libraries fit in the standard 220px rail.
+ * - **Vertical strip on the LEFT** (D-061 follow-up): with 8 tabs
+ *   the horizontal strip felt cramped even in compact mode. Vertical
+ *   side rail (Photoshop / Affinity convention) gives each icon a
+ *   comfortable square click target without eating canvas width and
+ *   the active tab's label surfaces in the body header (no need to
+ *   hover icons to know what's showing).
  * - The strip auto-hides when only one library has items (handled by
  *   `<svge-panel-group>`).
  *
@@ -73,7 +77,7 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
   standalone: true,
   imports: [MatIcon, SvgePanelGroup, SvgePanelGroupTab],
   template: `
-    <svge-panel-group title="Libraries" [compact]="true">
+    <svge-panel-group title="Libraries" [compact]="true" orientation="vertical">
       <!-- SHAPES -->
       @if (shapesItems().length > 0) {
         <ng-template

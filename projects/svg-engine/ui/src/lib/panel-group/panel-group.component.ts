@@ -118,16 +118,25 @@ export class SvgePanelGroupTab {
   imports: [NgTemplateOutlet, MatIcon],
   template: `
     @if (tabs().length > 0) {
-      <header class="pg-header" [class.pg-header--titled]="!!title()">
-        @if (title()) {
-          <h3 class="pg-title">{{ title() }}</h3>
-        }
-        @if (tabs().length > 1) {
-          <div class="pg-tabs" role="tablist" [attr.aria-label]="title() ?? 'Panels'">
+      @if (orientation() === 'vertical' && tabs().length > 1) {
+        <!--
+          Vertical layout (Photoshop/Affinity-style side rail): tab
+          strip is a thin column to the LEFT of the body. Used when a
+          panel has many tabs and the rail is too narrow for them to
+          fit horizontally. Title (when present) sits above the body
+          and aligns with the active tab.
+        -->
+        <div class="pg-vertical">
+          <div
+            class="pg-tabs pg-tabs--vertical"
+            role="tablist"
+            [attr.aria-orientation]="'vertical'"
+            [attr.aria-label]="title() ?? 'Panels'"
+          >
             @for (tab of tabs(); track tab.id()) {
               <button
                 type="button"
-                class="pg-tab"
+                class="pg-tab pg-tab--vertical"
                 [class.pg-tab--compact]="compact() && tab.icon()"
                 role="tab"
                 [class.pg-tab--active]="tab.id() === resolvedActiveId()"
@@ -146,18 +155,71 @@ export class SvgePanelGroupTab {
               </button>
             }
           </div>
-        }
-      </header>
-      <div
-        class="pg-body"
-        role="tabpanel"
-        [id]="bodyId()"
-        [attr.aria-labelledby]="tabButtonId(resolvedActiveId())"
-      >
-        @if (activeTemplate(); as tpl) {
-          <ng-container [ngTemplateOutlet]="tpl" />
-        }
-      </div>
+          <div class="pg-vertical-content">
+            @if (title()) {
+              <header class="pg-header pg-header--titled pg-header--vertical">
+                <h3 class="pg-title">{{ activeTabLabel() ?? title() }}</h3>
+              </header>
+            }
+            <div
+              class="pg-body"
+              role="tabpanel"
+              [id]="bodyId()"
+              [attr.aria-labelledby]="tabButtonId(resolvedActiveId())"
+            >
+              @if (activeTemplate(); as tpl) {
+                <ng-container [ngTemplateOutlet]="tpl" />
+              }
+            </div>
+          </div>
+        </div>
+      } @else {
+        <!--
+          Horizontal layout (Illustrator-style): tab strip across the
+          top, body below. Also used when there's exactly 1 tab —
+          the strip is hidden and only the title shows.
+        -->
+        <header class="pg-header" [class.pg-header--titled]="!!title()">
+          @if (title()) {
+            <h3 class="pg-title">{{ title() }}</h3>
+          }
+          @if (tabs().length > 1) {
+            <div class="pg-tabs" role="tablist" [attr.aria-label]="title() ?? 'Panels'">
+              @for (tab of tabs(); track tab.id()) {
+                <button
+                  type="button"
+                  class="pg-tab"
+                  [class.pg-tab--compact]="compact() && tab.icon()"
+                  role="tab"
+                  [class.pg-tab--active]="tab.id() === resolvedActiveId()"
+                  [attr.aria-selected]="tab.id() === resolvedActiveId()"
+                  [attr.aria-controls]="bodyId()"
+                  [id]="tabButtonId(tab.id())"
+                  [title]="tab.tooltip() ?? tab.label() ?? tab.id()"
+                  (click)="selectTab(tab.id())"
+                >
+                  @if (tab.icon()) {
+                    <mat-icon class="pg-tab-icon">{{ tab.icon() }}</mat-icon>
+                  }
+                  @if (!compact() || !tab.icon()) {
+                    <span class="pg-tab-label">{{ tab.label() ?? tab.id() }}</span>
+                  }
+                </button>
+              }
+            </div>
+          }
+        </header>
+        <div
+          class="pg-body"
+          role="tabpanel"
+          [id]="bodyId()"
+          [attr.aria-labelledby]="tabButtonId(resolvedActiveId())"
+        >
+          @if (activeTemplate(); as tpl) {
+            <ng-container [ngTemplateOutlet]="tpl" />
+          }
+        </div>
+      }
     }
   `,
   styles: `
@@ -240,6 +302,61 @@ export class SvgePanelGroupTab {
          hover). Keep enough padding for a comfortable click target. */
       padding: 0 8px;
     }
+    /* Vertical orientation (Photoshop/Affinity-style side rail).
+       Strip becomes a thin column to the left of the body. Active
+       indicator moves from bottom border to LEFT border. */
+    .pg-vertical {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: row;
+      min-height: 0;
+      min-width: 0;
+    }
+    .pg-tabs--vertical {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      overflow-x: hidden;
+      overflow-y: auto;
+      background: var(--mat-sys-surface-container-low, transparent);
+      border-right: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+      /* ~36px wide chip column — wide enough for a 16px icon + comfy
+         click target without eating into the body. */
+      min-width: 36px;
+    }
+    .pg-tab--vertical {
+      justify-content: center;
+      padding: 8px 6px;
+      border-bottom: 0;
+      /* Active indicator slides to the LEFT edge (matches Photoshop /
+         Affinity convention for vertical side rails). */
+      border-left: 2px solid transparent;
+    }
+    .pg-tab--vertical.pg-tab--active {
+      border-bottom-color: transparent;
+      border-left-color: var(--mat-sys-primary, #1976d2);
+    }
+    .pg-tab--vertical .pg-tab-label {
+      /* When labels DO show in vertical mode (non-compact or no icon),
+         allow them to wrap so long names don't break the layout. */
+      white-space: normal;
+      text-align: center;
+    }
+    .pg-vertical-content {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+    }
+    .pg-header--vertical {
+      /* In vertical mode the title is INFORMATIONAL — it shows the
+         active tab's label (or panel-group title as fallback). Saves
+         the user from having to hover the tab icon to know what's
+         on screen. */
+      min-height: 28px;
+    }
     .pg-body {
       flex: 1 1 auto;
       min-height: 0;
@@ -266,6 +383,20 @@ export class SvgePanelGroup {
    * 220px sidebar). Defaults to false (icon + label both visible).
    */
   readonly compact = input<boolean>(false);
+
+  /**
+   * Tab strip orientation:
+   * - `'horizontal'` (default): strip across the top, body below.
+   *   Illustrator/Inkscape convention; best for 2-4 tabs in a wide
+   *   dock.
+   * - `'vertical'`: thin strip on the LEFT, body to the right.
+   *   Photoshop/Affinity convention; best for many tabs in a narrow
+   *   rail (e.g. 8 library categories in a 220px sidebar). When
+   *   `vertical`, the body header (if `title` is set) automatically
+   *   reflects the active tab's label so the user always knows what
+   *   they're looking at without hovering icons.
+   */
+  readonly orientation = input<'horizontal' | 'vertical'>('horizontal');
 
   /** Emitted when the user clicks a tab. */
   readonly activeTabChange = output<string>();
@@ -305,6 +436,19 @@ export class SvgePanelGroup {
     if (id === null) return null;
     const match = this.tabs().find((t) => t.id() === id);
     return match?.templateRef ?? null;
+  });
+
+  /**
+   * Active tab's display label (or `id` when no label set). Used by
+   * the vertical layout to surface what's currently visible in the
+   * panel header — since vertical strip is icon-only by default, the
+   * user wouldn't otherwise see a textual label for the active panel.
+   */
+  protected readonly activeTabLabel = computed<string | null>(() => {
+    const id = this.resolvedActiveId();
+    if (id === null) return null;
+    const match = this.tabs().find((t) => t.id() === id);
+    return match?.label() ?? match?.id() ?? null;
   });
 
   // Stable ids derived from `Math.random()` would break SSR + a11y

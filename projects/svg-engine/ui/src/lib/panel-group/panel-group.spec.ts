@@ -45,6 +45,22 @@ class MultiTabHost {
   active: string | null = null;
 }
 
+@Component({
+  standalone: true,
+  imports: [SvgePanelGroup, SvgePanelGroupTab],
+  template: `
+    <svge-panel-group title="Libraries" orientation="vertical" [compact]="true">
+      <ng-template svgePanelGroupTab svgePanelGroupTabId="shapes" label="Shapes" icon="category">
+        <div class="shapes-body">SHAPES-CONTENT</div>
+      </ng-template>
+      <ng-template svgePanelGroupTab svgePanelGroupTabId="brushes" label="Brushes" icon="brush">
+        <div class="brushes-body">BRUSHES-CONTENT</div>
+      </ng-template>
+    </svge-panel-group>
+  `,
+})
+class VerticalHost {}
+
 describe('<svge-panel-group>', () => {
   it('hides tab strip when there is only one tab', () => {
     TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
@@ -96,5 +112,26 @@ describe('<svge-panel-group>', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.active).toBe('pages');
     expect(pagesButton.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('vertical orientation renders strip on the side + shows active label in header', () => {
+    TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+    const fixture = TestBed.createComponent(VerticalHost);
+    fixture.detectChanges();
+    // Strip should carry the vertical modifier + aria-orientation.
+    const strip = fixture.nativeElement.querySelector('.pg-tabs--vertical') as HTMLElement | null;
+    expect(strip).not.toBeNull();
+    expect(strip?.getAttribute('aria-orientation')).toBe('vertical');
+    // First tab active by default → header shows "Shapes" (its label),
+    // not the panel-group title "Libraries".
+    const title = fixture.nativeElement.querySelector('.pg-title');
+    expect(title?.textContent?.trim()).toBe('Shapes');
+    // Switch tab and verify the header label tracks the active tab.
+    const brushesButton = Array.from(
+      fixture.nativeElement.querySelectorAll('.pg-tab') as NodeListOf<HTMLButtonElement>,
+    ).find((b) => b.getAttribute('title') === 'Brushes') as HTMLButtonElement;
+    brushesButton.click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.pg-title')?.textContent?.trim()).toBe('Brushes');
   });
 });
