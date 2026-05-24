@@ -150,13 +150,15 @@ export class SvgeMenuBar {
 
   /**
    * Slots to render as top-level menus, in order. Each slot becomes one
-   * dropdown button on the bar. Default = the 5 canonical menus that
-   * Illustrator / Affinity / Inkscape all share.
+   * dropdown button on the bar. Default = the 6 canonical menus that
+   * Figma / Sketch / PowerPoint / Google Drawings all share (Insert
+   * sits between View and Object — D-052).
    */
   readonly slots = input<readonly string[]>([
     'menu.file',
     'menu.edit',
     'menu.view',
+    'menu.insert',
     'menu.object',
     'menu.help',
   ]);
@@ -170,6 +172,7 @@ export class SvgeMenuBar {
     'menu.file': 'File',
     'menu.edit': 'Edit',
     'menu.view': 'View',
+    'menu.insert': 'Insert',
     'menu.object': 'Object',
     'menu.help': 'Help',
   });

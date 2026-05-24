@@ -6,6 +6,114 @@
 
 ---
 
+## 2026-05-24 — D-052: Menu Insert/Inserir (padrão Figma/PowerPoint/Sketch/Google Drawings)
+
+### Decisão de padrão
+
+Levantamento de mercado para "menu de inserção de shapes":
+
+| Editor               | Local / nome               | Estrutura                             |
+| -------------------- | -------------------------- | ------------------------------------- |
+| Figma                | menu "Insert" (atalho `/`) | Shapes / Text / Image / Component     |
+| Sketch               | menu "Insert"              | Shape ▶ / Text / Image / Symbol       |
+| Microsoft PowerPoint | tab "Insert"               | Shapes (com submenu) / Text / Picture |
+| Google Drawings      | menu "Insert"              | Shape ▶ / Text / Image                |
+| Adobe Illustrator    | (não tem) — só toolbar     | n/a                                   |
+| Inkscape             | (não tem) — só toolbox     | n/a                                   |
+
+**Padrão escolhido**: Figma/Sketch/PowerPoint/Google — menu **"Insert"**
+entre View e Object, submenu **"Shape"** com primitivos + Text + Image
+como itens diretos. Justificativa: a maioria dos editores web-first
+(target do SVGEngine) usa essa convenção; usuários vindos de
+Office/Google têm familiaridade imediata. Illustrator/Inkscape são
+toolbox-only mas servem usuários print-design pro — não combina com o
+posicionamento do produto.
+
+### Implementação
+
+**Nova slot**: `MENU_SLOT.INSERT = 'menu.insert'` em menu-slots.ts.
+Documentada com a distinção em relação a `menu.object` (que opera em
+nós existentes: reorder/group/ungroup) e em relação ao toolbar
+(`toolbar.main`) shape tools (que ARMAM um drawing tool aguardando
+drag — Insert é drop imediato).
+
+**`<svge-menu-bar>` defaults**: array `slots` agora inclui
+`'menu.insert'` entre `'menu.view'` e `'menu.object'`; map `labels`
+adiciona `'menu.insert': 'Insert'`. Backward-compat: consumers que
+sobrescrevem `slots` continuam funcionando, mas agora também
+recebem Insert por padrão se aceitarem o default.
+
+**Novo plugin** `builtinInsertMenuPlugin` em
+`menu/builtin/builtin-insert-menu.plugin.ts`. Arquivo separado do
+`builtinMenuContributionsPlugin` para que consumers possam opt-out
+de Insert sem perder os outros menus (e vice-versa).
+
+**Itens registrados** (10 contribuições):
+
+```
+Insert
+├── Shape           ▶   (parent, icon=category)
+│   ├── Rectangle
+│   ├── Rounded rectangle
+│   ├── Ellipse / Circle
+│   ├── Line
+│   ├── Triangle
+│   ├── Polygon (5 sides)
+│   └── Star (5 points)
+├── ─────────────
+├── Text
+└── Image…              (file picker → data URI)
+```
+
+**UX de drop**:
+
+- **Posição**: centro do `ViewportService.viewBox()` (não do
+  documento). Mantém o shape inserido sempre dentro da viewport
+  visível, mesmo com zoom/pan ativos.
+- **Tamanho**: 25% da menor dimensão da viewBox, clamped a
+  `[40, 400]` doc-units. Evita shape 1px em zoom 32× ou 4000px em
+  zoom 0.05×.
+- **Estilo**: usa `DEFAULT_STYLE` (cinza claro + stroke escuro).
+  User troca via Inspector logo após inserir.
+- **Pós-insert**: dispatch `InsertNodeCommand` (1 undo step) +
+  `SelectionService.select(newId)` — shape já aparece com handles e
+  Inspector mostra propriedades.
+
+**Image**: usa `<input type="file" accept="image/*">` (browser-nativo,
+sem Material dialog — preserva headless boundary D-017). Arquivo
+embedado como data URI no atributo `href` (auto-contido, round-trip
+import/export limpo). Tamanho default igual aos shapes (square
+placeholder; aspect-ratio real do arquivo fica para futura iteração).
+
+**D-042/D-043 multi-editor safety**: handlers usam
+`runCtx.injector` para resolver `EditorStateService`, `CommandBus`,
+`ViewportService`, `SelectionService` — sempre operam no editor
+ativo, nunca no root.
+
+### Por que NÃO criar uma tool nova
+
+Considerado adicionar um shape tool "smart insert" no toolbar mas
+descartado: o toolbar tool e o menu Insert servem use cases
+DIFERENTES, ambos válidos.
+
+- **Toolbar tool** (R, E, Y): "vou desenhar um shape do tamanho que
+  eu quero, arrastando" — Illustrator/Affinity convention. Mantém
+  o tool armado para múltiplas inserções consecutivas.
+- **Menu Insert > Shape > Rectangle**: "quero um retângulo já, com
+  tamanho padrão, na tela" — Office/Figma convention. Drop único
+  - selection imediata, sem mudar tool ativo.
+
+Coexistem.
+
+### Verificação
+
+- `ng build svg-engine`: ✅ 9 entry points
+- `ng build playground`: ✅ limpo
+- `ng test svg-engine`: ✅ **1333 passed** (+6 novos) / 1 skipped / 0 failed
+- `ng lint svg-engine`: ✅ clean
+
+---
+
 ## 2026-05-24 — D-049 (Item 4) Composição/Recorte + D-050 (Item 5) Tools faltantes + D-051 (Item 12) UX polish
 
 Três decisions implementadas no mesmo ciclo (escopo coeso: completar

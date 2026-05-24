@@ -7,6 +7,7 @@ import {
   builtinEffectsPlugin,
   extraToolsPlugin,
   builtinGradientsPlugin,
+  builtinInsertMenuPlugin,
   builtinGraphicStylesPlugin,
   builtinIoPlugin,
   builtinMasksPlugin,
@@ -81,6 +82,11 @@ export const appConfig: ApplicationConfig = {
     // Items with reactive `disabled` signals follow selection/history
     // state. Opt-in (consumer may replace with custom layouts).
     provideSvgEnginePlugin(builtinMenuContributionsPlugin),
+    // D-052 — Insert menu (Shape submenu + Text + Image). Padrão de
+    // mercado alinhado com Figma/Sketch/PowerPoint/Google Drawings:
+    // drops shapes default-sized no centro do viewport visível em 1
+    // undo step. Opt-in (omitir para apps que querem só toolbar tools).
+    provideSvgEnginePlugin(builtinInsertMenuPlugin),
     // D-044 — Sibling plugin in svg-engine/ui for menu items that
     // require Material dialog infrastructure (View Source… opens
     // <svge-svg-source-dialog> via MatDialog). edit-side plugin

@@ -32,6 +32,21 @@ export const MENU_SLOT = {
   FILE: 'menu.file',
   EDIT: 'menu.edit',
   VIEW: 'menu.view',
+  /**
+   * **D-052**: "Insert" menu — drops new shapes / text / images at the
+   * center of the visible viewport in a single undoable step. Market
+   * convention placement (between View and Object) matches Figma,
+   * Sketch, PowerPoint, Google Drawings, and most other 2D editors.
+   *
+   * Distinct from `menu.object` (which operates on EXISTING nodes:
+   * reorder, group, ungroup) — `menu.insert` *creates* new nodes.
+   *
+   * Distinct from the toolbar (`toolbar.main` + `TOOLBAR_SLOT.MAIN`)
+   * shape tools (R / E / Y) which ARM a drawing tool waiting for a
+   * drag; Insert items perform an IMMEDIATE drop, mirroring the
+   * Office/Google "Insert > Rectangle" UX.
+   */
+  INSERT: 'menu.insert',
   OBJECT: 'menu.object',
   HELP: 'menu.help',
 } as const;
