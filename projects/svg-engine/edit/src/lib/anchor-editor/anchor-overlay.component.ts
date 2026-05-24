@@ -16,6 +16,7 @@ import {
 } from 'svg-engine/core';
 import { composeAncestorMatrix } from './compose-ancestor-matrix';
 import { screenToDoc, ViewportService } from 'svg-engine/render';
+import { LayersService } from '../layers/layers.service';
 import { capturePointer, releasePointer } from '../pointer';
 import { SelectionService } from '../selection/selection.service';
 import { DIRECT_SELECT_TOOL_ID } from '../tool/builtin-tools';
@@ -274,6 +275,7 @@ export class AnchorOverlay {
   private readonly viewport = inject(ViewportService);
   private readonly bus = inject(CommandBus);
   private readonly toolHost = inject(ToolHostService);
+  private readonly layers = inject(LayersService);
 
   /** Size in viewBox units → constant on screen. */
   protected readonly pointSize = computed(() => POINT_PX / this.viewport.zoom());
@@ -296,9 +298,18 @@ export class AnchorOverlay {
     if (this.selection.count() !== 1) return null;
     const focusId = this.selection.focusId();
     if (focusId === null) return null;
+    // Visibility gate — matches SelectionOverlay/RotationPivot. When
+    // the focused path is hidden (Layer Panel eye OR metadata.visible
+    // = false), suppress anchor squares + handle knobs + segment hit
+    // zones. Otherwise we'd render path-edit chrome floating in empty
+    // space — both visually confusing and impossible to interact with
+    // (the underlying path is `display: none` so segment-hit clicks
+    // would land on the canvas background instead).
+    if (this.layers.hiddenIds().has(focusId)) return null;
     const doc = this.state.document();
     const target = findById(doc.root, focusId);
     if (target === null || target.type !== 'path') return null;
+    if (target.metadata.visible === false) return null;
     const subpaths = parsePathToAnchors(target.d);
     // The anchor `d` coordinates are in the NODE-LOCAL frame (before
     // ANY transform is applied). The overlay renders inside the same
@@ -377,14 +388,17 @@ export class AnchorOverlay {
     // Reuse the same gating logic as `anchors` — both render only
     // when the path is selected under Direct Select. Sharing the
     // condition would require re-parsing the path; rely on Angular
-    // signal memoization to dedup.
+    // signal memoization to dedup. Visibility gate mirrors
+    // `anchors()` — keep them in sync.
     if (this.toolHost.activeId() !== DIRECT_SELECT_TOOL_ID) return null;
     if (this.selection.count() !== 1) return null;
     const focusId = this.selection.focusId();
     if (focusId === null) return null;
+    if (this.layers.hiddenIds().has(focusId)) return null;
     const doc = this.state.document();
     const target = findById(doc.root, focusId);
     if (target === null || target.type !== 'path') return null;
+    if (target.metadata.visible === false) return null;
     const subpaths = parsePathToAnchors(target.d);
     // Same composed-matrix rationale as `anchors()` — segment hit-zones
     // must align with the rendered curve, which means we need every

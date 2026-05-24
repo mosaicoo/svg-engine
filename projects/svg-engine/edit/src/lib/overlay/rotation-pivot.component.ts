@@ -8,7 +8,7 @@ import {
   type OnDestroy,
   signal,
 } from '@angular/core';
-import { type BoundingBox, EditorStateService, type Point } from 'svg-engine/core';
+import { type BoundingBox, EditorStateService, findNodeById, type Point } from 'svg-engine/core';
 import { screenToDoc, ViewportService } from 'svg-engine/render';
 import { capturePointer, releasePointer } from '../pointer';
 import {
@@ -18,6 +18,7 @@ import {
   type BBoxAnchor,
 } from '../geometry/bbox-anchors';
 import { getCombinedBBox, getRenderedNodeBBox } from '../geometry/node-bbox';
+import { LayersService } from '../layers/layers.service';
 import { SelectionService } from '../selection/selection.service';
 import { TransformService } from '../transform/transform.service';
 
@@ -191,6 +192,7 @@ export class RotationPivot implements OnDestroy {
   private readonly state = inject(EditorStateService);
   private readonly viewport = inject(ViewportService);
   private readonly transform = inject(TransformService);
+  private readonly layers = inject(LayersService);
 
   private readonly _bbox = signal<BoundingBox | null>(null);
   private readonly _popoverOpen = signal(false);
@@ -199,9 +201,24 @@ export class RotationPivot implements OnDestroy {
   protected readonly currentBBox = this._bbox.asReadonly();
   protected readonly popoverOpen = this._popoverOpen.asReadonly();
 
+  /**
+   * `null` shapes the template into rendering NOTHING — covering both
+   * "no selection" and "selection is hidden" (Layer Panel eye-toggle
+   * OR `metadata.visible === false` for Live Boolean inputs). Same
+   * gating rationale as `SelectionOverlay.focusBBox`: chrome
+   * (crosshair + popover) on an invisible target floats in empty
+   * space and confuses the user. Selection state survives; un-hide
+   * restores the pivot instantly.
+   */
   protected readonly pivotPos = computed<Point | null>(() => {
     const b = this._bbox();
     if (b === null) return null;
+    const id = this.selection.focusId();
+    if (id !== null) {
+      if (this.layers.hiddenIds().has(id)) return null;
+      const node = findNodeById(this.state.document().root, id);
+      if (node !== null && node.metadata.visible === false) return null;
+    }
     return this.transform.resolvePivot(b);
   });
 
