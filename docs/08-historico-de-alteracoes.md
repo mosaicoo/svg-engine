@@ -6,6 +6,126 @@
 
 ---
 
+## 2026-05-24 — D-061: Panel reorganization — Illustrator-style panel-groups + Figma top-tabs
+
+### Demanda
+
+Usuário reportou que os painéis das visões "estão muito confusos" e
+pediu reorganização "baseada em ferramentas de mercado". Auditoria
+expôs que no `<svge-shell-pro>` o right rail empilhava Layers +
+Inspector (+ Gradient inline) + Effects verticalmente em sections
+sem agrupamento — cada painel competia por altura e o usuário
+escrolava sem fim. O `libraries-panel` tinha 6 seções colapsáveis
+num único painel, virando lista enorme quando tudo aberto.
+
+### Decisão (híbrido)
+
+- **Panel-groups (Illustrator/Affinity)** no `<svge-shell-pro>` e
+  `/custom-editor` (visões profissionais com múltiplos painéis
+  competindo por dock real estate).
+- **Top-level tab-like header (Figma)** no `<svge-editor>` (basic +
+  modular): wrapper de panel-group de 1 tab no effects rail pra
+  consistência visual; libraries-panel já tem tabs internas.
+
+### Implementação
+
+**Novo componente base** `<svge-panel-group>` em
+`svg-engine/ui/lib/panel-group/`:
+
+- Standalone com `MatIcon` + `NgTemplateOutlet`.
+- Diretiva estrutural `[svgePanelGroupTab]` declara cada tab via
+  `<ng-template>` — lazy template instantiation (só o body do tab
+  ativo é criado).
+- Inputs: `title?` (header text), `activeTab?` (controlled),
+  `compact?` (esconde labels quando tab tem icon, mantendo tooltip).
+- Output: `activeTabChange`.
+- A11y: `role="tablist"` / `role="tab"` / `role="tabpanel"` com
+  `aria-selected` + `aria-controls` + `aria-labelledby`.
+- Strip auto-oculta quando há só 1 tab → mostra apenas o título.
+
+**`libraries-panel` refatorado** (8 tabs no lugar de 6 seções
+colapsáveis): Shapes | Templates | Gradients | Patterns | Styles |
+Symbols | Brushes | Assets. Modo `compact` ativo (só icons no strip
+
+- tooltip; rail de 220px comporta os 8 tabs com scroll horizontal
+  suave se necessário). Cada tab mostra UMA library — focus stays.
+
+**`<svge-shell-pro>` right rail** vira 3 panel-groups verticais
+(grid `1fr 1fr 1fr`): **Layers** | **Properties** | **Appearance**.
+Cada um tem 1 tab hoje (estrutura pronta pra crescer: Pages/Symbols
+no Layers, Transform no Properties, Swatches/Brushes preview no
+Appearance). Properties contém Inspector + Gradient Editor inline.
+
+**`/custom-editor`** — left rail vira 2 panel-groups (Layers +
+Libraries), right rail vira 2 panel-groups (Properties + Appearance).
+Estrutura intencionalmente diferente do shell-pro pra exercitar o
+padrão Sketch/Affinity Designer (Layers no left junto com Libraries).
+
+**`<svge-editor>` shell** (basic + modular) — effects rail
+encapsulado em `<svge-panel-group title="Appearance">` de 1 tab pra
+consistência visual com shell-pro e custom-editor. Libraries-panel
+já usa tabs internamente (mudança propagou automaticamente).
+
+### Padrões de mercado consultados
+
+- **Illustrator**: dock panels com tab strip estreito; vários panels
+  por dock zone (Color | Color Guide | Swatches no mesmo dock).
+- **Affinity Designer**: Studio com áreas docáveis e tabs dentro de
+  cada studio.
+- **Figma**: tabs no topo do right panel (Design / Prototype /
+  Inspect) trocam o painel inteiro.
+- **Sketch**: Inspector contextual + Layers/Components em sidebars
+  separadas.
+
+### Validação
+
+- `ng test svg-engine` — **1402 testes ✓** (+4 novos do panel-group;
+  103 arquivos, 1 skipped).
+- `ng lint svg-engine` — clean.
+- `ng build playground` — clean.
+
+### Arquivos novos / impactados
+
+Novos:
+
+- `ui/lib/panel-group/panel-group.component.ts` (SvgePanelGroup +
+  SvgePanelGroupTab diretiva)
+- `ui/lib/panel-group/index.ts`
+- `ui/lib/panel-group/panel-group.spec.ts` (4 cases: single-tab
+  oculta strip, multi-tab mostra strip + tab default, switch body
+  ao click, controlled `activeTab` + emit)
+
+Modificados:
+
+- `ui/src/public-api.ts` — export panel-group
+- `ui/lib/libraries-panel/libraries-panel.component.ts` — refatoração
+  total (template novo com 8 tabs, removidas as 6 sections e
+  open/toggle state)
+- `ui/lib/shell-pro/shell-pro.component.ts` — right rail virou 3
+  panel-groups; ASCII diagram atualizado
+- `ui/lib/editor/editor.component.ts` — effects rail virou
+  panel-group
+- `playground/pages/custom-editor/custom-editor.component.html` —
+  left + right rails virou panel-groups
+- `playground/pages/custom-editor/custom-editor.component.ts` —
+  imports
+- `playground/pages/custom-editor/custom-editor.component.scss` —
+  CSS `.ls-group` + `.rs-group`
+
+### Premissas honradas
+
+- D-017 (headless): panel-group usa `MatIcon` (única dependência
+  Material), sem `MatTabGroup` (animações + lazy-load + scroll
+  machinery que não queremos). O componente é leve.
+- D-042 (multi-editor): panel-group é stateless — o `activeTab`
+  interno é local ao instance.
+- D-043 (factory pattern): n/a (sem novos menu items).
+- Zero regressão: `<svge-editor>` shell-pro mantém todos os painéis
+  visíveis simultaneamente; só o agrupamento e a presença de tab
+  strip mudou.
+
+---
+
 ## 2026-05-24 — D-059 (Symbol Library master/instance) + D-060 (Brush Library) + comment cleanup
 
 ### Escopo

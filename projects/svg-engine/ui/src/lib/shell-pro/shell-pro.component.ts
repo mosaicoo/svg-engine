@@ -23,6 +23,7 @@ import { SvgeInspector } from '../inspector';
 import { LayersPanel } from '../layers-panel';
 import { SvgeLibrariesPanel } from '../libraries-panel';
 import { SvgeMenuBar } from '../menu-bar';
+import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
 import { SvgeRulers } from '../rulers';
 import { SvgeStatusBar } from '../status-bar';
 import { SvgeToolbar } from '../toolbar';
@@ -42,15 +43,23 @@ import { SvgeToolsPalette } from '../tools-palette';
  * ├─────────────────────────────────────────────────────────────────┤
  * │ <svge-tool-options> (context-sensitive per active tool)          │  ← tool options
  * ├────┬────────┬─────────────────────────────┬────────────────────┤
- * │T   │ Lib    │                             │ <svge-layers-panel>│
- * │O   │ rar    │  <svge-renderer>            ├────────────────────┤
- * │O   │ ies    │  + projected overlays       │ <svge-inspector>   │
- * │L   │ (D-048)│  + page overlay             ├────────────────────┤
- * │S   │        │  + right-click context menu │ <svge-effects-panel│
- * │    │        │                             │  (D-047 pipeline)  │
+ * │T   │ Lib    │                             │ Layers ▾           │
+ * │O   │ rari   │  <svge-renderer>            │ <svge-layers-panel>│
+ * │O   │ es     │  + projected overlays       ├────────────────────┤
+ * │L   │ (D-048)│  + page overlay             │ Properties ▾       │
+ * │S   │ tabs   │  + right-click context menu │ <svge-inspector>   │
+ * │    │        │                             ├────────────────────┤
+ * │    │        │                             │ Appearance ▾       │
+ * │    │        │                             │ <svge-effects-panel│
  * ├────┴────────┴─────────────────────────────┴────────────────────┤
  * │ <svge-status-bar>                                                │  ← status
  * └─────────────────────────────────────────────────────────────────┘
+ *
+ * **D-061**: right rail is composed of 3 `<svge-panel-group>` docks
+ * (Layers | Properties | Appearance). Each dock has a tab strip (1
+ * tab today, ready to grow with future Pages/Symbols/Transform/
+ * Swatches panels). Single-tab groups auto-hide the strip — the
+ * title text becomes the header.
  * ```
  *
  * **Diferença de `<svge-editor>`**:
@@ -113,6 +122,8 @@ import { SvgeToolsPalette } from '../tools-palette';
     SvgeGradientEditor,
     SvgeEffectsPanel,
     SvgeLibrariesPanel,
+    SvgePanelGroup,
+    SvgePanelGroupTab,
   ],
   template: `
     <div class="menu-row">
@@ -191,37 +202,45 @@ import { SvgeToolsPalette } from '../tools-palette';
         -->
         <svge-rulers />
       </div>
-      <aside class="right-side" aria-label="Layers, inspector and effects panels">
-        <section class="panel layers-section">
-          <h3 class="panel-title">Layers</h3>
-          <div class="panel-body">
+      <!--
+        Right rail (D-061) — 3 panel-groups stacked vertically. Each
+        group is a dock zone with a tab strip (currently 1 tab each
+        but ready to grow: Layers→+Pages/Symbols, Properties→+Transform,
+        Appearance→+Swatches/Brushes preview). Single-tab groups
+        auto-hide the strip and show the title in the header instead.
+      -->
+      <aside class="right-side" aria-label="Layers, properties and appearance panels">
+        <svge-panel-group class="rs-group" title="Layers">
+          <ng-template svgePanelGroupTab svgePanelGroupTabId="layers" label="Layers" icon="layers">
             <svge-layers-panel />
-          </div>
-        </section>
-        <section class="panel inspector-section">
-          <h3 class="panel-title">Properties</h3>
-          <div class="panel-body">
+          </ng-template>
+        </svge-panel-group>
+        <svge-panel-group class="rs-group" title="Properties">
+          <ng-template
+            svgePanelGroupTab
+            svgePanelGroupTabId="properties"
+            label="Properties"
+            icon="tune"
+          >
             <svge-inspector />
             <!--
-              D-058 — Gradient inline editor panel. Auto-hides via its
+              D-058 — Gradient inline editor. Auto-hides via its
               internal active() computed when selection has no gradient
-              fill, so it sits inert when irrelevant (no spacer needed).
+              fill, so it sits inert when irrelevant.
             -->
             <svge-gradient-editor />
-          </div>
-        </section>
-        <!--
-          Effects panel (D-047) — the pipeline editor for the focused
-          node's filter chain. Sits below Inspector so it's visible
-          when working on appearance without competing with hierarchy
-          (Layers) at the top.
-        -->
-        <section class="panel effects-section">
-          <h3 class="panel-title">Effects</h3>
-          <div class="panel-body">
+          </ng-template>
+        </svge-panel-group>
+        <svge-panel-group class="rs-group" title="Appearance">
+          <ng-template
+            svgePanelGroupTab
+            svgePanelGroupTabId="effects"
+            label="Effects"
+            icon="auto_awesome"
+          >
             <svge-effects-panel />
-          </div>
-        </section>
+          </ng-template>
+        </svge-panel-group>
       </aside>
     </div>
     <svge-status-bar class="status-row" />
@@ -292,38 +311,22 @@ import { SvgeToolsPalette } from '../tools-palette';
     }
     .right-side {
       display: grid;
-      /* 3 rows of equal flex height: Layers | Inspector | Effects.
-       * Each section scrolls internally — overflowing content
-       * doesn't push siblings out of view. */
+      /* 3 rows of equal flex height: Layers | Properties | Appearance.
+       * Each panel-group scrolls internally — overflowing content
+       * doesn't push siblings out of view. Equal split mirrors
+       * Illustrator's default dock layout; user can drag-resize in a
+       * future iteration. */
       grid-template-rows: 1fr 1fr 1fr;
       min-height: 0;
       border-left: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
       background: var(--mat-sys-surface, transparent);
     }
-    .panel {
-      display: flex;
-      flex-direction: column;
+    .rs-group {
       min-height: 0;
       overflow: hidden;
     }
-    .panel + .panel {
+    .rs-group + .rs-group {
       border-top: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
-    }
-    .panel-title {
-      margin: 0;
-      padding: 6px 10px;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      opacity: 0.65;
-      background: var(--mat-sys-surface-container-low, transparent);
-      border-bottom: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
-    }
-    .panel-body {
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
     }
     .status-row {
       /* No rules — svge-status-bar paints its own top border + background;

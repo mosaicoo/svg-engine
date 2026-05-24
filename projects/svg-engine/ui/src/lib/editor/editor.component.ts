@@ -29,6 +29,7 @@ import {
 import { CONTEXT_MENU_SLOT, SvgeContextMenuTrigger } from '../context-menu';
 import { SvgeEffectsPanel } from '../effects-panel';
 import { SvgeLibrariesPanel } from '../libraries-panel';
+import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
 import { SvgeMenuBar } from '../menu-bar';
 import { SvgeRulers } from '../rulers';
 import { SvgeStatusBar } from '../status-bar';
@@ -117,6 +118,8 @@ import { SvgeToolOptions } from '../tool-options';
     SvgeMenuBar,
     SvgeEffectsPanel,
     SvgeLibrariesPanel,
+    SvgePanelGroup,
+    SvgePanelGroupTab,
     SvgeContextMenuTrigger,
     SvgeToolOptions,
     SvgeShellInteractions,
@@ -283,9 +286,21 @@ import { SvgeToolOptions } from '../tool-options';
       </div>
       @if (showEffectsPanel()) {
         <!-- D-047 — right rail (260px) with the Effects pipeline
-             editor for the focused node. -->
-        <aside class="effects-rail" aria-label="Effects panel">
-          <svge-effects-panel />
+             editor for the focused node. D-061: wrapped in a single-
+             tab panel-group so the visual chrome matches the rest of
+             the editor (Properties + Appearance pattern in shell-pro
+             and custom-editor). -->
+        <aside class="effects-rail" aria-label="Appearance panel">
+          <svge-panel-group title="Appearance">
+            <ng-template
+              svgePanelGroupTab
+              svgePanelGroupTabId="effects"
+              label="Effects"
+              icon="auto_awesome"
+            >
+              <svge-effects-panel />
+            </ng-template>
+          </svge-panel-group>
         </aside>
       }
     </div>

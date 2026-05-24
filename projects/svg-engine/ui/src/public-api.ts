@@ -25,6 +25,12 @@
 // Editor shell (Bloco 4a)
 export * from './lib/editor';
 
+// Panel-group base component (D-061) — Illustrator/Affinity-style
+// dockable tab strip used by shell-pro/custom-editor to combine
+// related panels (Layers/Pages, Properties/Transform, etc.) into
+// the same dock zone with a tiny tab header.
+export * from './lib/panel-group';
+
 // Layers panel (Bloco 4b)
 export * from './lib/layers-panel';
 

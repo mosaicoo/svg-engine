@@ -129,6 +129,21 @@
   min-height: 0;
 }
 
+/* D-061 — panel-group docks stack within each sidebar. Each group
+ * gets equal flex height and scrolls internally so overflowing
+ * content doesn't push siblings out of view (matches the right rail
+ * pattern in <svge-shell-pro>). */
+.ls-group,
+.rs-group {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.ls-group + .ls-group,
+.rs-group + .rs-group {
+  border-top: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+}
+
 .canvas {
   position: relative;
   border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));

@@ -101,9 +101,12 @@ import { screenToDoc, SvgeRenderer, ViewportService } from 'svg-engine/render';
 import {
   LayersPanel,
   SvgeEffectsPanel,
+  SvgeGradientEditor,
   SvgeInspector,
   SvgeIsolationBreadcrumb,
   SvgeLibrariesPanel,
+  SvgePanelGroup,
+  SvgePanelGroupTab,
   SvgeRulers,
   SvgeSvgSourceDialogService,
   SvgeThemeToggle,
@@ -169,7 +172,10 @@ const DRAG_START_THRESHOLD_PX = 3;
     SvgeThemeToggle,
     SvgeToolOptions,
     SvgeEffectsPanel,
+    SvgeGradientEditor,
     SvgeLibrariesPanel,
+    SvgePanelGroup,
+    SvgePanelGroupTab,
     // D-051 (Item 12 — UX polish): mat-select replaces the native
     // `<select>` so the snap-mode picker (and any future selects in
     // this view) inherit the active theme (light/dark) automatically

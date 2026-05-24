@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import { MatIcon } from '@angular/material/icon';
 import {
@@ -25,63 +25,67 @@ import {
   ShapeLibraryService,
   TemplateLibraryService,
 } from 'svg-engine/edit';
+import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
 
 /**
- * Unified Libraries Panel (D-048) — single drop-in surfacing all 6
- * fully-functional libraries: shapes, templates, gradients, patterns,
- * graphic styles, assets. Each library renders as a collapsible
- * section; clicking an item applies it to the current selection (or
- * inserts into the document, depending on the library type).
+ * Unified Libraries Panel (D-048 + **D-061 reorg**) — single drop-in
+ * surfacing all the fully-functional libraries. Implemented as a
+ * `<svge-panel-group compact>` whose tabs are one per library
+ * category (Shapes, Templates, Gradients, Patterns, Styles, Symbols,
+ * Brushes, Assets). Only one library's grid is visible at a time —
+ * the user clicks a tab in the strip to switch.
  *
- * **Why one panel, multiple sections** (not 6 separate panels):
- * - In a side-bar context the user expects "browse all libraries in
- *   one place" rather than tab-switching between 6 separate panels.
- * - Per-library panels would still exist as exported sub-components
- *   in a future iteration (consumers can compose à la carte). For v1
- *   the consolidated panel covers the dominant use case.
+ * **Why tabs instead of stacked collapsible sections** (D-061):
+ * - Eight libraries collapsed vertically dominate the rail and force
+ *   the user to scroll just to see what's available. Industry
+ *   practice (Illustrator's "Libraries" panel, Affinity's "Assets"
+ *   studio) keeps each category as a tab so only one grid is
+ *   visible — focus stays on the active library.
+ * - The tab strip uses icon-only chips (with tooltips) in `compact`
+ *   mode so all 8 libraries fit in the standard 220px rail.
+ * - The strip auto-hides when only one library has items (handled by
+ *   `<svge-panel-group>`).
  *
- * **Headless boundary**: imports only `MatIcon` —
- * no `MatExpansionPanel` to keep the bundle thin (collapse state
- * is a local signal).
+ * **Headless boundary**: imports only `MatIcon` + `<svge-panel-group>`
+ * (also Material-light) — no `MatTabGroup` (animation overhead +
+ * lazy-load machinery we don't need).
  *
- * **Action semantics per library**:
- *
+ * **Action semantics per library** (unchanged from D-048):
  * - **Shapes** — click inserts a new node at viewport center via
  *   `InsertNodeCommand`. Single undo.
- * - **Templates** — click resets the entire document. Confirmation
- *   prompt is the caller's responsibility (kept simple in v1).
- * - **Gradients / Patterns** — click sets `style.fill = url(#id)`
- *   on every selected node (single undo via
- *   `SetStylePropertyOnManyCommand`). When nothing selected, no-op.
+ * - **Templates** — click resets the entire document (confirms when
+ *   the canvas isn't empty).
+ * - **Gradients / Patterns** — click sets `style.fill = url(#id)` on
+ *   every selected node (single undo via
+ *   `SetStylePropertyOnManyCommand`). When nothing selected, button
+ *   disables.
  * - **Graphic styles** — click applies the style preset (each
  *   non-undefined property dispatched as a single command bundle).
- * - **Assets** — file input → AssetManagerService.addFromFile → list.
- *   Click list entry → AssetManagerService.insertIntoDocument.
+ * - **Symbols (D-059)** — click inserts a `SymbolUseNode` referencing
+ *   the master. Edits to the master propagate to every instance.
+ * - **Brushes (D-060)** — click toggles the active brush; subsequent
+ *   Pencil strokes are expanded through the brush's widthProfile.
+ * - **Assets** — file input → `AssetManagerService.addFromFile` →
+ *   list. Click list entry → `insertIntoDocument`.
  */
 @Component({
   selector: 'svge-libraries-panel',
   standalone: true,
-  imports: [MatIcon],
+  imports: [MatIcon, SvgePanelGroup, SvgePanelGroupTab],
   template: `
-    <header class="lib-header">Libraries</header>
-
-    <!-- SHAPES -->
-    @if (shapesItems().length > 0) {
-      <section class="lib-section">
-        <button class="section-head" type="button" (click)="toggle('shapes')">
-          <mat-icon class="caret">{{ open().shapes ? 'expand_more' : 'chevron_right' }}</mat-icon>
-          <span>Shapes</span>
-          <span class="count">{{ shapesItems().length }}</span>
-        </button>
-        @if (open().shapes) {
+    <svge-panel-group title="Libraries" [compact]="true">
+      <!-- SHAPES -->
+      @if (shapesItems().length > 0) {
+        <ng-template
+          svgePanelGroupTab
+          svgePanelGroupTabId="shapes"
+          label="Shapes"
+          icon="category"
+          tooltip="Shapes"
+        >
           <div class="grid">
             @for (item of shapePreviews(); track item.id) {
               <button type="button" class="cell" [title]="item.name" (click)="insertShape(item.id)">
-                <!-- Mini SVG preview of the actual shape geometry. The
-                     d attribute comes from item.build() (a PathNode) —
-                     same path the user will insert. Style is the same
-                     as the inserted node so the thumbnail honestly
-                     previews the result. -->
                 <svg
                   class="shape-thumb"
                   viewBox="0 0 100 100"
@@ -100,21 +104,18 @@ import {
               </button>
             }
           </div>
-        }
-      </section>
-    }
+        </ng-template>
+      }
 
-    <!-- TEMPLATES -->
-    @if (templatesItems().length > 0) {
-      <section class="lib-section">
-        <button class="section-head" type="button" (click)="toggle('templates')">
-          <mat-icon class="caret">{{
-            open().templates ? 'expand_more' : 'chevron_right'
-          }}</mat-icon>
-          <span>Templates</span>
-          <span class="count">{{ templatesItems().length }}</span>
-        </button>
-        @if (open().templates) {
+      <!-- TEMPLATES -->
+      @if (templatesItems().length > 0) {
+        <ng-template
+          svgePanelGroupTab
+          svgePanelGroupTabId="templates"
+          label="Templates"
+          icon="view_quilt"
+          tooltip="Templates"
+        >
           <div class="list">
             @for (item of templatePreviews(); track item.id) {
               <button
@@ -123,9 +124,6 @@ import {
                 [title]="'Replace document with ' + item.name"
                 (click)="applyTemplate(item.id)"
               >
-                <!-- Mini page-aspect preview — shows orientation/ratio
-                     of the template at a glance (portrait vs landscape
-                     vs square). -->
                 <span
                   class="template-thumb"
                   [style.aspect-ratio]="item.aspectRatio"
@@ -138,21 +136,18 @@ import {
               </button>
             }
           </div>
-        }
-      </section>
-    }
+        </ng-template>
+      }
 
-    <!-- GRADIENTS -->
-    @if (gradientsItems().length > 0) {
-      <section class="lib-section">
-        <button class="section-head" type="button" (click)="toggle('gradients')">
-          <mat-icon class="caret">{{
-            open().gradients ? 'expand_more' : 'chevron_right'
-          }}</mat-icon>
-          <span>Gradients</span>
-          <span class="count">{{ gradientsItems().length }}</span>
-        </button>
-        @if (open().gradients) {
+      <!-- GRADIENTS -->
+      @if (gradientsItems().length > 0) {
+        <ng-template
+          svgePanelGroupTab
+          svgePanelGroupTabId="gradients"
+          label="Gradients"
+          icon="gradient"
+          tooltip="Gradients"
+        >
           <div class="grid">
             @for (item of gradientsItems(); track item.id) {
               <button
@@ -167,19 +162,18 @@ import {
               </button>
             }
           </div>
-        }
-      </section>
-    }
+        </ng-template>
+      }
 
-    <!-- PATTERNS -->
-    @if (patternsItems().length > 0) {
-      <section class="lib-section">
-        <button class="section-head" type="button" (click)="toggle('patterns')">
-          <mat-icon class="caret">{{ open().patterns ? 'expand_more' : 'chevron_right' }}</mat-icon>
-          <span>Patterns</span>
-          <span class="count">{{ patternsItems().length }}</span>
-        </button>
-        @if (open().patterns) {
+      <!-- PATTERNS -->
+      @if (patternsItems().length > 0) {
+        <ng-template
+          svgePanelGroupTab
+          svgePanelGroupTabId="patterns"
+          label="Patterns"
+          icon="texture"
+          tooltip="Patterns"
+        >
           <div class="grid">
             @for (item of patternPreviews(); track item.id) {
               <button
@@ -189,12 +183,6 @@ import {
                 [disabled]="!hasSelection()"
                 (click)="applyFillUrl(item.id, 'pattern')"
               >
-                <!-- Mini SVG embedding the actual pattern markup so
-                     the user sees what it looks like before applying.
-                     [innerHTML] is used so the literal defs + rect get
-                     parsed as SVG nodes (bypassSecurityTrustHtml on
-                     the SafeHtml — source is our own builtin builder
-                     so it is trusted by design). -->
                 <svg
                   class="pattern-thumb"
                   viewBox="0 0 40 40"
@@ -206,21 +194,18 @@ import {
               </button>
             }
           </div>
-        }
-      </section>
-    }
+        </ng-template>
+      }
 
-    <!-- GRAPHIC STYLES -->
-    @if (graphicStylesItems().length > 0) {
-      <section class="lib-section">
-        <button class="section-head" type="button" (click)="toggle('graphicStyles')">
-          <mat-icon class="caret">
-            {{ open().graphicStyles ? 'expand_more' : 'chevron_right' }}
-          </mat-icon>
-          <span>Graphic styles</span>
-          <span class="count">{{ graphicStylesItems().length }}</span>
-        </button>
-        @if (open().graphicStyles) {
+      <!-- GRAPHIC STYLES -->
+      @if (graphicStylesItems().length > 0) {
+        <ng-template
+          svgePanelGroupTab
+          svgePanelGroupTabId="styles"
+          label="Styles"
+          icon="style"
+          tooltip="Graphic styles"
+        >
           <div class="grid">
             @for (item of graphicStylesItems(); track item.id) {
               <button
@@ -239,21 +224,18 @@ import {
               </button>
             }
           </div>
-        }
-      </section>
-    }
+        </ng-template>
+      }
 
-    <!-- SYMBOLS (D-059) — master/instance: click drops a SymbolUseNode
-         referencing the master. Editing the master propagates to every
-         instance via <use> resolution in <defs>. -->
-    @if (symbolsItems().length > 0) {
-      <section class="lib-section">
-        <button class="section-head" type="button" (click)="toggle('symbols')">
-          <mat-icon class="caret">{{ open().symbols ? 'expand_more' : 'chevron_right' }}</mat-icon>
-          <span>Symbols</span>
-          <span class="count">{{ symbolsItems().length }}</span>
-        </button>
-        @if (open().symbols) {
+      <!-- SYMBOLS (D-059) -->
+      @if (symbolsItems().length > 0) {
+        <ng-template
+          svgePanelGroupTab
+          svgePanelGroupTabId="symbols"
+          label="Symbols"
+          icon="star_outline"
+          tooltip="Symbols (master / instance)"
+        >
           <div class="grid">
             @for (item of symbolsItems(); track item.id) {
               <button
@@ -269,22 +251,18 @@ import {
               </button>
             }
           </div>
-        }
-      </section>
-    }
+        </ng-template>
+      }
 
-    <!-- BRUSHES (D-060) — click selects/deselects the active brush.
-         Selected brush expands subsequent Pencil strokes through its
-         widthProfile into a filled-outline path. Click again to
-         deselect (return to plain Pencil centerline stroke). -->
-    @if (brushesItems().length > 0) {
-      <section class="lib-section">
-        <button class="section-head" type="button" (click)="toggle('brushes')">
-          <mat-icon class="caret">{{ open().brushes ? 'expand_more' : 'chevron_right' }}</mat-icon>
-          <span>Brushes</span>
-          <span class="count">{{ brushesItems().length }}</span>
-        </button>
-        @if (open().brushes) {
+      <!-- BRUSHES (D-060) -->
+      @if (brushesItems().length > 0) {
+        <ng-template
+          svgePanelGroupTab
+          svgePanelGroupTabId="brushes"
+          label="Brushes"
+          icon="brush"
+          tooltip="Brushes (Pencil expansion)"
+        >
           <div class="grid">
             @for (item of brushesItems(); track item.id) {
               <button
@@ -310,18 +288,17 @@ import {
               </button>
             }
           </div>
-        }
-      </section>
-    }
+        </ng-template>
+      }
 
-    <!-- ASSETS -->
-    <section class="lib-section">
-      <button class="section-head" type="button" (click)="toggle('assets')">
-        <mat-icon class="caret">{{ open().assets ? 'expand_more' : 'chevron_right' }}</mat-icon>
-        <span>Assets</span>
-        <span class="count">{{ assetEntries().length }}</span>
-      </button>
-      @if (open().assets) {
+      <!-- ASSETS (always present — even an empty registry can accept uploads) -->
+      <ng-template
+        svgePanelGroupTab
+        svgePanelGroupTabId="assets"
+        label="Assets"
+        icon="image"
+        tooltip="Assets (user-imported images)"
+      >
         <div class="assets-body">
           <label class="upload-btn">
             <input
@@ -351,66 +328,28 @@ import {
             </div>
           }
         </div>
-      }
-    </section>
+      </ng-template>
+    </svge-panel-group>
   `,
   styles: `
     :host {
-      display: block;
-      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      width: 100%;
+      height: 100%;
       font-size: 13px;
       color: var(--mat-sys-on-surface, inherit);
     }
-    .lib-header {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.6));
-      margin-bottom: 8px;
-    }
-    .lib-section {
-      margin-bottom: 4px;
-      border-bottom: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.08));
-    }
-    .lib-section:last-child {
-      border-bottom: none;
-    }
-    .section-head {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      width: 100%;
-      padding: 6px 4px;
-      background: transparent;
-      border: none;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--mat-sys-on-surface, inherit);
-      text-align: left;
-    }
-    .section-head:hover {
-      background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.03));
-    }
-    .section-head .caret {
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-      opacity: 0.65;
-    }
-    .section-head .count {
-      margin-left: auto;
-      font-size: 10px;
-      opacity: 0.55;
-      background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.05));
-      padding: 1px 6px;
-      border-radius: 8px;
+    svge-panel-group {
+      flex: 1 1 auto;
+      min-height: 0;
     }
     .grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 4px;
-      padding: 4px 0 8px;
+      padding: 8px;
     }
     .cell {
       display: flex;
@@ -433,14 +372,6 @@ import {
       opacity: 0.4;
       cursor: not-allowed;
     }
-    .cell-icon {
-      font-size: 18px;
-      line-height: 1;
-      opacity: 0.7;
-    }
-    /* D-048 follow-up: inline SVG previews for shape + pattern cells.
-       Both fit a 32×32 box so the grid stays compact and visually
-       balanced with gradient swatches (32×18). */
     .shape-thumb {
       display: block;
       width: 32px;
@@ -479,14 +410,12 @@ import {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    /* D-059 — symbol thumb (Material icon preview of the master). */
     .symbol-thumb {
       font-size: 28px;
       width: 28px;
       height: 28px;
       color: var(--mat-sys-on-surface, #444);
     }
-    /* D-060 — brush thumb shows the actual expanded silhouette. */
     .brush-thumb {
       width: 64px;
       height: 20px;
@@ -504,7 +433,7 @@ import {
       display: flex;
       flex-direction: column;
       gap: 2px;
-      padding: 4px 0 8px;
+      padding: 8px;
     }
     .list-item {
       display: flex;
@@ -531,7 +460,7 @@ import {
       font-variant-numeric: tabular-nums;
     }
     .assets-body {
-      padding: 4px 0 8px;
+      padding: 8px;
     }
     .upload-btn {
       display: inline-flex;
@@ -590,20 +519,6 @@ export class SvgeLibrariesPanel {
   private readonly viewport = inject(ViewportService);
   private readonly bus = inject(CommandBus);
   private readonly sanitizer = inject(DomSanitizer);
-
-  /** Reactive section open/closed state. Shapes start open as the
-   *  most-frequently-used library; others collapsed by default to
-   *  keep the panel compact. */
-  protected readonly open = signal({
-    shapes: true,
-    templates: false,
-    gradients: false,
-    patterns: false,
-    graphicStyles: false,
-    symbols: false,
-    brushes: false,
-    assets: false,
-  });
 
   protected readonly shapesItems = this.shapes.items;
   protected readonly templatesItems = this.templates.items;
@@ -668,10 +583,6 @@ export class SvgeLibrariesPanel {
       };
     });
   });
-
-  protected toggle(key: keyof ReturnType<typeof this.open>): void {
-    this.open.update((s) => ({ ...s, [key]: !s[key] }));
-  }
 
   /** Insert a shape from the library into the document root. */
   protected insertShape(id: string): void {

@@ -316,17 +316,29 @@
 <svge-tool-options class="tool-options-bar" [showPlaceholder]="true"></svge-tool-options>
 
 <div class="workspace">
-  <aside class="sidebar left" aria-label="Layers + libraries panels">
-    <header class="panel-header">Layers</header>
-    <svge-layers-panel></svge-layers-panel>
-    <!--
-      Libraries panel (D-048) — 8 libraries surfaceadas via 6 seções
-      colapsáveis (shapes, templates, gradients, patterns, graphic
-      styles, assets). Drop direto abaixo dos Layers para que o user
-      tenha hierarchy + asset browsing no mesmo eixo visual.
-    -->
-    <header class="panel-header">Libraries</header>
-    <svge-libraries-panel></svge-libraries-panel>
+  <!--
+    Left rail (D-061) — 2 panel-groups stacked vertically. Each is a
+    dock zone with a tab strip (currently 1 tab; ready to grow with
+    future Pages/Symbols/Artboards panels). The Libraries group's
+    internal tabs are managed by `<svge-libraries-panel>` itself
+    (Shapes|Templates|Gradients|Patterns|Styles|Symbols|Brushes|Assets).
+  -->
+  <aside class="sidebar left" aria-label="Hierarchy and libraries">
+    <svge-panel-group class="ls-group" title="Layers">
+      <ng-template svgePanelGroupTab svgePanelGroupTabId="layers" label="Layers" icon="layers">
+        <svge-layers-panel></svge-layers-panel>
+      </ng-template>
+    </svge-panel-group>
+    <svge-panel-group class="ls-group" title="Libraries">
+      <ng-template
+        svgePanelGroupTab
+        svgePanelGroupTabId="libraries"
+        label="Libraries"
+        icon="folder_open"
+      >
+        <svge-libraries-panel></svge-libraries-panel>
+      </ng-template>
+    </svge-panel-group>
   </aside>
 
   <!-- Canvas surface — `(click)` is used in addition to pointer events
@@ -408,10 +420,36 @@
     </div>
   </section>
 
-  <aside class="sidebar right" aria-label="Inspector panel">
-    <header class="panel-header">Inspector</header>
-    <svge-inspector></svge-inspector>
-    <svge-effects-panel></svge-effects-panel>
+  <!--
+    Right rail (D-061) — 2 panel-groups stacked vertically
+    (Properties | Appearance). Mirrors `<svge-shell-pro>` structure;
+    Layers lives in the LEFT rail here so the dogfooded layout
+    intentionally exercises a different docking pattern from the
+    Pro shell (Layers on the left next to Libraries, like Sketch /
+    Affinity Designer; Properties + Appearance on the right).
+  -->
+  <aside class="sidebar right" aria-label="Properties and appearance">
+    <svge-panel-group class="rs-group" title="Properties">
+      <ng-template
+        svgePanelGroupTab
+        svgePanelGroupTabId="properties"
+        label="Properties"
+        icon="tune"
+      >
+        <svge-inspector></svge-inspector>
+        <svge-gradient-editor></svge-gradient-editor>
+      </ng-template>
+    </svge-panel-group>
+    <svge-panel-group class="rs-group" title="Appearance">
+      <ng-template
+        svgePanelGroupTab
+        svgePanelGroupTabId="effects"
+        label="Effects"
+        icon="auto_awesome"
+      >
+        <svge-effects-panel></svge-effects-panel>
+      </ng-template>
+    </svge-panel-group>
   </aside>
 </div>
 
