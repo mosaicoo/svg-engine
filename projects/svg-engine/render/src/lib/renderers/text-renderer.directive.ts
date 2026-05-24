@@ -16,12 +16,35 @@ import type { TextNode } from 'svg-engine/core';
   selector: '[svgeText]',
   standalone: true,
   host: {
+    // When wrapped in <textPath>, the geometry is dictated by the
+    // referenced path — x/y on the parent <text> are ignored. We still
+    // emit them so existing snapshots stay stable + so removing the
+    // textPathRef "rolls back" to standard positioning without other
+    // attr changes. Same reasoning for text-anchor (works either way).
     '[attr.x]': 'node().x',
     '[attr.y]': 'node().y',
     '[attr.font-size]': 'node().fontSize ?? null',
     '[attr.font-family]': 'node().fontFamily ?? null',
     '[attr.font-weight]': 'node().fontWeight ?? null',
     '[attr.text-anchor]': 'node().textAnchor ?? null',
+    // D-053 Variable fonts + OpenType + letter spacing. These are CSS
+    // properties (no native SVG attributes), so they go via `style.*`
+    // bindings — same trick used for `mix-blend-mode` in D-049.
+    //
+    // **font-variation-settings**: opt-in to variable-font axes
+    //   (`'wght' 650, 'wdth' 95, ...`). Inert when the loaded font is
+    //   static — the browser silently ignores axes the font doesn't
+    //   expose, so emitting always is safe.
+    // **font-feature-settings**: enable OpenType features (ligatures,
+    //   small caps, stylistic sets, tabular figures, etc).
+    // **letter-spacing**: surfaced as a CSS prop for consistency with
+    //   the other typography knobs — SVG also accepts a `letter-spacing`
+    //   attribute but the CSS form gives identical results and unifies
+    //   how every text knob is bound.
+    '[style.font-variation-settings]': 'node().fontVariationSettings ?? null',
+    '[style.font-feature-settings]': 'node().fontFeatureSettings ?? null',
+    '[style.letter-spacing]':
+      "node().letterSpacing !== undefined ? node().letterSpacing + 'px' : null",
     '[attr.fill]': 'node().style.fill ?? null',
     '[attr.stroke]': 'node().style.stroke ?? null',
     '[attr.stroke-width]': 'node().style.strokeWidth ?? null',

@@ -1,12 +1,22 @@
-import { Directive, input } from '@angular/core';
-import type { PathNode } from 'svg-engine/core';
+import { computed, Directive, input } from '@angular/core';
+import { type PathNode, roundPathCorners } from 'svg-engine/core';
 
-/** Apply to `<svg:path>` to bind attributes from a {@link PathNode}. */
+/**
+ * Apply to `<svg:path>` to bind attributes from a {@link PathNode}.
+ *
+ * **D-055 (Live Corners)**: when `node.cornerRadius > 0`, the
+ * rendered `d` is the result of {@link roundPathCorners}(authored d,
+ * radius) — sharp interior vertices get smoothly rounded with that
+ * radius. Authored `d` is left untouched (preserved on the model
+ * for later edits / radius slider changes). When `cornerRadius` is
+ * `0` or `undefined`, the authored `d` is emitted verbatim — same
+ * behavior as before D-055.
+ */
 @Directive({
   selector: '[svgePath]',
   standalone: true,
   host: {
-    '[attr.d]': 'node().d',
+    '[attr.d]': 'effectiveD()',
     '[attr.fill]': 'node().style.fill ?? null',
     '[attr.stroke]': 'node().style.stroke ?? null',
     '[attr.stroke-width]': 'node().style.strokeWidth ?? null',
@@ -23,4 +33,16 @@ import type { PathNode } from 'svg-engine/core';
 })
 export class SvgePathDirective {
   readonly node = input.required<PathNode>({ alias: 'svgePath' });
+
+  // D-055 — Live Corners. Memoized via signal: recomputes only when
+  // node().d or node().cornerRadius actually changes. roundPathCorners
+  // is O(N) per anchor + short-circuits the no-op case (radius=0 or
+  // zero sharp corners), so the worst-case is one parse+emit per
+  // path edit — negligible at typical path sizes.
+  protected readonly effectiveD = computed(() => {
+    const n = this.node();
+    const r = n.cornerRadius ?? 0;
+    if (r <= 0) return n.d;
+    return roundPathCorners(n.d, r);
+  });
 }

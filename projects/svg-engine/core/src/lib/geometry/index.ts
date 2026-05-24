@@ -36,3 +36,5 @@ export {
   parsePathToAnchors,
 } from './path-anchors';
 export { type FlatRing, flattenPathD, ringsToPathD } from './path-flatten';
+// D-055 — Live corners: derive a rounded `d` from an authored one.
+export { roundPathCorners } from './round-corners';

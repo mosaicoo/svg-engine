@@ -81,17 +81,28 @@ import { SvgeTextDirective } from './text-renderer.directive';
       }
       @case ('text') {
         <!--
-          Multi-line rendering: when content has newline characters,
-          emit one tspan per line with the same x and dy=1.2em
-          relative offset for each subsequent line. SVG text does
-          not honour newline chars in plain content (renders as a
-          single space) — the tspan structure is the spec-compliant
-          way to get visible multi-line output.
-          For single-line content (no newlines), we keep the plain
-          interpolation path so existing specs/snapshots that assert
-          on a bare text element structure continue to pass.
+          Rendering order of precedence:
+            1. textPathRef set → wrap content in <textPath href="#id">
+               (D-053). textPath ignores newlines, so multi-line is
+               flattened — see TextNode JSDoc for rationale.
+            2. Multi-line content (
+ in content) → tspan per line.
+               SVG does NOT honor 
+ in plain text, so we emit explicit
+               tspans with x reset + dy=1.2em.
+            3. Single-line content → bare interpolation. Preserves the
+               minimal element structure that existing specs assert on.
         -->
-        @if (textIsMultiLine()) {
+        @if (textPathHref()) {
+          <svg:text [svgeText]="$any(node())">
+            <svg:textPath
+              [attr.href]="textPathHref()"
+              [attr.startOffset]="textPathStartOffset() ?? null"
+            >
+              {{ textPathFlattened() }}
+            </svg:textPath>
+          </svg:text>
+        } @else if (textIsMultiLine()) {
           <svg:text [svgeText]="$any(node())">
             @for (line of textLines(); track $index) {
               <svg:tspan [attr.x]="textX()" [attr.dy]="$index === 0 ? '0' : '1.2em'">
@@ -203,6 +214,39 @@ export class SvgeNodeRenderer {
   protected textX(): number {
     const n = this.node();
     return n.type === 'text' ? (n as TextNode).x : 0;
+  }
+
+  // D-053 — Text on path helpers ──────────────────────────────────────
+  //
+  // `textPathRef` is a NodeId, but `<textPath href>` needs a `'#id'`
+  // anchor (SVG 2) — we prepend the `#` here so consumers store just
+  // the id (consistent with how filter/clipPath store the bare id
+  // elsewhere via builders). Returns null when the node isn't text or
+  // has no textPathRef — that disables the textPath branch in the
+  // template @if.
+
+  protected textPathHref(): string | null {
+    const n = this.node();
+    if (n.type !== 'text') return null;
+    const ref = (n as TextNode).textPathRef;
+    if (ref === undefined || ref === null || ref === '') return null;
+    return `#${ref}`;
+  }
+
+  protected textPathStartOffset(): string | null {
+    const n = this.node();
+    if (n.type !== 'text') return null;
+    return (n as TextNode).textPathStartOffset ?? null;
+  }
+
+  /**
+   * `<textPath>` does NOT honor `\n` — embedded newlines render as
+   * a single literal space (per SVG spec: whitespace collapse). We
+   * pre-collapse so the user sees what they get instead of a stretched
+   * "  word " gap from the raw newline character.
+   */
+  protected textPathFlattened(): string {
+    return this.textContent().replace(/\s+/g, ' ');
   }
 
   /**

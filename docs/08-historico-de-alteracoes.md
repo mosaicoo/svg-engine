@@ -6,6 +6,181 @@
 
 ---
 
+## 2026-05-24 — D-053 / D-054 / D-055 / D-056 / D-057 (Item 6 — Edição avançada)
+
+Sprint dedicado ao Item 6 "Edição avançada" do parking-lot, com 5 decisões
+implementadas no mesmo ciclo (escopo coeso). Item 6.3 (Auto-trace) explicitamente
+deferido como D-057.
+
+### D-053 — Variable Fonts + OpenType + Text on Path (itens 6.5 / 6.6)
+
+**Modelo (core/model/text-node.ts)** — TextNode ganhou 5 campos opcionais:
+
+- `fontVariationSettings?: string` — passa direto para CSS `font-variation-settings`
+  (ex.: `"'wght' 650, 'wdth' 95, 'opsz' 24"`). Variable-font axes na bandeja para
+  fontes que as expõem (Inter, Roboto Flex, Recursive); inerte em fontes estáticas.
+- `fontFeatureSettings?: string` — CSS `font-feature-settings` para OpenType
+  (ligaturas, small caps, stylistic sets, tabular figures…).
+- `letterSpacing?: number` — surfaceado por consistência com os demais knobs.
+- `textPathRef?: NodeId` — id de um path no mesmo documento; quando setado,
+  renderer envolve content em `<textPath href="#id">`.
+- `textPathStartOffset?: string` — offset CSS-length ao longo do path.
+
+**Renderer (render/lib/renderers/text-renderer.directive.ts)**: 3 novos
+host bindings `[style.font-variation-settings]`, `[style.font-feature-settings]`,
+`[style.letter-spacing]`. Mantidos como style/CSS (não atributo SVG) porque
+são propriedades CSS típicas — alinha com o pattern usado para `mix-blend-mode`
+em D-049.
+
+**Renderer (render/lib/renderers/node-renderer.component.ts)**: novo branch
+`@if (textPathHref()) { <text><textPath …>{{content}}</textPath></text> }`
+com precedência sobre multi-line tspan. `<textPath>` não honra `\n` (limitação
+SVG), então `textPathFlattened()` colapsa whitespace para evitar gaps estranhos.
+
+### D-054 — Compound Paths explícitos (item 6.2)
+
+**`MakeCompoundPathCommand`** — recebe N nodeIds (≥ 2), bake transform de cada
+input no `d`, concatena strings → 1 PathNode multi-subpath. Operand A's slot
+preservado; demais inputs removidos. Style/metadata herdados de A.
+
+**`ReleaseCompoundPathCommand`** — splita um PathNode multi-subpath em N
+PathNodes single-subpath, preservando transform/style/metadata em cada peça.
+Falha quando o input tem só 1 subpath (nada a soltar).
+
+**Curve fidelity**: operação puramente string-level — beziers cubic/quadratic
+sobrevivem round-trip exatamente, sem flatten/re-emit lossy (diferente do
+pathfinder destrutivo, que precisa de polygon math).
+
+**Helpers exportados**:
+
+- `splitPathDIntoSubpaths(d)` — regex-based, retorna `M..M..` chunks.
+- `bakeTransformIntoPathD(d, [a,b,c,d,e,f])` — full tokenizer (M/L/H/V/C/S/Q/T/A/Z
+  - relativos), promove H/V em L sob transformações não-axis-aligned. Arcs (A)
+    baked apenas no endpoint (rx/ry/rot passam unchanged) — degrada elegantemente
+    para translation + uniform scale, idêntico ao comportamento Illustrator
+    pre-convert-to-bezier.
+
+### D-055 — Live Corners (item 6.4)
+
+**`PathNode.cornerRadius?: number`** — campo opcional não-destrutivo. Quando > 0,
+renderer deriva um `effectiveD` rodando `roundPathCorners(d, radius)`; o `d`
+autorial fica intacto. Setting radius back to 0 restora corners exatos.
+
+**`roundPathCorners(d, r)`** (`core/geometry/round-corners.ts`):
+
+- Parse path → anchors via `parsePathToAnchors`.
+- Walk anchors; vertice "sharp" = `kind === 'cusp'` + handles degenerados.
+- Para cada sharp: clamp radius a `min(r, |edge_in|/2, |edge_out|/2)` (mesma
+  clamp do `rx` em Illustrator), trim edges, insere arc `A r r 0 0 sweep px py`.
+- Cross-product determina sweep flag (CCW vs CW na coord Y-down do SVG).
+- Curvas (anchors com handles) ficam intactas — só sharps são afetados.
+
+**Renderer (render/lib/renderers/path-renderer.directive.ts)**: novo computed
+`effectiveD()` memoizado; binds em `[attr.d]`. Short-circuita quando radius=0
+(retorno do d autorial direto, zero overhead).
+
+### D-056 — Boolean Live / non-destructive (item 6.1)
+
+Decisão pragmática: em vez de novo node type `BooleanGroupNode`, usar um
+**Group marcado por metadata.customData** como wrapper:
+
+```
+<group> customData.svgeLiveBoolean = 'union' | 'intersect' | 'subtract' | 'exclude'
+  ├── <path>  customData.svgeLiveBooleanRole = 'result' (visible)
+  ├── <node>  customData.svgeLiveBooleanRole = 'input'  (visible=false)
+  ├── <node>  customData.svgeLiveBooleanRole = 'input'  (visible=false)
+```
+
+**Vantagens vs novo node type**: zero impacto em renderer/exporter/specs —
+groups são universalmente entendidos. Inputs sobrevivem editáveis no Layer
+Panel / Path Editor — não some no destrutivo.
+
+**3 commands**:
+
+- `MakeLiveBooleanCommand(ids, op)` — wrap + compute result.
+- `RefreshLiveBooleanCommand(groupId)` — re-run boolean lendo inputs atuais.
+  Consumers podem chamar após editar um input.
+- `ReleaseLiveBooleanCommand(groupId)` — unwrap; inputs voltam visíveis,
+  result some.
+
+**Engine compartilhado**: usa `flattenPathD` + `polygon-clipping`, mesmo do
+Pathfinder destrutivo. Garante que Live e Destrutivo dão resultado bit-for-bit
+idêntico.
+
+**Auto-refresh FORA de escopo D-056**: deliberadamente sem `effect()` que
+auto-recompute em toda mudança de doc (overhead alto em editing pesado).
+Consumers que querem auto-refresh subscrevem `state.document()` e dispatcham
+Refresh com debounce.
+
+**Helpers exportados**: `isLiveBooleanGroup(node)`, `getLiveBooleanOp(node)`,
+constants `LIVE_BOOLEAN_KEY` / `LIVE_BOOLEAN_ROLE_KEY` — UIs (Layer Panel
+icon, Inspector controls) usam para detectar e formatar.
+
+### D-057 — Auto-trace (raster → vector) — DEFERIDO
+
+**Decisão**: explicitamente **fora de escopo razoável** para Item 6.
+
+**Por quê**:
+
+1. Algoritmo não-trivial — auto-trace de raster (potrace-style) requer:
+   - Quantização de cores (k-means / median-cut)
+   - Bitmap edge detection / threshold
+   - Path-tracing (Cardenas / Selinger algorithms)
+   - Simplification (Douglas-Peucker pós-trace) + smoothing
+   - Estimativa de scope realista: 2-3 semanas full-time dev.
+2. **Biblioteca externa preferível**: existem implementações JS maduras
+   (potrace-js, ImageTracer.js) — wrap dessas seria mais sensato que
+   re-implementar. Bundle size impact precisa de análise; potracejs é
+   ~50KB minified.
+3. **Prioridade baixa**: items 6.1-6.2-6.4-6.5-6.6 atendem 80% dos use cases
+   de "Edição avançada" do parking-lot. Auto-trace é raster→vector workflow
+   bem específico, demanda restrita.
+
+**Plano deferido**: candidato para uma futura "D-XXX Auto-trace" iteração
+quando demanda real aparecer. Esboço: novo plugin `potrace-tracer.plugin.ts`
+em entry point opcional `svg-engine/trace`, comando `TraceImageToPath` que
+recebe blob/data URI e dispatch `InsertNodeCommand` com o PathNode resultante.
+
+### Menus (Object — novos itens)
+
+Novo plugin `builtinAdvancedEditMenuPlugin`:
+
+```
+Object
+├── …
+├── ─────────────                    [order 100]
+├── Make Compound Path       Ctrl+8  [110]
+├── Release Compound Path    Ctrl+Alt+8 [120]
+├── ─────────────                    [200]
+└── Live Boolean ▶                   [210]
+    ├── Make Live Union
+    ├── Make Live Intersect
+    ├── Make Live Subtract
+    ├── Make Live Exclude
+    ├── ─────────────
+    ├── Refresh
+    └── Release
+```
+
+`disabled` signals factory-form (D-043 multi-editor safe):
+
+- Make Compound + Live Boolean Make → requer ≥ 2 selecionados
+- Release Compound → requer 1 path selecionado
+- Refresh + Release Live Boolean → requer 1 live-boolean group selecionado
+
+D-053 (text features) não tem menu items — são propriedades do node,
+expostas pelo Inspector quando text é selecionado (segue padrão dos campos
+fontSize/fontFamily existentes).
+
+### Verificação
+
+- `ng build svg-engine`: ✅ 9 entry points, 7.4s
+- `ng build playground`: ✅ limpo
+- `ng test svg-engine`: ✅ **1361 passed** (+28 novos) / 1 skipped / 0 failed
+- `ng lint svg-engine`: ✅ clean
+
+---
+
 ## 2026-05-24 — D-052: Menu Insert/Inserir (padrão Figma/PowerPoint/Sketch/Google Drawings)
 
 ### Decisão de padrão

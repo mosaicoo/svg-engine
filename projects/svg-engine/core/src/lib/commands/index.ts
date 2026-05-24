@@ -7,6 +7,24 @@ export {
   RemoveAnchorCommand,
 } from './anchor.commands';
 export { ConvertNodeToPathCommand, nodeToPathD } from './convert-to-path.command';
+// D-054 — Compound paths (Item 6.2)
+export {
+  bakeTransformIntoPathD,
+  MakeCompoundPathCommand,
+  ReleaseCompoundPathCommand,
+  splitPathDIntoSubpaths,
+} from './compound-path.commands';
+// D-056 — Boolean Live (Item 6.1)
+export {
+  getLiveBooleanOp,
+  isLiveBooleanGroup,
+  LIVE_BOOLEAN_KEY,
+  LIVE_BOOLEAN_ROLE_KEY,
+  type LiveBooleanOp,
+  MakeLiveBooleanCommand,
+  RefreshLiveBooleanCommand,
+  ReleaseLiveBooleanCommand,
+} from './live-boolean.commands';
 export { DuplicateNodeCommand } from './duplicate-node.command';
 export {
   DivideCommand,

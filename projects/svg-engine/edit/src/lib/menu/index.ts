@@ -14,4 +14,8 @@ export {
   CONTEXT_MENU_SLOT,
   type ContextMenuSlot,
 } from './menu-slots';
-export { builtinMenuContributionsPlugin, builtinInsertMenuPlugin } from './builtin';
+export {
+  builtinAdvancedEditMenuPlugin,
+  builtinInsertMenuPlugin,
+  builtinMenuContributionsPlugin,
+} from './builtin';

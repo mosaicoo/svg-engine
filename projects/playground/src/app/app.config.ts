@@ -2,6 +2,7 @@ import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter } from '@angular/router';
 import {
+  builtinAdvancedEditMenuPlugin,
   builtinClipPathsPlugin,
   builtinEditorShortcutsPlugin,
   builtinEffectsPlugin,
@@ -87,6 +88,13 @@ export const appConfig: ApplicationConfig = {
     // drops shapes default-sized no centro do viewport visível em 1
     // undo step. Opt-in (omitir para apps que querem só toolbar tools).
     provideSvgEnginePlugin(builtinInsertMenuPlugin),
+    // D-053/D-054/D-056 — Edição avançada (Item 6). Adds:
+    // - Object › Make/Release Compound Path (D-054)
+    // - Object › Live Boolean ▶ (D-056: Union/Intersect/Subtract/
+    //   Exclude + Refresh + Release)
+    // Text features (D-053: variable fonts, OpenType, text on path)
+    // are inspector-only — no menu entries needed.
+    provideSvgEnginePlugin(builtinAdvancedEditMenuPlugin),
     // D-044 — Sibling plugin in svg-engine/ui for menu items that
     // require Material dialog infrastructure (View Source… opens
     // <svge-svg-source-dialog> via MatDialog). edit-side plugin
