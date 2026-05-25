@@ -7,11 +7,13 @@ import {
   type Signal,
 } from '@angular/core';
 import { MatIcon } from '@angular/material/icon';
+import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatTooltip } from '@angular/material/tooltip';
 import { EditorStateService } from 'svg-engine/core';
 import {
   IsolationService,
   SelectionService,
+  type SnapMode,
   SnapService,
   ToolHostService,
   ToolRegistry,
@@ -85,7 +87,7 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
 @Component({
   selector: 'svge-status-bar',
   standalone: true,
-  imports: [MatIcon, MatTooltip],
+  imports: [MatIcon, MatMenu, MatMenuItem, MatMenuTrigger, MatTooltip],
   host: {
     role: 'status',
     'aria-label': 'Editor status bar',
@@ -117,21 +119,67 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
       </span>
     }
     @if (showSection('snap')) {
-      <!-- D-044: clickable toggle (parallel to View > Snap menu item).
-           Conventional from Photoshop/Illustrator/Figma: status bar
-           sections that hold a stateful toggle are clickable. Keyboard:
-           Enter/Space activate via implicit button role. -->
+      <!-- D-073-fix: dropdown menu exposing all 4 snap states (Off /
+           Grid only / Objects only / Both) — parallel surface to the
+           View ▸ Snap submenu. Was a binary on/off toggle pre-fix;
+           upgraded so users can pick the snap MODE from the bar
+           without opening the menu bar. Active state shown via the
+           pill label and via a checkmark in the dropdown.
+           Photoshop / Illustrator / Affinity all expose mode in their
+           status bar equivalent — convergent UX. -->
       <button
         type="button"
         class="section section-snap section-toggle"
         [class.is-off]="!snapEnabled()"
-        [matTooltip]="snapTooltip() + ' — click to toggle'"
+        [matTooltip]="snapTooltip() + ' — click to change'"
+        [matMenuTriggerFor]="snapMenu"
+        [attr.aria-haspopup]="'menu'"
         [attr.aria-pressed]="snapEnabled()"
-        (click)="toggleSnap()"
       >
         <mat-icon class="icon" [class.muted]="!snapEnabled()" aria-hidden="true">grid_3x3</mat-icon>
         <span class="value">{{ snapLabel() }}</span>
+        <mat-icon class="caret" aria-hidden="true">arrow_drop_down</mat-icon>
       </button>
+      <mat-menu #snapMenu="matMenu" xPosition="before">
+        <button
+          mat-menu-item
+          type="button"
+          (click)="setSnap('off')"
+          [attr.aria-checked]="!snapEnabled()"
+        >
+          <mat-icon>{{ !snapEnabled() ? 'check' : 'remove' }}</mat-icon>
+          <span>Off</span>
+        </button>
+        <button
+          mat-menu-item
+          type="button"
+          (click)="setSnap('grid')"
+          [attr.aria-checked]="snapEnabled() && snapMode() === 'grid'"
+        >
+          <mat-icon>{{ snapEnabled() && snapMode() === 'grid' ? 'check' : 'grid_4x4' }}</mat-icon>
+          <span>Grid only</span>
+        </button>
+        <button
+          mat-menu-item
+          type="button"
+          (click)="setSnap('objects')"
+          [attr.aria-checked]="snapEnabled() && snapMode() === 'objects'"
+        >
+          <mat-icon>{{
+            snapEnabled() && snapMode() === 'objects' ? 'check' : 'category'
+          }}</mat-icon>
+          <span>Objects only</span>
+        </button>
+        <button
+          mat-menu-item
+          type="button"
+          (click)="setSnap('both')"
+          [attr.aria-checked]="snapEnabled() && snapMode() === 'both'"
+        >
+          <mat-icon>{{ snapEnabled() && snapMode() === 'both' ? 'check' : 'apps' }}</mat-icon>
+          <span>Both</span>
+        </button>
+      </mat-menu>
     }
     @if (showSection('isolation') && isolationActive()) {
       <span class="section section-isolation" matTooltip="Isolation mode active">
@@ -255,6 +303,16 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
       outline: 2px solid var(--mat-sys-primary, #1976d2);
       outline-offset: -2px;
     }
+    /* D-073-fix: caret hint next to the snap value, signalling the
+       dropdown affordance. Smaller than the leading icon so it reads
+       as decoration, not a primary glyph. */
+    button.section-toggle .caret {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+      margin-left: -2px;
+      opacity: 0.6;
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -331,6 +389,7 @@ export class SvgeStatusBar {
   // ── Snap section ────────────────────────────────────────────────
 
   protected readonly snapEnabled = computed(() => this.snap.enabled());
+  protected readonly snapMode = computed(() => this.snap.mode());
 
   protected readonly snapLabel = computed(() => {
     if (!this.snap.enabled()) return 'off';
@@ -344,13 +403,24 @@ export class SvgeStatusBar {
   );
 
   /**
-   * D-044: toggle snap on click. Parallel to the View > Snap menu item;
-   * either surface flips the same `SnapService.setEnabled` flag, so
-   * keyboard nav (menu) and quick mouse access (status bar) stay in sync.
-   * Both visible-state and tooltip reflect the result via reactive signals.
+   * **D-073-fix**: pick snap state from the bar's dropdown.
+   *
+   * Four values mapped:
+   * - `'off'` → `setEnabled(false)` (mode preserved for next on)
+   * - `'grid' | 'objects' | 'both'` → `setMode(...)` + `setEnabled(true)`
+   *   (selecting a mode auto-enables — saves the user from a 2-click
+   *   "enable + pick mode" sequence; matches Photoshop convention).
+   *
+   * Replaces the pre-fix `toggleSnap()` which only flipped enabled —
+   * the same dropdown now serves as both on/off AND mode picker.
    */
-  protected toggleSnap(): void {
-    this.snap.setEnabled(!this.snap.enabled());
+  protected setSnap(target: SnapMode | 'off'): void {
+    if (target === 'off') {
+      if (this.snap.enabled()) this.snap.setEnabled(false);
+      return;
+    }
+    if (this.snap.mode() !== target) this.snap.setMode(target);
+    if (!this.snap.enabled()) this.snap.setEnabled(true);
   }
 
   // ── Isolation section ───────────────────────────────────────────

@@ -717,16 +717,107 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+    // ── View ▸ Snap submenu ────────────────────────────────────────
+    //
+    // Convert the single "Snap" toggle into a Photoshop-style submenu
+    // exposing BOTH the on/off flag AND the mode (Grid only / Objects
+    // only / Both). Keeps the previous one-click toggle UX via the
+    // first child ("Enabled") plus adds direct mode switching for
+    // power users who reach via menu/keyboard.
+    //
+    // Visual feedback of the **currently active** mode lives in the
+    // status bar pill (which mirrors the same SnapService state and
+    // shows "off"/"grid"/"objects"/"both" by reading the signals).
+    // The menu items don't try to render their own checkmarks — would
+    // require MenuContribution refactor (no native `checked` field
+    // today). Acceptable trade-off: status bar is the source of truth
+    // for visual state, menu is the action surface.
+    //
+    // Picking a mode item also FORCES enabled=true — saves the user
+    // from a 2-step "enable + pick mode" sequence. Matches Photoshop's
+    // "View ▸ Snap To ▸ <target>" behavior (selecting a target turns
+    // snap on if it wasn't).
     ctx.track(
       reg.register({
-        id: 'svge.builtin.view.toggle-snap',
+        id: 'svge.builtin.view.snap',
         slot: MENU_SLOT.VIEW,
         label: 'Snap',
         icon: 'grid_3x3',
         order: 80,
+        run() {
+          /* submenu parent — children drive the actual actions */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.snap.enabled',
+        parentId: 'svge.builtin.view.snap',
+        slot: MENU_SLOT.VIEW,
+        label: 'Enabled',
+        icon: 'power_settings_new',
+        order: 10,
         run(runCtx) {
           const snap = fromCtx(SnapService, runCtx);
           snap.setEnabled(!snap.enabled());
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.snap.divider1',
+        parentId: 'svge.builtin.view.snap',
+        slot: MENU_SLOT.VIEW,
+        label: '',
+        order: 20,
+        divider: true,
+        run() {
+          /* divider */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.snap.mode-grid',
+        parentId: 'svge.builtin.view.snap',
+        slot: MENU_SLOT.VIEW,
+        label: 'Grid only',
+        icon: 'grid_4x4',
+        order: 30,
+        run(runCtx) {
+          const snap = fromCtx(SnapService, runCtx);
+          snap.setMode('grid');
+          if (!snap.enabled()) snap.setEnabled(true);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.snap.mode-objects',
+        parentId: 'svge.builtin.view.snap',
+        slot: MENU_SLOT.VIEW,
+        label: 'Objects only',
+        icon: 'category',
+        order: 40,
+        run(runCtx) {
+          const snap = fromCtx(SnapService, runCtx);
+          snap.setMode('objects');
+          if (!snap.enabled()) snap.setEnabled(true);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.snap.mode-both',
+        parentId: 'svge.builtin.view.snap',
+        slot: MENU_SLOT.VIEW,
+        label: 'Both',
+        icon: 'apps',
+        order: 50,
+        run(runCtx) {
+          const snap = fromCtx(SnapService, runCtx);
+          snap.setMode('both');
+          if (!snap.enabled()) snap.setEnabled(true);
         },
       }),
     );
