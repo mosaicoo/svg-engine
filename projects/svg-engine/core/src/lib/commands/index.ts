@@ -49,3 +49,5 @@ export { TranslateManyCommand } from './translate-many.command';
 export { UngroupCommand } from './ungroup.command';
 // D-072 — Logical Layers
 export { CreateLayerCommand, MakeLayerCommand, UnmakeLayerCommand } from './layer.commands';
+// D-073 — History Snapshots
+export { RestoreSnapshotCommand } from './restore-snapshot.command';

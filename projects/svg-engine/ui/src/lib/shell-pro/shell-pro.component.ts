@@ -22,6 +22,7 @@ import { SvgeGradientEditor } from '../gradient-editor';
 import { SvgeInspector } from '../inspector';
 import { LayersPanel } from '../layers-panel';
 import { SvgeLibrariesPanel } from '../libraries-panel';
+import { SnapshotsPanel } from '../snapshots-panel';
 import { SvgeMenuBar } from '../menu-bar';
 import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
 import { SvgeRulers } from '../rulers';
@@ -116,6 +117,7 @@ import { SvgeToolsPalette } from '../tools-palette';
     SvgeToolsPalette,
     SvgeStatusBar,
     LayersPanel,
+    SnapshotsPanel,
     SvgeInspector,
     SvgeGradientEditor,
     SvgeEffectsPanel,
@@ -212,6 +214,20 @@ import { SvgeToolsPalette } from '../tools-palette';
         <svge-panel-group class="rs-group">
           <ng-template svgePanelGroupTab svgePanelGroupTabId="layers" label="Layers" icon="layers">
             <svge-layers-panel />
+          </ng-template>
+          <!--
+            D-073 — History snapshots tab. Sits next to Layers because
+            both are document-scope navigators: Layers shows what
+            exists right now; History shows what existed before.
+            Photoshop / Figma collocate them similarly.
+          -->
+          <ng-template
+            svgePanelGroupTab
+            svgePanelGroupTabId="history"
+            label="History"
+            icon="history"
+          >
+            <svge-snapshots-panel />
           </ng-template>
           <ng-template
             svgePanelGroupTab

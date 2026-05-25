@@ -62,6 +62,11 @@ export interface PathfinderRegion {
 abstract class PathfinderCommand implements Command {
   abstract readonly label: string;
   readonly id: string = generateNodeId();
+  // D-073 — boolean ops collapse N input shapes into 1 (or N
+  // non-overlapping regions for Divide). The original inputs are
+  // gone after execute() — exactly the kind of high-impact, hard-
+  // to-reconstruct edit the auto-snapshot is designed to protect.
+  readonly isDestructive = true;
 
   protected previousRootSnapshot: SvgNode | null = null;
 

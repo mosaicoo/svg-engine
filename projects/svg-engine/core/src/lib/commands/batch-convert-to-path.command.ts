@@ -33,6 +33,11 @@ import { ConvertNodeToPathCommand } from './convert-to-path.command';
 export class BatchConvertToPathCommand implements Command {
   readonly id: string = generateNodeId();
   readonly label: string;
+  // D-073 — converting rect/ellipse/line/polygon/polyline to path is
+  // a one-way trip in the model (the original shape type is gone after
+  // execute). A snapshot before this op lets the user revert without
+  // a long undo chain.
+  readonly isDestructive = true;
 
   private readonly subCommands: readonly ConvertNodeToPathCommand[];
 

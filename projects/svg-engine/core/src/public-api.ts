@@ -36,3 +36,6 @@ export * from './lib/commands';
 export * from './lib/state';
 export * from './lib/history';
 export * from './lib/command-bus';
+
+// D-073 — History Snapshots (named restorable checkpoints)
+export * from './lib/snapshots';

@@ -34,6 +34,11 @@ export * from './lib/panel-group';
 // Layers panel (Bloco 4b)
 export * from './lib/layers-panel';
 
+// History snapshots panel (D-073) — Photoshop-style named restorable
+// checkpoints. Pairs with SnapshotsService (core) + SnapshotsPersistenceService
+// (edit) — both already scoped via provideSvgEngineEditorScope().
+export * from './lib/snapshots-panel';
+
 // Property inspector (Bloco 4c)
 export * from './lib/inspector';
 

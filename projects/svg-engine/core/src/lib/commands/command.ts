@@ -44,6 +44,23 @@ export interface Command {
   readonly id: string;
   /** Human-readable label suitable for an "Undo X" menu entry. */
   readonly label: string;
+  /**
+   * **D-073** — Opt-in marker letting `CommandBus` auto-take a snapshot
+   * **before** dispatching this command, when the editor scope has a
+   * `SnapshotsService` AND its `limits.autoOnDestructive` is enabled.
+   *
+   * Set to `true` for commands that materially restructure the tree
+   * in a way the user might want to roll back to (Pathfinder,
+   * Optimize, BatchConvertToPath, MakeLiveBoolean, etc.). Leave
+   * `undefined` or `false` for routine edits (Translate, SetProperty,
+   * Group/Ungroup) — those are cheap enough to roll back via undo.
+   *
+   * The marker is opt-in (not "every command"); the auto-snapshot is
+   * also opt-in at the user level (`autoOnDestructive` defaults to
+   * `false`). Both gates must agree for a snapshot to fire — keeps
+   * the panel clean for everyone who hasn't opted in.
+   */
+  readonly isDestructive?: boolean;
   execute(ctx: CommandContext): CommandResult;
   undo(ctx: CommandContext): CommandResult;
 }

@@ -1,5 +1,5 @@
 import type { Provider } from '@angular/core';
-import { CommandBus, EditorStateService, HistoryService } from 'svg-engine/core';
+import { CommandBus, EditorStateService, HistoryService, SnapshotsService } from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
 
 import { AlignmentService } from '../alignment/alignment.service';
@@ -8,6 +8,7 @@ import { AutoSaveService } from '../autosave/autosave.service';
 import { ClipboardService } from '../clipboard/clipboard.service';
 import { ChainFilterRegistry } from '../effect/chain-filter';
 import { SelectSameService } from '../find-replace/select-same.service';
+import { SnapshotsPersistenceService } from '../snapshots/snapshots-persistence.service';
 import { IsolationService } from '../isolation/isolation.service';
 import { AssetManagerService } from '../library/assets/asset-manager.service';
 import { ActiveClipPathsService } from '../library/clip-paths/clip-path-library.service';
@@ -151,6 +152,21 @@ export function provideSvgEngineEditorScope(): Provider[] {
     EditorStateService,
     CommandBus,
     HistoryService,
+    // D-073 — History snapshots (named restorable checkpoints).
+    // Scoped per-editor because each editor instance manages its own
+    // snapshot collection. The `CommandBus` (root-scoped) consults
+    // `inject(SnapshotsService, { optional: true })` so consumers
+    // without this provider still dispatch normally — just without
+    // the auto-snapshot hook on destructive commands.
+    SnapshotsService,
+    // D-073 — localStorage round-trip for the snapshots collection.
+    // Mirrors AutoSaveService's role for the live document. Scoped
+    // per-editor (depends on per-editor SnapshotsService); the
+    // companion `<svge-snapshots-panel>` calls `hydrate()` at
+    // mount-time + `SnapshotsService.bootstrap(doc)` for the
+    // baseline. Persistence then auto-saves via an `effect()` on
+    // every change.
+    SnapshotsPersistenceService,
     // ── render (viewport: pan/zoom) ──────────────────────────────
     ViewportService,
     // ── edit / selection + isolation + layers + workspace ───────

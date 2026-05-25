@@ -6,6 +6,127 @@
 
 ---
 
+## 2026-05-25 — D-073: History Snapshots (named restorable checkpoints)
+
+**O quê.** Painel de **snapshots** estilo Photoshop / Affinity /
+Figma: pontos nomeados, restoráveis, persistentes do documento,
+distintos da pilha de undo/redo linear. Usuário pode tirar snapshot
+manualmente (Ctrl+Shift+S), restaurar com 1 click do painel (vai pro
+undo, então Ctrl+Z desfaz o restore), renomear inline (F2), deletar,
+e opcionalmente ativar auto-snapshot antes de comandos destrutivos
+(Pathfinder/Optimize/BatchConvertToPath).
+
+**Por quê.** Item 4 do bloco "Workflow / produtividade". O undo
+linear é granular demais para experimentação ("voltar 50 passos"),
+não tem nomes humanos, e some quando atinge o limite de 50 entradas.
+Snapshots cobrem o caso "salvar versão A do logo pra comparar com
+B" — workflow real de designer.
+
+**Decisão de mercado** (pesquisei Photoshop + Affinity + Figma +
+Inkscape antes de implementar):
+
+| Editor                                                                          | Comportamento adotado aqui?                               |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Photoshop "Snapshots panel" — manual + 1 auto-on-open + opt-in auto-destructive | ✅ Sim                                                    |
+| Affinity "Snapshots studio" — persistência junto com o arquivo                  | ✅ Sim (localStorage)                                     |
+| Figma "Version history" — auto-save versionado na nuvem                         | ⚠️ Parcial (auto-save existe em D-020; versionamento não) |
+| Photoshop "Non-linear history" — bifurcação em árvore                           | ❌ Skipped (escopo +alta complexidade, valor marginal)    |
+| Photoshop "History Brush" — pintar regiões de snapshot                          | ❌ N/A (raster-only, não vetor)                           |
+
+**Implementação.**
+
+- **`core/snapshots/snapshot.ts`** — interface `Snapshot { id, name,
+createdAt, document, thumbnail, source }`, `SnapshotSource`
+  ('manual'|'auto-open'|'auto-destructive'|'auto-restore'),
+  `SnapshotsLimits { maxCount, autoOnOpen, autoOnDestructive }` com
+  `DEFAULT_SNAPSHOT_LIMITS` (50/true/false — Photoshop defaults).
+
+- **`core/snapshots/snapshots.service.ts`** — `SnapshotsService`
+  (scoped per-editor via `provideSvgEngineEditorScope()`). API:
+  `take(doc, opts)`, `restore` (via command), `delete`, `rename`,
+  `clear`, `attachThumbnail`, `setLimits`, `setCurrent`,
+  `getById`, `hydrate`, `bootstrap`. Ring buffer eviction protege
+  `auto-open` baseline (sempre sobrevive — convenção Photoshop).
+
+- **`core/commands/restore-snapshot.command.ts`** —
+  `RestoreSnapshotCommand` undoable; `execute` salva pre-state +
+  troca document; `undo` restaura pre-state. Ctrl+Z após restore
+  retorna usuário pra onde estava.
+
+- **`core/commands/command.ts`** — adicionado
+  `Command.isDestructive?: boolean` (opcional, opt-in marker).
+  Pathfinder (5 ops), OptimizeCommand, BatchConvertToPathCommand
+  marcados. Live Boolean é não-destrutivo por design — não marcado.
+
+- **`core/command-bus/command-bus.service.ts`** — interceptor
+  `maybeAutoSnapshot(cmd)` antes de dispatch. Optional inject de
+  `SnapshotsService`. Gate duplo: `cmd.isDestructive === true` AND
+  `snapshots.limits().autoOnDestructive === true`. Headless
+  consumers sem snapshots não pagam custo (snapshots é null →
+  early return).
+
+- **`edit/snapshots/snapshots-persistence.service.ts`** — round-trip
+  de `SnapshotsService` via localStorage. Storage key
+  `svge:snapshots`, schema v1: `{ v, limits, snapshots: [{ id,
+name, createdAt, svg, thumbnail, source }] }`. Cada snapshot
+  serializado via `svgExporter`, parseado via `svgImporter`.
+  Debounce 1.5s. Quota guard 4MB com fallback (drops thumbnails
+  primeiro, depois snapshots antigos). `hydrate()` no bootstrap;
+  `effect()` auto-saving em mudanças.
+
+- **`edit/scope/editor-scope.providers.ts`** — `SnapshotsService` +
+  `SnapshotsPersistenceService` adicionados ao scope per-editor.
+
+- **`ui/snapshots-panel/snapshots-panel.component.ts`** —
+  `<svge-snapshots-panel>` standalone: header com "+ New" (camera
+  icon) + Settings (gear) + count, lista de cards com thumbnail
+  (gerada async via `pngExporter` em scale 0.1) + nome (rename
+  inline F2/dblclick) + relative timestamp ("3 min ago") + restore
+  - delete buttons. Confirm prompt no restore (avisa que mudanças
+    vão pro undo) e no delete. ARIA proper (`role="list"/listitem`,
+    `aria-current`, Enter/Space/F2 keyboard).
+
+- **`edit/menu/builtin-menu-contributions.plugin.ts`** — submenu
+  Edit ▸ History com 3 entries: Take Snapshot (Ctrl+Shift+S),
+  Restore Last Snapshot (Ctrl+Alt+Z), Clear All Snapshots.
+  Disabled signals reativas à presença de snapshots.
+
+- **`edit/shortcut/builtin-editor-shortcuts.plugin.ts`** —
+  shortcuts Ctrl+Shift+S e Ctrl+Alt+Z registrados; graceful no-op
+  quando SnapshotsService não está disponível.
+
+- **`ui/shell-pro/shell-pro.component.ts`** — nova aba "History"
+  no panel-group do right rail, entre Layers e Properties.
+
+**Specs.** +15 testes (15 cobrem service: take/rename/delete/
+attachThumbnail/bootstrap/hydrate, RestoreSnapshotCommand
+execute+undo, CommandBus auto-snapshot interceptor com gate duplo).
+Suíte total: **1542 testes** (era 1527).
+
+**Trade-offs e escopo deferido.**
+
+- **Compare side-by-side**: ferramentas profissionais oferecem
+  diff visual entre 2 snapshots. Skipped — requer split-view do
+  canvas, escopo cresce muito. Workaround: usuário restaura,
+  observa, Ctrl+Z, restaura outro.
+- **Thumbnails persistidos têm custo de storage** (~5KB/snapshot
+  base64 PNG). Total típico: 50×5KB = 250KB, OK pra localStorage.
+  Quando ultrapassa quota, persistência joga thumbnails fora
+  primeiro (snapshots ainda restoráveis, só sem preview).
+- **Non-linear history (tree branching)**: Photoshop tem opt-in.
+  Complexidade alta vs valor marginal pra editor vetorial.
+  Deferido sem prazo.
+- **Cloud sync**: Figma versiona na nuvem. Out of scope (svg-engine
+  é offline-first).
+
+**Cuidados D-042 / D-017 já endereçados.** Service per-editor (não
+`providedIn: 'root'`), persistence per-editor; UI lê via signals
+injectados (já scoped); zero import de Material em core/edit;
+optional inject permite consumers headless ignorarem snapshots
+totalmente.
+
+---
+
 ## 2026-05-25 — D-072 follow-up: Persistência de nomes via `<title>`
 
 **O quê.** Exporter agora emite `<title>Bercos</title>` como child de

@@ -39,6 +39,12 @@ import type { OptimizerRegistry } from './optimizer-registry.service';
 export class OptimizeCommand implements Command {
   readonly id: string = generateNodeId();
   readonly label = 'Optimize';
+  // D-073 — Optimize touches every node in the document (precision
+  // rounding, default stripping, empty-group pruning, etc.). The
+  // numeric drift is irreversible without an exact-state restore,
+  // and the prune pass deletes structure. A pre-snapshot lets users
+  // run Optimize confidently and roll back if the result looks off.
+  readonly isDestructive = true;
 
   private previousDocument: SvgDocument | null = null;
 

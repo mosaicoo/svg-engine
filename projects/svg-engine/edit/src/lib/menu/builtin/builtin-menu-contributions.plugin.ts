@@ -19,6 +19,8 @@ import {
   RemoveNodeCommand,
   ReorderNodeCommand,
   type ReorderDirection,
+  RestoreSnapshotCommand,
+  SnapshotsService,
   SubtractCommand,
   type TextNode,
   UngroupCommand,
@@ -476,6 +478,106 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+    // ── D-073 — History snapshots submenu ─────────────────────────
+    //
+    // Edit ▸ History submenu hosting Take Snapshot, Restore Last,
+    // and Clear All. Placed BEFORE the Group divider (order 60) so
+    // the snapshot actions stay grouped with other Edit primitives
+    // (Cut/Copy/Paste/Duplicate above). Photoshop also puts
+    // snapshot controls under Edit > History.
+    //
+    // Disabled signals:
+    // - "Take Snapshot": always enabled (the document always exists).
+    // - "Restore Last": disabled when the snapshots list is empty.
+    // - "Clear All": disabled when empty.
+    const noSnapshotsFactory = (injector: Injector): Signal<boolean> => {
+      const snaps = injector.get(SnapshotsService, null, { optional: true });
+      if (snaps === null) return computed(() => true);
+      return computed(() => snaps.count() === 0);
+    };
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.history',
+        slot: MENU_SLOT.EDIT,
+        label: 'History',
+        icon: 'history',
+        order: 55,
+        run() {
+          /* submenu parent — children drive the actual actions */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.history.take',
+        parentId: 'svge.builtin.edit.history',
+        slot: MENU_SLOT.EDIT,
+        label: 'Take Snapshot',
+        icon: 'photo_camera',
+        shortcut: 'Ctrl+Shift+S',
+        order: 10,
+        run(runCtx) {
+          const snaps = fromCtx(SnapshotsService, runCtx);
+          const state = fromCtx(EditorStateService, runCtx);
+          snaps.take(state.document(), { source: 'manual' });
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.history.restore-last',
+        parentId: 'svge.builtin.edit.history',
+        slot: MENU_SLOT.EDIT,
+        label: 'Restore Last Snapshot',
+        icon: 'restore',
+        shortcut: 'Ctrl+Alt+Z',
+        order: 20,
+        disabled: noSnapshotsFactory,
+        run(runCtx) {
+          const snaps = fromCtx(SnapshotsService, runCtx);
+          const list = snaps.snapshots();
+          if (list.length === 0) return;
+          // Most-recent snapshot is at index 0 (newest-first order).
+          // Prefer the FIRST non-auto-restore one — `auto-restore`
+          // snapshots aren't visible in the panel anyway, but
+          // defensive check keeps the menu intuitive.
+          const target = list.find((s) => s.source !== 'auto-restore') ?? list[0]!;
+          fromCtx(CommandBus, runCtx).dispatch(new RestoreSnapshotCommand(target.id, snaps));
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.history.divider1',
+        parentId: 'svge.builtin.edit.history',
+        slot: MENU_SLOT.EDIT,
+        label: '',
+        order: 30,
+        divider: true,
+        run() {
+          /* divider */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.history.clear',
+        parentId: 'svge.builtin.edit.history',
+        slot: MENU_SLOT.EDIT,
+        label: 'Clear All Snapshots',
+        icon: 'delete_sweep',
+        order: 40,
+        disabled: noSnapshotsFactory,
+        run(runCtx) {
+          if (typeof window !== 'undefined') {
+            const ok = window.confirm('Delete all snapshots? This cannot be undone.');
+            if (!ok) return;
+          }
+          fromCtx(SnapshotsService, runCtx).clear();
+        },
+      }),
+    );
+
     ctx.track(
       reg.register({
         id: 'svge.builtin.edit.divider2',

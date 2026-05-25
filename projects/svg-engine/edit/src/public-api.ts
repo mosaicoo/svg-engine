@@ -113,6 +113,9 @@ export * from './lib/anchor-editor';
 // Auto-save + recovery (localStorage-backed)
 export * from './lib/autosave';
 
+// D-073 — Snapshots persistence (round-trip SnapshotsService through localStorage)
+export * from './lib/snapshots';
+
 // In-memory clipboard for Copy/Cut/Paste (D-044)
 export * from './lib/clipboard';
 

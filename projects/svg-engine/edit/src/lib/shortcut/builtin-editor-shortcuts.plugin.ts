@@ -4,6 +4,8 @@ import {
   EditorStateService,
   findNodeById,
   GroupSelectionCommand,
+  RestoreSnapshotCommand,
+  SnapshotsService,
   UngroupCommand,
 } from 'svg-engine/core';
 import type { EditorPlugin } from '../plugin/plugin';
@@ -162,6 +164,47 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
           if (root.type !== 'group' || root.children.length === 0) return;
           event.preventDefault();
           fromCtx(runCtx, SelectionService).selectMany(root.children.map((c) => c.id));
+        },
+      }),
+    );
+
+    // ── D-073 — Snapshots ──────────────────────────────────────────
+    // Ctrl+Shift+S = take a manual snapshot (Photoshop convention).
+    // Ctrl+Alt+Z   = restore the most recent snapshot (escape hatch
+    //               for when the linear undo is too granular).
+    //
+    // Both gracefully no-op when SnapshotsService isn't provided in
+    // the active scope — keeps headless/no-snapshot apps unaffected.
+    ctx.track(
+      shortcuts.register({
+        id: 'svge.builtin.shortcut.take-snapshot',
+        combo: 'Ctrl+Shift+S',
+        description: 'Take a snapshot of the current document',
+        run(event, runCtx) {
+          const injector = runCtx?.injector ?? ctx.injector;
+          const snaps = injector.get(SnapshotsService, null, { optional: true });
+          if (snaps === null) return;
+          event.preventDefault();
+          snaps.take(fromCtx(runCtx, EditorStateService).document(), { source: 'manual' });
+        },
+      }),
+    );
+    ctx.track(
+      shortcuts.register({
+        id: 'svge.builtin.shortcut.restore-last-snapshot',
+        combo: 'Ctrl+Alt+Z',
+        description: 'Restore the most recent snapshot',
+        run(event, runCtx) {
+          const injector = runCtx?.injector ?? ctx.injector;
+          const snaps = injector.get(SnapshotsService, null, { optional: true });
+          if (snaps === null) return;
+          const list = snaps.snapshots();
+          if (list.length === 0) return;
+          // Skip `auto-restore` snapshots — they're internal markers,
+          // never the "last user-visible snapshot" the user wants.
+          const target = list.find((s) => s.source !== 'auto-restore') ?? list[0]!;
+          event.preventDefault();
+          fromCtx(runCtx, CommandBus).dispatch(new RestoreSnapshotCommand(target.id, snaps));
         },
       }),
     );
