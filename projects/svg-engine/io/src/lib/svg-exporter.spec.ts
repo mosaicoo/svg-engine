@@ -236,3 +236,64 @@ describe('collectReferencedPathIds — pure helper', () => {
     expect(collectReferencedPathIds(r).size).toBe(0);
   });
 });
+
+// ── D-069 — typography basics (font-style / text-decoration) ─────────
+//
+// The fontSize/fontFamily/fontWeight/textAnchor attrs were already
+// exported pre-D-069; D-069 adds 3 new text-level fields. `lineHeight`
+// is intentionally NOT emitted in the current exporter (the exporter
+// emits content as a single plain run, so per-line dy doesn't apply —
+// see renderText comment). When future multi-line tspan emission lands,
+// lineHeight should join then.
+
+describe('svgExporter — D-069 typography basics', () => {
+  it('emits font-style attribute when set to italic', () => {
+    const t = { ...createText({ x: 0, y: 10, content: 'Hi' }), fontStyle: 'italic' as const };
+    const out = exportNode([t]);
+    expect(out).toContain('font-style="italic"');
+  });
+
+  it('emits text-decoration attribute when set to underline', () => {
+    const t = {
+      ...createText({ x: 0, y: 10, content: 'Hi' }),
+      textDecoration: 'underline' as const,
+    };
+    const out = exportNode([t]);
+    expect(out).toContain('text-decoration="underline"');
+  });
+
+  it('emits text-decoration line-through', () => {
+    const t = {
+      ...createText({ x: 0, y: 10, content: 'Hi' }),
+      textDecoration: 'line-through' as const,
+    };
+    const out = exportNode([t]);
+    expect(out).toContain('text-decoration="line-through"');
+  });
+
+  it('omits font-style and text-decoration when undefined (no garbage attrs)', () => {
+    const t = createText({ x: 0, y: 10, content: 'Hi' });
+    const out = exportNode([t]);
+    expect(out).not.toContain('font-style=');
+    expect(out).not.toContain('text-decoration=');
+  });
+
+  it('emits all four pre-D-069 typography attrs together with new ones', () => {
+    const t = {
+      ...createText({ x: 0, y: 10, content: 'Hi' }),
+      fontSize: 24,
+      fontFamily: 'Arial',
+      fontWeight: 700 as const,
+      textAnchor: 'middle' as const,
+      fontStyle: 'italic' as const,
+      textDecoration: 'underline' as const,
+    };
+    const out = exportNode([t]);
+    expect(out).toContain('font-size="24"');
+    expect(out).toContain('font-family="Arial"');
+    expect(out).toContain('font-weight="700"');
+    expect(out).toContain('text-anchor="middle"');
+    expect(out).toContain('font-style="italic"');
+    expect(out).toContain('text-decoration="underline"');
+  });
+});

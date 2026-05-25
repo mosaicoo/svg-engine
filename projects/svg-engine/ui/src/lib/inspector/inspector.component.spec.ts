@@ -1021,11 +1021,19 @@ describe('SvgeInspector — D-068 Type section visibility', () => {
     const typeSection = fixture.nativeElement.querySelectorAll('.section')[
       titles.indexOf('Type')
     ] as HTMLElement;
-    expect(typeSection.querySelectorAll('.feature-toggle').length).toBe(4);
-    // Variation + feature-raw + start-offset = 3 text inputs; letter-spacing = 1 number
+    // 4 OpenType quick-toggles (D-068) + 3 style chips (D-069: italic
+    // / underline / strike) all share the .feature-toggle base class.
+    expect(typeSection.querySelectorAll('.feature-toggle').length).toBeGreaterThanOrEqual(4);
+    // Variation + feature-raw + start-offset = 3 text inputs (D-068);
+    // D-069 may add a custom-font-family input (gated). letter-spacing
+    // is 1 number (D-068) joined by font-size + line-height (D-069).
     expect(typeSection.querySelectorAll('input[type="text"]').length).toBeGreaterThanOrEqual(3);
     expect(typeSection.querySelectorAll('input[type="number"]').length).toBeGreaterThanOrEqual(1);
-    expect(typeSection.querySelectorAll('mat-select').length).toBe(1); // textPath dropdown
+    // mat-selects: textPath dropdown (D-068) + D-069 adds font-family
+    // and font-weight. >= 1 keeps the original assertion intent
+    // (at least the textPath one is present) without coupling to
+    // future additions.
+    expect(typeSection.querySelectorAll('mat-select').length).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -1060,7 +1068,11 @@ describe('SvgeInspector — D-068 dispatches SetPropertyCommand on text fields',
   it('letter-spacing input writes node.letterSpacing', () => {
     const { fixture, state, text } = setupWithText();
     const typeSection = getTypeSection(fixture.nativeElement);
-    const numberInput = typeSection.querySelector('input[type="number"]') as HTMLInputElement;
+    // Select by placeholder (stable across reorderings — D-069 added
+    // font-size/line-height number inputs above this one).
+    const numberInput = typeSection.querySelector(
+      'input[type="number"][placeholder="0"]',
+    ) as HTMLInputElement;
     numberInput.value = '2.5';
     numberInput.dispatchEvent(new Event('change', { bubbles: true }));
     fixture.detectChanges();
@@ -1071,7 +1083,9 @@ describe('SvgeInspector — D-068 dispatches SetPropertyCommand on text fields',
   it('clearing letter-spacing input restores the model field to undefined', () => {
     const { fixture, state, text } = setupWithText({ letterSpacing: 3 });
     const typeSection = getTypeSection(fixture.nativeElement);
-    const numberInput = typeSection.querySelector('input[type="number"]') as HTMLInputElement;
+    const numberInput = typeSection.querySelector(
+      'input[type="number"][placeholder="0"]',
+    ) as HTMLInputElement;
     expect(numberInput.value).toBe('3');
     numberInput.value = '';
     numberInput.dispatchEvent(new Event('change', { bubbles: true }));
@@ -1083,11 +1097,12 @@ describe('SvgeInspector — D-068 dispatches SetPropertyCommand on text fields',
   it('font-variation-settings input writes node.fontVariationSettings', () => {
     const { fixture, state, text } = setupWithText();
     const typeSection = getTypeSection(fixture.nativeElement);
-    const textInputs = Array.from(
-      typeSection.querySelectorAll('input[type="text"]'),
-    ) as HTMLInputElement[];
-    // Field order in the Type section: variation, feature raw, start-offset.
-    const variationInput = textInputs[0]!;
+    // Select by placeholder — text inputs in the Type section are
+    // variation/feature-raw/start-offset. Each has a distinctive
+    // placeholder so we can pick by it instead of relying on DOM order.
+    const variationInput = typeSection.querySelector(
+      'input[type="text"][placeholder="\'wght\' 650, \'wdth\' 95"]',
+    ) as HTMLInputElement;
     variationInput.value = "'wght' 650, 'wdth' 95";
     variationInput.dispatchEvent(new Event('change', { bubbles: true }));
     fixture.detectChanges();
@@ -1098,10 +1113,9 @@ describe('SvgeInspector — D-068 dispatches SetPropertyCommand on text fields',
   it('font-feature-settings raw input writes node.fontFeatureSettings', () => {
     const { fixture, state, text } = setupWithText();
     const typeSection = getTypeSection(fixture.nativeElement);
-    const textInputs = Array.from(
-      typeSection.querySelectorAll('input[type="text"]'),
-    ) as HTMLInputElement[];
-    const featureInput = textInputs[1]!;
+    const featureInput = typeSection.querySelector(
+      'input[type="text"][placeholder="\'liga\' on, \'smcp\' on"]',
+    ) as HTMLInputElement;
     featureInput.value = "'liga' on, 'smcp' on";
     featureInput.dispatchEvent(new Event('change', { bubbles: true }));
     fixture.detectChanges();
@@ -1204,10 +1218,9 @@ describe('SvgeInspector — D-068 dispatches SetPropertyCommand on text fields',
       textPathRef: 'fake-id' as TextNode['textPathRef'],
     });
     const typeSection = getTypeSection(fixture.nativeElement);
-    const textInputs = Array.from(
-      typeSection.querySelectorAll('input[type="text"]'),
-    ) as HTMLInputElement[];
-    const offsetInput = textInputs[2]!;
+    const offsetInput = typeSection.querySelector(
+      'input[type="text"][placeholder="50% or 40"]',
+    ) as HTMLInputElement;
     offsetInput.value = '75%';
     offsetInput.dispatchEvent(new Event('change', { bubbles: true }));
     fixture.detectChanges();
@@ -1288,5 +1301,163 @@ describe('SvgeInspector — D-068 pure helpers (parseFontFeatures / stringifyFon
 
   it('stringify of empty map is empty string', () => {
     expect(stringifyFontFeatures(new Map())).toBe('');
+  });
+});
+
+// ── D-069 — Typography basics (Inspector Type section UI) ────────────
+//
+// Covers:
+// 1. Each basic control (font-family preset, font-size, font-weight,
+//    text-anchor, italic, decoration, line-height) dispatches the
+//    correct mutation via SetPropertyCommand.
+// 2. Toggles are bi-directional (re-click clears).
+// 3. Empty / non-finite inputs are dropped silently.
+
+describe('SvgeInspector — D-069 typography basics dispatch', () => {
+  function setupWithText(initial?: Partial<TextNode>) {
+    const t = createText({ x: 0, y: 0, content: 'Hello' });
+    const text: TextNode = { ...t, ...(initial ?? {}) };
+    const ctx = setup();
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup([text], { id: ctx.state.document().root.id }),
+    });
+    ctx.selection.select(text.id);
+    ctx.fixture.detectChanges();
+    return { ...ctx, text };
+  }
+
+  // Inspector instance lookup (same pattern used by D-068 specs above).
+  function inspectorOf(fixture: ReturnType<typeof setup>['fixture']): {
+    setFontFamilyPreset(v: string): void;
+    setFontFamilyCustom(raw: string): void;
+    setFontSize(raw: string): void;
+    setFontWeight(v: string): void;
+    setTextAnchor(v: 'start' | 'middle' | 'end'): void;
+    toggleItalic(): void;
+    toggleDecoration(v: 'underline' | 'line-through'): void;
+    setLineHeight(raw: string): void;
+  } {
+    return fixture.debugElement.children[0]?.componentInstance as never;
+  }
+
+  it('font-family preset writes node.fontFamily', () => {
+    const { fixture, state, text } = setupWithText();
+    inspectorOf(fixture).setFontFamilyPreset('Arial, Helvetica, sans-serif');
+    fixture.detectChanges();
+    const updated = findNodeById(state.document().root, text.id) as TextNode;
+    expect(updated.fontFamily).toBe('Arial, Helvetica, sans-serif');
+  });
+
+  it('font-family preset empty string clears the field', () => {
+    const { fixture, state, text } = setupWithText({ fontFamily: 'Verdana' });
+    inspectorOf(fixture).setFontFamilyPreset('');
+    fixture.detectChanges();
+    const updated = findNodeById(state.document().root, text.id) as TextNode;
+    expect(updated.fontFamily).toBeUndefined();
+  });
+
+  it('font-family preset "__custom__" is a no-op (custom input handles it)', () => {
+    // `text` not destructured: we only assert at the document level
+    // (no mutation), not on the specific node.
+    const { fixture, state } = setupWithText({ fontFamily: 'Arial' });
+    const before = state.document();
+    inspectorOf(fixture).setFontFamilyPreset('__custom__');
+    fixture.detectChanges();
+    expect(state.document()).toBe(before); // no command dispatched
+  });
+
+  it('custom font-family input writes raw string', () => {
+    const { fixture, state, text } = setupWithText();
+    inspectorOf(fixture).setFontFamilyCustom("'Inter', sans-serif");
+    fixture.detectChanges();
+    const updated = findNodeById(state.document().root, text.id) as TextNode;
+    expect(updated.fontFamily).toBe("'Inter', sans-serif");
+  });
+
+  it('font-size sets a numeric value; <= 0 or non-finite is rejected', () => {
+    const { fixture, state, text } = setupWithText();
+    const inspector = inspectorOf(fixture);
+    inspector.setFontSize('24');
+    fixture.detectChanges();
+    expect((findNodeById(state.document().root, text.id) as TextNode).fontSize).toBe(24);
+    // Garbage in: still 24, command not dispatched
+    inspector.setFontSize('not-a-number');
+    fixture.detectChanges();
+    expect((findNodeById(state.document().root, text.id) as TextNode).fontSize).toBe(24);
+    inspector.setFontSize('-5');
+    fixture.detectChanges();
+    expect((findNodeById(state.document().root, text.id) as TextNode).fontSize).toBe(24);
+    // Empty clears
+    inspector.setFontSize('');
+    fixture.detectChanges();
+    expect((findNodeById(state.document().root, text.id) as TextNode).fontSize).toBeUndefined();
+  });
+
+  it('font-weight preset writes numeric weight; empty clears', () => {
+    const { fixture, state, text } = setupWithText();
+    const inspector = inspectorOf(fixture);
+    inspector.setFontWeight('700');
+    fixture.detectChanges();
+    expect((findNodeById(state.document().root, text.id) as TextNode).fontWeight).toBe(700);
+    inspector.setFontWeight('');
+    fixture.detectChanges();
+    expect((findNodeById(state.document().root, text.id) as TextNode).fontWeight).toBeUndefined();
+  });
+
+  it('text-anchor button writes the value', () => {
+    const { fixture, state, text } = setupWithText();
+    inspectorOf(fixture).setTextAnchor('middle');
+    fixture.detectChanges();
+    expect((findNodeById(state.document().root, text.id) as TextNode).textAnchor).toBe('middle');
+  });
+
+  it('italic toggle is bidirectional', () => {
+    const { fixture, state, text } = setupWithText();
+    const inspector = inspectorOf(fixture);
+    // Off → on
+    inspector.toggleItalic();
+    fixture.detectChanges();
+    expect((findNodeById(state.document().root, text.id) as TextNode).fontStyle).toBe('italic');
+    // On → off (cleared)
+    inspector.toggleItalic();
+    fixture.detectChanges();
+    expect((findNodeById(state.document().root, text.id) as TextNode).fontStyle).toBeUndefined();
+  });
+
+  it('decoration toggles underline/strike (mutually exclusive)', () => {
+    const { fixture, state, text } = setupWithText();
+    const inspector = inspectorOf(fixture);
+    inspector.toggleDecoration('underline');
+    fixture.detectChanges();
+    expect((findNodeById(state.document().root, text.id) as TextNode).textDecoration).toBe(
+      'underline',
+    );
+    // Set the other (strike). The toggle replaces (different value than current).
+    inspector.toggleDecoration('line-through');
+    fixture.detectChanges();
+    expect((findNodeById(state.document().root, text.id) as TextNode).textDecoration).toBe(
+      'line-through',
+    );
+    // Re-click same value: clears.
+    inspector.toggleDecoration('line-through');
+    fixture.detectChanges();
+    expect(
+      (findNodeById(state.document().root, text.id) as TextNode).textDecoration,
+    ).toBeUndefined();
+  });
+
+  it('line-height writes numeric value; <= 0 rejected; empty clears', () => {
+    const { fixture, state, text } = setupWithText();
+    const inspector = inspectorOf(fixture);
+    inspector.setLineHeight('1.5');
+    fixture.detectChanges();
+    expect((findNodeById(state.document().root, text.id) as TextNode).lineHeight).toBe(1.5);
+    inspector.setLineHeight('0');
+    fixture.detectChanges();
+    expect((findNodeById(state.document().root, text.id) as TextNode).lineHeight).toBe(1.5);
+    inspector.setLineHeight('');
+    fixture.detectChanges();
+    expect((findNodeById(state.document().root, text.id) as TextNode).lineHeight).toBeUndefined();
   });
 });

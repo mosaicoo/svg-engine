@@ -89,9 +89,10 @@ import { SvgeTextDirective } from './text-renderer.directive';
                flattened — see TextNode JSDoc for rationale.
             2. Multi-line content (
  in content) → tspan per line.
-               SVG does NOT honor 
+               SVG does NOT honor
  in plain text, so we emit explicit
-               tspans with x reset + dy=1.2em.
+               tspans with x reset + dy=lineHeight em (D-069 — default
+               1.2 when node.lineHeight is undefined).
             3. Single-line content → bare interpolation. Preserves the
                minimal element structure that existing specs assert on.
         -->
@@ -107,7 +108,7 @@ import { SvgeTextDirective } from './text-renderer.directive';
         } @else if (textIsMultiLine()) {
           <svg:text [svgeText]="$any(node())">
             @for (line of textLines(); track $index) {
-              <svg:tspan [attr.x]="textX()" [attr.dy]="$index === 0 ? '0' : '1.2em'">
+              <svg:tspan [attr.x]="textX()" [attr.dy]="$index === 0 ? '0' : textLineDy()">
                 {{ line }}
               </svg:tspan>
             }
@@ -246,6 +247,26 @@ export class SvgeNodeRenderer {
   protected textX(): number {
     const n = this.node();
     return n.type === 'text' ? (n as TextNode).x : 0;
+  }
+
+  /**
+   * **D-069** — `dy` value (in `em`s) for non-first tspans in the
+   * multi-line text path. Reads `node().lineHeight` and falls back to
+   * `1.2` (the pre-D-069 hardcoded default) when undefined — preserves
+   * backward compatibility for existing docs/specs.
+   *
+   * Returned as a CSS-style string with `em` unit so it composes with
+   * the `font-size` already on the parent `<text>` (the tspan inherits).
+   * Choosing `em` over `px` keeps line spacing proportional when the
+   * user later changes the font size — same behavior as CSS
+   * `line-height: <number>` (unitless multiplier).
+   */
+  protected textLineDy(): string {
+    const n = this.node();
+    if (n.type !== 'text') return '1.2em';
+    const lh = (n as TextNode).lineHeight;
+    const factor = typeof lh === 'number' && Number.isFinite(lh) && lh > 0 ? lh : 1.2;
+    return `${factor}em`;
   }
 
   // D-053 — Text on path helpers ──────────────────────────────────────

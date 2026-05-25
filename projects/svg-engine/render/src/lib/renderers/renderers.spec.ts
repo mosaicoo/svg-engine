@@ -189,3 +189,65 @@ describe('Path renderer — D-068 follow-up: emits id for textPath resolution', 
     expect(svg.ownerDocument.getElementById(node.id)).toBe(path);
   });
 });
+
+// ── D-069 — Text renderer: typography basics bindings ─────────────────
+describe('Text renderer — D-069 typography basics', () => {
+  it('emits font-style attribute when node.fontStyle is set', () => {
+    const node: SvgNode = { ...createText({ x: 0, y: 0, content: 'Hi' }), fontStyle: 'italic' };
+    const { svg } = mount(node);
+    const text = svg.querySelector(`g[data-node-id="${node.id}"] text`);
+    expect(text).not.toBeNull();
+    expect(text!.getAttribute('font-style')).toBe('italic');
+  });
+
+  it('emits text-decoration attribute when node.textDecoration is set', () => {
+    const node: SvgNode = {
+      ...createText({ x: 0, y: 0, content: 'Hi' }),
+      textDecoration: 'underline',
+    };
+    const { svg } = mount(node);
+    const text = svg.querySelector(`g[data-node-id="${node.id}"] text`);
+    expect(text!.getAttribute('text-decoration')).toBe('underline');
+  });
+
+  it('does NOT emit font-style/text-decoration when undefined', () => {
+    const node = createText({ x: 0, y: 0, content: 'Hi' });
+    const { svg } = mount(node);
+    const text = svg.querySelector(`g[data-node-id="${node.id}"] text`);
+    expect(text!.hasAttribute('font-style')).toBe(false);
+    expect(text!.hasAttribute('text-decoration')).toBe(false);
+  });
+
+  it('multi-line tspan dy defaults to 1.2em when lineHeight is undefined', () => {
+    const node = createText({ x: 0, y: 0, content: 'line 1\nline 2' });
+    const { svg } = mount(node);
+    const tspans = svg.querySelectorAll(`g[data-node-id="${node.id}"] tspan`);
+    expect(tspans.length).toBe(2);
+    // First tspan: dy='0' (no shift); second: dy='1.2em' (default)
+    expect(tspans[0]!.getAttribute('dy')).toBe('0');
+    expect(tspans[1]!.getAttribute('dy')).toBe('1.2em');
+  });
+
+  it('multi-line tspan dy uses node.lineHeight when set', () => {
+    const node: SvgNode = {
+      ...createText({ x: 0, y: 0, content: 'line 1\nline 2\nline 3' }),
+      lineHeight: 1.5,
+    };
+    const { svg } = mount(node);
+    const tspans = svg.querySelectorAll(`g[data-node-id="${node.id}"] tspan`);
+    expect(tspans.length).toBe(3);
+    expect(tspans[0]!.getAttribute('dy')).toBe('0');
+    expect(tspans[1]!.getAttribute('dy')).toBe('1.5em');
+    expect(tspans[2]!.getAttribute('dy')).toBe('1.5em');
+  });
+
+  it('lineHeight <= 0 or non-finite falls back to default 1.2 (defensive)', () => {
+    const bad: SvgNode = {
+      ...createText({ x: 0, y: 0, content: 'a\nb' }),
+      lineHeight: 0,
+    };
+    const { svg } = mount(bad);
+    const tspans = svg.querySelectorAll(`g[data-node-id="${bad.id}"] tspan`);
+    expect(tspans[1]!.getAttribute('dy')).toBe('1.2em');
+  });
+});

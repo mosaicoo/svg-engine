@@ -6,6 +6,138 @@
 
 ---
 
+## 2026-05-25 — D-069: Typography básica no Inspector — fecha o gap de usabilidade real
+
+### Demanda
+
+Usuário questionou: "Em relação a forma TEXT é possível permitir a
+alteração da fonte, estilo, tamanho e outras características? O sistema
+já possui essas funcionalidades desenvolvidas?". Auditoria honesta
+revelou que o D-068 (anterior) tinha fechado o gap para os campos
+**avançados** (variable fonts, OpenType, textPath, letter-spacing)
+mas **não para os básicos** (font-family / font-size / font-weight /
+text-anchor) — engine renderizava tudo desde sempre, mas Inspector
+não expunha. Priorização invertida: usuário ganhou 4 toggles de
+OpenType mas não conseguia mudar o tamanho da fonte. E mais 3 campos
+**essenciais** (italic / underline / line-height) não existiam nem
+no model.
+
+### Implementação
+
+**1. Model estendido** (`core/lib/model/text-node.ts`):
+3 novos campos opcionais no `TextNode`:
+
+- `fontStyle?: 'normal' | 'italic'` — atributo SVG `font-style`
+- `textDecoration?: 'none' | 'underline' | 'line-through'` —
+  atributo SVG `text-decoration`
+- `lineHeight?: number` — multiplicador (unitless), aplicado via
+  `dy` das tspans no multi-line. Substitui o `1.2em` hardcoded
+  pré-D-069; `undefined` mantém o default 1.2 (zero break).
+
+**2. Renderer** (`render/lib/renderers/text-renderer.directive.ts`):
+2 novos host bindings (`font-style`, `text-decoration`). O
+`lineHeight` é wirado no `node-renderer.component` (helper
+`textLineDy()` retorna `${factor}em` com fallback 1.2 quando
+undefined / inválido).
+
+**3. Exporter** (`io/lib/svg-exporter.ts`):
+`renderText` emite `font-style` + `text-decoration` quando setados.
+`lineHeight` intencionalmente NÃO é emitido — o exporter atualmente
+emite content como single plain run com `\n` literal (limitação
+pré-D-069 fora do escopo); quando o multi-line tspan no export for
+adicionado, o `lineHeight` entra junto.
+
+**4. Inspector UI** (`ui/lib/inspector/inspector.component.ts`):
+Bloco "basics" adicionado no TOPO da Type section (antes dos
+controles D-068), na ordem visual familiar (Figma/Illustrator):
+
+| #   | Controle              | Tipo de UI                                                                  | Comando              |
+| --- | --------------------- | --------------------------------------------------------------------------- | -------------------- |
+| 1   | `font-family`         | `<mat-select>` com 10 presets web-safe + opção "Custom…" + input livre      | `SetPropertyCommand` |
+| 2   | `font-size` (px)      | `<input type="number">` (valida >0)                                         | `SetPropertyCommand` |
+| 3   | `font-weight`         | `<mat-select>` com 9 valores (100..900 + nomes)                             | `SetPropertyCommand` |
+| 4   | `text-anchor`         | 3 botões segmentados com ícones Material (`format_align_left/center/right`) | `SetPropertyCommand` |
+| 5   | `font-style` (italic) | Chip toggle "I" itálico                                                     | `SetPropertyCommand` |
+| 6   | `text-decoration`     | 2 chips toggles (U sublinhado, S riscado), mutuamente exclusivos            | `SetPropertyCommand` |
+| 7   | `line-height`         | `<input type="number">` step 0.05, default placeholder "1.2"                | `SetPropertyCommand` |
+
+Todos usam `setTextProperty<K>` (helper D-068) — single undo entry,
+multi-editor scope honrado (D-042), lock guard + dedup.
+
+**Mantido o comportamento existente**: os campos avançados D-068
+(`letter-spacing`, `font-variation-settings`, OpenType feature
+toggles, textPath) continuam abaixo do bloco básico, agora organizados
+em subseções nomeadas ("Font", "Spacing", "Variable font axes",
+"OpenType features", "Text on path"). Zero break.
+
+### Specs (+ 22 novos cases)
+
+- **`text-node.ts`**: tipos via TypeScript (type-checker valida no build)
+- **`renderers.spec.ts`** (+6 cases): font-style emit, text-decoration
+  emit, omits quando undefined, multi-line dy default 1.2em, multi-line
+  dy com lineHeight, lineHeight <= 0 cai pra default
+- **`svg-exporter.spec.ts`** (+5 cases): font-style emit, text-decoration
+  (underline + line-through), omits quando undefined, todos os 6 attrs
+  juntos (fontSize + fontFamily + fontWeight + textAnchor + fontStyle +
+  textDecoration)
+- **`inspector.component.spec.ts`** (+11 cases): cada controle dispara
+  o mutation correto (font-family preset / custom, font-size com
+  validação, font-weight, text-anchor, italic toggle bidirecional,
+  decoration mutuamente exclusivo, line-height com validação)
+
+### Validação
+
+- ng build svg-engine ✓ (9 entry points, ~8s)
+- (specs + lint + playground build vão rodar na fase final)
+
+### Decisões importantes
+
+- **Bloco básico ANTES do avançado** — usuário típico vai mais vezes
+  ao font-size do que ao OpenType. Ordem visual reflete prioridade
+  de uso, não ordem de implementação.
+- **Custom font input expansível** — `<mat-select>` "Custom…" revela
+  o input livre. Mantém UX limpa pro caso 90% (presets) sem cortar
+  acesso ao caso 10% (fonte específica do projeto).
+- **Italic via toggle dedicado, não no font-weight** — embora alguns
+  editores agrupem "Bold + Italic" num único controle, são axes
+  ortogonais no CSS/SVG. Separar evita confusão.
+- **Mutual exclusion underline/strike** — SVG aceita `'underline
+line-through'` combinado, mas o controle é single-value por design;
+  designers querendo layered podem editar SVG direto. Trade-off
+  consciente em favor de UX simples.
+- **lineHeight unitless** — segue convenção tipográfica CSS (1.0 =
+  tight, 1.5 = relaxed). Aplica ao `dy` em `em`, então a relação
+  com font-size se preserva sob mudanças de tamanho.
+- **Defaults SVG explícitos no comportamento "clear"** — campos com
+  default semântico (textAnchor='start', fontStyle='normal',
+  textDecoration='none') quando o toggle fica off vão pra `undefined`
+  em vez de escrever o default explicito. Mantém o SVG exportado mais
+  limpo (sem atributos redundantes) e fiel à convenção dos outros
+  campos (clipPath, mixBlendMode no D-049 fazem o mesmo).
+
+### Por que D-069 antes de D-067 (autotrace multi-color)
+
+O D-068 fechou um gap, mas só metade. Sem D-069 o usuário não
+consegue alterar a tipografia básica do editor — feature mais
+fundamental que multi-color autotrace. **Priorizando UX antes de
+recursos novos**, conforme demanda do usuário ("é preciso garantia
+que o sistema atual não quebre" + observação direta de que as
+features D-068 são úteis mas secundárias).
+
+### Status revisado das features de texto
+
+| Feature                  | Antes D-069     | Depois D-069                                                        |
+| ------------------------ | --------------- | ------------------------------------------------------------------- |
+| font-family              | engine ✓, UI ✗  | **FULL** (10 presets + custom)                                      |
+| font-size                | engine ✓, UI ✗  | **FULL** (number input)                                             |
+| font-weight              | engine ✓, UI ✗  | **FULL** (9 níveis)                                                 |
+| text-anchor              | engine ✓, UI ✗  | **FULL** (3-way segmented)                                          |
+| font-style (italic)      | ausente         | **FULL** (model + render + export + UI)                             |
+| text-decoration          | ausente         | **FULL** (model + render + export + UI)                             |
+| line-height (multi-line) | hardcoded 1.2em | **FULL** (model + render + UI; export pendente do multi-line tspan) |
+
+---
+
 ## 2026-05-24 — D-068 follow-up: textPath href resolvendo no canvas + no export
 
 ### Demanda

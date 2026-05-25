@@ -390,6 +390,149 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
         <section class="section">
           <h3 class="section-title">Type</h3>
 
+          <!--
+            ── D-069 — Basics first: the typography knobs every design
+            tool exposes (font/size/weight/anchor/italic/underline/
+            line-height). Engine + renderer + exporter all carried
+            most of these since the original D-053; this is the UI
+            that was missing. Placed at the top of the Type section
+            so common-case edits don't require scrolling past the
+            advanced D-053/D-068 controls (variable axes, OpenType,
+            textPath).
+          -->
+          <h4 class="style-subsection-title">Font</h4>
+          <mat-form-field appearance="outline" class="full-width-field">
+            <mat-label>family</mat-label>
+            <mat-select
+              [value]="fontFamilyValue()"
+              [disabled]="isLocked()"
+              (selectionChange)="setFontFamilyPreset($event.value)"
+            >
+              <mat-option [value]="''">(default)</mat-option>
+              @for (f of FONT_FAMILY_PRESETS; track f.value) {
+                <mat-option [value]="f.value">{{ f.label }}</mat-option>
+              }
+              <mat-option value="__custom__">Custom…</mat-option>
+            </mat-select>
+          </mat-form-field>
+          @if (fontFamilyValue() === '__custom__' || isCustomFontFamily()) {
+            <mat-form-field appearance="outline" class="full-width-field">
+              <mat-label>custom font-family</mat-label>
+              <input
+                matInput
+                type="text"
+                [disabled]="isLocked()"
+                [value]="text.fontFamily ?? ''"
+                placeholder="'Inter', sans-serif"
+                (change)="setFontFamilyCustom($any($event.target).value)"
+              />
+            </mat-form-field>
+          }
+
+          <div class="grid">
+            <mat-form-field appearance="outline">
+              <mat-label>size (px)</mat-label>
+              <input
+                matInput
+                type="number"
+                min="1"
+                step="1"
+                [disabled]="isLocked()"
+                [value]="text.fontSize ?? ''"
+                placeholder="16"
+                (change)="setFontSize($any($event.target).value)"
+              />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>weight</mat-label>
+              <mat-select
+                [value]="fontWeightValue()"
+                [disabled]="isLocked()"
+                (selectionChange)="setFontWeight($event.value)"
+              >
+                <mat-option [value]="''">(default)</mat-option>
+                @for (w of FONT_WEIGHT_PRESETS; track w.value) {
+                  <mat-option [value]="w.value">{{ w.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          </div>
+
+          <div class="anchor-row" role="group" aria-label="Text anchor">
+            <span class="anchor-label">anchor</span>
+            <div class="anchor-buttons">
+              @for (a of TEXT_ANCHOR_OPTIONS; track a.value) {
+                <button
+                  type="button"
+                  class="anchor-btn"
+                  [class.active]="(text.textAnchor ?? 'start') === a.value"
+                  [disabled]="isLocked()"
+                  [attr.aria-pressed]="(text.textAnchor ?? 'start') === a.value"
+                  [title]="a.title"
+                  (click)="setTextAnchor(a.value)"
+                >
+                  <mat-icon aria-hidden="true">{{ a.icon }}</mat-icon>
+                </button>
+              }
+            </div>
+          </div>
+
+          <div class="style-toggles" role="group" aria-label="Text style toggles">
+            <span class="style-toggles-label">style</span>
+            <button
+              type="button"
+              class="feature-toggle italic-btn"
+              [class.active]="text.fontStyle === 'italic'"
+              [disabled]="isLocked()"
+              [attr.aria-pressed]="text.fontStyle === 'italic'"
+              title="Italic"
+              (click)="toggleItalic()"
+            >
+              <em>I</em>
+            </button>
+            <button
+              type="button"
+              class="feature-toggle underline-btn"
+              [class.active]="text.textDecoration === 'underline'"
+              [disabled]="isLocked()"
+              [attr.aria-pressed]="text.textDecoration === 'underline'"
+              title="Underline"
+              (click)="toggleDecoration('underline')"
+            >
+              <span class="deco-underline">U</span>
+            </button>
+            <button
+              type="button"
+              class="feature-toggle strike-btn"
+              [class.active]="text.textDecoration === 'line-through'"
+              [disabled]="isLocked()"
+              [attr.aria-pressed]="text.textDecoration === 'line-through'"
+              title="Strikethrough"
+              (click)="toggleDecoration('line-through')"
+            >
+              <span class="deco-strike">S</span>
+            </button>
+          </div>
+
+          <mat-form-field appearance="outline" class="full-width-field">
+            <mat-label>line-height (× font-size)</mat-label>
+            <input
+              matInput
+              type="number"
+              min="0.5"
+              step="0.05"
+              [disabled]="isLocked()"
+              [value]="text.lineHeight ?? ''"
+              placeholder="1.2"
+              (change)="setLineHeight($any($event.target).value)"
+            />
+          </mat-form-field>
+          <p class="hint-text">
+            Affects multi-line text (newlines in content). 1.0 = tight, 1.2 = default, 1.5 =
+            relaxed.
+          </p>
+
+          <h4 class="style-subsection-title">Spacing</h4>
           <mat-form-field appearance="outline" class="full-width-field">
             <mat-label>letter-spacing (px)</mat-label>
             <input
@@ -1237,6 +1380,83 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       color: var(--mat-sys-on-surface-variant, #888);
       font-style: italic;
     }
+    /* D-069 — Type section basics: anchor segmented control + style chip toggles. */
+    .anchor-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 0 8px;
+    }
+    .anchor-label,
+    .style-toggles-label {
+      flex: 1 1 auto;
+      font-size: 12px;
+      color: var(--mat-sys-on-surface-variant, #777);
+    }
+    .anchor-buttons {
+      flex: 0 0 auto;
+      display: inline-flex;
+      gap: 0;
+      border: 1px solid var(--mat-sys-outline-variant, #ccc);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .anchor-btn {
+      width: 30px;
+      height: 26px;
+      padding: 0;
+      border: 0;
+      border-right: 1px solid var(--mat-sys-outline-variant, #ccc);
+      background: var(--mat-sys-surface, #fff);
+      color: var(--mat-sys-on-surface-variant, #777);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition:
+        background 100ms,
+        color 100ms;
+    }
+    .anchor-btn:last-child {
+      border-right: 0;
+    }
+    .anchor-btn:hover:not(:disabled) {
+      background: var(--mat-sys-surface-container-high, #eee);
+    }
+    .anchor-btn.active {
+      background: var(--mat-sys-primary, #1976d2);
+      color: var(--mat-sys-on-primary, #fff);
+    }
+    .anchor-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .anchor-btn .mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+    .style-toggles {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0 0 8px;
+    }
+    /* Italic / Underline / Strike chips reuse the .feature-toggle styles
+       but show actual visual hints (italic 'I', underlined 'U', struck 'S')
+       instead of OpenType tags. */
+    .italic-btn em {
+      font-style: italic;
+      font-family: serif;
+    }
+    .deco-underline {
+      text-decoration: underline;
+      font-family: serif;
+    }
+    .deco-strike {
+      text-decoration: line-through;
+      font-family: serif;
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -2066,6 +2286,190 @@ export class SvgeInspector {
     else features.set(tag, true);
     const next = stringifyFontFeatures(features);
     this.setTextProperty('fontFeatureSettings', next === '' ? undefined : next);
+  }
+
+  // ── D-069 — Typography basics (Inspector UI for pre-existing model
+  // fields fontSize / fontFamily / fontWeight / textAnchor PLUS three
+  // new fields fontStyle / textDecoration / lineHeight introduced here.
+  // Surfaces in the Inspector Type section ABOVE the D-068 advanced
+  // controls so common-case edits come first.
+
+  /**
+   * Curated list of web-safe + popular UI font stacks. Users who need
+   * something else pick "Custom…" and type their own family. Stacks
+   * include the obvious fallbacks (sans-serif / serif / monospace) so
+   * the chosen font degrades gracefully when not available.
+   */
+  protected readonly FONT_FAMILY_PRESETS: readonly {
+    readonly label: string;
+    readonly value: string;
+  }[] = [
+    { label: 'System sans', value: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' },
+    { label: 'System serif', value: 'Georgia, "Times New Roman", serif' },
+    { label: 'System mono', value: '"JetBrains Mono", "Fira Code", Consolas, Menlo, monospace' },
+    { label: 'Arial', value: 'Arial, Helvetica, sans-serif' },
+    { label: 'Helvetica', value: '"Helvetica Neue", Helvetica, Arial, sans-serif' },
+    { label: 'Times', value: '"Times New Roman", Times, serif' },
+    { label: 'Courier', value: '"Courier New", Courier, monospace' },
+    { label: 'Verdana', value: 'Verdana, Geneva, sans-serif' },
+    { label: 'Tahoma', value: 'Tahoma, Geneva, sans-serif' },
+    { label: 'Georgia', value: 'Georgia, serif' },
+  ];
+
+  /**
+   * Standard CSS font-weight numeric ladder (100 = Thin … 900 = Black).
+   * Weights the loaded font doesn't ship are gracefully synthesised by
+   * the browser, so listing all 9 is safe.
+   */
+  protected readonly FONT_WEIGHT_PRESETS: readonly {
+    readonly label: string;
+    readonly value: number;
+  }[] = [
+    { label: '100 Thin', value: 100 },
+    { label: '200 ExtraLight', value: 200 },
+    { label: '300 Light', value: 300 },
+    { label: '400 Regular', value: 400 },
+    { label: '500 Medium', value: 500 },
+    { label: '600 SemiBold', value: 600 },
+    { label: '700 Bold', value: 700 },
+    { label: '800 ExtraBold', value: 800 },
+    { label: '900 Black', value: 900 },
+  ];
+
+  /**
+   * SVG `text-anchor` values mapped to icons + tooltips. SVG default is
+   * `'start'` (mirrors CSS `text-align: left` in LTR), but Inkscape /
+   * Figma users expect a 3-way control — surface the full set.
+   */
+  protected readonly TEXT_ANCHOR_OPTIONS: readonly {
+    readonly value: 'start' | 'middle' | 'end';
+    readonly icon: string;
+    readonly title: string;
+  }[] = [
+    { value: 'start', icon: 'format_align_left', title: 'Left (start)' },
+    { value: 'middle', icon: 'format_align_center', title: 'Center (middle)' },
+    { value: 'end', icon: 'format_align_right', title: 'Right (end)' },
+  ];
+
+  /**
+   * Returns the `<mat-select>` value for the family field: the matching
+   * preset value when `text.fontFamily` equals one of them, `'__custom__'`
+   * when set to something else (triggers the custom input), or `''`
+   * (the "(default)" option) when undefined.
+   */
+  protected fontFamilyValue(): string {
+    const text = this.textNode();
+    if (text === null) return '';
+    const ff = text.fontFamily;
+    if (ff === undefined || ff === '') return '';
+    const preset = this.FONT_FAMILY_PRESETS.find((p) => p.value === ff);
+    return preset ? preset.value : '__custom__';
+  }
+
+  /** True when the current fontFamily is custom (not a preset, not empty). */
+  protected isCustomFontFamily(): boolean {
+    return this.fontFamilyValue() === '__custom__';
+  }
+
+  /**
+   * Apply a preset (or `''` = clear, or `__custom__` = no-op until the
+   * user types in the custom input below). Custom values flow through
+   * {@link setFontFamilyCustom}.
+   */
+  protected setFontFamilyPreset(value: string): void {
+    if (value === '__custom__') return; // custom input handles it
+    this.setTextProperty('fontFamily', value === '' ? undefined : value);
+  }
+
+  /** Set fontFamily to a raw string; empty clears. */
+  protected setFontFamilyCustom(raw: string): void {
+    const trimmed = raw.trim();
+    this.setTextProperty('fontFamily', trimmed === '' ? undefined : trimmed);
+  }
+
+  /** Set fontSize; empty / non-finite / <= 0 clears (never writes garbage). */
+  protected setFontSize(raw: string): void {
+    const trimmed = raw.trim();
+    if (trimmed === '') {
+      this.setTextProperty('fontSize', undefined);
+      return;
+    }
+    const v = Number(trimmed);
+    if (!Number.isFinite(v) || v <= 0) return;
+    this.setTextProperty('fontSize', v);
+  }
+
+  /**
+   * Returns the `<mat-select>` value for the font-weight field. Stringified
+   * because `mat-select` value matching is type-sensitive — keying on
+   * numbers vs strings differs across Material versions. Stringify on
+   * both ends for stability.
+   */
+  protected fontWeightValue(): string {
+    const text = this.textNode();
+    if (text === null) return '';
+    const fw = text.fontWeight;
+    if (fw === undefined) return '';
+    return String(fw);
+  }
+
+  /** Apply a font-weight preset (`''` clears). Parses string from mat-select. */
+  protected setFontWeight(value: string): void {
+    if (value === '') {
+      this.setTextProperty('fontWeight', undefined);
+      return;
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n)) return;
+    this.setTextProperty('fontWeight', n);
+  }
+
+  /** Set text-anchor; `'start'` is the SVG default — written explicitly. */
+  protected setTextAnchor(value: 'start' | 'middle' | 'end'): void {
+    this.setTextProperty('textAnchor', value);
+  }
+
+  /**
+   * Toggle italic on/off. Writes `'italic'` when activating, `undefined`
+   * when deactivating (mirrors textPath: don't persist defaults that
+   * have no visual effect). The toggle is based on the CURRENT value,
+   * so click-while-italic flips back to normal.
+   */
+  protected toggleItalic(): void {
+    const text = this.textNode();
+    if (text === null) return;
+    const next: 'italic' | undefined = text.fontStyle === 'italic' ? undefined : 'italic';
+    this.setTextProperty('fontStyle', next);
+  }
+
+  /**
+   * Mutually-exclusive decoration toggle. Re-clicking the active value
+   * clears (returns to undefined). SVG `text-decoration` accepts
+   * `'underline overline line-through'` combined, but the chip control
+   * here is single-value by design — designers wanting layered
+   * decoration can author the SVG manually.
+   */
+  protected toggleDecoration(value: 'underline' | 'line-through'): void {
+    const text = this.textNode();
+    if (text === null) return;
+    const next = text.textDecoration === value ? undefined : value;
+    this.setTextProperty('textDecoration', next);
+  }
+
+  /**
+   * Set lineHeight as a unitless multiplier. Empty clears (renderer
+   * falls back to 1.2). Refuses values <= 0 (would collapse multi-line
+   * onto the same baseline — almost never intended).
+   */
+  protected setLineHeight(raw: string): void {
+    const trimmed = raw.trim();
+    if (trimmed === '') {
+      this.setTextProperty('lineHeight', undefined);
+      return;
+    }
+    const v = Number(trimmed);
+    if (!Number.isFinite(v) || v <= 0) return;
+    this.setTextProperty('lineHeight', v);
   }
 }
 

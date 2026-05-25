@@ -27,6 +27,15 @@ import type { TextNode } from 'svg-engine/core';
     '[attr.font-family]': 'node().fontFamily ?? null',
     '[attr.font-weight]': 'node().fontWeight ?? null',
     '[attr.text-anchor]': 'node().textAnchor ?? null',
+    // D-069 — typography basics. `font-style` and `text-decoration` are
+    // standard SVG attributes (CSS works too; attr form keeps parity
+    // with `font-family`/`font-weight` already on this directive).
+    // `line-height` lives in the multi-line tspan dy logic (node-renderer
+    // component) because SVG <text> doesn't honor `line-height` directly —
+    // it's a CSS property that browsers apply only to flow layout, not
+    // SVG text. tspan `dy` is the canonical way to control leading.
+    '[attr.font-style]': 'node().fontStyle ?? null',
+    '[attr.text-decoration]': 'node().textDecoration ?? null',
     // D-053 Variable fonts + OpenType + letter spacing. These are CSS
     // properties (no native SVG attributes), so they go via `style.*`
     // bindings — same trick used for `mix-blend-mode` in D-049.

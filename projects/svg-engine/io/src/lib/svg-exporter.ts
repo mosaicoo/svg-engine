@@ -272,6 +272,15 @@ function renderText(node: TextNode, depth: number): string {
   if (node.fontFamily !== undefined) attrs.push(['font-family', node.fontFamily]);
   if (node.fontWeight !== undefined) attrs.push(['font-weight', String(node.fontWeight)]);
   if (node.textAnchor !== undefined) attrs.push(['text-anchor', node.textAnchor]);
+  // D-069 — typography basics. `font-style` + `text-decoration` are
+  // standard SVG attributes. `line-height` is NOT applied here because
+  // the exporter emits text content as a single plain run with embedded
+  // `\n` (a pre-D-069 limitation: the canvas splits into <tspan>s but
+  // the exporter does not). Once a future change adds multi-line tspan
+  // emission, the per-tspan `dy` should read `node.lineHeight ?? 1.2`
+  // (same default as the renderer) to keep canvas/export in lockstep.
+  if (node.fontStyle !== undefined) attrs.push(['font-style', node.fontStyle]);
+  if (node.textDecoration !== undefined) attrs.push(['text-decoration', node.textDecoration]);
   // D-053 — Variable Fonts + OpenType + letter spacing. These are CSS
   // properties (no native SVG attributes); the renderer emits them as
   // host-bound styles. Exporter mirrors via inline `style=""` so the

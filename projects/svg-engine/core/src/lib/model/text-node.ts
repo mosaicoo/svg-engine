@@ -60,4 +60,27 @@ export interface TextNode extends SvgNodeBase {
   readonly letterSpacing?: number;
   readonly textPathRef?: NodeId;
   readonly textPathStartOffset?: string;
+  // D-069 — typography basics that every design tool exposes.
+  //
+  // `fontStyle`: SVG `font-style` attribute — italicizes glyphs (`'italic'`)
+  //   or returns to upright (`'normal'`). Honored by every text renderer.
+  //   Distinct from `font-weight` (boldness is a separate axis).
+  //
+  // `textDecoration`: SVG `text-decoration` attribute (CSS-equivalent) —
+  //   `'underline'` draws a line under, `'line-through'` strikes through,
+  //   `'none'` removes any inherited decoration. Multi-value variants
+  //   (e.g. `'underline overline'`) are intentionally unmodelled — the
+  //   editor exposes single-value toggles, advanced users can author the
+  //   SVG directly.
+  //
+  // `lineHeight`: leading multiplier (NOT pixels). Drives the `dy` between
+  //   tspans in the multi-line renderer (replaces the old hardcoded
+  //   `1.2em`). Same unit semantics as CSS `line-height: <number>` and
+  //   typographic convention — `1.0` = body line == cap height, `1.5` =
+  //   relaxed reading, `1.2` = the legacy default. `undefined` keeps the
+  //   `1.2` default to preserve backward compatibility with existing
+  //   docs / specs that asserted on `dy="1.2em"`.
+  readonly fontStyle?: 'normal' | 'italic';
+  readonly textDecoration?: 'none' | 'underline' | 'line-through';
+  readonly lineHeight?: number;
 }
