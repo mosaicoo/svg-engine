@@ -7,6 +7,7 @@ import { AnchorSelectionService } from '../anchor-editor/anchor-selection.servic
 import { AutoSaveService } from '../autosave/autosave.service';
 import { ClipboardService } from '../clipboard/clipboard.service';
 import { ChainFilterRegistry } from '../effect/chain-filter';
+import { SelectSameService } from '../find-replace/select-same.service';
 import { IsolationService } from '../isolation/isolation.service';
 import { AssetManagerService } from '../library/assets/asset-manager.service';
 import { ActiveClipPathsService } from '../library/clip-paths/clip-path-library.service';
@@ -254,5 +255,13 @@ export function provideSvgEngineEditorScope(): Provider[] {
     // so editor A's status doesn't light up because editor B is
     // tracing.
     TraceProgressService,
+    // D-071a — Select Same. Reads `SelectionService.focusId()` +
+    // `EditorStateService.document()` to find the anchor node,
+    // then walks the doc for matches and calls
+    // `SelectionService.selectMany`. Scoped because depending on
+    // per-editor state — a root singleton would capture the root
+    // SelectionService at construction time and read an empty
+    // selection (the original bug fixed here).
+    SelectSameService,
   ];
 }

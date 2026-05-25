@@ -21,12 +21,20 @@ import { FindReplaceService, type FindCriteria } from './find-replace.service';
  * the selection set). No commands are dispatched — selection is UI
  * state, not part of the undo stack.
  *
+ * **Scope (D-042 multi-editor safety)**: NO `providedIn: 'root'`. The
+ * service depends on per-editor `SelectionService` + `EditorStateService`
+ * — a root singleton would capture the root instances at construction
+ * time and read an empty document / null selection regardless of which
+ * editor's menu fired the command. Listed explicitly in
+ * `provideSvgEngineEditorScope()` so route-scoped injectors create a
+ * fresh instance that resolves its deps in the same scope.
+ *
  * **Why a separate service** (not just inline in the menu plugin):
  * - Keeps the menu plugin focused on UI wiring (factories + run)
  * - Unit-testable without TestBed of menu infrastructure
  * - Future palette / context-menu integrations import the same service
  */
-@Injectable({ providedIn: 'root' })
+@Injectable()
 export class SelectSameService {
   private readonly state = inject(EditorStateService);
   private readonly selection = inject(SelectionService);
