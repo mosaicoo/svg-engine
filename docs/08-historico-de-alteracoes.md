@@ -6,6 +6,100 @@
 
 ---
 
+## 2026-05-25 — D-070: Find & Replace (cor / font / atributo) com single-undo
+
+### Demanda
+
+Primeira feature do bloco "Workflow / produtividade" (item 7 do
+roadmap) escolhida pelo usuário pra começar a sequência de 6 features.
+Find & Replace é a feature mais isolada do bloco (zero risco de
+regressão) e atende caso real: trocar todos os usos de uma cor /
+font sem precisar selecionar nó por nó.
+
+### Implementação
+
+**1. `SetPropertyOnManyCommand`** (`core/lib/commands/`):
+Espelho de `SetStylePropertyOnManyCommand` (D-044) mas pra TOP-LEVEL
+fields (`fontFamily`, `fontSize`, `x`, etc.). Mesma garantia
+atômica (validate first, never partial-apply) + snapshot-undo. Aceita
+campos absent no node via "wasPresent" flag — undo restaura a forma
+exata original do node.
+
+**2. `FindReplaceService`** (`edit/lib/find-replace/`):
+Pure logic sem DI de commands. Único método: `findAll(root, criteria)`
+retorna `readonly FindMatch[]` com bucket (`'style'` | `'top'`) +
+field + valor atual. Criteria union de 4 tipos:
+
+- `fill` / `stroke` — compara `node.style.<field>` (case-insensitive,
+  string-equality; sem conversão hex↔rgb — documentado como
+  limitação v1)
+- `fontFamily` — TextNode-only, modo `'contains'` (default) ou
+  `'exact'`
+- `attribute` — generic top-level field, string-equality em
+  `String(value)`
+
+**3. Dialog `<svge-find-replace-dialog>`** (`ui/lib/find-replace-dialog/`):
+Material dialog (md-bucket) com:
+
+- `<mat-select>` para tipo de busca
+- Input "attribute key" condicional (visível só quando kind === 'attribute')
+- Inputs "find" + "replace" com placeholders adaptativos
+- Botão "Find ({count})" — search explícito, não roda em cada
+  keystroke (defensive para docs grandes)
+- Lista scrollável de matches: id (8 chars) | field | valor atual
+- "No matches found" quando search returna vazio
+- "Replace All ({count})" — desabilitado quando matches.length === 0
+
+**Single-undo** garantido: dispatch escolhe 1 dos 3 batch commands
+(`SetStylePropertyOnManyCommand` para fill/stroke,
+`SetPropertyOnManyCommand` para fontFamily/attribute). Label do
+comando explicita "Find & Replace fill (N nodes)" no histórico.
+
+**4. Menu + Shortcut** (`ui/lib/menu-extras/`):
+
+- `MENU_SLOT.EDIT` order 75 (após Cut/Copy/Paste/Duplicate/Delete,
+  antes de SelectAll — convenção Illustrator/Inkscape)
+- Ctrl+H — bind canônico (browsers/IDEs/Word)
+- Always-enabled (não requer seleção — busca o documento inteiro)
+
+### Specs (+ 18 cases novos)
+
+- **`set-property-on-many.spec.ts`** (+6): set + undo (incluindo
+  restore de campos absent), empty nodeIds no-op, atomicidade em
+  case de id missing, refuse mutate id/type, label correto.
+- **`find-replace.service.spec.ts`** (+12): cada criteria type,
+  traversal recursiva, edge cases (no-match, missing field, exact
+  vs contains, cross-format hex/rgb não casa).
+
+### Limitações honestas v1
+
+- **Comparação de cor é string-equality**: `red` não casa com
+  `#ff0000`. Designers que usam o color picker authoram hex →
+  cobre o caso 80%. Cross-format matching exige color parser (v2).
+- **Escopo é documento inteiro** — não tem "buscar só na seleção"
+  (checkbox + filtro futuro).
+- **Sem regex/wildcards** — comparação literal só.
+- **Sem preview do "depois"** — lista mostra valor atual; usuário
+  clica Replace All e confirma pelo undo se errou.
+
+### Validação
+
+- ng test svg-engine ✓ (em validação final)
+- ng lint svg-engine ✓ clean
+- ng build svg-engine ✓ 9 entry points (9.4s)
+- ng build playground ✓ clean
+
+### Como testar
+
+1. Recarregar playground
+2. Criar shapes com fills variados + um texto com fontFamily set
+3. **Edit ▸ Find & Replace…** (ou **Ctrl+H**)
+4. Selecionar "Fill color" → typar `#000000` → **Find** → typar `#ff0000` → **Replace All**
+5. Trocar pra "Font family" → typar `Arial` → ver matches → trocar por `'Inter', sans-serif`
+6. Ctrl+Z reverte a operação inteira
+
+---
+
 ## 2026-05-25 — D-069: Typography básica no Inspector — fecha o gap de usabilidade real
 
 ### Demanda

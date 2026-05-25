@@ -21,6 +21,7 @@ import {
   TraceProgressService,
 } from 'svg-engine/edit';
 
+import { SvgeFindReplaceDialogService } from '../find-replace-dialog';
 import { SvgeSvgSourceDialogService } from '../svg-source-dialog';
 import { SvgeTraceImageDialogService, type TraceImageDialogResult } from '../trace-image-dialog';
 import { SvgeWorkspaceSettingsDialogService } from '../workspace-settings';
@@ -252,6 +253,45 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
         run(event, runCtx?: ShortcutContext) {
           event.preventDefault();
           void openTraceImageDialog(runCtx?.injector ?? ctx.injector);
+        },
+      }),
+    );
+
+    // ── D-070 — Edit ▸ Find & Replace… + Ctrl+H shortcut ─────────
+    //
+    // Always-enabled (no selection requirement — the dialog searches
+    // the whole document). Ctrl+H is the canonical bind in
+    // browsers/IDEs/Word/etc. Stays consistent with the rest of the
+    // built-ins by living in svg-engine/ui (the dialog is Material,
+    // which the edit-side plugin can't import per D-017).
+    const openFindReplaceDialog = (runCtx?: MenuContributionContext): void => {
+      const service = fromCtx(SvgeFindReplaceDialogService, runCtx);
+      service.open(runCtx?.injector ?? ctx.injector);
+    };
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.ui.edit.find-replace',
+        slot: MENU_SLOT.EDIT,
+        label: 'Find & Replace…',
+        icon: 'find_replace',
+        shortcut: 'Ctrl+H',
+        // After the document-mutation actions (Undo/Redo/Cut/Copy/
+        // Paste/Duplicate/Delete) but before grouping/SelectAll —
+        // matches Illustrator/Inkscape convention.
+        order: 75,
+        run(runCtx) {
+          openFindReplaceDialog(runCtx);
+        },
+      }),
+    );
+    ctx.track(
+      shortcuts.register({
+        id: 'svge.builtin.shortcut.find-replace',
+        combo: 'Ctrl+H',
+        description: 'Open Find & Replace dialog',
+        run(event, runCtx?: ShortcutContext) {
+          event.preventDefault();
+          openFindReplaceDialog(runCtx);
         },
       }),
     );

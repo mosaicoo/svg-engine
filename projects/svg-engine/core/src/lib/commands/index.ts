@@ -42,6 +42,7 @@ export { type ReorderDirection, ReorderNodeCommand } from './reorder-node.comman
 export { composeAnchoredScale, ResizeNodeCommand } from './resize-node.command';
 export { composePivotRotation, RotateNodeCommand } from './rotate-node.command';
 export { SetPropertyCommand } from './set-property.command';
+export { SetPropertyOnManyCommand } from './set-property-on-many.command';
 export { SetStylePropertyOnManyCommand } from './set-style-property-on-many.command';
 export { TranslateManyCommand } from './translate-many.command';
 export { UngroupCommand } from './ungroup.command';

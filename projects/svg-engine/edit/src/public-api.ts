@@ -130,3 +130,9 @@ export * from './lib/library';
 // Pure function (`traceImageToPaths`) + `TraceImageCommand` wrapper.
 // Honest scope: bicromático, polyline output (no curve fitting).
 export * from './lib/autotrace';
+
+// Find & Replace (D-070) — service + types only. UI lives in
+// `svg-engine/ui` (Material dialog). Pure logic exported so headless
+// consumers can build their own find/replace flow without dragging
+// the dialog in.
+export * from './lib/find-replace';

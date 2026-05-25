@@ -79,6 +79,11 @@ export * from './lib/svg-source-dialog';
 // checkbox + Apply/Cancel.
 export * from './lib/trace-image-dialog';
 
+// Find & Replace dialog (D-070) — Material dialog over the headless
+// FindReplaceService (svg-engine/edit). Search fill/stroke/fontFamily/
+// generic attribute; replace all in a single undoable batch.
+export * from './lib/find-replace-dialog';
+
 // Status bar (D-035 — shell-refinement; standalone OR via <svge-editor>)
 export * from './lib/status-bar';
 
