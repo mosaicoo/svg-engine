@@ -11,6 +11,7 @@ import {
   createRect,
   createText,
   generateNodeId,
+  type NodeFactoryOptions,
   parseTransformAttr,
   SVGE_KIND_KEY,
   SVGE_KIND_LAYER,
@@ -145,6 +146,81 @@ function parseChildren(
   return out;
 }
 
+/**
+ * **D-072 follow-up — Parse authored name into `metadata.name`.**
+ *
+ * Recognizes (in priority order):
+ *
+ *  1. **Direct `<title>` child** — W3C SVG spec mechanism, what this
+ *     editor emits since D-072+. The text content of a `<title>`
+ *     element that's a DIRECT child of the node. We restrict to
+ *     direct children (not deep descendants) so a leaf `<text>`
+ *     containing its own `<title>` doesn't accidentally claim the
+ *     name from a `<title>` inside a nested `<g>`.
+ *  2. `inkscape:label` — Inkscape convention. Preserves the original
+ *     Unicode label verbatim. Kept as fallback for files authored in
+ *     Inkscape OR by an earlier version of this editor (D-072+
+ *     hybrid iteration).
+ *  3. `data-svge-name` — short-lived intermediate from an earlier
+ *     iteration of D-072+. Kept as input for forward-compat with
+ *     any file produced during that window.
+ *
+ * Does NOT de-slugify the `id` attribute as a fallback because the
+ * `id` may have been authored by the user (or by another tool) with
+ * no semantic relation to a human name — guessing wrong would mint a
+ * fake "name" that the user never typed. Better to fall back to the
+ * panel's type-based default ("rect 348cb5") than to invent one.
+ *
+ * Returns `undefined` when no name signal is present; the caller
+ * passes that straight to the factory which uses the standard empty
+ * metadata default.
+ */
+function parseAuthoredName(el: Element): string | undefined {
+  // 1. Direct <title> child — preferred.
+  for (const child of Array.from(el.children)) {
+    if (child.tagName.toLowerCase() === 'title') {
+      const text = (child.textContent ?? '').trim();
+      if (text.length > 0) return text;
+    }
+  }
+  // 2. Inkscape convention.
+  const inkscape = el.getAttribute('inkscape:label');
+  if (inkscape !== null && inkscape.length > 0) return inkscape;
+  // 3. Legacy data-svge-name (D-072+ intermediate iteration).
+  const data = el.getAttribute('data-svge-name');
+  if (data !== null && data.length > 0) return data;
+  return undefined;
+}
+
+/**
+ * Mutable view over {@link NodeFactoryOptions} — used by
+ * {@link baseFactoryOpts} so callers can splice extra metadata (e.g.,
+ * the `customData.svgeKind` layer flag) into the returned object
+ * without spreading.
+ */
+type MutableFactoryOpts = {
+  -readonly [K in keyof NodeFactoryOptions]: NodeFactoryOptions[K];
+};
+
+/**
+ * Builder for `NodeFactoryOptions` shared by every node type — collects
+ * the transform, style, and authored-name metadata in one place so
+ * each case in {@link parseElement} stays readable. The returned
+ * object is mutable on purpose: the `g` case extends `metadata.customData`
+ * with the layer flag in-place.
+ */
+function baseFactoryOpts(el: Element): MutableFactoryOpts {
+  const opts: MutableFactoryOpts = {
+    transform: parseTransformAttr(el.getAttribute('transform')),
+    style: parseStyle(el),
+  };
+  const name = parseAuthoredName(el);
+  if (name !== undefined) {
+    opts.metadata = { name };
+  }
+  return opts;
+}
+
 function parseElement(
   el: Element,
   warnings: string[],
@@ -189,21 +265,17 @@ function parseElement(
       const svgeKind = el.getAttribute('data-svge-kind');
       const inkscapeGroupMode = el.getAttribute('inkscape:groupmode');
       const isLayerGroup = svgeKind === SVGE_KIND_LAYER || inkscapeGroupMode === 'layer';
-      // Authored name: prefer `inkscape:label` (Inkscape's layer name
-      // convention), fall back to a generic `data-svge-name` for
-      // files we round-tripped before adding name persistence.
-      const inkscapeLabel = el.getAttribute('inkscape:label');
-      const metadata = isLayerGroup
-        ? {
-            ...(inkscapeLabel !== null && inkscapeLabel.length > 0 ? { name: inkscapeLabel } : {}),
-            customData: { [SVGE_KIND_KEY]: SVGE_KIND_LAYER },
-          }
-        : undefined;
-      return createGroup(parseChildren(el, warnings, unsupportedTags), {
-        transform: parseTransformAttr(el.getAttribute('transform')),
-        style: parseStyle(el),
-        ...(metadata !== undefined ? { metadata } : {}),
-      });
+      const opts = baseFactoryOpts(el);
+      if (isLayerGroup) {
+        // Merge the layer flag into customData WITHOUT clobbering the
+        // `name` that `baseFactoryOpts` may have populated from
+        // `inkscape:label` / `data-svge-name`.
+        opts.metadata = {
+          ...(opts.metadata ?? {}),
+          customData: { [SVGE_KIND_KEY]: SVGE_KIND_LAYER },
+        };
+      }
+      return createGroup(parseChildren(el, warnings, unsupportedTags), opts);
     }
     case 'rect':
       return createRect(
@@ -215,7 +287,7 @@ function parseElement(
           rx: optionalNumberAttr(el, 'rx'),
           ry: optionalNumberAttr(el, 'ry'),
         },
-        { transform: parseTransformAttr(el.getAttribute('transform')), style: parseStyle(el) },
+        baseFactoryOpts(el),
       );
     case 'ellipse':
       return createEllipse(
@@ -225,7 +297,7 @@ function parseElement(
           rx: numberAttr(el, 'rx', 0),
           ry: numberAttr(el, 'ry', 0),
         },
-        { transform: parseTransformAttr(el.getAttribute('transform')), style: parseStyle(el) },
+        baseFactoryOpts(el),
       );
     case 'circle': {
       // SVG <circle r="N"> is the rx=ry=N case of ellipse — fold to
@@ -233,7 +305,7 @@ function parseElement(
       const r = numberAttr(el, 'r', 0);
       return createEllipse(
         { cx: numberAttr(el, 'cx', 0), cy: numberAttr(el, 'cy', 0), rx: r, ry: r },
-        { transform: parseTransformAttr(el.getAttribute('transform')), style: parseStyle(el) },
+        baseFactoryOpts(el),
       );
     }
     case 'line':
@@ -244,23 +316,14 @@ function parseElement(
           x2: numberAttr(el, 'x2', 0),
           y2: numberAttr(el, 'y2', 0),
         },
-        { transform: parseTransformAttr(el.getAttribute('transform')), style: parseStyle(el) },
+        baseFactoryOpts(el),
       );
     case 'polygon':
-      return createPolygon(parsePoints(el.getAttribute('points')), {
-        transform: parseTransformAttr(el.getAttribute('transform')),
-        style: parseStyle(el),
-      });
+      return createPolygon(parsePoints(el.getAttribute('points')), baseFactoryOpts(el));
     case 'polyline':
-      return createPolyline(parsePoints(el.getAttribute('points')), {
-        transform: parseTransformAttr(el.getAttribute('transform')),
-        style: parseStyle(el),
-      });
+      return createPolyline(parsePoints(el.getAttribute('points')), baseFactoryOpts(el));
     case 'path':
-      return createPath(el.getAttribute('d') ?? '', {
-        transform: parseTransformAttr(el.getAttribute('transform')),
-        style: parseStyle(el),
-      });
+      return createPath(el.getAttribute('d') ?? '', baseFactoryOpts(el));
     case 'text':
       return createText(
         {
@@ -269,7 +332,7 @@ function parseElement(
           content: el.textContent ?? '',
           fontSize: optionalNumberAttr(el, 'font-size'),
         },
-        { transform: parseTransformAttr(el.getAttribute('transform')), style: parseStyle(el) },
+        baseFactoryOpts(el),
       );
     case 'image': {
       const href = sanitizeHref(
@@ -285,7 +348,7 @@ function parseElement(
           height: numberAttr(el, 'height', 0),
           href,
         },
-        { transform: parseTransformAttr(el.getAttribute('transform')), style: parseStyle(el) },
+        baseFactoryOpts(el),
       );
     }
     default:

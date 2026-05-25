@@ -77,6 +77,47 @@ export const dropDefaultsOptimizer: Optimizer = {
 };
 
 /**
+ * **D-072 follow-up — Strip authored-title emission preference.**
+ *
+ * Sets `document.exportPreferences.emitAuthoredTitles = false` so the
+ * SVG exporter omits the `<title>...</title>` child element it would
+ * otherwise emit for every node with `metadata.name`.
+ *
+ * **What it does NOT do**: remove `metadata.name` itself. The name
+ * stays on the model — the layer panel still shows "Bercos", a future
+ * export with the preference un-stripped (or the in-editor session)
+ * still has the name available. Stripping is purely an export-side
+ * decision, reversible by toggling the preference back to `true`.
+ *
+ * **Order 80** — runs after value-rounding (10) and default-dropping
+ * (50), before group-pruning (90). Position doesn't really matter for
+ * this pass (it doesn't touch the tree), but keeping it in the middle
+ * makes the pipeline read top-to-bottom by "what touches what".
+ *
+ * **Opt-in** (`defaultEnabled: false`): the default pipeline preserves
+ * authored names — stripping is for minified/production-ready output
+ * where editor metadata is unwanted.
+ */
+export const stripAuthoredTitlesOptimizer: Optimizer = {
+  id: 'svge.builtin.optimize.strip-authored-titles',
+  name: 'Strip authored <title>',
+  description:
+    'Omit <title>...</title> children emitted for nodes with metadata.name. Toggles document.exportPreferences.emitAuthoredTitles.',
+  order: 80,
+  defaultEnabled: false,
+  optimize(document: SvgDocument): SvgDocument {
+    if (document.exportPreferences?.emitAuthoredTitles === false) return document;
+    return {
+      ...document,
+      exportPreferences: {
+        ...document.exportPreferences,
+        emitAuthoredTitles: false,
+      },
+    };
+  },
+};
+
+/**
  * Remove empty groups (`<g>` with no children) recursively. Common
  * after a delete-then-undo cycle or after the user ungroups+regroups.
  *

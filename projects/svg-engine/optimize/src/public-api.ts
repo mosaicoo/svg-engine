@@ -28,5 +28,8 @@ export {
   dropDefaultsOptimizer,
   precisionOptimizer,
   pruneEmptyGroupsOptimizer,
+  // D-072 follow-up — opt-in pass that toggles the export preference
+  // for authored-name persistence via `<title>` children.
+  stripAuthoredTitlesOptimizer,
 } from './lib/builtin-optimizers';
 export { OptimizeCommand } from './lib/optimize.command';

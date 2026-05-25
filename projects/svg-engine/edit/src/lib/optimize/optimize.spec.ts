@@ -5,6 +5,7 @@ import {
   OptimizerRegistry,
   precisionOptimizer,
   pruneEmptyGroupsOptimizer,
+  stripAuthoredTitlesOptimizer,
 } from 'svg-engine/optimize';
 import { PluginRegistry } from '../plugin/plugin-registry.service';
 import { builtinOptimizersPlugin } from './builtin-optimizers.plugin';
@@ -222,16 +223,18 @@ describe('pruneEmptyGroupsOptimizer', () => {
 });
 
 describe('builtinOptimizersPlugin — full pipeline via PluginRegistry', () => {
-  it('install registers all 3 + uninstall removes them', () => {
+  it('install registers all 4 + uninstall removes them', () => {
     const opt = TestBed.inject(OptimizerRegistry);
     const pluginReg = TestBed.inject(PluginRegistry);
     pluginReg.install(builtinOptimizersPlugin);
-    expect(opt.optimizers().length).toBe(3);
+    // 3 default-enabled (precision/drop-defaults/prune) + 1 opt-in
+    // D-072-follow-up pass (strip authored titles).
+    expect(opt.optimizers().length).toBe(4);
     pluginReg.uninstall(builtinOptimizersPlugin.id);
     expect(opt.optimizers().length).toBe(0);
   });
 
-  it('runPipeline with builtin plugin: precision → drop-defaults → prune', () => {
+  it('runPipeline with builtin plugin: precision → drop-defaults → prune (default-enabled only)', () => {
     const opt = TestBed.inject(OptimizerRegistry);
     TestBed.inject(PluginRegistry).install(builtinOptimizersPlugin);
     const r = createRect({ x: 1.000001, y: 0, width: 5, height: 5 }, { style: { fillOpacity: 1 } });
@@ -244,5 +247,36 @@ describe('builtinOptimizersPlugin — full pipeline via PluginRegistry', () => {
     expect((result.root.children[0] as typeof r).style.fillOpacity).toBeUndefined();
     // prune-empty-groups: empty <g> removed
     expect(result.root.children.length).toBe(1);
+    // strip-authored-titles is opt-in (defaultEnabled: false) — runPipeline
+    // without explicit enabledIds does NOT toggle exportPreferences.
+    expect(result.exportPreferences?.emitAuthoredTitles).toBeUndefined();
+  });
+});
+
+describe('D-072 follow-up — stripAuthoredTitlesOptimizer', () => {
+  it('sets emitAuthoredTitles=false on the document', () => {
+    const d = doc([createRect({ x: 0, y: 0, width: 1, height: 1 })]);
+    expect(d.exportPreferences).toBeUndefined();
+    const out = stripAuthoredTitlesOptimizer.optimize(d);
+    expect(out.exportPreferences?.emitAuthoredTitles).toBe(false);
+  });
+
+  it('is idempotent (returns same ref on second pass)', () => {
+    const d: SvgDocument = {
+      ...doc([createRect({ x: 0, y: 0, width: 1, height: 1 })]),
+      exportPreferences: { emitAuthoredTitles: false },
+    };
+    expect(stripAuthoredTitlesOptimizer.optimize(d)).toBe(d);
+  });
+
+  it('has defaultEnabled: false (opt-in)', () => {
+    expect(stripAuthoredTitlesOptimizer.defaultEnabled).toBe(false);
+  });
+
+  it('does NOT touch metadata.name (only the export preference)', () => {
+    const r = createRect({ x: 0, y: 0, width: 1, height: 1 }, { metadata: { name: 'Bercos' } });
+    const d = doc([r]);
+    const out = stripAuthoredTitlesOptimizer.optimize(d);
+    expect(out.root.children[0]?.metadata.name).toBe('Bercos');
   });
 });

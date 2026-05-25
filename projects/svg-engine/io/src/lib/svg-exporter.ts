@@ -56,6 +56,17 @@ export const svgExporter: Exporter = {
   export(document: SvgDocument): string {
     const vb = document.viewBox;
     const viewBoxAttr = `${fmt(vb.x)} ${fmt(vb.y)} ${fmt(vb.width)} ${fmt(vb.height)}`;
+    // **D-068 follow-up — Pre-scan referenced ids**. Only paths that
+    // are the target of a `<textPath href="#...">` need an `id`
+    // attribute in the output (otherwise the text disappears at
+    // re-open). All other nodes export without `id` — the runtime
+    // UUIDs aren't useful externally and would pollute diffs.
+    const referencedIds = collectReferencedPathIds(document.root);
+    // **D-072 follow-up — Authored title emission**. Resolved once
+    // here so per-node renderers can ask `shouldEmitTitle(node)`
+    // cheaply. Default: emit titles for any node with `metadata.name`.
+    const emitTitles = document.exportPreferences?.emitAuthoredTitles !== false;
+    const ctx: ExportContext = { referencedIds, emitTitles };
     const lines: string[] = [];
     lines.push('<?xml version="1.0" encoding="UTF-8"?>');
     lines.push(
@@ -79,18 +90,8 @@ export const svgExporter: Exporter = {
       }
       lines.push('  </defs>');
     }
-    // **D-068 follow-up — Pre-scan referenced ids**. The general rule
-    // ("ids are runtime editor state, not serialized") breaks for paths
-    // that are the target of a `<textPath href>` (D-053): without the
-    // `id` on the path, the href dangles and the text disappears at
-    // open-time in any SVG viewer. Walk the tree once to collect every
-    // path id that some text node references, then pass that set down
-    // so `renderPath` knows when to emit the id. All other nodes still
-    // export without id, preserving the runtime-only intent for the
-    // common case.
-    const referencedIds = collectReferencedPathIds(document.root);
     for (const child of document.root.children) {
-      lines.push(renderNode(child, 1, referencedIds));
+      lines.push(renderNode(child, 1, ctx));
     }
     lines.push('</svg>');
     return lines.join('\n');
@@ -120,9 +121,74 @@ export function collectReferencedPathIds(root: GroupNode): ReadonlySet<NodeId> {
   return out;
 }
 
+// ── Export context (shared across pre-scan + render) ────────────────
+
+/**
+ * Per-export bundle threaded through every `render*` function:
+ *
+ * - `referencedIds`: paths that some `<text textPathRef>` points at
+ *   (D-068h). Such paths MUST emit `id="UUID"` in the output or the
+ *   href dangles after re-open.
+ *
+ * - `emitTitles`: resolved from `document.exportPreferences?.
+ *   emitAuthoredTitles` (default `true`). When `true`, any node with
+ *   `metadata.name` gets a `<title>...</title>` child element so the
+ *   human-authored name survives export → re-import.
+ */
+interface ExportContext {
+  readonly referencedIds: ReadonlySet<NodeId>;
+  readonly emitTitles: boolean;
+}
+
+/**
+ * Determine whether `node` should emit a `<title>` child for its
+ * authored name. Pure read; called once per leaf/group render.
+ */
+function shouldEmitTitle(node: SvgNode, ctx: ExportContext): boolean {
+  if (!ctx.emitTitles) return false;
+  const name = node.metadata.name;
+  return typeof name === 'string' && name.length > 0;
+}
+
+/**
+ * Render the inner `<title>` line for a node, properly indented and
+ * XML-escaped. Returns an empty string when the node has no authored
+ * name (caller can still concatenate without nullish checks).
+ */
+function titleChildLine(node: SvgNode, depth: number, ctx: ExportContext): string {
+  if (!shouldEmitTitle(node, ctx)) return '';
+  const indent = '  '.repeat(depth);
+  return `${indent}<title>${escapeXml(node.metadata.name!)}</title>`;
+}
+
+/**
+ * Wrap a self-closing leaf element so it carries a `<title>` child
+ * when the node is authored-named. Without this helper every leaf
+ * renderer would need a fork between "self-close" and "open-title-
+ * close" branches; isolating the branch keeps each renderer readable.
+ *
+ * `selfClosingTag` is the full element string the renderer would have
+ * emitted (e.g., `<rect x="0" y="0" .../>`). When titling is required
+ * the leading `<` is preserved, the `/` and final `>` are dropped,
+ * children get an extra indent level, and the closing tag is appended.
+ */
+function wrapLeafWithTitle(
+  tagName: string,
+  attrsString: string,
+  depth: number,
+  node: SvgNode,
+  ctx: ExportContext,
+): string {
+  const indent = '  '.repeat(depth);
+  if (!shouldEmitTitle(node, ctx)) {
+    return `${indent}<${tagName}${attrsString} />`;
+  }
+  return `${indent}<${tagName}${attrsString}>\n${titleChildLine(node, depth + 1, ctx)}\n${indent}</${tagName}>`;
+}
+
 // ── Element renderers ─────────────────────────────────────────────
 
-function renderNode(node: SvgNode, depth: number, referencedIds: ReadonlySet<NodeId>): string {
+function renderNode(node: SvgNode, depth: number, ctx: ExportContext): string {
   // **Visibility gate** — `metadata.visible === false` means the node
   // is doc-level hidden (D-056 Live Boolean inputs use this to keep
   // their shapes as group children without painting). The renderer
@@ -136,30 +202,29 @@ function renderNode(node: SvgNode, depth: number, referencedIds: ReadonlySet<Nod
   if (node.metadata.visible === false) return '';
   switch (node.type) {
     case 'group':
-      return renderGroup(node, depth, referencedIds);
+      return renderGroup(node, depth, ctx);
     case 'rect':
-      return renderRect(node, depth);
+      return renderRect(node, depth, ctx);
     case 'ellipse':
-      return renderEllipse(node, depth);
+      return renderEllipse(node, depth, ctx);
     case 'line':
-      return renderLine(node, depth);
+      return renderLine(node, depth, ctx);
     case 'polygon':
-      return renderPolygon(node, depth);
+      return renderPolygon(node, depth, ctx);
     case 'polyline':
-      return renderPolyline(node, depth);
+      return renderPolyline(node, depth, ctx);
     case 'path':
-      return renderPath(node, depth, referencedIds);
+      return renderPath(node, depth, ctx);
     case 'text':
-      return renderText(node, depth);
+      return renderText(node, depth, ctx);
     case 'image':
-      return renderImage(node, depth);
+      return renderImage(node, depth, ctx);
     case 'symbol-use':
-      return renderSymbolUse(node, depth);
+      return renderSymbolUse(node, depth, ctx);
   }
 }
 
-function renderSymbolUse(node: SymbolUseNode, depth: number): string {
-  const indent = '  '.repeat(depth);
+function renderSymbolUse(node: SymbolUseNode, depth: number, ctx: ExportContext): string {
   const attrs: [string, string][] = [
     ['href', `#${node.symbolId}`],
     ['x', fmt(node.x)],
@@ -167,46 +232,52 @@ function renderSymbolUse(node: SymbolUseNode, depth: number): string {
   ];
   if (node.width !== undefined) attrs.push(['width', fmt(node.width)]);
   if (node.height !== undefined) attrs.push(['height', fmt(node.height)]);
-  return `${indent}<use${attrsStr([...attrs, ...baseAttrs(node)])} />`;
+  return wrapLeafWithTitle('use', attrsStr([...attrs, ...baseAttrs(node)]), depth, node, ctx);
 }
 
-function renderGroup(node: GroupNode, depth: number, referencedIds: ReadonlySet<NodeId>): string {
+function renderGroup(node: GroupNode, depth: number, ctx: ExportContext): string {
   const indent = '  '.repeat(depth);
   const attrs = baseAttrs(node);
-  // **D-072 — Logical Layers**. When the group carries the layer flag
-  // in `metadata.customData.svgeKind`, emit a `data-svge-kind="layer"`
-  // attribute so the designation survives a full export → re-import
-  // round-trip. `data-*` attributes are valid SVG/HTML, preserved by
-  // every major editor (Inkscape/Illustrator/Figma) on save, and
-  // ignored by the SVG rendering spec — pure metadata transport. Also
-  // emit `inkscape:groupmode="layer"` for compatibility with
-  // Inkscape's native layer concept, so a file authored here opens
-  // with proper layer separation in Inkscape and vice versa. (The
-  // inkscape namespace requires the prefix to be valid XML — modern
-  // browser DOMParsers accept the unbound prefix silently because the
-  // attribute lives in the `xmlns:*` lookup, not the element
-  // namespace; round-trip via DOMParser preserves it.)
+  // **D-072 — Logical Layers**. Mark layer groups with a
+  // `data-svge-kind="layer"` attribute so the designation survives a
+  // full export → re-import round-trip. `data-*` attributes are valid
+  // SVG/HTML, preserved by every major editor (Inkscape/Illustrator/
+  // Figma) on save, and ignored by the SVG rendering spec — pure
+  // metadata transport. No namespace pollution.
   if (isLayer(node)) {
     attrs.push(['data-svge-kind', 'layer']);
   }
+  // **D-072 follow-up — Authored name via `<title>` child**. Emitted
+  // as the FIRST child of the group so screen readers announce the
+  // group's name before traversing its content. Skipped when the
+  // group has no authored name OR the document opted out of title
+  // emission (`exportPreferences.emitAuthoredTitles === false`).
+  const titleLine = shouldEmitTitle(node, ctx) ? titleChildLine(node, depth + 1, ctx) : '';
+
   if (!isGroupNode(node) || node.children.length === 0) {
     // Empty group still renders (preserves structure for round-trip).
+    // When the empty group has a title we MUST switch to open+close
+    // form so the title can live as a child — self-closing wouldn't
+    // permit children.
+    if (titleLine.length > 0) {
+      return `${indent}<g${attrsStr(attrs)}>\n${titleLine}\n${indent}</g>`;
+    }
     return `${indent}<g${attrsStr(attrs)} />`;
   }
   const lines = [`${indent}<g${attrsStr(attrs)}>`];
+  if (titleLine.length > 0) lines.push(titleLine);
   for (const child of node.children) {
     // Filter empty strings — renderNode returns '' for hidden nodes
     // (metadata.visible === false). Skip them so we don't emit blank
     // lines inside the group.
-    const rendered = renderNode(child, depth + 1, referencedIds);
+    const rendered = renderNode(child, depth + 1, ctx);
     if (rendered.length > 0) lines.push(rendered);
   }
   lines.push(`${indent}</g>`);
   return lines.join('\n');
 }
 
-function renderRect(node: RectNode, depth: number): string {
-  const indent = '  '.repeat(depth);
+function renderRect(node: RectNode, depth: number, ctx: ExportContext): string {
   const attrs: [string, string][] = [
     ['x', fmt(node.x)],
     ['y', fmt(node.y)],
@@ -215,71 +286,60 @@ function renderRect(node: RectNode, depth: number): string {
   ];
   if (node.rx !== undefined) attrs.push(['rx', fmt(node.rx)]);
   if (node.ry !== undefined) attrs.push(['ry', fmt(node.ry)]);
-  return `${indent}<rect${attrsStr([...attrs, ...baseAttrs(node)])} />`;
+  return wrapLeafWithTitle('rect', attrsStr([...attrs, ...baseAttrs(node)]), depth, node, ctx);
 }
 
-function renderEllipse(node: EllipseNode, depth: number): string {
-  const indent = '  '.repeat(depth);
+function renderEllipse(node: EllipseNode, depth: number, ctx: ExportContext): string {
   const attrs: [string, string][] = [
     ['cx', fmt(node.cx)],
     ['cy', fmt(node.cy)],
     ['rx', fmt(node.rx)],
     ['ry', fmt(node.ry)],
   ];
-  return `${indent}<ellipse${attrsStr([...attrs, ...baseAttrs(node)])} />`;
+  return wrapLeafWithTitle('ellipse', attrsStr([...attrs, ...baseAttrs(node)]), depth, node, ctx);
 }
 
-function renderLine(node: LineNode, depth: number): string {
-  const indent = '  '.repeat(depth);
+function renderLine(node: LineNode, depth: number, ctx: ExportContext): string {
   const attrs: [string, string][] = [
     ['x1', fmt(node.x1)],
     ['y1', fmt(node.y1)],
     ['x2', fmt(node.x2)],
     ['y2', fmt(node.y2)],
   ];
-  return `${indent}<line${attrsStr([...attrs, ...baseAttrs(node)])} />`;
+  return wrapLeafWithTitle('line', attrsStr([...attrs, ...baseAttrs(node)]), depth, node, ctx);
 }
 
-function renderPolygon(node: PolygonNode, depth: number): string {
-  const indent = '  '.repeat(depth);
+function renderPolygon(node: PolygonNode, depth: number, ctx: ExportContext): string {
   const points = node.points.map((p) => `${fmt(p.x)},${fmt(p.y)}`).join(' ');
   const attrs: [string, string][] = [['points', points]];
-  return `${indent}<polygon${attrsStr([...attrs, ...baseAttrs(node)])} />`;
+  return wrapLeafWithTitle('polygon', attrsStr([...attrs, ...baseAttrs(node)]), depth, node, ctx);
 }
 
-function renderPolyline(node: PolylineNode, depth: number): string {
-  const indent = '  '.repeat(depth);
+function renderPolyline(node: PolylineNode, depth: number, ctx: ExportContext): string {
   const points = node.points.map((p) => `${fmt(p.x)},${fmt(p.y)}`).join(' ');
   const attrs: [string, string][] = [['points', points]];
-  return `${indent}<polyline${attrsStr([...attrs, ...baseAttrs(node)])} />`;
+  return wrapLeafWithTitle('polyline', attrsStr([...attrs, ...baseAttrs(node)]), depth, node, ctx);
 }
 
-function renderPath(node: PathNode, depth: number, referencedIds: ReadonlySet<NodeId>): string {
-  const indent = '  '.repeat(depth);
+function renderPath(node: PathNode, depth: number, ctx: ExportContext): string {
   // D-055 Live Corners — when cornerRadius > 0, the renderer paints
   // the ROUNDED `d` (derived via roundPathCorners). Exporter mirrors:
   // emit the rounded `d` so the exported SVG looks identical to the
-  // canvas. The authored `d` is dropped — there's no SVG attribute
-  // to carry "original d before rounding" + round-trip preserves
-  // the visual; user re-applies cornerRadius via Inspector if needed.
+  // canvas.
   const r = node.cornerRadius ?? 0;
   const effectiveD = r > 0 ? roundPathCorners(node.d, r) : node.d;
-  // D-068 follow-up — emit `id` ONLY when some text node's
-  // `textPathRef` points here. Keeps the general "ids are runtime-
-  // only" intent (so exported files don't carry editor-internal UUIDs
-  // for every shape) while making textPath references resolvable in
-  // the exported SVG. Without this, opening the file in Inkscape /
-  // Illustrator / Chrome would show empty `<textPath>` (dangling
-  // href). Position the `id` AFTER `d` to mirror the existing order
-  // convention; downstream `baseAttrs` then appends style/transform.
+  // **D-068h** — emit `id="UUID"` ONLY when the path is the target
+  // of some `<textPath href>`. Keeps the runtime-only-id rule intact
+  // for the 99% of paths that nobody references while making text-on-
+  // path links resolvable in the exported SVG.
   const attrs: [string, string][] = [['d', effectiveD]];
-  if (referencedIds.has(node.id)) {
+  if (ctx.referencedIds.has(node.id)) {
     attrs.push(['id', node.id]);
   }
-  return `${indent}<path${attrsStr([...attrs, ...baseAttrs(node)])} />`;
+  return wrapLeafWithTitle('path', attrsStr([...attrs, ...baseAttrs(node)]), depth, node, ctx);
 }
 
-function renderText(node: TextNode, depth: number): string {
+function renderText(node: TextNode, depth: number, ctx: ExportContext): string {
   const indent = '  '.repeat(depth);
   const attrs: [string, string][] = [
     ['x', fmt(node.x)],
@@ -320,7 +380,9 @@ function renderText(node: TextNode, depth: number): string {
   // D-053 — Text on path. When textPathRef is set, content lives inside
   // a <textPath href="#id"> child instead of as direct text. The
   // renderer pre-collapses whitespace; mirror that to avoid the
-  // typical \n-to-space stretch issue.
+  // typical \n-to-space stretch issue. `textPathRef` is the target
+  // path's NodeId (UUID) which `renderPath` emits as `id="UUID"` via
+  // `ctx.referencedIds`.
   const ref = node.textPathRef;
   if (ref !== undefined && ref !== null && ref !== '') {
     const flat = node.content.replace(/\s+/g, ' ');
@@ -329,14 +391,23 @@ function renderText(node: TextNode, depth: number): string {
       startOffset !== undefined && startOffset !== null && startOffset !== ''
         ? ` startOffset="${escapeAttr(startOffset)}"`
         : '';
-    return `${indent}<text${attrsStr([...attrs, ...baseAttrs(node)])}>\n${'  '.repeat(depth + 1)}<textPath href="#${escapeAttr(ref)}"${offsetAttr}>${escapeXml(flat)}</textPath>\n${indent}</text>`;
+    const refStr = ref as unknown as string;
+    const titleLine = shouldEmitTitle(node, ctx) ? `${titleChildLine(node, depth + 1, ctx)}\n` : '';
+    return `${indent}<text${attrsStr([...attrs, ...baseAttrs(node)])}>\n${titleLine}${'  '.repeat(depth + 1)}<textPath href="#${escapeAttr(refStr)}"${offsetAttr}>${escapeXml(flat)}</textPath>\n${indent}</text>`;
   }
 
+  // **D-072 follow-up** — When the text has an authored name AND no
+  // textPath wrapping, emit the `<title>` child before the text
+  // content so screen readers announce the name first. Tspans /
+  // mixed-content forks aren't relevant here (renderer emits text as
+  // a single character data node, so we keep that shape).
+  if (shouldEmitTitle(node, ctx)) {
+    return `${indent}<text${attrsStr([...attrs, ...baseAttrs(node)])}>\n${titleChildLine(node, depth + 1, ctx)}\n${'  '.repeat(depth + 1)}${escapeXml(node.content)}\n${indent}</text>`;
+  }
   return `${indent}<text${attrsStr([...attrs, ...baseAttrs(node)])}>${escapeXml(node.content)}</text>`;
 }
 
-function renderImage(node: ImageNode, depth: number): string {
-  const indent = '  '.repeat(depth);
+function renderImage(node: ImageNode, depth: number, ctx: ExportContext): string {
   const attrs: [string, string][] = [
     ['x', fmt(node.x)],
     ['y', fmt(node.y)],
@@ -344,21 +415,26 @@ function renderImage(node: ImageNode, depth: number): string {
     ['height', fmt(node.height)],
     ['href', node.href],
   ];
-  return `${indent}<image${attrsStr([...attrs, ...baseAttrs(node)])} />`;
+  return wrapLeafWithTitle('image', attrsStr([...attrs, ...baseAttrs(node)]), depth, node, ctx);
 }
 
-// ── Base attributes (transform, style, id) ─────────────────────────
+// ── Base attributes (style, transform) ─────────────────────────────
 
+/**
+ * Build the canonical attribute set common to every node type:
+ * style props (alphabetical) + transform (only when non-identity).
+ * `id` is NOT included here — it's runtime editor state and only
+ * gets emitted by `renderPath` when the path is a `<textPath href>`
+ * target (D-068h). Authored names persist via `<title>` child
+ * elements via `titleChildLine` / `wrapLeafWithTitle`, NOT via
+ * attributes — see {@link ExportContext} for the rationale.
+ */
 function baseAttrs(node: SvgNode): [string, string][] {
   const out: [string, string][] = [];
-  // Style attrs first (presentation properties), then transform, then
-  // id. Fixed order for byte-stable output.
   out.push(...styleAttrs(node.style));
   if (!isIdentityTransform(node.transform)) {
     out.push(['transform', transformAttr(node.transform)]);
   }
-  // id is omitted from export — ids are runtime editor state, not
-  // serializable model. Re-import generates fresh ids.
   return out;
 }
 

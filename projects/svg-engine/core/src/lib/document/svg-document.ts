@@ -28,4 +28,43 @@ export interface SvgDocument {
   readonly height?: number;
   readonly root: GroupNode;
   readonly defs?: string;
+  /**
+   * **D-072 follow-up — Export preferences for authored names.**
+   *
+   * When a node carries `metadata.name` (set via the Layers Panel
+   * rename or `CreateLayerCommand`'s default `"Layer N"`), the SVG
+   * exporter emits a `<title>Bercos</title>` child element on that
+   * node so the name survives export → re-import.
+   *
+   * **Why `<title>` (W3C spec) instead of `id`/`inkscape:label`**:
+   *
+   * - Pure SVG spec — zero namespace declarations
+   * - Built-in accessibility: screen readers announce `<title>` as
+   *   the element's accessible name
+   * - Native browser tooltip on hover (in some viewers)
+   * - Universally preserved by Inkscape / Illustrator / Figma /
+   *   any SVG-aware tool on save
+   * - Allows duplicates freely (two nodes named "Logo" → two
+   *   `<title>Logo</title>` children, no collision)
+   *
+   * `id` is NOT emitted from `metadata.name` because in the
+   * editor-as-creation-tool flow it's overhead serving minority
+   * downstream cases (CSS/JS external refs). Consumers who need
+   * stable ids can add a post-export script. `id` is still emitted
+   * for paths that are targets of `<textPath href>` (D-068h) — that
+   * usage is internal and unconditional.
+   *
+   * **`emitAuthoredTitles`** defaults to `true` when unset — `??`
+   * semantics preserve names for any document that doesn't
+   * explicitly opt out. The built-in optimizer
+   * `stripAuthoredTitlesOptimizer` (opt-in, `defaultEnabled: false`)
+   * flips it to false for minified/production output.
+   */
+  readonly exportPreferences?: {
+    /**
+     * Emit `<title>...</title>` child for nodes with `metadata.name`.
+     * Default `true`.
+     */
+    readonly emitAuthoredTitles?: boolean;
+  };
 }

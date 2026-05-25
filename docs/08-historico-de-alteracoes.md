@@ -6,6 +6,95 @@
 
 ---
 
+## 2026-05-25 — D-072 follow-up: Persistência de nomes via `<title>`
+
+**O quê.** Exporter agora emite `<title>Bercos</title>` como child de
+qualquer node com `metadata.name`; importer lê `<title>` filho para
+popular `metadata.name`. Optimizer opt-in `stripAuthoredTitlesOptimizer`
+(defaultEnabled: false) flipa `document.exportPreferences.emitAuthoredTitles`
+para `false` em pipelines minified.
+
+**Por quê.** No D-072 base o nome humano (ex.: "Bercos" no Layer Panel)
+não round-trippa: exporta limpo, re-importa como "group 066ebc". Discussão
+com o usuário converteu a primeira tentativa (id slug + inkscape:label
+híbrido) para a versão atual `<title>` after weighing:
+
+| Atributo         | Spec W3C?       | xmlns extra?   | Acessível?        | Allows duplicates?   | id externo? |
+| ---------------- | --------------- | -------------- | ----------------- | -------------------- | ----------- |
+| `<title>` child  | ✅ Puro         | ❌ Não         | ✅ Screen readers | ✅ Livre             | ❌          |
+| `id` slugified   | ✅              | ❌             | ❌                | ❌ (XML exige único) | ✅          |
+| `inkscape:label` | ❌ Proprietário | ✅ Inkscape ns | ❌                | ✅                   | ❌          |
+
+**Decisão**: para o svg-engine como **editor de criação**, `id` derivado
+do nome é overhead sem ROI (svg-engine usa `data-node-id`/UUIDs internos
+para tudo; CSS bindings via `[attr.fill]`; refs externas via `id` são
+caso minoritário que pode adicionar via script post-export). `<title>`
+ganha em: spec puro, zero namespace, ARIA built-in, allows duplicates
+naturalmente.
+
+**Trade-off conhecido**: Inkscape NÃO recupera `<title>` como "nome do
+layer" no painel (trata como descrição). svg-engine recupera
+perfeitamente. Fallback `inkscape:label` na importação preserva files
+authored em Inkscape OU pela versão híbrida intermediária deste editor.
+
+**Implementação.**
+
+- `core/document/svg-document.ts` — `exportPreferences.emitAuthoredTitles`
+  (default `true`).
+- `io/svg-exporter.ts` — helpers `shouldEmitTitle(node, ctx)`,
+  `titleChildLine(node, depth, ctx)`, `wrapLeafWithTitle(...)`. Cada
+  leaf (rect/ellipse/line/polygon/polyline/path/text/image/symbol-use)
+  emite `<title>` como first child quando metadata.name set. Group
+  emite `<title>` ANTES dos children (screen readers anunciam nome
+  antes de traversar conteúdo). text com textPath: `<title>` antes
+  do `<textPath>`.
+- `io/svg-importer.ts` — `parseAuthoredName(el)` lê em ordem:
+  1. `<title>` filho direto (preferido — W3C),
+  2. `inkscape:label` (compat Inkscape + D-072+ hybrid intermediate),
+  3. `data-svge-name` (legacy compat).
+     Não de-slugifica `id` (evita inventar nomes que o user nunca digitou).
+     `<title>` já estava em `SILENTLY_IGNORED_TAGS` então não emite
+     warning quando importer encontra.
+- `optimize/builtin-optimizers.ts` — `stripAuthoredTitlesOptimizer`
+  substitui os 2 anteriores (`stripAuthoredIds` + `stripInkscapeLabels`
+  da iteração híbrida). Mais simples: 1 pass, 1 flag.
+- `edit/.../builtin-optimizers.plugin.ts` — registra 4 total
+  (precision/drop-defaults/prune + strip-titles opt-in).
+
+**Allows duplicates.** Sem restrição de id, dois nodes podem se chamar
+"Logo" → ambos viram `<title>Logo</title>`. SVG válido, sem
+desambiguação artificial.
+
+**Specs.** Reescrita do `layer-roundtrip.spec.ts` com 15 cenários
+title-only: verbatim preservation (acentos/emoji), XML escape,
+duplicates, group-as-first-child, round-trip layer+name, fallbacks
+(inkscape:label + data-svge-name), title-precedence-over-inkscape.
+Suíte total: **1527 testes** (era 1525).
+
+**Comparação visual no SVG exportado**
+
+Antes (D-072 base — só layer flag):
+
+```xml
+<g data-svge-kind="layer">
+  <ellipse cx="360" cy="200" rx="60" ry="60" fill="#ffe082" />
+</g>
+```
+
+Depois (D-072 follow-up — title persistence):
+
+```xml
+<g data-svge-kind="layer">
+  <title>Bercos</title>
+  <ellipse cx="360" cy="200" rx="60" ry="60" fill="#ffe082" />
+</g>
+```
+
+Com `stripAuthoredTitlesOptimizer` ativo: igual ao "Antes" (titles
+omitidos do output, mas `metadata.name` no doc preserva — reversível).
+
+---
+
 ## 2026-05-25 — D-072: Logical Layers — top-level organizational groups
 
 **O quê.** Conceito de **Layer** sobre `GroupNode`: um grupo cujo
