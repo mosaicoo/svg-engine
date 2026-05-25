@@ -145,3 +145,94 @@ describe('svgExporter — D-056 metadata.visible', () => {
     expect(out).not.toContain('<rect');
   });
 });
+
+// ── D-068 follow-up — id emission for textPath-referenced paths ────
+//
+// Bug fix: D-053 exporter emitted <textPath href="#id"> but the path
+// itself was emitted without an `id` attribute (per the general
+// "ids are runtime-only" rule). Result: opening the exported file
+// dangled the href and the text disappeared in every SVG viewer.
+// Fix: pre-scan the doc tree for textPathRef targets, emit `id` on
+// the path nodes that are referenced. Other paths still omit id
+// (preserves the runtime-only intent for the common case).
+
+import { collectReferencedPathIds } from './svg-exporter';
+import type { GroupNode, NodeId } from 'svg-engine/core';
+
+describe('svgExporter — D-068 follow-up: id emission for referenced paths', () => {
+  it('emits id="..." on a path that some text node references via textPathRef', () => {
+    const targetPath = createPath('M0 50 Q50 0 100 50');
+    const followingText = {
+      ...createText({ x: 0, y: 0, content: 'On the curve' }),
+      textPathRef: targetPath.id,
+    };
+    const out = exportNode([targetPath, followingText]);
+    // path renders with id
+    expect(out).toContain(`id="${targetPath.id}"`);
+    // textPath href matches the path id (fragment resolves now)
+    expect(out).toContain(`<textPath href="#${targetPath.id}"`);
+  });
+
+  it('does NOT emit id on a path that nobody references (runtime-only intent preserved)', () => {
+    const lonelyPath = createPath('M0 0 L10 10');
+    const out = exportNode([lonelyPath]);
+    expect(out).not.toContain(`id="${lonelyPath.id}"`);
+    // The d still emits — only id is suppressed
+    expect(out).toContain('<path d="M0 0 L10 10"');
+  });
+
+  it('emits id ONLY on referenced paths when both kinds coexist', () => {
+    const referenced = createPath('M0 50 Q50 0 100 50');
+    const unreferenced = createPath('M200 0 L300 0');
+    const text = {
+      ...createText({ x: 0, y: 0, content: 'Hi' }),
+      textPathRef: referenced.id,
+    };
+    const out = exportNode([referenced, unreferenced, text]);
+    expect(out).toContain(`id="${referenced.id}"`);
+    expect(out).not.toContain(`id="${unreferenced.id}"`);
+  });
+
+  it('finds textPathRef inside nested groups (pre-scan walks the whole tree)', () => {
+    const referenced = createPath('M0 50 Q50 0 100 50');
+    const text = {
+      ...createText({ x: 0, y: 0, content: 'Hi' }),
+      textPathRef: referenced.id,
+    };
+    // text lives 2 levels deep — exercise walk descent
+    const inner = createGroup([text]);
+    const outer = createGroup([referenced, inner]);
+    const out = exportNode([outer]);
+    expect(out).toContain(`id="${referenced.id}"`);
+  });
+});
+
+describe('collectReferencedPathIds — pure helper', () => {
+  function root(children: readonly SvgNode[]): GroupNode {
+    return createGroup(children, { id: 'root' as never });
+  }
+
+  it('returns empty set when no text node has textPathRef', () => {
+    const r = root([createPath('M0 0 L10 10'), createText({ x: 0, y: 0, content: 'Hi' })]);
+    expect(collectReferencedPathIds(r).size).toBe(0);
+  });
+
+  it('collects ids from textPathRef across the whole tree', () => {
+    const p1 = createPath('M0 0 L10 10');
+    const p2 = createPath('M50 50 L100 100');
+    const t1 = { ...createText({ x: 0, y: 0, content: 'A' }), textPathRef: p1.id };
+    const t2 = { ...createText({ x: 0, y: 0, content: 'B' }), textPathRef: p2.id };
+    const r = root([p1, p2, t1, t2]);
+    const ids = collectReferencedPathIds(r);
+    expect(ids.has(p1.id)).toBe(true);
+    expect(ids.has(p2.id)).toBe(true);
+    expect(ids.size).toBe(2);
+  });
+
+  it('ignores empty / undefined textPathRef (does not pollute the set)', () => {
+    const t1 = createText({ x: 0, y: 0, content: 'A' }); // undefined
+    const t2 = { ...createText({ x: 0, y: 0, content: 'B' }), textPathRef: '' as NodeId };
+    const r = root([t1, t2]);
+    expect(collectReferencedPathIds(r).size).toBe(0);
+  });
+});

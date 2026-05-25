@@ -4,6 +4,7 @@ import {
   type ImageNode,
   isGroupNode,
   type LineNode,
+  type NodeId,
   type PathNode,
   type PolygonNode,
   type PolylineNode,
@@ -15,6 +16,7 @@ import {
   type SymbolUseNode,
   type TextNode,
   type Transform,
+  walk,
 } from 'svg-engine/core';
 import type { Exporter } from './io-types';
 
@@ -76,17 +78,50 @@ export const svgExporter: Exporter = {
       }
       lines.push('  </defs>');
     }
+    // **D-068 follow-up — Pre-scan referenced ids**. The general rule
+    // ("ids are runtime editor state, not serialized") breaks for paths
+    // that are the target of a `<textPath href>` (D-053): without the
+    // `id` on the path, the href dangles and the text disappears at
+    // open-time in any SVG viewer. Walk the tree once to collect every
+    // path id that some text node references, then pass that set down
+    // so `renderPath` knows when to emit the id. All other nodes still
+    // export without id, preserving the runtime-only intent for the
+    // common case.
+    const referencedIds = collectReferencedPathIds(document.root);
     for (const child of document.root.children) {
-      lines.push(renderNode(child, 1));
+      lines.push(renderNode(child, 1, referencedIds));
     }
     lines.push('</svg>');
     return lines.join('\n');
   },
 };
 
+/**
+ * Pre-scan helper: collect the set of node ids that any `textPathRef`
+ * in the document points to. The `<path id>` attribute is only emitted
+ * for nodes whose id appears here — keeps the runtime-only-id rule
+ * intact for the 99% of paths that nobody references.
+ *
+ * **Why exported**: specs check the set contents to assert the
+ * boundary between "referenced → id emitted" and "not referenced →
+ * id omitted" without parsing the resulting SVG string.
+ */
+export function collectReferencedPathIds(root: GroupNode): ReadonlySet<NodeId> {
+  const out = new Set<NodeId>();
+  walk(root, (n) => {
+    if (n.type === 'text') {
+      const ref = (n as TextNode).textPathRef;
+      if (ref !== undefined && ref !== null && (ref as string).length > 0) {
+        out.add(ref);
+      }
+    }
+  });
+  return out;
+}
+
 // ── Element renderers ─────────────────────────────────────────────
 
-function renderNode(node: SvgNode, depth: number): string {
+function renderNode(node: SvgNode, depth: number, referencedIds: ReadonlySet<NodeId>): string {
   // **Visibility gate** — `metadata.visible === false` means the node
   // is doc-level hidden (D-056 Live Boolean inputs use this to keep
   // their shapes as group children without painting). The renderer
@@ -100,7 +135,7 @@ function renderNode(node: SvgNode, depth: number): string {
   if (node.metadata.visible === false) return '';
   switch (node.type) {
     case 'group':
-      return renderGroup(node, depth);
+      return renderGroup(node, depth, referencedIds);
     case 'rect':
       return renderRect(node, depth);
     case 'ellipse':
@@ -112,7 +147,7 @@ function renderNode(node: SvgNode, depth: number): string {
     case 'polyline':
       return renderPolyline(node, depth);
     case 'path':
-      return renderPath(node, depth);
+      return renderPath(node, depth, referencedIds);
     case 'text':
       return renderText(node, depth);
     case 'image':
@@ -134,7 +169,7 @@ function renderSymbolUse(node: SymbolUseNode, depth: number): string {
   return `${indent}<use${attrsStr([...attrs, ...baseAttrs(node)])} />`;
 }
 
-function renderGroup(node: GroupNode, depth: number): string {
+function renderGroup(node: GroupNode, depth: number, referencedIds: ReadonlySet<NodeId>): string {
   const indent = '  '.repeat(depth);
   const attrs = baseAttrs(node);
   if (!isGroupNode(node) || node.children.length === 0) {
@@ -146,7 +181,7 @@ function renderGroup(node: GroupNode, depth: number): string {
     // Filter empty strings — renderNode returns '' for hidden nodes
     // (metadata.visible === false). Skip them so we don't emit blank
     // lines inside the group.
-    const rendered = renderNode(child, depth + 1);
+    const rendered = renderNode(child, depth + 1, referencedIds);
     if (rendered.length > 0) lines.push(rendered);
   }
   lines.push(`${indent}</g>`);
@@ -202,7 +237,7 @@ function renderPolyline(node: PolylineNode, depth: number): string {
   return `${indent}<polyline${attrsStr([...attrs, ...baseAttrs(node)])} />`;
 }
 
-function renderPath(node: PathNode, depth: number): string {
+function renderPath(node: PathNode, depth: number, referencedIds: ReadonlySet<NodeId>): string {
   const indent = '  '.repeat(depth);
   // D-055 Live Corners — when cornerRadius > 0, the renderer paints
   // the ROUNDED `d` (derived via roundPathCorners). Exporter mirrors:
@@ -212,7 +247,18 @@ function renderPath(node: PathNode, depth: number): string {
   // the visual; user re-applies cornerRadius via Inspector if needed.
   const r = node.cornerRadius ?? 0;
   const effectiveD = r > 0 ? roundPathCorners(node.d, r) : node.d;
+  // D-068 follow-up — emit `id` ONLY when some text node's
+  // `textPathRef` points here. Keeps the general "ids are runtime-
+  // only" intent (so exported files don't carry editor-internal UUIDs
+  // for every shape) while making textPath references resolvable in
+  // the exported SVG. Without this, opening the file in Inkscape /
+  // Illustrator / Chrome would show empty `<textPath>` (dangling
+  // href). Position the `id` AFTER `d` to mirror the existing order
+  // convention; downstream `baseAttrs` then appends style/transform.
   const attrs: [string, string][] = [['d', effectiveD]];
+  if (referencedIds.has(node.id)) {
+    attrs.push(['id', node.id]);
+  }
   return `${indent}<path${attrsStr([...attrs, ...baseAttrs(node)])} />`;
 }
 

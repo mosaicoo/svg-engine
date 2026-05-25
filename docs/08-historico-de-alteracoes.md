@@ -6,6 +6,76 @@
 
 ---
 
+## 2026-05-24 — D-068 follow-up: textPath href resolvendo no canvas + no export
+
+### Demanda
+
+Usuário aplicou Text on Path pela primeira vez (D-068 acabou de
+shipar a UI) e relatou: "o texto sumiu, não seguiu a curva". Imagem
+confirmou: o bbox do `<text>` continuou na posição original, vazio,
+sem caractere algum.
+
+### Diagnóstico
+
+**Duas causas, ambas vindas do D-053**, só expostas agora que o D-068
+deu UI pro `textPathRef`:
+
+1. **Renderer (`path-renderer.directive.ts`)**: host bindings listavam
+   `d`, `fill`, `stroke`, etc. mas **não emitiam `[attr.id]`**. O
+   wrapper `<g>` carregava só `data-node-id` — `<textPath href="#id">`
+   resolve fragment contra o atributo `id`, não `data-*`. Logo o
+   browser não achava o path-alvo, o `<textPath>` engolia silenciosamente,
+   e o texto sumia (bbox em (x, y) com zero caracteres).
+
+2. **Exporter (`svg-exporter.ts`)**: regra geral "ids are runtime
+   editor state, not serialized" (linha 288). Mas o `renderText`
+   emitia `<textPath href="#${ref}">` referenciando esse mesmo id
+   que **não estava no export**. Quebra no Inkscape / Illustrator /
+   Chrome também — não só no canvas. Bug duplo do mesmo defeito.
+
+### Implementação
+
+**Renderer fix** — uma linha em `path-renderer.directive.ts`:
+adicionado `'[attr.id]': 'node().id'` nos host bindings. Comentário
+JSDoc explica o porquê (UUIDs únicos = zero risco de colisão; custo
+de um atributo extra é negligível; também ajuda debug + fallback
+pra futuros `<use href>`).
+
+**Exporter fix** — pre-scan da árvore + emissão condicional:
+
+- Nova função pura `collectReferencedPathIds(root)` exportada de
+  `svg-exporter.ts`. Walka a árvore com `walk` (de svg-engine/core)
+  e coleta os ids que algum `TextNode.textPathRef` aponta.
+- `export()` faz o pre-scan UMA vez e propaga `ReadonlySet<NodeId>`
+  pra `renderNode` → `renderGroup` (recursão) → `renderPath`.
+- `renderPath` emite `['id', node.id]` somente se `referencedIds.has(node.id)`.
+  Paths não-referenciados continuam sem id (preserva a intenção
+  "runtime-only" pro 99% dos casos).
+
+### Specs
+
+- **renderer** (`renderers.spec.ts`): novo describe "D-068 follow-up:
+  emits id for textPath resolution" — 2 cases (path tem id matching
+  node id; ids únicos entre paths separados).
+- **exporter** (`svg-exporter.spec.ts`): novo describe "D-068
+  follow-up: id emission for referenced paths" — 4 cases (path
+  referenciado emite id, path não-referenciado não emite, mix de
+  ambos honra a fronteira, walk pega ref em grupo nested) +
+  describe "collectReferencedPathIds — pure helper" — 3 cases
+  (empty set quando sem textPathRef, coleta vários, ignora
+  string vazia/undefined).
+
+### Como isso afeta features existentes
+
+- **Round-trip de SVG com textPath**: agora funciona end-to-end —
+  importa SVG com `<text><textPath href="#p1">`, edita no canvas,
+  exporta, reabre em outro editor sem perder o textPath.
+- **Paths não-referenciados**: zero impacto (mesma saída byte-by-byte).
+- **Outros refs** (clipPath, mask, filter, gradient): seguem usando
+  `<defs>` separado, não passam por este pipeline.
+
+---
+
 ## 2026-05-24 — D-068: Inspector Type section — fecha o gap de UI do D-053
 
 ### Demanda

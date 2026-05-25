@@ -152,3 +152,40 @@ describe('Renderer dispatch — built-in node types', () => {
     expect(leafRect).not.toBeNull();
   });
 });
+
+// ── D-068 follow-up — id on <path> for textPath href resolution ────
+//
+// Bug: D-053 added textPath rendering (<text><textPath href="#id">),
+// but the path-renderer never emitted `id` — only `data-node-id` on
+// the wrapper <g>. SVG <textPath href> resolves the fragment against
+// element ids (the standard `id` attribute), not `data-*`. Result:
+// once the D-068 Inspector finally let users set textPathRef, the
+// text disappeared because the path wasn't findable by id. Fix:
+// emit `[attr.id]="node().id"` from path-renderer.directive.
+describe('Path renderer — D-068 follow-up: emits id for textPath resolution', () => {
+  it('emits id="..." on the <path> element matching the node id', () => {
+    const node = createPath('M0 0 L10 10');
+    const { svg } = mount(node);
+    const path = svg.querySelector(`g[data-node-id="${node.id}"] path`);
+    expect(path).not.toBeNull();
+    expect(path!.getAttribute('id')).toBe(node.id);
+  });
+
+  it('id matches the node id 1:1 (textPath fragment resolution depends on this)', () => {
+    // The whole point of emitting id is that a downstream <textPath
+    // href="#…"> resolves the fragment. The exact equality check below
+    // is what the browser does internally to match href fragments.
+    // (Bypasses `querySelector('#...')` because UUIDs starting with a
+    // digit aren't valid CSS selectors without CSS.escape, and jsdom's
+    // CSS.escape support is uneven — DOM-level id comparison is the
+    // right invariant to assert here, not the CSS selector ergonomics.)
+    const node = createPath('M0 0 L1 1');
+    const { svg } = mount(node);
+    const path = svg.querySelector('path');
+    expect(path).not.toBeNull();
+    expect(path!.id).toBe(node.id);
+    // Defensive: native getElementById uses string equality, not CSS
+    // selectors — this is the path browsers take for `href="#…"`.
+    expect(svg.ownerDocument.getElementById(node.id)).toBe(path);
+  });
+});

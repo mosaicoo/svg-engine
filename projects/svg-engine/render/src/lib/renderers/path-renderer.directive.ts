@@ -11,11 +11,26 @@ import { type PathNode, roundPathCorners } from 'svg-engine/core';
  * for later edits / radius slider changes). When `cornerRadius` is
  * `0` or `undefined`, the authored `d` is emitted verbatim — same
  * behavior as before D-055.
+ *
+ * **D-068 follow-up — `id` host binding**: paths are the only shape
+ * type a `<textPath href="#…">` (D-053) can reference, so the path
+ * needs a DOM `id` matching `node.id`. Without this, `textPathRef` set
+ * by the Inspector resolves to no element and the text silently
+ * disappears (bbox in place, zero characters painted). The wrapper
+ * `<g>` already carries `data-node-id` for selection lookup, but
+ * `data-*` doesn't satisfy `#id` href lookups — only the standard
+ * `id` attribute does. Cost is one attribute per path, negligible.
+ * No collision risk because `NodeId`s are UUIDs (globally unique
+ * across documents and editors). If a future use-case wants to opt
+ * out of paint-target ids, gate this behind a flag — keeping it
+ * unconditional makes textPath, future `<use href>` fallbacks, and
+ * DOM inspector debugging all easier.
  */
 @Directive({
   selector: '[svgePath]',
   standalone: true,
   host: {
+    '[attr.id]': 'node().id',
     '[attr.d]': 'effectiveD()',
     '[attr.fill]': 'node().style.fill ?? null',
     '[attr.stroke]': 'node().style.stroke ?? null',
