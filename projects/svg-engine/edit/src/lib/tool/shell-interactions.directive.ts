@@ -9,7 +9,7 @@ import {
   type Point,
   RemoveNodeCommand,
 } from 'svg-engine/core';
-import { screenToDoc } from 'svg-engine/render';
+import { screenToDoc, ViewportService } from 'svg-engine/render';
 import { findRenderedNode, getRenderedNodeBBox } from '../geometry/node-bbox';
 import { resolveSelectableNodeId } from '../hit-testing/hit-testing';
 import { IsolationService } from '../isolation/isolation.service';
@@ -94,6 +94,13 @@ export class SvgeShellInteractions implements OnDestroy {
   private readonly transform = inject(TransformService);
   private readonly marquee = inject(MarqueeService);
   private readonly snap = inject(SnapService);
+  // D-073-fix follow-up: passa zoom para SnapService.resolveForMove
+  // converter o threshold (CSS px) em doc-units corretamente. Sem isso
+  // o snap a Objects parece "não funcionar" quando o usuário está
+  // zoomado (threshold em doc fica fixo em 8 enquanto deveria escalar
+  // pra manter 8 CSS px na tela). Custom-editor já fazia isso desde a
+  // primeira versão; shell-pro estava com paridade incompleta.
+  private readonly viewport = inject(ViewportService);
   private readonly isolation = inject(IsolationService);
   private readonly shortcuts = inject(ShortcutService);
   /**
@@ -445,7 +452,12 @@ export class SvgeShellInteractions implements OnDestroy {
       height: this.moveStartBBox.height,
     };
     const others = this.collectStaticBBoxes(ds.nodeId);
-    const result = this.snap.resolveForMove(proposed, others);
+    // Pass current zoom so SnapService converts threshold (CSS px) →
+    // doc-units against the same scale the user sees. Omitting it
+    // defaults zoom=1 which under-snaps when zoomed in and over-snaps
+    // when zoomed out — visible mostly on "Objects" mode because
+    // grid targets are dense enough to absorb the discrepancy.
+    const result = this.snap.resolveForMove(proposed, others, this.viewport.zoom());
     const snapped: Point = { x: point.x + result.delta.x, y: point.y + result.delta.y };
     this.transform.updateMove(snapped);
     this.snap.setActiveGuides(result.guides);
