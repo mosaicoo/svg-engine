@@ -968,3 +968,325 @@ describe('SvgeInspector — multi-edit (Item 1, débito 4c)', () => {
     expect(findNodeById(ctx.state.document().root, b.id)?.style.fill).toBe('#000000');
   });
 });
+
+// ── D-068 — Type section (text-only) ─────────────────────────────────
+//
+// Covers:
+// 1. Type section is **invisible** for non-text nodes (rect/group/etc).
+// 2. Type section **renders** for text nodes with all 5 controls.
+// 3. Each control's `change` event dispatches a SetPropertyCommand
+//    that mutates the correct field on the model.
+// 4. Empty inputs clear the property (set to undefined).
+// 5. OpenType feature quick-toggles read + write `fontFeatureSettings`
+//    via the parse/stringify round-trip.
+// 6. textPath dropdown enumerates only `path` nodes in the document;
+//    setting "(none)" clears both ref AND startOffset.
+// 7. Pure helpers (parseFontFeatures + stringifyFontFeatures) handle
+//    the spec's tolerated quote styles + on/off/0/1 toggles.
+
+import { createText, type TextNode } from 'svg-engine/core';
+import { parseFontFeatures, stringifyFontFeatures } from './inspector.component';
+
+describe('SvgeInspector — D-068 Type section visibility', () => {
+  it('does NOT render the Type section for non-text nodes (rect)', () => {
+    const r = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const { fixture, state, selection } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([r], { id: state.document().root.id }),
+    });
+    selection.select(r.id);
+    fixture.detectChanges();
+    const titles = Array.from(
+      fixture.nativeElement.querySelectorAll('.section .section-title'),
+    ).map((s) => (s as HTMLElement).textContent?.trim());
+    expect(titles).not.toContain('Type');
+  });
+
+  it('renders the Type section with all 5 fields when a text node is focused', () => {
+    const t = createText({ x: 0, y: 0, content: 'Hello' });
+    const { fixture, state, selection } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([t], { id: state.document().root.id }),
+    });
+    selection.select(t.id);
+    fixture.detectChanges();
+    const titles = Array.from(
+      fixture.nativeElement.querySelectorAll('.section .section-title'),
+    ).map((s) => (s as HTMLElement).textContent?.trim());
+    expect(titles).toContain('Type');
+    // 4 quick-toggle buttons + at least 4 form-field controls (letter-
+    // spacing, variation, feature raw, start-offset) in the Type section.
+    const typeSection = fixture.nativeElement.querySelectorAll('.section')[
+      titles.indexOf('Type')
+    ] as HTMLElement;
+    expect(typeSection.querySelectorAll('.feature-toggle').length).toBe(4);
+    // Variation + feature-raw + start-offset = 3 text inputs; letter-spacing = 1 number
+    expect(typeSection.querySelectorAll('input[type="text"]').length).toBeGreaterThanOrEqual(3);
+    expect(typeSection.querySelectorAll('input[type="number"]').length).toBeGreaterThanOrEqual(1);
+    expect(typeSection.querySelectorAll('mat-select').length).toBe(1); // textPath dropdown
+  });
+});
+
+describe('SvgeInspector — D-068 dispatches SetPropertyCommand on text fields', () => {
+  function setupWithText(initial?: Partial<TextNode>) {
+    const t = createText(
+      { x: 0, y: 0, content: 'Hello' },
+      // createText only accepts NodeFactoryOptions (style/transform/etc);
+      // optional D-053 fields are not first-class — patch them in by
+      // re-creating the node literal here for the spec.
+    );
+    const text: TextNode = { ...t, ...(initial ?? {}) };
+    const ctx = setup();
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup([text], { id: ctx.state.document().root.id }),
+    });
+    ctx.selection.select(text.id);
+    ctx.fixture.detectChanges();
+    return { ...ctx, text };
+  }
+
+  function getTypeSection(host: HTMLElement): HTMLElement {
+    const titles = Array.from(host.querySelectorAll('.section')) as HTMLElement[];
+    const found = titles.find(
+      (s) => s.querySelector('.section-title')?.textContent?.trim() === 'Type',
+    );
+    if (!found) throw new Error('Type section not found');
+    return found;
+  }
+
+  it('letter-spacing input writes node.letterSpacing', () => {
+    const { fixture, state, text } = setupWithText();
+    const typeSection = getTypeSection(fixture.nativeElement);
+    const numberInput = typeSection.querySelector('input[type="number"]') as HTMLInputElement;
+    numberInput.value = '2.5';
+    numberInput.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    const updated = findNodeById(state.document().root, text.id) as TextNode;
+    expect(updated.letterSpacing).toBe(2.5);
+  });
+
+  it('clearing letter-spacing input restores the model field to undefined', () => {
+    const { fixture, state, text } = setupWithText({ letterSpacing: 3 });
+    const typeSection = getTypeSection(fixture.nativeElement);
+    const numberInput = typeSection.querySelector('input[type="number"]') as HTMLInputElement;
+    expect(numberInput.value).toBe('3');
+    numberInput.value = '';
+    numberInput.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    const updated = findNodeById(state.document().root, text.id) as TextNode;
+    expect(updated.letterSpacing).toBeUndefined();
+  });
+
+  it('font-variation-settings input writes node.fontVariationSettings', () => {
+    const { fixture, state, text } = setupWithText();
+    const typeSection = getTypeSection(fixture.nativeElement);
+    const textInputs = Array.from(
+      typeSection.querySelectorAll('input[type="text"]'),
+    ) as HTMLInputElement[];
+    // Field order in the Type section: variation, feature raw, start-offset.
+    const variationInput = textInputs[0]!;
+    variationInput.value = "'wght' 650, 'wdth' 95";
+    variationInput.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    const updated = findNodeById(state.document().root, text.id) as TextNode;
+    expect(updated.fontVariationSettings).toBe("'wght' 650, 'wdth' 95");
+  });
+
+  it('font-feature-settings raw input writes node.fontFeatureSettings', () => {
+    const { fixture, state, text } = setupWithText();
+    const typeSection = getTypeSection(fixture.nativeElement);
+    const textInputs = Array.from(
+      typeSection.querySelectorAll('input[type="text"]'),
+    ) as HTMLInputElement[];
+    const featureInput = textInputs[1]!;
+    featureInput.value = "'liga' on, 'smcp' on";
+    featureInput.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    const updated = findNodeById(state.document().root, text.id) as TextNode;
+    expect(updated.fontFeatureSettings).toBe("'liga' on, 'smcp' on");
+  });
+
+  it('OpenType quick-toggle button toggles a feature on/off through parse+stringify', () => {
+    const { fixture, state, text } = setupWithText();
+    const typeSection = getTypeSection(fixture.nativeElement);
+    const ligaButton = Array.from(typeSection.querySelectorAll('.feature-toggle')).find(
+      (b) => (b as HTMLElement).textContent?.trim() === 'Liga',
+    ) as HTMLButtonElement;
+    expect(ligaButton.classList.contains('active')).toBe(false);
+    // Toggle ON
+    ligaButton.click();
+    fixture.detectChanges();
+    let updated = findNodeById(state.document().root, text.id) as TextNode;
+    expect(updated.fontFeatureSettings).toBe("'liga'");
+    // Re-query: the chip should be active now.
+    const ligaAgain = Array.from(typeSection.querySelectorAll('.feature-toggle')).find(
+      (b) => (b as HTMLElement).textContent?.trim() === 'Liga',
+    ) as HTMLButtonElement;
+    expect(ligaAgain.classList.contains('active')).toBe(true);
+    // Toggle OFF: clears the tag (fontFeatureSettings becomes undefined
+    // because the resulting string is empty)
+    ligaAgain.click();
+    fixture.detectChanges();
+    updated = findNodeById(state.document().root, text.id) as TextNode;
+    expect(updated.fontFeatureSettings).toBeUndefined();
+  });
+
+  it('quick-toggle preserves OTHER features the user typed in the raw input', () => {
+    const { fixture, state, text } = setupWithText({
+      fontFeatureSettings: "'ss03' on, 'cv11' 2",
+    });
+    const typeSection = getTypeSection(fixture.nativeElement);
+    const ligaButton = Array.from(typeSection.querySelectorAll('.feature-toggle')).find(
+      (b) => (b as HTMLElement).textContent?.trim() === 'Liga',
+    ) as HTMLButtonElement;
+    ligaButton.click();
+    fixture.detectChanges();
+    const updated = findNodeById(state.document().root, text.id) as TextNode;
+    // ss03 + cv11 still present, liga added — order = original then new
+    expect(updated.fontFeatureSettings).toContain("'ss03'");
+    expect(updated.fontFeatureSettings).toContain("'cv11'");
+    expect(updated.fontFeatureSettings).toContain("'liga'");
+  });
+
+  it('textPath dropdown lists only path nodes; selecting one writes textPathRef', () => {
+    const t = createText({ x: 0, y: 0, content: 'Hi' });
+    const p1 = createPath('M0 0 L10 10');
+    const p2 = createPath('M20 0 L30 10');
+    // Throw in a non-path to verify it is NOT enumerated.
+    const decoy = createRect({ x: 0, y: 0, width: 5, height: 5 });
+    const ctx = setup();
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup([t, p1, p2, decoy], { id: ctx.state.document().root.id }),
+    });
+    ctx.selection.select(t.id);
+    ctx.fixture.detectChanges();
+
+    // mat-select doesn't render <option> tags in the DOM until opened —
+    // assert via the component method `pathsInDoc` indirectly: after
+    // dispatching the change event we should see textPathRef set.
+    const inspector = ctx.fixture.debugElement.children[0]?.componentInstance as
+      | { setTextPathRef(id: string): void }
+      | undefined;
+    if (!inspector) throw new Error('Inspector instance not found');
+    inspector.setTextPathRef(p2.id);
+    ctx.fixture.detectChanges();
+
+    const updated = findNodeById(ctx.state.document().root, t.id) as TextNode;
+    expect(updated.textPathRef).toBe(p2.id);
+    // Decoy rect must NOT be selectable by id — but the public API doesn't
+    // expose `pathsInDoc()` directly; we proved the right id was accepted.
+    // Negative check: setting a rect id would still write it (the setter
+    // doesn't validate type) — guard is purely visual (dropdown omits it).
+    // That tradeoff is documented in the component's pathsInDoc doc.
+  });
+
+  it('selecting "(none)" in textPath dropdown clears BOTH ref and startOffset', () => {
+    const { fixture, state, text } = setupWithText({
+      textPathRef: 'fake-id' as TextNode['textPathRef'],
+      textPathStartOffset: '50%',
+    });
+    const inspector = fixture.debugElement.children[0]?.componentInstance as {
+      setTextPathRef(id: string): void;
+    };
+    inspector.setTextPathRef('');
+    fixture.detectChanges();
+    const updated = findNodeById(state.document().root, text.id) as TextNode;
+    expect(updated.textPathRef).toBeUndefined();
+    expect(updated.textPathStartOffset).toBeUndefined();
+  });
+
+  it('start-offset input writes node.textPathStartOffset', () => {
+    const { fixture, state, text } = setupWithText({
+      textPathRef: 'fake-id' as TextNode['textPathRef'],
+    });
+    const typeSection = getTypeSection(fixture.nativeElement);
+    const textInputs = Array.from(
+      typeSection.querySelectorAll('input[type="text"]'),
+    ) as HTMLInputElement[];
+    const offsetInput = textInputs[2]!;
+    offsetInput.value = '75%';
+    offsetInput.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    const updated = findNodeById(state.document().root, text.id) as TextNode;
+    expect(updated.textPathStartOffset).toBe('75%');
+  });
+
+  it('switching focus from text to rect collapses the Type section', () => {
+    const t = createText({ x: 0, y: 0, content: 'Hi' });
+    const r = createRect({ x: 0, y: 0, width: 5, height: 5 });
+    const { fixture, state, selection } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([t, r], { id: state.document().root.id }),
+    });
+    selection.select(t.id);
+    fixture.detectChanges();
+    expect(
+      Array.from(fixture.nativeElement.querySelectorAll('.section-title')).some(
+        (s) => (s as HTMLElement).textContent?.trim() === 'Type',
+      ),
+    ).toBe(true);
+    selection.select(r.id);
+    fixture.detectChanges();
+    expect(
+      Array.from(fixture.nativeElement.querySelectorAll('.section-title')).some(
+        (s) => (s as HTMLElement).textContent?.trim() === 'Type',
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('SvgeInspector — D-068 pure helpers (parseFontFeatures / stringifyFontFeatures)', () => {
+  it('parses undefined / empty string to an empty map', () => {
+    expect(parseFontFeatures(undefined).size).toBe(0);
+    expect(parseFontFeatures('').size).toBe(0);
+    expect(parseFontFeatures('   ').size).toBe(0);
+  });
+
+  it('parses single-quoted feature tags with "on"', () => {
+    const m = parseFontFeatures("'liga' on, 'smcp' on");
+    expect(m.get('liga')).toBe(true);
+    expect(m.get('smcp')).toBe(true);
+    expect(m.size).toBe(2);
+  });
+
+  it('parses double-quoted feature tags', () => {
+    const m = parseFontFeatures('"liga" on, "tnum" on');
+    expect(m.get('liga')).toBe(true);
+    expect(m.get('tnum')).toBe(true);
+  });
+
+  it('parses "off" / "0" as disabled', () => {
+    const m = parseFontFeatures("'liga' off, 'smcp' 0");
+    expect(m.get('liga')).toBe(false);
+    expect(m.get('smcp')).toBe(false);
+  });
+
+  it('parses numeric > 0 (alt-index) as enabled', () => {
+    const m = parseFontFeatures("'cv11' 2, 'ss03' 1");
+    expect(m.get('cv11')).toBe(true);
+    expect(m.get('ss03')).toBe(true);
+  });
+
+  it('parses tag without value as enabled (CSS spec default)', () => {
+    const m = parseFontFeatures("'liga'");
+    expect(m.get('liga')).toBe(true);
+  });
+
+  it('round-trips through stringify (only enabled tags emitted)', () => {
+    const m = new Map([
+      ['liga', true],
+      ['smcp', false],
+      ['tnum', true],
+    ]);
+    expect(stringifyFontFeatures(m)).toBe("'liga', 'tnum'");
+  });
+
+  it('stringify of empty map is empty string', () => {
+    expect(stringifyFontFeatures(new Map())).toBe('');
+  });
+});

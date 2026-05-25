@@ -26,6 +26,8 @@ import {
   SetStylePropertyOnManyCommand,
   type SvgNode,
   type SvgStyle,
+  type TextNode,
+  walk,
 } from 'svg-engine/core';
 import {
   type BBoxAnchor,
@@ -374,6 +376,110 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
           >
             Convert to Path
           </button>
+        </section>
+      }
+
+      <!--
+        ── Type section (D-068) — exposes the D-053 text-only fields.
+        Visible only when the focused node is a text. The model fields
+        (letterSpacing / fontVariationSettings / fontFeatureSettings /
+        textPathRef / textPathStartOffset) ship since D-053 but had no
+        UI surface until now — D-053 was effectively headless-only.
+      -->
+      @if (textNode(); as text) {
+        <section class="section">
+          <h3 class="section-title">Type</h3>
+
+          <mat-form-field appearance="outline" class="full-width-field">
+            <mat-label>letter-spacing (px)</mat-label>
+            <input
+              matInput
+              type="number"
+              step="0.1"
+              [disabled]="isLocked()"
+              [value]="text.letterSpacing ?? ''"
+              placeholder="0"
+              (change)="setLetterSpacing($any($event.target).value)"
+            />
+          </mat-form-field>
+
+          <h4 class="style-subsection-title">Variable font axes</h4>
+          <mat-form-field appearance="outline" class="full-width-field">
+            <mat-label>font-variation-settings</mat-label>
+            <input
+              matInput
+              type="text"
+              [disabled]="isLocked()"
+              [value]="text.fontVariationSettings ?? ''"
+              placeholder="'wght' 650, 'wdth' 95"
+              (change)="setFontVariationSettings($any($event.target).value)"
+            />
+          </mat-form-field>
+          <p class="hint-text">
+            Comma-separated axis tuples. Inactive on static (non-variable) fonts.
+          </p>
+
+          <h4 class="style-subsection-title">OpenType features</h4>
+          <div class="feature-toggles" role="group" aria-label="OpenType feature quick toggles">
+            @for (feat of OPENTYPE_QUICK_TOGGLES; track feat.tag) {
+              <button
+                type="button"
+                class="feature-toggle"
+                [class.active]="hasFontFeature(feat.tag)"
+                [disabled]="isLocked()"
+                [attr.aria-pressed]="hasFontFeature(feat.tag)"
+                [title]="feat.title"
+                (click)="toggleFontFeature(feat.tag)"
+              >
+                {{ feat.label }}
+              </button>
+            }
+          </div>
+          <mat-form-field appearance="outline" class="full-width-field">
+            <mat-label>font-feature-settings (raw)</mat-label>
+            <input
+              matInput
+              type="text"
+              [disabled]="isLocked()"
+              [value]="text.fontFeatureSettings ?? ''"
+              placeholder="'liga' on, 'smcp' on"
+              (change)="setFontFeatureSettings($any($event.target).value)"
+            />
+          </mat-form-field>
+          <p class="hint-text">
+            Quick toggles edit common features; raw input lets you set anything (e.g. 'ss03' on,
+            'cv11' 2).
+          </p>
+
+          <h4 class="style-subsection-title">Text on path</h4>
+          <mat-form-field appearance="outline" class="full-width-field">
+            <mat-label>follow path</mat-label>
+            <mat-select
+              [value]="text.textPathRef ?? ''"
+              [disabled]="isLocked() || pathsInDoc().length === 0"
+              (selectionChange)="setTextPathRef($event.value)"
+            >
+              <mat-option [value]="''">(none — straight baseline)</mat-option>
+              @for (p of pathsInDoc(); track p.id) {
+                <mat-option [value]="p.id">{{ p.label }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="full-width-field">
+            <mat-label>start offset</mat-label>
+            <input
+              matInput
+              type="text"
+              [disabled]="isLocked() || text.textPathRef === undefined"
+              [value]="text.textPathStartOffset ?? ''"
+              placeholder="50% or 40"
+              (change)="setTextPathStartOffset($any($event.target).value)"
+            />
+          </mat-form-field>
+          <p class="hint-text">
+            Empty offset starts the text at the beginning of the path. Multi-line text is flattened
+            to a single run when following a path (SVG limitation).
+          </p>
         </section>
       }
 
@@ -1089,6 +1195,48 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
     .pivot-row .reset-btn {
       grid-column: auto;
     }
+    /* D-068 — Type section (text-only) */
+    .feature-toggles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin: 4px 0 8px;
+    }
+    .feature-toggle {
+      font-size: 11px;
+      font-family: 'JetBrains Mono', 'Fira Code', Consolas, Menlo, monospace;
+      padding: 3px 8px;
+      border: 1px solid var(--mat-sys-outline-variant, #ccc);
+      border-radius: 4px;
+      background: var(--mat-sys-surface, #fff);
+      color: var(--mat-sys-on-surface-variant, #777);
+      cursor: pointer;
+      user-select: none;
+      transition:
+        background 120ms,
+        color 120ms,
+        border-color 120ms;
+    }
+    .feature-toggle:hover:not(:disabled) {
+      background: var(--mat-sys-surface-container-high, #eee);
+      border-color: var(--mat-sys-primary, #1976d2);
+    }
+    .feature-toggle.active {
+      background: var(--mat-sys-primary, #1976d2);
+      color: var(--mat-sys-on-primary, #fff);
+      border-color: var(--mat-sys-primary, #1976d2);
+    }
+    .feature-toggle:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .hint-text {
+      margin: -4px 0 8px;
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--mat-sys-on-surface-variant, #888);
+      font-style: italic;
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -1756,6 +1904,169 @@ export class SvgeInspector {
     if (current !== MIXED && current === newValue) return;
     this.bus.dispatch(new SetStylePropertyOnManyCommand(ids, field, newValue));
   }
+
+  // ── D-068 — Type section (text-only) ─────────────────────────────
+
+  /**
+   * Focused node downcast to `TextNode` when applicable. Drives the
+   * `@if` guard around the Type section in the template. Returns `null`
+   * for any non-text node (or no/multi selection), which collapses the
+   * section to nothing — zero impact for shape/group/image users.
+   */
+  protected readonly textNode: Signal<TextNode | null> = computed(() => {
+    const node = this.focusNode();
+    return node !== null && node.type === 'text' ? (node as TextNode) : null;
+  });
+
+  /**
+   * All `path` nodes in the current document — feeds the textPath
+   * dropdown. Recomputes only when the document signal changes. The
+   * label prefers `metadata.name` (user-set in Layer Panel rename)
+   * with the short id appended for disambiguation; falls back to the
+   * short id alone when no name is set.
+   *
+   * **Why only paths, not all shapes**: SVG `<textPath href>` accepts
+   * only `<path>` elements (other geometric primitives don't have an
+   * intrinsic parametric curve). Listing rects/ellipses would create
+   * a non-working option. Users who want text on a circle should
+   * "Convert to Path" first (already a 1-click op in the Inspector).
+   */
+  protected readonly pathsInDoc: Signal<readonly { id: NodeId; label: string }[]> = computed(() => {
+    const out: { id: NodeId; label: string }[] = [];
+    walk(this.state.document().root, (n) => {
+      if (n.type === 'path') {
+        const name = n.metadata?.name;
+        const short = n.id.slice(0, 6);
+        out.push({
+          id: n.id,
+          label:
+            typeof name === 'string' && name.length > 0 ? `${name} (${short})` : n.id.slice(0, 8),
+        });
+      }
+    });
+    return out;
+  });
+
+  /**
+   * OpenType feature quick-toggle catalog. Limited to the 4 most-used
+   * features (Figma/Illustrator selection) — `liga` (ligatures),
+   * `smcp` (small caps), `tnum` (tabular figures), `ss01` (stylistic
+   * set 1). Users who want anything else use the raw input below.
+   *
+   * Each entry's `tag` matches the 4-letter OpenType feature code
+   * exactly; `label` is the chip text; `title` is the tooltip
+   * (descriptive name).
+   */
+  protected readonly OPENTYPE_QUICK_TOGGLES: readonly {
+    readonly tag: string;
+    readonly label: string;
+    readonly title: string;
+  }[] = [
+    { tag: 'liga', label: 'Liga', title: 'Standard ligatures (fi, fl, …)' },
+    { tag: 'smcp', label: 'SmCp', title: 'Small caps' },
+    { tag: 'tnum', label: 'TNum', title: 'Tabular figures (monospaced digits)' },
+    { tag: 'ss01', label: 'SS01', title: 'Stylistic set 1 (font-specific)' },
+  ];
+
+  /**
+   * Helper to dispatch a `SetPropertyCommand` on the focused text node
+   * for one of the D-068 text fields. Defensive guards:
+   *
+   * - No-op when no text node is focused.
+   * - No-op when the node is locked (mirrors all other setters).
+   * - Dedup: skips when the new value equals the current — keeps the
+   *   undo stack clean from blur-without-change UX.
+   *
+   * The `as TextNode[K]` cast is required because TypeScript narrows
+   * the generic `K` to a specific key but loses the `value` -> `TextNode[K]`
+   * relationship across the dispatch boundary. Safe because every
+   * caller hard-codes K and the runtime type matches the declared one.
+   */
+  private setTextProperty<K extends keyof TextNode>(
+    field: K,
+    value: TextNode[K] | undefined,
+  ): void {
+    const text = this.textNode();
+    if (text === null || this.layers.isLocked(text.id)) return;
+    if (text[field] === value) return;
+    this.bus.dispatch(new SetPropertyCommand<TextNode, K>(text.id, field, value as TextNode[K]));
+  }
+
+  /**
+   * Letter-spacing setter. Empty string clears the field (`undefined`),
+   * which lets the renderer fall back to the SVG default (auto). Non-
+   * finite input is ignored silently (consistent with `setNumber`).
+   */
+  protected setLetterSpacing(raw: string): void {
+    const trimmed = raw.trim();
+    if (trimmed === '') {
+      this.setTextProperty('letterSpacing', undefined);
+      return;
+    }
+    const v = Number(trimmed);
+    if (!Number.isFinite(v)) return;
+    this.setTextProperty('letterSpacing', v);
+  }
+
+  /** Variable-font axes raw setter. Empty clears the field. */
+  protected setFontVariationSettings(raw: string): void {
+    const trimmed = raw.trim();
+    this.setTextProperty('fontVariationSettings', trimmed === '' ? undefined : trimmed);
+  }
+
+  /** OpenType features raw setter. Empty clears the field. */
+  protected setFontFeatureSettings(raw: string): void {
+    const trimmed = raw.trim();
+    this.setTextProperty('fontFeatureSettings', trimmed === '' ? undefined : trimmed);
+  }
+
+  /**
+   * textPath dropdown setter. The "(none)" option's value is `''` —
+   * that clears `textPathRef` (renderer falls back to straight-line
+   * layout) AND clears `textPathStartOffset` to avoid leaving an
+   * orphan offset attached to no path.
+   */
+  protected setTextPathRef(id: string): void {
+    if (id === '') {
+      this.setTextProperty('textPathRef', undefined);
+      this.setTextProperty('textPathStartOffset', undefined);
+      return;
+    }
+    this.setTextProperty('textPathRef', id as NodeId);
+  }
+
+  /** Start-offset setter (free-form CSS length: `'50%'` / `'40'`). */
+  protected setTextPathStartOffset(raw: string): void {
+    const trimmed = raw.trim();
+    this.setTextProperty('textPathStartOffset', trimmed === '' ? undefined : trimmed);
+  }
+
+  /**
+   * True when the OpenType feature tag is currently enabled in the
+   * focused text node's `fontFeatureSettings`. Drives the `.active`
+   * highlight on the quick-toggle chips.
+   */
+  protected hasFontFeature(tag: string): boolean {
+    const text = this.textNode();
+    if (text === null) return false;
+    return parseFontFeatures(text.fontFeatureSettings).get(tag) === true;
+  }
+
+  /**
+   * Toggle an OpenType feature tag in the focused text node's
+   * `fontFeatureSettings`. Round-trips through parse → mutate → stringify
+   * so existing tags the user typed in the raw input are preserved
+   * (only the toggled tag is added/removed).
+   */
+  protected toggleFontFeature(tag: string): void {
+    const text = this.textNode();
+    if (text === null || this.layers.isLocked(text.id)) return;
+    const features = parseFontFeatures(text.fontFeatureSettings);
+    if (features.get(tag) === true) features.delete(tag);
+    else features.set(tag, true);
+    const next = stringifyFontFeatures(features);
+    this.setTextProperty('fontFeatureSettings', next === '' ? undefined : next);
+  }
 }
 
 /**
@@ -1887,6 +2198,54 @@ function toHex2(n: number): string {
  * HSL→RGB per CSS Color spec (https://www.w3.org/TR/css-color-3/#hsl-color).
  * Returns 8-bit RGB channels (0..255 inclusive).
  */
+/**
+ * **D-068 — pure helper**. Parse a CSS `font-feature-settings` value
+ * into a `Map<tag, enabled>`. Tolerant of both quote styles and both
+ * toggle syntaxes the spec allows:
+ *
+ * - `'liga' on` / `'liga' off`
+ * - `'liga' 1` / `'liga' 0` / `'liga' 2` (alt-index, treated as on)
+ * - `'liga'` (no value → defaults to on per CSS spec)
+ *
+ * Returns an empty map for `undefined`, empty string, or unparseable
+ * input. The map preserves whatever order the input had, which keeps
+ * the round-trip via {@link stringifyFontFeatures} deterministic for
+ * the inspector toggle UI.
+ *
+ * Exported so the inspector spec can verify parse/toggle correctness
+ * without going through the component boilerplate.
+ */
+export function parseFontFeatures(raw: string | undefined): Map<string, boolean> {
+  const out = new Map<string, boolean>();
+  if (raw === undefined || raw.trim() === '') return out;
+  // [tag] then optional whitespace + on/off|0/1+ numeric. Numeric ≥ 1
+  // means "on" (alt-index selector); only literal "off" or "0" means off.
+  const re = /['"]([a-z0-9]{4})['"]\s*(?:(on|off)|(-?\d+))?/gi;
+  for (const m of raw.matchAll(re)) {
+    const tag = m[1]!.toLowerCase();
+    const onOff = m[2]?.toLowerCase();
+    const num = m[3];
+    const enabled = !(onOff === 'off' || num === '0');
+    out.set(tag, enabled);
+  }
+  return out;
+}
+
+/**
+ * **D-068 — pure helper**. Inverse of {@link parseFontFeatures}. Emits
+ * only `on` features (off entries are dropped because the CSS default
+ * is already "feature off" for non-default features, so a `'tag' off`
+ * declaration would be a no-op). Quote style is single-quote (matches
+ * the canonical spec examples).
+ */
+export function stringifyFontFeatures(features: ReadonlyMap<string, boolean>): string {
+  const entries: string[] = [];
+  for (const [tag, on] of features) {
+    if (on) entries.push(`'${tag}'`);
+  }
+  return entries.join(', ');
+}
+
 function hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: number } {
   // h in [0, 360), s/l in [0, 1]
   const c = (1 - Math.abs(2 * l - 1)) * s;

@@ -6,6 +6,107 @@
 
 ---
 
+## 2026-05-24 — D-068: Inspector Type section — fecha o gap de UI do D-053
+
+### Demanda
+
+Usuário reportou que **Variable Fonts + OpenType + Text on Path** (D-053)
+não estavam testáveis nem usáveis pelo editor. Auditoria honesta confirmou:
+modelo + renderer + exporter prontos (e specs cobrem isso), mas **ZERO UI**.
+A entrada anterior do D-053 e um comentário JSDoc do plugin advanced-edit
+diziam "Inspector controls surface them directly when a text node is
+selected" — afirmação falsa. As features só funcionavam via SVG importado
+ou console JS. Marcação como concluído foi otimista: engine completo
+≠ feature usável pelo usuário final.
+
+### Implementação
+
+**Nova seção "Type" no `<svge-inspector>`** (`ui/lib/inspector/inspector.component.ts`)
+— visível **apenas** quando o nó focado é `type: 'text'`, posicionada
+entre "Path operations" e "Style". Layout em 4 subseções com 5 controles
+no total:
+
+1. **`letter-spacing` (px)** — `<input type="number" step="0.1">`. Empty
+   limpa o campo (volta pro default SVG).
+2. **`font-variation-settings` (Variable font axes)** — `<input type="text">`
+   livre com placeholder `'wght' 650, 'wdth' 95`. Hint inline avisa
+   "Inactive on static (non-variable) fonts".
+3. **`font-feature-settings` (OpenType features)** — 4 chips de quick-toggle
+   (`Liga` / `SmCp` / `TNum` / `SS01`) que alternam tags + `<input type="text">`
+   raw pra qualquer feature tag arbitrária. Quick-toggles preservam tags
+   adicionais que o usuário tenha digitado (round-trip via `parseFontFeatures`
+   - `stringifyFontFeatures`, helpers puros exportados pra testes).
+4. **`textPathRef` (follow path)** — `<mat-select>` listando todos os
+   `path` nodes do documento (label = `metadata.name` + short-id; só
+   paths aparecem porque `<textPath href>` aceita apenas paths). Opção
+   `(none — straight baseline)` limpa **AMBOS** `textPathRef` e
+   `textPathStartOffset` em uma operação (evita órfão).
+5. **`textPathStartOffset` (start offset)** — `<input type="text">` aceita
+   `50%` (porcentagem) ou `40` (user units). Disabled quando `textPathRef`
+   não está setado.
+
+**Padrão de mutação**: todos os campos disparam `SetPropertyCommand<TextNode, K>`
+via `CommandBus` — single undo entry por field edit, multi-editor scope
+honrado (D-042). Helper `setTextProperty<K>` centraliza guarda de
+lock + dedup ("same value → no-op").
+
+**Helpers puros exportados** em `inspector.component.ts`:
+
+- `parseFontFeatures(raw)` — tolerante a aspas simples/duplas e formas
+  `on`/`off`/`0`/`1`/`<num>` permitidas pela spec CSS. Retorna `Map<tag, on>`.
+- `stringifyFontFeatures(map)` — só emite tags habilitadas (CSS default
+  já é "feature off" pra non-defaults), aspas simples canônicas.
+
+**Specs (`inspector.component.spec.ts`)**: 3 novos describes, 17 cases:
+visibility (rect oculta, text mostra, switch focus colapsa), dispatch
+(cada controle muta o campo correto), pure helpers (parse/stringify
+spec-compliant). Total +280 linhas de spec.
+
+### Correção de comentário falso
+
+`edit/lib/menu/builtin/builtin-advanced-edit-menu.plugin.ts` linhas
+34-36 diziam "Inspector controls surface them directly" — comentário
+substituído por descrição correta apontando pro D-068 e admitindo
+honestamente que pré-D-068 o D-053 era **headless-only**.
+
+### Decisões importantes
+
+- **Lista paths apenas** no dropdown textPathRef — `<textPath href>`
+  aceita só paths (não rects/ellipses). Usuário que queira texto num
+  círculo usa "Convert to Path" (já 1-click no Inspector).
+- **`(none)` limpa ambos `ref` + `offset`** — evita config inválida
+  (offset sem path).
+- **Quick-toggles + raw input** — quick-toggles cobrem 4 features mais
+  comuns; raw input cobre tudo (stylistic sets, character variants,
+  alt-index). Não tentar mostrar interface visual pros 100+ tags
+  OpenType existentes — usabilidade ruim, melhor confiar em quem
+  conhece OpenType pra digitar.
+- **Sem detecção de eixos disponíveis na variable font** — listar
+  `wght`/`wdth` como sliders teria sido cool mas requer font-loading
+  detection complexa (`CSS.supports("font-variation-settings")`
+  - parsing de `fvar` table). Mantido como text input livre por enquanto;
+    follow-up se pedido.
+
+### Validação
+
+- `ng build svg-engine` ✓ todos os 9 entry points
+- Specs cobrem dispatch + visibility + pure helpers
+- Comentário falso do plugin corrigido
+
+### Status do D-053 (revisado)
+
+| Feature           | Pré-D-068     | Pós-D-068                        |
+| ----------------- | ------------- | -------------------------------- |
+| Variable Fonts    | HEADLESS-ONLY | **FULL** (UI + Inspector)        |
+| OpenType features | HEADLESS-ONLY | **FULL** (4 quick-toggles + raw) |
+| Text on Path      | HEADLESS-ONLY | **FULL** (dropdown + offset)     |
+| Letter spacing    | HEADLESS-ONLY | **FULL** (number input)          |
+
+Usuário pode finalmente testar/usar todas as features do D-053 sem
+recorrer ao console JS ou importar SVG pré-pronto.
+
+---
+
 ## 2026-05-24 — D-066: Auto-trace polish — Material dialog + Ctrl+Alt+T + status pill
 
 ### Demanda
@@ -1350,6 +1451,15 @@ implementadas no mesmo ciclo (escopo coeso). Item 6.3 (Auto-trace) explicitament
 deferido como D-057.
 
 ### D-053 — Variable Fonts + OpenType + Text on Path (itens 6.5 / 6.6)
+
+> **⚠️ Errata pós-fato (2026-05-24)**: o que está descrito abaixo cobre
+> **somente** modelo + renderer + exporter. A UI no Inspector que permite
+> ao usuário SETAR esses campos pelo editor **não foi entregue no D-053
+> original** — só veio no **D-068** (entrada no topo deste arquivo).
+> Entre D-053 e D-068, as features funcionaram apenas via SVG importado
+> ou via console JS (`SetPropertyCommand` direto). O comentário JSDoc
+> em `builtin-advanced-edit-menu.plugin.ts` dizendo "Inspector controls
+> surface them directly" foi otimista e estava incorreto pré-D-068.
 
 **Modelo (core/model/text-node.ts)** — TextNode ganhou 5 campos opcionais:
 

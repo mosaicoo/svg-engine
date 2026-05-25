@@ -31,9 +31,13 @@ import { MENU_SLOT } from '../menu-slots';
  * Object/Pathfinder). Refresh + Release become disabled when the
  * selection isn't a live-boolean group.
  *
- * **D-053 text features** (variable fonts, OpenType, text on path)
- * are property-only — no menu items needed. Inspector controls
- * surface them directly when a text node is selected.
+ * **D-053 text features** (variable fonts, OpenType, text on path,
+ * letter-spacing) are property-only — no menu items needed. The
+ * Inspector's **Type section (D-068)** surfaces them directly when
+ * a text node is selected: 4 controls plus 4 OpenType quick-toggle
+ * chips, all dispatching `SetPropertyCommand`. (Before D-068 the
+ * model/render/export were ready but no UI exposed them — D-053
+ * was effectively headless-only.)
  *
  * **Opt-in**: like all builtin plugins, consumers explicitly
  * provision via `provideSvgEnginePlugin(builtinAdvancedEditMenuPlugin)`.
