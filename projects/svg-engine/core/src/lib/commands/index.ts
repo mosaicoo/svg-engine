@@ -47,3 +47,5 @@ export { SetPropertyOnManyCommand } from './set-property-on-many.command';
 export { SetStylePropertyOnManyCommand } from './set-style-property-on-many.command';
 export { TranslateManyCommand } from './translate-many.command';
 export { UngroupCommand } from './ungroup.command';
+// D-072 — Logical Layers
+export { CreateLayerCommand, MakeLayerCommand, UnmakeLayerCommand } from './layer.commands';

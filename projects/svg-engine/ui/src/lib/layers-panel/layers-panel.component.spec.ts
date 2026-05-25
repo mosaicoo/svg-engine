@@ -6,6 +6,8 @@ import {
   createGroup,
   createRect,
   EditorStateService,
+  isLayer,
+  withLayerFlag,
 } from 'svg-engine/core';
 import { LayersService, SelectionService } from 'svg-engine/edit';
 import { LayersPanel } from './layers-panel.component';
@@ -334,5 +336,85 @@ describe('LayersPanel — drag-drop reorder (Bloco 4b-DnD)', () => {
     simulateDragDrop(rs[0]!, rs[2]!, 'after');
     fixture.detectChanges();
     expect(selection.focusId()).toBe(a.id);
+  });
+});
+
+describe('LayersPanel — D-072 Logical Layers', () => {
+  it('renders layer rows with the .is-layer class', () => {
+    const { state, fixture } = setup();
+    const layer = withLayerFlag(createGroup([]));
+    const plain = createGroup([]);
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([layer, plain], { id: state.document().root.id }),
+    });
+    fixture.detectChanges();
+    const [layerRow, plainRow] = rows(fixture.nativeElement);
+    expect(layerRow?.classList.contains('is-layer')).toBe(true);
+    expect(plainRow?.classList.contains('is-layer')).toBe(false);
+  });
+
+  it('layer rows use the folder_special icon (distinct from plain folder)', () => {
+    const { state, fixture } = setup();
+    const layer = withLayerFlag(createGroup([]));
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([layer], { id: state.document().root.id }),
+    });
+    fixture.detectChanges();
+    const icon = rows(fixture.nativeElement)[0]?.querySelector('.type-icon');
+    expect(icon?.textContent?.trim()).toBe('folder_special');
+  });
+
+  it('"+ New Layer" button dispatches a CreateLayerCommand', () => {
+    const { state, fixture } = setup();
+    const before = state.document().root.children.length;
+    const btn = (fixture.nativeElement as HTMLElement).querySelector(
+      '.new-layer-btn',
+    ) as HTMLButtonElement | null;
+    expect(btn).not.toBeNull();
+    btn!.click();
+    fixture.detectChanges();
+    const after = state.document().root.children;
+    expect(after.length).toBe(before + 1);
+    // New layer is the FIRST child (front of the document).
+    expect(isLayer(after[0]!)).toBe(true);
+  });
+
+  it('drag a layer onto another group (inside): NO mutation (top-level invariant)', () => {
+    const { state, fixture } = setup();
+    const layer = withLayerFlag(createGroup([]));
+    const group = createGroup([]);
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([layer, group], { id: state.document().root.id }),
+    });
+    fixture.detectChanges();
+    const before = state.document();
+    const [layerRow, groupRow] = rows(fixture.nativeElement);
+    expect(layerRow).toBeDefined();
+    expect(groupRow).toBeDefined();
+    // Stub bounding rect on the group row so "inside" math works.
+    const fakeRect: DOMRect = {
+      top: 0,
+      bottom: 30,
+      left: 0,
+      right: 200,
+      width: 200,
+      height: 30,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    };
+    groupRow!.getBoundingClientRect = () => fakeRect;
+    layerRow!.dispatchEvent(new MouseEvent('dragstart', { bubbles: true }));
+    groupRow!.dispatchEvent(
+      new MouseEvent('dragover', { bubbles: true, clientX: 10, clientY: 15 }),
+    );
+    groupRow!.dispatchEvent(new MouseEvent('drop', { bubbles: true, clientX: 10, clientY: 15 }));
+    layerRow!.dispatchEvent(new MouseEvent('dragend', { bubbles: true }));
+    fixture.detectChanges();
+    // Tree unchanged — drop rejected by isDropAllowed.
+    expect(state.document()).toBe(before);
   });
 });

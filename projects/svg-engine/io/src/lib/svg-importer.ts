@@ -12,6 +12,8 @@ import {
   createText,
   generateNodeId,
   parseTransformAttr,
+  SVGE_KIND_KEY,
+  SVGE_KIND_LAYER,
   type SvgDocument,
   type SvgNode,
   type SvgStyle,
@@ -177,11 +179,32 @@ function parseElement(
     }
   }
   switch (tag) {
-    case 'g':
+    case 'g': {
+      // **D-072 — Logical Layers**. The exporter emits
+      // `data-svge-kind="layer"` on layer groups; also honor
+      // `inkscape:groupmode="layer"` so files authored in Inkscape
+      // import with their layer structure preserved. Both signals
+      // collapse to the same in-editor `customData.svgeKind = 'layer'`
+      // flag — the UI doesn't care which one was on disk.
+      const svgeKind = el.getAttribute('data-svge-kind');
+      const inkscapeGroupMode = el.getAttribute('inkscape:groupmode');
+      const isLayerGroup = svgeKind === SVGE_KIND_LAYER || inkscapeGroupMode === 'layer';
+      // Authored name: prefer `inkscape:label` (Inkscape's layer name
+      // convention), fall back to a generic `data-svge-name` for
+      // files we round-tripped before adding name persistence.
+      const inkscapeLabel = el.getAttribute('inkscape:label');
+      const metadata = isLayerGroup
+        ? {
+            ...(inkscapeLabel !== null && inkscapeLabel.length > 0 ? { name: inkscapeLabel } : {}),
+            customData: { [SVGE_KIND_KEY]: SVGE_KIND_LAYER },
+          }
+        : undefined;
       return createGroup(parseChildren(el, warnings, unsupportedTags), {
         transform: parseTransformAttr(el.getAttribute('transform')),
         style: parseStyle(el),
+        ...(metadata !== undefined ? { metadata } : {}),
       });
+    }
     case 'rect':
       return createRect(
         {

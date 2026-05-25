@@ -12,6 +12,9 @@ export type { TextNode } from './text-node';
 
 export { isGroupNode, SVG_NODE_TYPES, type SvgNode, type SvgNodeType } from './svg-node';
 
+// D-072 — Logical Layers (metadata-flag on GroupNode)
+export { isLayer, SVGE_KIND_KEY, SVGE_KIND_LAYER, withLayerFlag, withoutLayerFlag } from './layer';
+
 export {
   createEllipse,
   createGroup,

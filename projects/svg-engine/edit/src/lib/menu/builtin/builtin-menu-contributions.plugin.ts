@@ -2,15 +2,19 @@ import { computed, type Injector, type ProviderToken, type Signal } from '@angul
 import {
   CommandBus,
   ConvertNodeToPathCommand,
+  CreateLayerCommand,
   DivideCommand,
   DuplicateNodeCommand,
   EditorStateService,
   ExcludeCommand,
   findNodeById,
+  findParent,
   GroupSelectionCommand,
   HistoryService,
   InsertNodeCommand,
   IntersectCommand,
+  isLayer,
+  MakeLayerCommand,
   type NodeId,
   RemoveNodeCommand,
   ReorderNodeCommand,
@@ -19,6 +23,7 @@ import {
   type TextNode,
   UngroupCommand,
   UnionCommand,
+  UnmakeLayerCommand,
 } from 'svg-engine/core';
 import { pngExporter, svgExporter, svgImporter } from 'svg-engine/io';
 import { OptimizeCommand, OptimizerRegistry } from 'svg-engine/optimize';
@@ -981,6 +986,99 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         disabled: cantPathfinderFactory,
         run(runCtx) {
           dispatchPathfinder(runCtx, ExcludeCommand);
+        },
+      }),
+    );
+
+    // ── D-072 — Logical Layers (Object ▸ Layer submenu) ─────────────
+    //
+    // Three commands, all gated by per-target context:
+    //
+    // - **New Layer** (always available): creates an empty top-level
+    //   layer at the front of the document. Drives the same gesture
+    //   the Layers Panel "+" button fires.
+    // - **Convert to Layer**: enabled only when the focused node is a
+    //   top-level group (not nested, not already a layer, not a leaf
+    //   shape). The command itself rejects illegal targets; the
+    //   disabled signal mirrors the same predicate so the menu UI
+    //   shows the constraint up-front instead of failing silently.
+    // - **Convert to Group**: enabled only when the focused node is a
+    //   layer. Inverse of Convert to Layer.
+    //
+    // Placed in `menu.object` (above Pathfinder, below Send to Back) —
+    // mirrors Illustrator's "Object ▸ Layer" submenu position. Could
+    // be promoted to its own top-level `menu.layer` in the future, but
+    // a submenu keeps the menu bar narrow while D-072 lands.
+    const cantConvertToLayerFactory = (injector: Injector): Signal<boolean> => {
+      const sel = injector.get(SelectionService);
+      const state = injector.get(EditorStateService);
+      return computed(() => {
+        const id = sel.focusId();
+        if (id === null) return true;
+        const root = state.document().root;
+        const node = findNodeById(root, id);
+        if (node === null || node.type !== 'group') return true;
+        if (isLayer(node)) return true; // already a layer
+        const parent = findParent(root, id);
+        return parent === null || parent.id !== root.id; // must be top-level
+      });
+    };
+    const cantConvertToGroupFactory = (injector: Injector): Signal<boolean> => {
+      const sel = injector.get(SelectionService);
+      const state = injector.get(EditorStateService);
+      return computed(() => {
+        const id = sel.focusId();
+        if (id === null) return true;
+        const node = findNodeById(state.document().root, id);
+        return node === null || !isLayer(node);
+      });
+    };
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.new-layer',
+        slot: MENU_SLOT.OBJECT,
+        label: 'New Layer',
+        icon: 'add_box',
+        order: 80,
+        run(runCtx) {
+          const bus = fromCtx(CommandBus, runCtx);
+          const sel = fromCtx(SelectionService, runCtx);
+          const cmd = new CreateLayerCommand();
+          bus.dispatch(cmd);
+          const newId = cmd.getCreatedLayerId();
+          if (newId !== null) sel.select(newId);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.convert-to-layer',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Convert to Layer',
+        icon: 'folder_special',
+        order: 81,
+        disabled: cantConvertToLayerFactory,
+        run(runCtx) {
+          const sel = fromCtx(SelectionService, runCtx);
+          const id = sel.focusId();
+          if (id === null) return;
+          fromCtx(CommandBus, runCtx).dispatch(new MakeLayerCommand(id));
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.convert-to-group',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Convert Layer to Group',
+        icon: 'folder',
+        order: 82,
+        disabled: cantConvertToGroupFactory,
+        run(runCtx) {
+          const sel = fromCtx(SelectionService, runCtx);
+          const id = sel.focusId();
+          if (id === null) return;
+          fromCtx(CommandBus, runCtx).dispatch(new UnmakeLayerCommand(id));
         },
       }),
     );

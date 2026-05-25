@@ -17,17 +17,21 @@ import { MatInput } from '@angular/material/input';
 import { MatMenu, MatMenuTrigger } from '@angular/material/menu';
 import {
   CommandBus,
+  CreateLayerCommand,
   EditorStateService,
   findNodeById,
   findParent,
   type GroupNode,
   isGroupNode,
+  isLayer,
+  MakeLayerCommand,
   MoveNodeInTreeCommand,
   type NodeId,
   SetPropertyCommand,
   type SvgMetadata,
   type SvgNode,
   type SvgNodeType,
+  UnmakeLayerCommand,
 } from 'svg-engine/core';
 import { IsolationService, LayersService, SelectionService } from 'svg-engine/edit';
 
@@ -152,6 +156,27 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
         </div>
       </div>
     }
+
+    <!--
+      **D-072 — Logical Layers**. Panel-level action bar with a single
+      "New Layer" button. Always visible (even when the panel is empty)
+      so the user has a discoverable entry point to start populating
+      the document — matches the Illustrator / Affinity pattern of
+      always-on layer-creation controls. Compact (single button) so it
+      doesn't push the search bar / batch bar off-screen.
+    -->
+    <div class="actions-bar" role="toolbar" aria-label="Layer actions">
+      <button
+        mat-icon-button
+        type="button"
+        class="new-layer-btn"
+        title="New Layer"
+        aria-label="New Layer"
+        (click)="createNewLayer()"
+      >
+        <mat-icon>add</mat-icon>
+      </button>
+    </div>
 
     <!--
       Search + filter header (Illustrator convention). Hidden when the
@@ -279,6 +304,7 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
           [draggable]="!isLocked()(node.id)"
           [tabindex]="isLocked()(node.id) ? -1 : 0"
           [class.selected]="isSelected()(node.id)"
+          [class.is-layer]="isLayerNode(node)"
           [class.locked]="isLocked()(node.id)"
           [class.dim-non-match]="filterCount() > 0 && !isMatch()(node.id)"
           [class.hidden]="!isVisible()(node.id)"
@@ -443,6 +469,35 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
       width: 16px;
       height: 16px;
     }
+    /* D-072 — Layer-creation action bar. Single "+" button at the top
+       of the panel; always visible (even when the layer list is empty)
+       so users have a discoverable entry point to start adding layers.
+       Right-aligned to mirror Illustrator/Affinity's bottom-bar
+       convention while keeping the search field unobstructed. */
+    .actions-bar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 2px 6px;
+      flex: 0 0 auto;
+      background: var(--mat-sys-surface-container, transparent);
+    }
+    .new-layer-btn {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      --mdc-icon-button-state-layer-size: 28px;
+      --mat-icon-button-touch-target-display: none;
+    }
+    .new-layer-btn mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      line-height: 18px;
+    }
     /* Header: search field + filter trigger. Stays pinned at the top
        while the layers list below scrolls — common panel UX (Illustrator,
        Affinity, Figma). */
@@ -522,6 +577,21 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
     .row.hidden .type-icon {
       opacity: 0.45;
       font-style: italic;
+    }
+    /* D-072 — Layer rows get a left accent stripe so the user can
+       eye-scan the panel and see "where do my layers begin/end" at a
+       glance — matches the Affinity panel's visual treatment. The
+       accent uses the primary color and respects the depth padding
+       added by the row's [style.padding-left] binding. */
+    .row.is-layer {
+      box-shadow: inset 3px 0 0 0 var(--mat-sys-primary, #1976d2);
+    }
+    .row.is-layer .label {
+      font-weight: 500;
+    }
+    .row.is-layer .type-icon {
+      color: var(--mat-sys-primary, #1976d2);
+      opacity: 1;
     }
     .row.locked {
       cursor: not-allowed;
@@ -1012,7 +1082,23 @@ export class LayersPanel {
   }
 
   protected iconFor(node: SvgNode): string {
+    // **D-072 — Logical Layers**. Layer groups (groups carrying the
+    // `metadata.customData.svgeKind === 'layer'` flag) get a distinct
+    // `folder_special` icon so the user can visually distinguish them
+    // from plain groups at a glance — Affinity convention. Plain
+    // groups still render as `folder`. Non-group nodes fall through
+    // to the type-based default.
+    if (isLayer(node)) return 'folder_special';
     return TYPE_ICON[node.type] ?? 'crop_square';
+  }
+
+  /**
+   * **D-072** — Type-guard wrapper for the template so `@if (isLayer(...))`
+   * compiles without importing the type-guard at template scope. Same
+   * `isLayer` from core under the hood.
+   */
+  protected isLayerNode(node: SvgNode): node is GroupNode {
+    return isLayer(node);
   }
 
   protected label(node: SvgNode): string {
@@ -1227,6 +1313,53 @@ export class LayersPanel {
     }
   }
 
+  // ── D-072 — Layer creation / conversion handlers ────────────────
+
+  /**
+   * Dispatch {@link CreateLayerCommand} and select the freshly-created
+   * layer so the user can immediately rename it / start drawing into
+   * it. Bound to the "+" button in the panel header.
+   */
+  protected createNewLayer(): void {
+    const cmd = new CreateLayerCommand();
+    this.bus.dispatch(cmd);
+    const newId = cmd.getCreatedLayerId();
+    if (newId !== null) this.selection.select(newId);
+  }
+
+  /**
+   * Convert a top-level group into a Layer (D-072). Surfaced via the
+   * "Object ▸ Convert to Layer" menu entry and via this method for
+   * panel-driven UX (right-click context menu / future row button).
+   *
+   * Defensive predicates mirror what `MakeLayerCommand` enforces: only
+   * a top-level group can become a layer. Returns `false` (no
+   * dispatch) when the gesture is rejected so callers can show a hint.
+   */
+  protected convertToLayer(id: NodeId): boolean {
+    const root = this.state.document().root;
+    const node = findNodeById(root, id);
+    if (node === null || node.type !== 'group') return false;
+    if (isLayer(node)) return false;
+    const parent = findParent(root, id);
+    if (parent === null || parent.id !== root.id) return false;
+    this.bus.dispatch(new MakeLayerCommand(id));
+    return true;
+  }
+
+  /**
+   * Convert a Layer back into a plain group (D-072). Inverse of
+   * {@link convertToLayer}. No-op when the node is not actually a
+   * layer (returns `false`).
+   */
+  protected convertToGroup(id: NodeId): boolean {
+    const root = this.state.document().root;
+    const node = findNodeById(root, id);
+    if (node === null || !isLayer(node)) return false;
+    this.bus.dispatch(new UnmakeLayerCommand(id));
+    return true;
+  }
+
   // ── Drag-drop reorder (Bloco 4b-DnD) ────────────────────────────
 
   /**
@@ -1318,6 +1451,24 @@ export class LayersPanel {
    * Decide where the drop would land given the pointer Y inside the
    * row. Returns `null` for invalid combinations (source dragged onto
    * itself / a descendant / a locked row).
+   *
+   * **D-072 — Layer placement rules**:
+   *
+   * - A **Layer** can only live as a top-level child of the document
+   *   root (no nested layers, no layer-inside-group). When the source
+   *   is a layer, every position that would land it under a non-root
+   *   parent is rejected:
+   *   - `inside` of any group/layer → reject
+   *   - `before`/`after` a node whose parent isn't the root → reject
+   * - A **non-layer** (plain group, leaf shape) MAY be dropped
+   *   *inside* a layer (layers exist precisely to hold content) but
+   *   not before/after a layer at a position that would land it under
+   *   a non-root parent — same rule as for plain groups.
+   *
+   * Rejecting here (in addition to the command's runtime validation)
+   * gives the user immediate visual feedback (the drop indicator
+   * never lights up for an illegal placement) instead of a silent
+   * no-op on release. Matches Affinity / Photoshop convention.
    */
   private computeDropPosition(event: DragEvent, target: SvgNode): DropTarget | null {
     const source = this.dragSourceId();
@@ -1337,10 +1488,51 @@ export class LayersPanel {
     // top 30% = before, bottom 30% = after, middle 40% = inside (only
     // when target is a group — otherwise treat as `after`, the natural
     // "drop below this leaf" intent).
-    if (y < h * 0.3) return { id: target.id, position: 'before' };
-    if (y > h * 0.7) return { id: target.id, position: 'after' };
-    if (isGroupNode(target)) return { id: target.id, position: 'inside' };
-    return { id: target.id, position: 'after' };
+    let candidate: DropPosition;
+    if (y < h * 0.3) candidate = 'before';
+    else if (y > h * 0.7) candidate = 'after';
+    else if (isGroupNode(target)) candidate = 'inside';
+    else candidate = 'after';
+
+    // **D-072 invariant gate** — apply the layer placement rules
+    // before returning. `null` here means "no valid landing spot"
+    // and the panel suppresses the drop indicator entirely.
+    if (!this.isDropAllowed(source, target, candidate)) return null;
+
+    return { id: target.id, position: candidate };
+  }
+
+  /**
+   * **D-072 — Layer placement gate**. Returns `true` when dropping
+   * `sourceId` at `(target, position)` would land it in a slot the
+   * data model permits. Two rules:
+   *
+   * 1. **Layers stay top-level**: when source is a layer, the
+   *    resolved parent of the drop MUST be the document root.
+   * 2. **Layer's slot is the front of itself or the root**: any
+   *    drop is allowed `inside` a layer (layers hold content); but
+   *    a layer itself cannot be dropped `inside` anything.
+   *
+   * Non-layer sources keep their pre-D-072 behavior (any group is a
+   * valid container, before/after of any sibling is allowed).
+   */
+  private isDropAllowed(sourceId: NodeId, target: SvgNode, position: DropPosition): boolean {
+    const root = this.state.document().root;
+    const source = findNodeById(root, sourceId);
+    if (source === null) return false;
+    // Resolve the parent the drop would produce.
+    let resolvedParentId: NodeId;
+    if (position === 'inside') {
+      if (!isGroupNode(target)) return false;
+      resolvedParentId = target.id;
+    } else {
+      const targetParent = findParent(root, target.id);
+      if (targetParent === null) return false;
+      resolvedParentId = targetParent.id;
+    }
+    // Rule 1: layers can only live at the document root.
+    if (isLayer(source) && resolvedParentId !== root.id) return false;
+    return true;
   }
 
   /**

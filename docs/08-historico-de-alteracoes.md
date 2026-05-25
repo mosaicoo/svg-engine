@@ -6,6 +6,93 @@
 
 ---
 
+## 2026-05-25 — D-072: Logical Layers — top-level organizational groups
+
+**O quê.** Conceito de **Layer** sobre `GroupNode`: um grupo cujo
+`metadata.customData.svgeKind === 'layer'` é tratado pela UI como
+um container organizacional top-level (não pode ser aninhado dentro
+de outro grupo ou layer). Convenção Illustrator/Affinity/Photoshop.
+
+**Por quê.** Item #3 do bloco "Workflow / produtividade". Designers
+esperam um eixo organizacional separado das hierarquias visuais de
+grupo — layers para "Background / Foreground / UI" e grupos para
+agrupamentos lógicos dentro deles. Antes do D-072, todo container
+era um `group` indistinguível, sem garantia de top-level.
+
+**Decisão.** Reusar `GroupNode` com flag em `metadata.customData` —
+mesma estratégia do D-056 Live Boolean. Vantagens: zero impacto em
+renderer/render/hit-test/transform que tratam grupos como grupos;
+zero churn no modelo de tipo (`SvgNode` union inalterado); plugins
+existentes funcionam sem mudança.
+
+**Implementação.**
+
+- `core/model/layer.ts` — helpers puros: `isLayer(node)`,
+  `withLayerFlag(group)`, `withoutLayerFlag(group)` +
+  constantes `SVGE_KIND_KEY = 'svgeKind'` e `SVGE_KIND_LAYER = 'layer'`.
+- `core/commands/layer.commands.ts` — três comandos no padrão
+  Command+undo:
+  - `MakeLayerCommand(id)` — converte grupo top-level → layer.
+    Rejeita grupos aninhados (sem mutação, sem entrada no
+    histórico se já era layer).
+  - `UnmakeLayerCommand(id)` — inverso. Limpa o flag preservando
+    outras entradas em `customData`.
+  - `CreateLayerCommand()` — cria layer vazio no front do root
+    com nome auto-numerado "Layer N". Expõe `getCreatedLayerId()`
+    para callers (UI) selecionarem o novo layer.
+- `io/svg-exporter.ts` — emite `data-svge-kind="layer"` em `<g>`
+  para grupos com o flag. Atributo `data-*` é SVG válido,
+  preservado por todos os editores (Inkscape/Illustrator/Figma).
+- `io/svg-importer.ts` — lê `data-svge-kind="layer"` E
+  `inkscape:groupmode="layer"` (compatibilidade com Inkscape) e
+  reconstitui o flag. `inkscape:label` vira `metadata.name`.
+- `edit/menu/builtin-menu-contributions.plugin.ts` — três entradas
+  novas em `menu.object`: "New Layer", "Convert to Layer"
+  (disabled quando focused não é grupo top-level), "Convert Layer
+  to Group" (disabled quando focused não é layer).
+- `ui/layers-panel/layers-panel.component.ts`:
+  - Botão "+" no topo do painel (`createNewLayer()` dispatcha
+    `CreateLayerCommand` + auto-seleciona).
+  - Linhas de layer recebem ícone `folder_special` (vs `folder`
+    de grupo plano), classe `.is-layer` para CSS, e accent
+    stripe à esquerda com cor primária + label em weight 500.
+  - Validação drag/drop: `isDropAllowed()` rejeita qualquer
+    posição que colocaria um layer sob um parent diferente do
+    root (top-level invariant). Drop indicator não acende para
+    placements ilegais — feedback visual imediato em vez de
+    no-op silencioso ao soltar.
+- Métodos públicos `convertToLayer(id)` / `convertToGroup(id)`
+  expostos no `LayersPanel` para integração futura (context
+  menu por linha, atalho específico).
+
+**Round-trip garantido.** Diferente do Live Boolean (que vive só
+in-editor), o flag de layer SOBREVIVE a um ciclo completo de
+export → import porque emitimos `data-svge-kind="layer"` no SVG e
+lemos de volta. Spec dedicado em `io/layer-roundtrip.spec.ts`
+cobre os 6 cenários (emit/skip, read svge + inkscape, full
+round-trip plain + layer).
+
+**O que NÃO foi feito** (escopo deliberadamente restrito):
+
+- Context menu por linha no Layer Panel (Convert to Layer
+  via right-click). O método existe; a integração com
+  `MatMenuTrigger` por linha fica para uma iteração de UX
+  futura — a entrada "Object ▸ Convert to Layer" já cobre
+  o gesto.
+- Top-level `menu.layer` separado (Illustrator tem). Por ora
+  o submenu vive em `menu.object` para manter a barra de
+  menu compacta.
+
+**Specs.** +18 testes (8 layer commands + 4 layer model helpers +
+6 IO round-trip + 4 painel). Suíte total: 1511 testes (era 1479).
+
+**Cuidados D-042/D-017 já endereçados.** Commands não dependem de
+state per-editor (são `Command` simples dispatchados via `CommandBus`
+já scoped); painel UI lê via signals injectados (já scoped via
+`provideSvgEngineEditorScope()`).
+
+---
+
 ## 2026-05-25 — D-071: Batch operations — Select Same + Batch Convert + Layers batch
 
 ### Demanda

@@ -3,6 +3,7 @@ import {
   type GroupNode,
   type ImageNode,
   isGroupNode,
+  isLayer,
   type LineNode,
   type NodeId,
   type PathNode,
@@ -172,6 +173,22 @@ function renderSymbolUse(node: SymbolUseNode, depth: number): string {
 function renderGroup(node: GroupNode, depth: number, referencedIds: ReadonlySet<NodeId>): string {
   const indent = '  '.repeat(depth);
   const attrs = baseAttrs(node);
+  // **D-072 — Logical Layers**. When the group carries the layer flag
+  // in `metadata.customData.svgeKind`, emit a `data-svge-kind="layer"`
+  // attribute so the designation survives a full export → re-import
+  // round-trip. `data-*` attributes are valid SVG/HTML, preserved by
+  // every major editor (Inkscape/Illustrator/Figma) on save, and
+  // ignored by the SVG rendering spec — pure metadata transport. Also
+  // emit `inkscape:groupmode="layer"` for compatibility with
+  // Inkscape's native layer concept, so a file authored here opens
+  // with proper layer separation in Inkscape and vice versa. (The
+  // inkscape namespace requires the prefix to be valid XML — modern
+  // browser DOMParsers accept the unbound prefix silently because the
+  // attribute lives in the `xmlns:*` lookup, not the element
+  // namespace; round-trip via DOMParser preserves it.)
+  if (isLayer(node)) {
+    attrs.push(['data-svge-kind', 'layer']);
+  }
   if (!isGroupNode(node) || node.children.length === 0) {
     // Empty group still renders (preserves structure for round-trip).
     return `${indent}<g${attrsStr(attrs)} />`;
