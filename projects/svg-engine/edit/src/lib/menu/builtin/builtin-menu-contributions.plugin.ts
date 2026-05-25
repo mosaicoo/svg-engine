@@ -16,6 +16,7 @@ import {
   ReorderNodeCommand,
   type ReorderDirection,
   SubtractCommand,
+  type TextNode,
   UngroupCommand,
   UnionCommand,
 } from 'svg-engine/core';
@@ -30,6 +31,7 @@ import {
   type NodeBBox,
 } from '../../alignment';
 import { ClipboardService } from '../../clipboard/clipboard.service';
+import { SelectSameService } from '../../find-replace/select-same.service';
 import { getRenderedNodeBBox } from '../../geometry/node-bbox';
 import { ActiveDefsService } from '../../library/active-defs.service';
 import { type EditorPlugin } from '../../plugin/plugin';
@@ -346,6 +348,72 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+
+    // D-071a — Select Same (Fill / Stroke / Font Family). Illustrator
+    // convention. Each entry is disabled when there's no focused node
+    // (need a single anchor to "match against") OR when the focused
+    // node doesn't have the relevant attribute.
+    const noFocusFactory = (injector: Injector): Signal<boolean> => {
+      const sel = injector.get(SelectionService);
+      const state = injector.get(EditorStateService);
+      return computed(() => {
+        const id = sel.focusId();
+        if (id === null) return true;
+        const node = findNodeById(state.document().root, id);
+        return node === null;
+      });
+    };
+    const noFontFamilyFocusFactory = (injector: Injector): Signal<boolean> => {
+      const sel = injector.get(SelectionService);
+      const state = injector.get(EditorStateService);
+      return computed(() => {
+        const id = sel.focusId();
+        if (id === null) return true;
+        const node = findNodeById(state.document().root, id);
+        if (node === null || node.type !== 'text') return true;
+        return typeof (node as TextNode).fontFamily !== 'string';
+      });
+    };
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.select-same-fill',
+        slot: MENU_SLOT.EDIT,
+        label: 'Select Same Fill',
+        icon: 'palette',
+        order: 50.1,
+        disabled: noFocusFactory,
+        run(runCtx) {
+          fromCtx(SelectSameService, runCtx).selectSameFill();
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.select-same-stroke',
+        slot: MENU_SLOT.EDIT,
+        label: 'Select Same Stroke',
+        icon: 'border_color',
+        order: 50.2,
+        disabled: noFocusFactory,
+        run(runCtx) {
+          fromCtx(SelectSameService, runCtx).selectSameStroke();
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.select-same-font-family',
+        slot: MENU_SLOT.EDIT,
+        label: 'Select Same Font Family',
+        icon: 'text_format',
+        order: 50.3,
+        disabled: noFontFamilyFocusFactory,
+        run(runCtx) {
+          fromCtx(SelectSameService, runCtx).selectSameFontFamily();
+        },
+      }),
+    );
+
     // D-044: Cut/Copy/Paste/Duplicate — clipboard + duplicate handlers
     ctx.track(
       reg.register({

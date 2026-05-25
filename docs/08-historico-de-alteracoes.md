@@ -6,6 +6,90 @@
 
 ---
 
+## 2026-05-25 — D-071: Batch operations — Select Same + Batch Convert + Layers batch
+
+### Demanda
+
+Segunda feature do bloco 7 (Workflow / produtividade) na ordem acordada.
+Tres conveniencias batch que reusam a infra existente (selection,
+commands compostos, layers service) sem mexer em core arquitetural.
+
+### Implementação
+
+**D-071a — Select Same (Fill / Stroke / Font Family)** — Illustrator
+convention. Selecionando 1 nó como anchor + "Edit ▸ Select Same XYZ"
+seleciona todos os outros nós com mesmo fill / stroke / fontFamily.
+Combina naturalmente com o multi-edit do Inspector (D-044): seleciona
+todos os vermelhos → muda fill no Inspector → todos viram verdes.
+
+- `SelectSameService` (`edit/lib/find-replace/`) — thin layer sobre
+  `FindReplaceService` + `SelectionService.selectMany`. 3 métodos:
+  `selectSameFill / selectSameStroke / selectSameFontFamily`. Reuso
+  total das criterias D-070.
+- 3 menu entries em `MENU_SLOT.EDIT` order 50.1/50.2/50.3 (logo após
+  "Select All"). Cada uma com factory `disabled` que checa se o
+  focused node tem o atributo relevante.
+
+**D-071b — Batch Convert to Path** — Inspector "Convert to Path"
+antes operava só no focused node; agora opera em TODOS os nodes
+convertíveis selecionados (rect / ellipse / line / polygon /
+polyline) num único undo.
+
+- Novo `BatchConvertToPathCommand` (`core/lib/commands/`): composite
+  command que encadeia N `ConvertNodeToPathCommand` internamente.
+  Pre-validate atomicidade, undo em LIFO order (reverso).
+- Inspector refatorado: `convertibleIds()` computed enumera os ids
+  válidos da seleção atual; `canConvertToPath()` derivado disso;
+  `convertToPathLabel()` mostra "Convert 5 to Path" quando batch.
+- Bloco "Path operations" agora aparece TAMBÉM em multi-edit mode
+  (antes só single-select).
+
+**D-071c — Batch Lock / Hide no Layers Panel** — bar nova no TOPO
+do panel (acima do search) que aparece SÓ quando ≥2 layers selecionados:
+
+- Label "{N} selected"
+- 2 botões smart-toggle: Lock-all/Unlock-all (lock icon flips) e
+  Hide-all/Show-all (eye icon flips). Smart: se TODOS já estão
+  locked, botão vira "unlock"; senão, "lock". Mesmo para hide.
+- Cores: fundo `secondary-container` para destaque visual sem
+  conflitar com search bar abaixo.
+- Snapshot dos ids ANTES de mutar — porque lockear o focused id
+  causa `SelectionService` a podar a seleção (Bloco 4b-Lock); sem o
+  snapshot perderíamos iteração.
+
+### Validação
+
+- ng test svg-engine ✓ (será atualizado pós-build)
+- ng lint svg-engine ✓
+- ng build svg-engine ✓ 9 entry points
+- ng build playground ✓
+
+### Limitações honestas
+
+- **Select Same**: comparação string-equality, mesma limitação do
+  D-070 (não casa `red` com `#ff0000`).
+- **Batch Convert**: cada sub-command faz seu próprio remove+insert;
+  se falhar mid-batch (raro — só com mutação concorrente), os que já
+  rodaram não são auto-revertidos. Manual undo resolve.
+- **Layers batch**: não tem comando atômico — `setLocked`/`setVisible`
+  são UI state direto, não passam por CommandBus. Não dá pra "Ctrl+Z
+  o lock batch". Consistente com como lock/hide single-row funcionam
+  hoje (decisão pré-existente).
+
+### Como testar
+
+1. Recarregar playground
+2. **Select Same**: criar vários shapes mistos com 2 cores. Clicar num
+   shape vermelho. **Edit ▸ Select Same Fill** → todos os vermelhos
+   selecionam. Mudar fill no Inspector → todos viram a nova cor.
+3. **Batch Convert**: marquee/multi-select 3 rects + 2 ellipses.
+   Inspector mostra "Convert 5 to Path" — clica, Ctrl+Z reverte tudo.
+4. **Layers batch**: Shift-click 3 layers no panel. Aparece a bar
+   "3 selected" com 2 ícones. Click lock → todos lockam (e somem da
+   seleção, que é o comportamento esperado). Click eye → todos hide.
+
+---
+
 ## 2026-05-25 — D-070: Find & Replace (cor / font / atributo) com single-undo
 
 ### Demanda

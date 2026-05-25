@@ -13,8 +13,8 @@ import { MatInput } from '@angular/material/input';
 import { MatMenu, MatMenuTrigger } from '@angular/material/menu';
 import { MatOption, MatSelect } from '@angular/material/select';
 import {
+  BatchConvertToPathCommand,
   CommandBus,
-  ConvertNodeToPathCommand,
   decomposeTransform,
   EditorStateService,
   findNodeById,
@@ -370,11 +370,10 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
           <button
             type="button"
             class="reset-btn"
-            [disabled]="isLocked()"
             (click)="convertToPath()"
-            title="Convert this shape to an editable path"
+            title="Convert this shape (or all convertible shapes in the selection) to an editable path"
           >
-            Convert to Path
+            {{ convertToPathLabel() }}
           </button>
         </section>
       }
@@ -891,6 +890,28 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
         <span class="type-label">Multi-selection</span>
         <span class="id-label">{{ multiEditableIds().length }} editable</span>
       </header>
+
+      <!--
+        **D-071b** — Batch Convert to Path in multi-edit mode. Visible
+        when the selection contains at least one convertible shape.
+        Single undo entry via BatchConvertToPathCommand. The button
+        label updates to "Convert N to Path" so the user sees the
+        batch size before clicking.
+      -->
+      @if (canConvertToPath()) {
+        <section class="section">
+          <h3 class="section-title">Path operations</h3>
+          <button
+            type="button"
+            class="reset-btn"
+            (click)="convertToPath()"
+            title="Convert all convertible shapes in the selection to editable paths (single undo)"
+          >
+            {{ convertToPathLabel() }}
+          </button>
+        </section>
+      }
+
       <section class="section">
         <h3 class="section-title">Style (applies to all)</h3>
         <!-- Same Fill / Stroke / Appearance grouping as the single-
@@ -1901,32 +1922,70 @@ export class SvgeInspector {
   // ── Convert to Path (gateway to Path Editor + Pathfinder) ──
 
   /**
-   * `true` when the focused node is a non-path leaf type that the
-   * `ConvertNodeToPathCommand` knows how to handle. Drives the
-   * visibility of the "Convert to Path" button in the Path
-   * operations section.
-   *
-   * Hidden for paths (no-op), groups (not handled in v1), text and
-   * image (no geometric equivalent).
+   * Convertible node types — every shape the
+   * `ConvertNodeToPathCommand` knows how to handle. Used by both the
+   * single-node and batch (D-071b) paths.
    */
-  protected readonly canConvertToPath = computed(() => {
-    const node = this.focusNode();
-    if (node === null) return false;
-    return (
-      node.type === 'rect' ||
-      node.type === 'ellipse' ||
-      node.type === 'line' ||
-      node.type === 'polygon' ||
-      node.type === 'polyline'
-    );
+  private readonly CONVERTIBLE_TYPES = new Set(['rect', 'ellipse', 'line', 'polygon', 'polyline']);
+
+  /**
+   * Ids that the "Convert to Path" button will operate on. In single
+   * selection this is just the focused id (when convertible); in
+   * multi-selection (D-071b) this is every selected, unlocked,
+   * convertible id. Empty when nothing is convertible.
+   */
+  protected readonly convertibleIds = computed<readonly NodeId[]>(() => {
+    const doc = this.state.document();
+    const selectedIds = Array.from(this.selection.selectedIds());
+    if (selectedIds.length === 0) {
+      // No multi-selection — fall back to focused single (covers the
+      // pre-D-071b pattern where the inspector only shows for a focus).
+      const focus = this.focusNode();
+      if (focus === null || this.layers.isLocked(focus.id)) return [];
+      return this.CONVERTIBLE_TYPES.has(focus.type) ? [focus.id] : [];
+    }
+    const out: NodeId[] = [];
+    for (const id of selectedIds) {
+      if (this.layers.isLocked(id)) continue;
+      const node = findNodeById(doc.root, id);
+      if (node !== null && this.CONVERTIBLE_TYPES.has(node.type)) {
+        out.push(id);
+      }
+    }
+    return out;
   });
 
-  /** Dispatch the ConvertNodeToPathCommand for the focused node. */
+  /**
+   * `true` when at least one convertible (and unlocked) node is
+   * selected. Drives the "Path operations" section visibility.
+   * Replaces the pre-D-071b single-focus check; now true for any
+   * selection containing >= 1 convertible.
+   */
+  protected readonly canConvertToPath = computed(() => this.convertibleIds().length > 0);
+
+  /**
+   * Label for the button — pluralized when multi-selection has >1
+   * convertible. Single-node selection keeps the historical "Convert
+   * to Path" label.
+   */
+  protected readonly convertToPathLabel = computed(() => {
+    const n = this.convertibleIds().length;
+    return n <= 1 ? 'Convert to Path' : `Convert ${n} to Path`;
+  });
+
+  /**
+   * **D-071b** — Dispatch a single batch command that converts every
+   * convertible node in the current selection. Single undo entry
+   * regardless of node count (Ctrl+Z reverts the whole batch).
+   *
+   * The 1-node case still goes through the batch path for code
+   * uniformity — the `BatchConvertToPathCommand` label degrades to
+   * "Convert to path" for n=1, matching the historical command label.
+   */
   protected convertToPath(): void {
-    const node = this.focusNode();
-    if (node === null || this.layers.isLocked(node.id)) return;
-    if (!this.canConvertToPath()) return;
-    this.bus.dispatch(new ConvertNodeToPathCommand(node.id));
+    const ids = this.convertibleIds();
+    if (ids.length === 0) return;
+    this.bus.dispatch(new BatchConvertToPathCommand(ids));
   }
 
   // ── Pivot picker (Item 5 — débito 4c-Polish) ────────────────

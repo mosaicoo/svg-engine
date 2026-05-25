@@ -65,7 +65,13 @@ describe('SvgeInspector — empty / multi states', () => {
     expect(header).not.toBeNull();
     expect(header?.textContent).toContain('Multi-selection');
     expect(header?.textContent).toContain('2 editable');
-    expect(fixture.nativeElement.querySelector('.section-title')?.textContent).toContain('Style');
+    // D-071b: "Path operations" may render BEFORE "Style" in multi-edit
+    // when the selection contains convertible shapes (rects do). Search
+    // all section titles instead of asserting the first one.
+    const sectionTitles = Array.from(fixture.nativeElement.querySelectorAll('.section-title')).map(
+      (el) => (el as HTMLElement).textContent?.trim() ?? '',
+    );
+    expect(sectionTitles).toContain('Style (applies to all)');
   });
 
   it('shows "all locked" placeholder when multi-selection has zero unlocked items', () => {

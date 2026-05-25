@@ -7,6 +7,7 @@ export {
   RemoveAnchorCommand,
 } from './anchor.commands';
 export { ConvertNodeToPathCommand, nodeToPathD } from './convert-to-path.command';
+export { BatchConvertToPathCommand } from './batch-convert-to-path.command';
 // D-054 — Compound paths (Item 6.2)
 export {
   bakeTransformIntoPathD,

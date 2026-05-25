@@ -120,6 +120,40 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
   ],
   template: `
     <!--
+      **D-071c** — Batch ops bar for multi-select. Appears only when
+      ≥2 layers are selected. Provides one-click Lock-all / Unlock-all
+      / Hide-all / Show-all on the current selection — operations the
+      user can do row-by-row but tediously. Sits ABOVE the search/filter
+      header so it's the first thing visible when multi-select is
+      active. Hidden in single-select / no-select to avoid clutter.
+    -->
+    @if (batchCount() > 1) {
+      <div class="batch-bar" role="toolbar" [attr.aria-label]="batchCount() + ' selected'">
+        <span class="batch-label">{{ batchCount() }} selected</span>
+        <div class="batch-actions">
+          <button
+            type="button"
+            class="batch-btn"
+            [title]="batchAllLocked() ? 'Unlock all selected' : 'Lock all selected'"
+            [attr.aria-label]="batchAllLocked() ? 'Unlock all selected' : 'Lock all selected'"
+            (click)="batchToggleLock()"
+          >
+            <mat-icon>{{ batchAllLocked() ? 'lock_open' : 'lock' }}</mat-icon>
+          </button>
+          <button
+            type="button"
+            class="batch-btn"
+            [title]="batchAllHidden() ? 'Show all selected' : 'Hide all selected'"
+            [attr.aria-label]="batchAllHidden() ? 'Show all selected' : 'Hide all selected'"
+            (click)="batchToggleVisibility()"
+          >
+            <mat-icon>{{ batchAllHidden() ? 'visibility' : 'visibility_off' }}</mat-icon>
+          </button>
+        </div>
+      </div>
+    }
+
+    <!--
       Search + filter header (Illustrator convention). Hidden when the
       panel is empty (no document/children) so it doesn't clutter the
       "empty state" message.
@@ -365,6 +399,49 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
       overflow: hidden;
       font-size: 13px;
       background: var(--mat-sys-surface-container, #fafafa);
+    }
+    /* D-071c — Batch ops bar (multi-select only). Sits at the very
+       top of the panel, above the search/filter header. Uses a tinted
+       background to make it visually distinct from the regular header. */
+    .batch-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      flex: 0 0 auto;
+      background: var(--mat-sys-secondary-container, rgba(25, 118, 210, 0.08));
+      color: var(--mat-sys-on-secondary-container, inherit);
+      border-bottom: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
+      font-size: 12px;
+    }
+    .batch-label {
+      font-weight: 500;
+    }
+    .batch-actions {
+      display: inline-flex;
+      gap: 4px;
+    }
+    .batch-btn {
+      width: 28px;
+      height: 26px;
+      padding: 0;
+      border: 1px solid var(--mat-sys-outline-variant, #ccc);
+      border-radius: 4px;
+      background: var(--mat-sys-surface, #fff);
+      color: var(--mat-sys-on-surface, inherit);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 100ms;
+    }
+    .batch-btn:hover {
+      background: var(--mat-sys-surface-container-high, #eee);
+    }
+    .batch-btn .mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
     }
     /* Header: search field + filter trigger. Stays pinned at the top
        while the layers list below scrolls — common panel UX (Illustrator,
@@ -833,6 +910,69 @@ export class LayersPanel {
     if (next.has(state)) next.delete(state);
     else next.add(state);
     this.stateFilters.set(next);
+  }
+
+  // ── D-071c — Batch lock/hide bar (multi-select only) ────────────
+
+  /**
+   * Number of currently-selected layers. Drives the visibility of the
+   * batch-ops bar at the top of the panel. Hidden when 0 or 1 — at
+   * that point per-row eye/lock icons are enough.
+   */
+  protected readonly batchCount = this.selection.count;
+
+  /**
+   * True when EVERY selected layer is already locked — flips the
+   * Lock-all button label/icon to "Unlock all" so the user can revert.
+   * Empty selection → false (button isn't shown anyway).
+   */
+  protected readonly batchAllLocked = computed(() => {
+    const ids = Array.from(this.selection.selectedIds());
+    if (ids.length === 0) return false;
+    return ids.every((id) => this.layers.isLocked(id));
+  });
+
+  /**
+   * True when EVERY selected layer is already hidden. Symmetric to
+   * {@link batchAllLocked}.
+   */
+  protected readonly batchAllHidden = computed(() => {
+    const ids = Array.from(this.selection.selectedIds());
+    if (ids.length === 0) return false;
+    return ids.every((id) => !this.layers.isVisible(id));
+  });
+
+  /**
+   * Lock or unlock every selected layer in one shot. Smart toggle:
+   * if all are locked, unlock all; otherwise lock all. Matches what
+   * users expect from the Photoshop/Affinity "lock all selected"
+   * conveniences.
+   *
+   * **Important**: locking the focused node causes `SelectionService`
+   * to prune it (locked nodes can't stay selected per Bloco 4b-Lock).
+   * We snapshot the id list BEFORE mutating so we don't lose anyone
+   * mid-iteration when the locked side flips.
+   */
+  protected batchToggleLock(): void {
+    const ids = Array.from(this.selection.selectedIds());
+    if (ids.length === 0) return;
+    const targetLocked = !this.batchAllLocked();
+    for (const id of ids) {
+      this.layers.setLocked(id, targetLocked);
+    }
+  }
+
+  /**
+   * Show or hide every selected layer in one shot. Same smart-toggle
+   * semantics as {@link batchToggleLock}.
+   */
+  protected batchToggleVisibility(): void {
+    const ids = Array.from(this.selection.selectedIds());
+    if (ids.length === 0) return;
+    const targetHidden = !this.batchAllHidden();
+    for (const id of ids) {
+      this.layers.setVisible(id, !targetHidden);
+    }
   }
 
   protected clearAllFilters(): void {
