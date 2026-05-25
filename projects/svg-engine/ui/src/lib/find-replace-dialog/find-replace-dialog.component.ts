@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import { MatDialogRef } from '@angular/material/dialog';
 import { MatIcon } from '@angular/material/icon';
@@ -113,12 +121,15 @@ import { SvgeDialogShell } from '../dialog-shell';
           />
         </mat-form-field>
 
-        <div class="actions-row">
-          <button mat-button type="button" (click)="runSearch()" [disabled]="findValue() === ''">
-            <mat-icon>search</mat-icon>
-            Find ({{ matchCount() }})
-          </button>
-        </div>
+        <p class="status" aria-live="polite">
+          @if (findValue() === '') {
+            <span class="status-idle">Type a value to search the document</span>
+          } @else {
+            <mat-icon class="status-icon">search</mat-icon>
+            <strong>{{ matchCount() }}</strong>
+            {{ matchCount() === 1 ? 'match' : 'matches' }} found
+          }
+        </p>
 
         <p class="hint">
           Color matching is case-insensitive string equality. <code>red</code> won't match
@@ -158,10 +169,29 @@ import { SvgeDialogShell } from '../dialog-shell';
     .full {
       width: 100%;
     }
-    .actions-row {
+    /* D-070 fix — status line replaces the old explicit Find button.
+       Live count updates as you type (debounced 250ms). */
+    .status {
       display: flex;
-      gap: 8px;
-      margin: 4px 0 8px;
+      align-items: center;
+      gap: 6px;
+      margin: 4px 0 6px;
+      font-size: 12px;
+      color: var(--mat-sys-on-surface, inherit);
+    }
+    .status-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      opacity: 0.6;
+    }
+    .status-idle {
+      color: var(--mat-sys-on-surface-variant, #888);
+      font-style: italic;
+    }
+    .status strong {
+      font-weight: 600;
+      color: var(--mat-sys-primary, #1976d2);
     }
     .hint {
       margin: 0 0 8px;
@@ -238,32 +268,61 @@ export class SvgeFindReplaceDialog {
   protected readonly findValue = signal<string>('');
   protected readonly replaceValue = signal<string>('');
   protected readonly matches = signal<readonly FindMatch[]>([]);
-  /** True after the user clicked Find at least once — drives "No matches" message. */
+  /** True once a search has run with a non-empty find value — drives "No matches" message. */
   protected readonly searched = signal<boolean>(false);
+
+  /**
+   * **D-070 fix** — Auto-search effect with 250ms debounce. Reactive to
+   * `kind`, `attrKey`, `findValue`, AND the editor document signal (so
+   * if nodes are added/removed while the dialog is open the count
+   * refreshes). Debounce avoids running the walker on every keystroke
+   * for large docs without sacrificing instant feedback at human
+   * typing speed.
+   *
+   * Replaces the previous explicit "Find" button — the button was
+   * confusing because the disabled "Find (0)" state looked like a
+   * result (0 matches found) when it was actually the pre-search
+   * placeholder.
+   */
+  private readonly destroyRef = inject(DestroyRef);
+  private searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor() {
+    effect(() => {
+      // Track all inputs so this effect re-runs whenever any change.
+      this.kind();
+      this.attrKey();
+      this.findValue();
+      // Also re-run when the document mutates (e.g. user edits a node
+      // in the inspector while the dialog is open). Cheap signal read.
+      this.state.document();
+
+      if (this.searchTimer !== null) clearTimeout(this.searchTimer);
+      this.searchTimer = setTimeout(() => {
+        this.runSearch();
+        this.searchTimer = null;
+      }, 250);
+    });
+    // Clear pending timer when the dialog is destroyed.
+    this.destroyRef.onDestroy(() => {
+      if (this.searchTimer !== null) clearTimeout(this.searchTimer);
+    });
+  }
 
   protected readonly matchCount = computed(() => this.matches().length);
   /** Apply is enabled when there's at least one match AND a replace string typed. */
   protected readonly canApply = computed(() => this.matches().length > 0);
 
+  // **D-070 fix** — handlers just write to signals; the auto-search
+  // effect (in constructor) reacts and refreshes matches with debounce.
   protected setKind(value: FindCriteria['kind']): void {
     this.kind.set(value);
-    // Reset matches when changing the search axis — the previous results
-    // are no longer relevant.
-    this.matches.set([]);
-    this.searched.set(false);
   }
-
   protected onAttrKey(ev: Event): void {
     this.attrKey.set((ev.target as HTMLInputElement).value);
-    this.matches.set([]);
-    this.searched.set(false);
   }
   protected onFind(ev: Event): void {
     this.findValue.set((ev.target as HTMLInputElement).value);
-    // Don't auto-rerun — explicit Find button. Avoids running the
-    // walker on every keystroke for large docs.
-    this.matches.set([]);
-    this.searched.set(false);
   }
   protected onReplace(ev: Event): void {
     this.replaceValue.set((ev.target as HTMLInputElement).value);
@@ -296,8 +355,10 @@ export class SvgeFindReplaceDialog {
   protected runSearch(): void {
     const criteria = this.buildCriteria();
     if (criteria === null) {
+      // Empty find input → revert to idle state (don't show "No matches
+      // found" — the user hasn't actually searched anything yet).
       this.matches.set([]);
-      this.searched.set(true);
+      this.searched.set(false);
       return;
     }
     const root = this.state.document().root;
