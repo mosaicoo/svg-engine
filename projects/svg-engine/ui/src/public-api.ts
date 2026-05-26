@@ -79,6 +79,9 @@ export * from './lib/gradient-editor';
 // SVG source viewer dialog (Inkscape "XML Editor" / Boxy SVG "Source" parity)
 export * from './lib/svg-source-dialog';
 
+// D-074 — Smart Object editor dialog (textarea SVG editor for "Edit Contents")
+export * from './lib/smart-object-dialog';
+
 // Trace Image options dialog (D-066c) — Material wrapper for D-062d
 // autotrace with threshold/tolerance/minPoints sliders + hide-source
 // checkbox + Apply/Cancel.

@@ -24,6 +24,7 @@ import {
   type GroupNode,
   isGroupNode,
   isLayer,
+  isSmartObject,
   MakeLayerCommand,
   MoveNodeInTreeCommand,
   type NodeId,
@@ -305,6 +306,7 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
           [tabindex]="isLocked()(node.id) ? -1 : 0"
           [class.selected]="isSelected()(node.id)"
           [class.is-layer]="isLayerNode(node)"
+          [class.is-smart-object]="isSmartObjectNode(node)"
           [class.locked]="isLocked()(node.id)"
           [class.dim-non-match]="filterCount() > 0 && !isMatch()(node.id)"
           [class.hidden]="!isVisible()(node.id)"
@@ -591,6 +593,21 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
     }
     .row.is-layer .type-icon {
       color: var(--mat-sys-primary, #1976d2);
+      opacity: 1;
+    }
+    /* D-074 — Smart Object rows get a secondary accent (different
+       color from the primary-colored layer stripe) so layers and
+       smart objects are visually distinguishable in a mixed tree.
+       Uses the tertiary Material role when available, falls back
+       to a warm amber. Icon color matches the stripe. */
+    .row.is-smart-object {
+      box-shadow: inset 3px 0 0 0 var(--mat-sys-tertiary, #d97706);
+    }
+    .row.is-smart-object .label {
+      font-weight: 500;
+    }
+    .row.is-smart-object .type-icon {
+      color: var(--mat-sys-tertiary, #d97706);
       opacity: 1;
     }
     .row.locked {
@@ -1089,6 +1106,12 @@ export class LayersPanel {
     // groups still render as `folder`. Non-group nodes fall through
     // to the type-based default.
     if (isLayer(node)) return 'folder_special';
+    // **D-074 — Smart Objects**. Distinct icon (`inventory_2`)
+    // signals "this is a self-contained imported/composed asset",
+    // matching the Photoshop smart-object glyph convention. Like
+    // layers, the icon is the panel's primary visual signal for
+    // recognizing the kind at a glance.
+    if (isSmartObject(node)) return 'inventory_2';
     return TYPE_ICON[node.type] ?? 'crop_square';
   }
 
@@ -1099,6 +1122,14 @@ export class LayersPanel {
    */
   protected isLayerNode(node: SvgNode): node is GroupNode {
     return isLayer(node);
+  }
+
+  /**
+   * **D-074** — Type-guard wrapper for the template so it can bind
+   * `[class.is-smart-object]` without importing the type-guard.
+   */
+  protected isSmartObjectNode(node: SvgNode): node is GroupNode {
+    return isSmartObject(node);
   }
 
   protected label(node: SvgNode): string {

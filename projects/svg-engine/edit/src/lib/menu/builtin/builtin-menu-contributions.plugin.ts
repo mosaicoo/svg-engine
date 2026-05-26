@@ -14,14 +14,19 @@ import {
   InsertNodeCommand,
   IntersectCommand,
   isLayer,
+  isSmartObject,
   MakeLayerCommand,
+  MakeSmartObjectCommand,
   type NodeId,
+  RasterizeSmartObjectCommand,
   RemoveNodeCommand,
   ReorderNodeCommand,
   type ReorderDirection,
+  ReplaceSmartObjectContentsCommand,
   RestoreSnapshotCommand,
   SnapshotsService,
   SubtractCommand,
+  type SvgNode,
   type TextNode,
   UngroupCommand,
   UnionCommand,
@@ -1276,6 +1281,133 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
       }),
     );
 
+    // ── D-074 — Smart Objects submenu ────────────────────────────
+    //
+    // Object ▸ Smart Object hosting the 4 Photoshop-convention
+    // operations:
+    //
+    // - Convert to Smart Object — wraps current selection (≥1 nodes).
+    // - Edit Contents — opens the wrapper's source XML in an editor
+    //   dialog (provided by `svg-engine/ui`'s
+    //   `builtinUiMenuContributionsPlugin`; this entry is just a
+    //   placeholder hook here for keyboard-only invocation flows,
+    //   wrapped behind a confirm prompt).
+    // - Replace Contents — file picker for SVG; replaces children
+    //   preserving wrapper transform/style/name.
+    // - Rasterize Smart Object — unwraps, dropping the flag and
+    //   hoisting children. Inverse of Convert.
+    //
+    // Disabled signals gate each action to its applicable target.
+    const cantConvertToSmartObjectFactory = (injector: Injector): Signal<boolean> => {
+      const sel = injector.get(SelectionService);
+      const state = injector.get(EditorStateService);
+      return computed(() => {
+        const ids = sel.selectedIds();
+        if (ids.size === 0) return true;
+        // All selected nodes must share the same parent (Make
+        // command's same-parent invariant — keeps menu honest).
+        const root = state.document().root;
+        let firstParentId: NodeId | null = null;
+        for (const id of ids) {
+          const p = findParent(root, id);
+          if (p === null) return true;
+          if (firstParentId === null) firstParentId = p.id;
+          else if (p.id !== firstParentId) return true;
+        }
+        return false;
+      });
+    };
+    const notOnSmartObjectFactory = (injector: Injector): Signal<boolean> => {
+      const sel = injector.get(SelectionService);
+      const state = injector.get(EditorStateService);
+      return computed(() => {
+        const id = sel.focusId();
+        if (id === null) return true;
+        const node = findNodeById(state.document().root, id);
+        return node === null || !isSmartObject(node);
+      });
+    };
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.smart-object',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Smart Object',
+        icon: 'inventory_2',
+        order: 85,
+        run() {
+          /* submenu parent */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.smart-object.convert',
+        parentId: 'svge.builtin.object.smart-object',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Convert to Smart Object',
+        icon: 'inventory_2',
+        order: 10,
+        disabled: cantConvertToSmartObjectFactory,
+        run(runCtx) {
+          const sel = fromCtx(SelectionService, runCtx);
+          const ids = Array.from(sel.selectedIds()) as NodeId[];
+          if (ids.length === 0) return;
+          const bus = fromCtx(CommandBus, runCtx);
+          const cmd = new MakeSmartObjectCommand(ids);
+          bus.dispatch(cmd);
+          const newId = cmd.getCreatedWrapperId();
+          if (newId !== null) sel.select(newId);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.smart-object.divider1',
+        parentId: 'svge.builtin.object.smart-object',
+        slot: MENU_SLOT.OBJECT,
+        label: '',
+        order: 20,
+        divider: true,
+        run() {
+          /* divider */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.smart-object.replace',
+        parentId: 'svge.builtin.object.smart-object',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Replace Contents…',
+        icon: 'sync_alt',
+        order: 30,
+        disabled: notOnSmartObjectFactory,
+        run(runCtx) {
+          const sel = fromCtx(SelectionService, runCtx);
+          const id = sel.focusId();
+          if (id === null) return;
+          replaceSmartObjectContents(id, runCtx, fromCtx);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.smart-object.rasterize',
+        parentId: 'svge.builtin.object.smart-object',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Rasterize Smart Object',
+        icon: 'view_module',
+        order: 40,
+        disabled: notOnSmartObjectFactory,
+        run(runCtx) {
+          const sel = fromCtx(SelectionService, runCtx);
+          const id = sel.focusId();
+          if (id === null) return;
+          fromCtx(CommandBus, runCtx).dispatch(new RasterizeSmartObjectCommand(id));
+        },
+      }),
+    );
+
     // ── D-066 — Trace Image moved to builtinUiMenuContributionsPlugin
     //
     // The D-065 follow-up registered a simple no-dialog Trace Image
@@ -1900,3 +2032,63 @@ async function exportAndDownload(
   // Defer revoke so the browser has a chance to start the download.
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+// ── D-074 — Smart Object: Replace Contents (file picker) ──────────
+//
+// Programmatic `<input type="file">` to load a fresh SVG, parses it,
+// and dispatches `ReplaceSmartObjectContentsCommand` to swap the
+// wrapper's children. The wrapper's id / transform / style / metadata
+// are preserved — only the inner content changes, hence "replace
+// contents". Mirrors Photoshop's "Replace Contents…" flow.
+function replaceSmartObjectContents(
+  smartObjectId: NodeId,
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+): void {
+  if (typeof document === 'undefined') return;
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.svg,image/svg+xml';
+  input.style.display = 'none';
+  input.addEventListener(
+    'change',
+    () => {
+      const file = input.files?.[0];
+      input.remove();
+      if (file === undefined || file === null) return;
+      void file.text().then((text) => {
+        const result = svgImporter.import(text);
+        if (!result.ok) {
+          if (typeof window !== 'undefined') {
+            window.alert(`Replace failed: ${result.error}`);
+          }
+          return;
+        }
+        // The imported document has a root group with the actual
+        // top-level shapes as children. Pull those out — we don't
+        // want to nest a fresh root inside the smart object.
+        const newChildren: readonly SvgNode[] = result.document.root.children;
+        if (newChildren.length === 0) {
+          if (typeof window !== 'undefined') {
+            window.alert('Replace failed: imported SVG has no shapes');
+          }
+          return;
+        }
+        fromCtx(CommandBus, runCtx).dispatch(
+          new ReplaceSmartObjectContentsCommand(smartObjectId, newChildren),
+        );
+        if (result.warnings.length > 0 && typeof console !== 'undefined') {
+          console.warn(`[SVGEngine] Replace warnings:\n${result.warnings.join('\n')}`);
+        }
+      });
+    },
+    { once: true },
+  );
+  document.body.appendChild(input);
+  input.click();
+}
+
+// D-074 — Edit Smart Object Contents is handled by the UI-layer
+// plugin (svg-engine/ui's `builtinUiMenuContributionsPlugin`)
+// because it requires a Material dialog. This edit-layer plugin
+// stays free of UI deps (D-017 boundary).

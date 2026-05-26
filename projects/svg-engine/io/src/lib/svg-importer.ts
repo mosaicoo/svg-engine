@@ -15,6 +15,7 @@ import {
   parseTransformAttr,
   SVGE_KIND_KEY,
   SVGE_KIND_LAYER,
+  SVGE_KIND_SMART_OBJECT,
   type SvgDocument,
   type SvgNode,
   type SvgStyle,
@@ -265,6 +266,9 @@ function parseElement(
       const svgeKind = el.getAttribute('data-svge-kind');
       const inkscapeGroupMode = el.getAttribute('inkscape:groupmode');
       const isLayerGroup = svgeKind === SVGE_KIND_LAYER || inkscapeGroupMode === 'layer';
+      // D-074 — Smart Object flag. Single-slot with layer; precedence
+      // is irrelevant because the exporter never emits both at once.
+      const isSmartObjectGroup = svgeKind === SVGE_KIND_SMART_OBJECT;
       const opts = baseFactoryOpts(el);
       if (isLayerGroup) {
         // Merge the layer flag into customData WITHOUT clobbering the
@@ -273,6 +277,11 @@ function parseElement(
         opts.metadata = {
           ...(opts.metadata ?? {}),
           customData: { [SVGE_KIND_KEY]: SVGE_KIND_LAYER },
+        };
+      } else if (isSmartObjectGroup) {
+        opts.metadata = {
+          ...(opts.metadata ?? {}),
+          customData: { [SVGE_KIND_KEY]: SVGE_KIND_SMART_OBJECT },
         };
       }
       return createGroup(parseChildren(el, warnings, unsupportedTags), opts);

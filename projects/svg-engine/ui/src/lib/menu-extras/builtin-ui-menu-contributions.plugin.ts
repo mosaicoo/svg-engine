@@ -5,6 +5,7 @@ import {
   EditorStateService,
   findNodeById,
   type ImageNode,
+  isSmartObject,
   type NodeId,
   SetPropertyCommand,
 } from 'svg-engine/core';
@@ -22,6 +23,7 @@ import {
 } from 'svg-engine/edit';
 
 import { SvgeFindReplaceDialogService } from '../find-replace-dialog';
+import { SvgeSmartObjectEditorDialogService } from '../smart-object-dialog';
 import { SvgeSvgSourceDialogService } from '../svg-source-dialog';
 import { SvgeTraceImageDialogService, type TraceImageDialogResult } from '../trace-image-dialog';
 import { SvgeWorkspaceSettingsDialogService } from '../workspace-settings';
@@ -292,6 +294,51 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
         run(event, runCtx?: ShortcutContext) {
           event.preventDefault();
           openFindReplaceDialog(runCtx);
+        },
+      }),
+    );
+
+    // ── D-074 — Object ▸ Smart Object ▸ Edit Contents… ──────────
+    //
+    // Sibling to the edit-side `Replace Contents` and `Rasterize`
+    // entries (which live in `builtinMenuContributionsPlugin`). Edit
+    // Contents needs a Material dialog (`<svge-smart-object-editor-dialog>`)
+    // for the source-text editor, so it lives here per the D-017
+    // boundary. The other smart-object actions don't need dialogs and
+    // stayed on the edit side.
+    //
+    // Placed inside the existing `svge.builtin.object.smart-object`
+    // submenu via `parentId` so the user sees Convert / Edit / Replace
+    // / Rasterize grouped consistently — both plugins must be
+    // installed for the full set to render (consumers using the shell
+    // routes install both).
+    const notOnSmartObjectFactory = (injector: Injector): Signal<boolean> => {
+      const sel = injector.get(SelectionService);
+      const state = injector.get(EditorStateService);
+      return computed(() => {
+        const id = sel.focusId();
+        if (id === null) return true;
+        const node = findNodeById(state.document().root, id);
+        return node === null || !isSmartObject(node);
+      });
+    };
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.ui.object.smart-object.edit',
+        parentId: 'svge.builtin.object.smart-object',
+        slot: MENU_SLOT.OBJECT,
+        // Order 25 sits between Convert (10) and Replace (30) so the
+        // Edit action reads as "the natural follow-up to creating".
+        order: 25,
+        label: 'Edit Contents…',
+        icon: 'edit_note',
+        disabled: notOnSmartObjectFactory,
+        run(runCtx) {
+          const selection = fromCtx(SelectionService, runCtx);
+          const id = selection.focusId();
+          if (id === null) return;
+          const service = fromCtx(SvgeSmartObjectEditorDialogService, runCtx);
+          service.open(id, runCtx?.injector ?? ctx.injector);
         },
       }),
     );

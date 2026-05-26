@@ -4,6 +4,7 @@ import {
   type ImageNode,
   isGroupNode,
   isLayer,
+  isSmartObject,
   type LineNode,
   type NodeId,
   type PathNode,
@@ -246,6 +247,14 @@ function renderGroup(node: GroupNode, depth: number, ctx: ExportContext): string
   // metadata transport. No namespace pollution.
   if (isLayer(node)) {
     attrs.push(['data-svge-kind', 'layer']);
+  }
+  // **D-074 — Smart Objects**. Same data-attribute mechanism as
+  // layers (`svgeKind` single-slot); the importer reads it back into
+  // `customData.svgeKind = 'smart-object'`. Layers and smart objects
+  // are mutually exclusive (the flag is set OR cleared, never
+  // both — see `withSmartObjectFlag`'s spread semantics).
+  else if (isSmartObject(node)) {
+    attrs.push(['data-svge-kind', 'smart-object']);
   }
   // **D-072 follow-up — Authored name via `<title>` child**. Emitted
   // as the FIRST child of the group so screen readers announce the

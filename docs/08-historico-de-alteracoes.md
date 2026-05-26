@@ -6,6 +6,144 @@
 
 ---
 
+## 2026-05-25 — D-074: Smart Objects (Photoshop-convention containers)
+
+**O quê.** Suporte completo a **Smart Objects** — contêineres
+não-destrutivos que agrupam conteúdo (imagens importadas,
+composições) como uma unidade editável única. Espelha o conceito
+homônimo do Photoshop e "Embedded Document" do Affinity, adaptado a
+um editor vetorial. Cobre o ciclo completo: criar (Convert),
+substituir conteúdo (Replace via file picker), editar conteúdo (Edit
+via dialog de fonte SVG), rasterizar (desfaz o wrapper hoisting os
+filhos), persistir no SVG via `data-svge-kind="smart-object"`.
+
+**Por quê.** Item da roadmap "Pro features faltantes". Já tínhamos
+Symbols (D-059 — master/instância referenciada por `<use>`) e
+Layers (D-072 — containers organizacionais top-level), mas faltava
+o **modelo Photoshop "asset importado como unidade"**. Caso de uso
+real: usuário traz um logo de outro arquivo SVG, quer tratar como um
+bloco único (mover/girar/editar inteiro), e poder **substituir** por
+uma nova versão sem perder posição/transform/nome no documento
+hospedeiro. Sem Smart Object o usuário teria que: importar manual,
+posicionar, agrupar, e ao substituir refazer todo o trabalho.
+
+**Diferença vs Symbols vs Layers** (estão coexistentes, não
+mutuamente exclusivos):
+
+| Conceito                 | Definição                                              | Caso de uso                                         |
+| ------------------------ | ------------------------------------------------------ | --------------------------------------------------- |
+| **Symbol** (D-059)       | Master único + N `<use>` instâncias                    | Logos repetidos, ícones reutilizados N vezes        |
+| **Layer** (D-072)        | Grupo top-level com flag organizacional                | Estrutura de páginas/secções num documento          |
+| **Smart Object** (D-074) | Grupo com conteúdo self-contained, sem master/instance | Asset importado externamente, substituível em bloco |
+
+`metadata.customData.svgeKind` é slot único (`'layer'` OU
+`'smart-object'`); um grupo é um dos três (layer, smart object,
+plain group) por vez. Mesma motivação técnica do D-072: usar um
+flag em metadata em vez de adicionar um tipo discriminado novo ao
+`SvgNode` union evita forçar renderers/exporters/specs/library
+consumers a tratar do novo tipo — quem não se importa não vê
+nenhuma mudança.
+
+**Implementação.**
+
+- **`core/model/smart-object.ts`** — `SVGE_KIND_SMART_OBJECT`,
+  `isSmartObject(node)` type guard, `withSmartObjectFlag(group)` e
+  `withoutSmartObjectFlag(group)` helpers puros. Mesma forma do
+  `layer.ts` (D-072) — reaproveita `SVGE_KIND_KEY` para garantir
+  exclusividade no slot único.
+
+- **`core/commands/smart-object.commands.ts`** — 4 comandos
+  undoables:
+  - `MakeSmartObjectCommand(nodeIds, name?)` — envolve N nós irmãos
+    em wrapper, posiciona no slot do primeiro nó, autonumera nome
+    "Smart Object N" se ausente, valida mesmo-pai (rejeita seleção
+    fragmentada), expõe `getCreatedWrapperId()` para auto-select.
+  - `RasterizeSmartObjectCommand(nodeId)` — drop flag + hoist
+    children (similar a Ungroup, mas em uma única entrada de
+    histórico "Rasterize Smart Object").
+  - `EditSmartObjectContentsCommand(nodeId, newChildren)` —
+    substitui array de filhos preservando id/transform/style/metadata
+    do wrapper. Usado pelo dialog Edit Contents (UI).
+  - `ReplaceSmartObjectContentsCommand` — subclasse com apenas
+    label diferente ("Replace Smart Object Contents") para
+    diferenciar a origem na pilha de undo. Mecanismo idêntico.
+
+- **`io/svg-exporter.ts`** — emite `data-svge-kind="smart-object"`
+  no `<g>` quando `isSmartObject(node)` é true. Convive lado-a-lado
+  com `data-svge-kind="layer"` (slot único garante que nunca há
+  ambos).
+
+- **`io/svg-importer.ts`** — reconhece `data-svge-kind="smart-object"`
+  e popula `customData.svgeKind` durante a importação. Como o D-072
+  mostrou, outros editores (Inkscape/Illustrator/Figma) preservam
+  `data-*` desconhecido silenciosamente — round-trip externo
+  funciona.
+
+- **`edit/menu/builtin/builtin-menu-contributions.plugin.ts`** —
+  submenu `Object ▸ Smart Object` (order 85, depois de "Convert
+  Layer to Group") com 3 entradas headless: Convert, Replace
+  Contents (file picker), Rasterize. Cada entrada tem `disabled`
+  factory reativo: Convert exige seleção com pai único; Replace e
+  Rasterize exigem que o foco seja um smart object.
+
+- **`ui/smart-object-dialog/`** — `<svge-smart-object-editor-dialog>`
+  - `SvgeSmartObjectEditorDialogService`. Dialog textarea com a
+    fonte SVG dos filhos do wrapper (exportada como `<svg>` parseável),
+    Apply re-parseia via `svgImporter`, despacha
+    `EditSmartObjectContentsCommand`. Single undo entry. Erros de
+    parse e warnings do importer mostrados inline.
+
+- **`ui/menu-extras/builtin-ui-menu-contributions.plugin.ts`** —
+  registra a entrada `Object ▸ Smart Object ▸ Edit Contents…`
+  (order 25, entre Convert e Replace) que abre o dialog. Vive em
+  `ui/` por D-017 (Material só pode ser importado em `ui/`). Ambos
+  os plugins (edit + ui) precisam estar instalados para o conjunto
+  completo de menu items aparecer — consumidores dos shells
+  instalam os dois.
+
+- **`ui/layers-panel/layers-panel.component.ts`** — smart objects
+  ganham ícone `inventory_2` (caixa/pacote — visualiza "asset
+  empacotado"), accent terciário (`--mat-sys-tertiary` com fallback
+  âmbar `#d97706`) para distinção visual de layers (que usam
+  primary). Layers e Smart Objects nunca colidem por construção.
+
+**Specs.** +32 testes (16 em `core/commands/smart-object.commands.spec.ts`
+cobrindo helpers + 4 comandos com undo, validação de pai único,
+autonumeração, e idempotência; 7 em `io/smart-object-roundtrip.spec.ts`
+cobrindo export, import, e ciclo completo com nesting + mutual
+exclusion com layer). Suíte total: **1574 testes passando**, 1
+skipped (era 1542 antes do D-074).
+
+**Trade-offs e escopo deferido.**
+
+- **Sub-canvas editor**: profissionais como Photoshop spawn um
+  documento separado para editar o conteúdo do Smart Object. Aqui
+  optei por textarea editor (D-074f) — pragmatic MVP. Power users
+  podem colar SVG inteiro, find/replace em massa, etc. "Open Smart
+  Object in new tab" é o evolução natural, mas requer arquitetura
+  multi-document que ainda não existe. Deferido sem prazo.
+- **Linked Smart Objects**: Photoshop tem "Place Linked" que
+  mantém referência ao arquivo externo, atualiza automaticamente.
+  Out of scope — depende de file system access (browser limitação)
+  ou de um conceito de "asset library com URL". Deferido.
+- **Nested Smart Objects warning**: Permitido (specs cobrem
+  round-trip). Usuário avançado pode criar SO dentro de SO; UI não
+  tem warning especial — match com Photoshop que também permite.
+- **Auto-flatten antes do Export**: Smart Object exporta como
+  `<g data-svge-kind="smart-object">` por padrão (preserva
+  designation). Optimizer poderia ter um pass para dropar o
+  atributo se o usuário quiser "achatar" antes de publicar.
+  Deferido — pode ser uma flag no optimizer de futuro (similar aos
+  `stripAuthoredIds` / `stripInkscapeLabels` que D-072g introduziu).
+
+**Cuidados D-042 / D-017 / D-043 já endereçados.** Service e
+dialog são per-editor (factory + injector forwarding); zero import
+de Material em core/edit (dialog vive em ui/); `disabled` é factory
+`(injector) => Signal<boolean>` que lê os services do scope ativo
+correto em multi-editor.
+
+---
+
 ## 2026-05-25 — D-073: History Snapshots (named restorable checkpoints)
 
 **O quê.** Painel de **snapshots** estilo Photoshop / Affinity /

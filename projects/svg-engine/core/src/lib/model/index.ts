@@ -15,6 +15,14 @@ export { isGroupNode, SVG_NODE_TYPES, type SvgNode, type SvgNodeType } from './s
 // D-072 — Logical Layers (metadata-flag on GroupNode)
 export { isLayer, SVGE_KIND_KEY, SVGE_KIND_LAYER, withLayerFlag, withoutLayerFlag } from './layer';
 
+// D-074 — Smart Objects (metadata-flag on GroupNode; same family as Layer)
+export {
+  isSmartObject,
+  SVGE_KIND_SMART_OBJECT,
+  withSmartObjectFlag,
+  withoutSmartObjectFlag,
+} from './smart-object';
+
 export {
   createEllipse,
   createGroup,

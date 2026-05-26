@@ -51,3 +51,10 @@ export { UngroupCommand } from './ungroup.command';
 export { CreateLayerCommand, MakeLayerCommand, UnmakeLayerCommand } from './layer.commands';
 // D-073 — History Snapshots
 export { RestoreSnapshotCommand } from './restore-snapshot.command';
+// D-074 — Smart Objects
+export {
+  EditSmartObjectContentsCommand,
+  MakeSmartObjectCommand,
+  RasterizeSmartObjectCommand,
+  ReplaceSmartObjectContentsCommand,
+} from './smart-object.commands';
