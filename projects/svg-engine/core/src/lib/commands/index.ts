@@ -47,6 +47,15 @@ export { composePivotFlip, type FlipAxis, FlipNodeCommand } from './flip-node.co
 // KNIFE-FIX — real path cut (auto-converts shapes, splits into 2 paths,
 // honours snap-to-nodes + tolerance).
 export { KnifeCutPathCommand } from './knife-cut.command';
+
+// D-079 — Pages / Artboards: 4 commands (Create/Delete/Rename/Resize)
+// over the metadata-flag model (see core/lib/model/page.ts).
+export {
+  CreatePageCommand,
+  DeletePageCommand,
+  RenamePageCommand,
+  ResizePageCommand,
+} from './page.commands';
 export { SetPropertyCommand } from './set-property.command';
 export { SetPropertyOnManyCommand } from './set-property-on-many.command';
 export { SetStylePropertyOnManyCommand } from './set-style-property-on-many.command';

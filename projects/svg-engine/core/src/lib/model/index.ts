@@ -23,6 +23,21 @@ export {
   withoutSmartObjectFlag,
 } from './smart-object';
 
+// D-079 — Pages / Artboards (metadata-flag on GroupNode; same family
+// as Layer + Smart Object). Each page carries its own viewBox.
+export {
+  getPageName,
+  getPageViewBox,
+  isPage,
+  SVGE_KIND_PAGE,
+  SVGE_PAGE_NAME_KEY,
+  SVGE_PAGE_VIEWBOX_KEY,
+  withPageFlag,
+  withPageName,
+  withPageViewBox,
+  withoutPageFlag,
+} from './page';
+
 export {
   createEllipse,
   createGroup,
