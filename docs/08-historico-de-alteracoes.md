@@ -6,6 +6,104 @@
 
 ---
 
+## 2026-05-26 — AUDIT-FIX: 4 correções a partir de audit externo (Copilot)
+
+**O quê.** Audit feito por GitHub Copilot levantou 12 pontos de
+atenção; após validação contra o código real (4 confirmados acionáveis,
+3 parciais com contexto, 5 exagerados/equivocados), aplicadas 4
+correções nesta sessão. Mantém compatibilidade total com consumidores
+existentes — todas mudanças são aditivas.
+
+**Correções entregues.**
+
+- **P2 — `SVG_ENGINE_VERSION`** estava em `'0.0.0'` no `public-api.ts`
+  enquanto `package.json` já estava em `0.1.0`. Constante alinhada para
+  refletir a versão real. JSDoc adicionado lembrando que ambos devem
+  mover juntos (D-031 / `standard-version` faz isso automaticamente
+  quando bump for executado).
+
+- **P8 — AutoSave key global em multi-editor**. Antes:
+  `STORAGE_KEY = 'svge:autosave'` literal hard-coded. Em hosts
+  Mosaicoo com 2+ editores na mesma origin, autosave do editor B
+  sobrescrevia o slot do editor A — perda silenciosa de recovery.
+  Agora:
+  - Novo `AUTOSAVE_STORAGE_KEY: InjectionToken<string | null>` em
+    `edit/autosave/autosave.config.ts`. Default `'svge:autosave'`
+    (compat 100% com payloads gravados anteriormente — single-editor
+    apps continuam abrindo recovery normalmente).
+  - `AutoSaveService` injeta o token e deriva a chave de timestamp
+    como `${base}:ts`.
+  - `provideSvgEngineEditorScope({ autoSaveKey })` aceita opção
+    opcional. Passando `null` desativa persistência completamente
+    para o scope (útil em embed previews onde recovery confunde).
+  - Interface nova `SvgEngineEditorScopeOptions` extensível para
+    futuras knobs per-editor (snapshots key, recovery toggle, etc.).
+
+- **P9 — `document.querySelector('svge-renderer svg')` no playground**.
+  Antes: 6 ocorrências em `custom-editor.component.ts` resolviam o
+  primeiro renderer da página globalmente, quebrando se 2 editores
+  fossem montados ao mesmo tempo. Agora:
+  - `SvgeRenderer.svgElement(): SVGSVGElement | null` exposto como
+    API pública (era `viewChild` privado). JSDoc completa com exemplo
+    `@ViewChild(SvgeRenderer)` + uso recomendado.
+  - `CustomEditor` ganhou `rendererRef = viewChild(SvgeRenderer)` +
+    helper privado `rendererSvg()`. As 6 chamadas globais foram
+    trocadas por essa rota tipada e scoped ao próprio componente.
+  - **Débito residual identificado (não escopo desta sessão)**: 3
+    ocorrências similares em `ui/inspector` + 1 em
+    `edit/menu/builtin/builtin-menu-contributions.plugin.ts`. Esses
+    contextos (Inspector painel + handler de plugin) não têm
+    `viewChild(SvgeRenderer)` natural — exigirão um service
+    `ActiveRendererService` que o `<svge-editor>` shell registra no
+    seu próprio scope, lido pelos consumers. Marcado como
+    AUDIT-FIX P9b para um próximo turno.
+
+- **P3 — Spec-trava de exaustividade do scope provider**. Antes: o
+  spec validava só Selection/Isolation/Layers (4 services). Drift
+  futuro de novo service stateful adicionado com `providedIn: 'root'`
+  passaria silencioso. Agora `editor-scope.providers.spec.ts` lista
+  exaustivamente os **38 services stateful** que devem ter instância
+  por scope; usa `it.each(STATEFUL_SCOPED_TOKENS)` para falhar com
+  ponteiro exato se algum sumir do `provideSvgEngineEditorScope`. JSDoc
+  inline explica o que NÃO deve entrar (registries app-wide). Também
+  adicionado specs novos para o contrato do `autoSaveKey` (default,
+  override, null-disable, no-bleed entre dois scopes).
+
+**Pontos do audit que NÃO acionei** (e por quê — documentação para
+posteridade):
+
+- **P1 (tsconfig paths → dist)**: é o padrão Angular workspace.
+  `ng build svg-engine --watch` em segundo terminal resolve. Trocar
+  config tem custo arquitetural que não compensa o ganho marginal.
+- **P5 (XSS via insertAdjacentHTML em defs)**: fragment vem APENAS
+  do importer que já sanitiza (script/on\*/javascript: removidos).
+  Documentação inline já explica o invariante. Sem vulnerabilidade
+  real no caminho atual.
+- **P6 (data: URLs permitidas)**: intencional para imagens base64
+  embedded. Vetor de exec já bloqueado (script tags + handlers).
+- **P10 (Material peer opcional)**: é o invariante D-017 funcionando.
+  Quem importa de `core/render/io/optimize/edit` não toca Material.
+  Quem importa de `ui` instala. Comportamento documentado.
+- **P11 (sem E2E Playwright)**: já registrado como D-029? pendente.
+  Reabrir quando bug visual escapar 2-3 vezes.
+- **P12 (allNodes recalcula tudo)**: medições atuais (60fps@1k+, Bloco
+  6b) confirmam que perf cabe. Otimizar agora seria especulativo.
+
+**Validação.**
+
+- Build: 9 entry points compilam ✅
+- Lint: clean ✅
+- Specs: **+42 testes** (40 da exhaustiveness trap + autosave key
+  contract + ajustes). Suíte total: **1616 passing**, 1 skipped (era
+  1574 no D-074).
+
+**Cuidados D-042 já endereçados.** Todas as mudanças preservam
+backward compat: `provideSvgEngineEditorScope()` sem argumento
+continua funcionando exatamente como antes; consumers existentes
+não precisam ser atualizados.
+
+---
+
 ## 2026-05-25 — D-074: Smart Objects (Photoshop-convention containers)
 
 **O quê.** Suporte completo a **Smart Objects** — contêineres

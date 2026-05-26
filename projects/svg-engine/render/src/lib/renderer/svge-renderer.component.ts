@@ -111,6 +111,40 @@ export class SvgeRenderer {
   private readonly viewport = inject(ViewportService);
   private readonly svgRoot = viewChild<ElementRef<SVGSVGElement>>('svgRoot');
 
+  /**
+   * **AUDIT-FIX P9** — typed accessor for the rendered `<svg>` element
+   * scoped to **this** renderer instance.
+   *
+   * Returns `null` when the view hasn't been attached yet (early calls
+   * during ngOnInit, SSR, jsdom without layout). Consumers should
+   * defensively check for null.
+   *
+   * **Why expose it**: consumers that need to perform DOM measurements
+   * on the rendered shapes (bbox, hit-testing, pointer→doc conversion)
+   * previously had to call `document.querySelector('svge-renderer svg')`.
+   * That global selector breaks the moment a host mounts more than one
+   * `<svge-renderer>` on the same page — the first match wins, leaking
+   * measurements between editor instances. Using
+   * `@ViewChild(SvgeRenderer)` + `svgElement()` keeps the lookup scoped
+   * to the component's own tree.
+   *
+   * @example
+   * ```ts
+   * @Component({ ... })
+   * export class MyHost {
+   *   private readonly renderer = viewChild(SvgeRenderer);
+   *
+   *   measureNode(id: NodeId): BoundingBox | null {
+   *     const svg = this.renderer()?.svgElement();
+   *     return svg === null ? null : getRenderedNodeBBox(svg, id);
+   *   }
+   * }
+   * ```
+   */
+  svgElement(): SVGSVGElement | null {
+    return this.svgRoot()?.nativeElement ?? null;
+  }
+
   readonly tree = input.required<SvgNode>();
   readonly viewBox = input<BoundingBox | null>(null);
   readonly width = input<number | null>(null);

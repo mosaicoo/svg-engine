@@ -241,6 +241,28 @@ export class CustomEditor implements OnDestroy {
   /** Reference to the hidden `<input type="file">` for SVG import. */
   protected readonly importFileRef = viewChild<ElementRef<HTMLInputElement>>('importFile');
 
+  /**
+   * **AUDIT-FIX P9** — typed reference to this component's own
+   * `<svge-renderer>`. Replaces the previous `document.querySelector
+   * ('svge-renderer svg')` pattern which broke as soon as a host
+   * mounted more than one renderer on the page (the global selector
+   * returned whichever one happened to match first).
+   *
+   * Use {@link rendererSvg} to read the resolved `<svg>` element with
+   * proper null-safety.
+   */
+  private readonly rendererRef = viewChild(SvgeRenderer);
+
+  /**
+   * Resolve the `<svg>` element rendered by this component's
+   * `<svge-renderer>`, or `null` when the view hasn't been attached
+   * yet (early lifecycle ticks, tests without layout, SSR). Centralizes
+   * the lookup so future refactors only touch one site.
+   */
+  private rendererSvg(): SVGSVGElement | null {
+    return this.rendererRef()?.svgElement() ?? null;
+  }
+
   protected readonly title = signal('SVGEngine Playground');
 
   protected readonly tree = computed(() => this.state.document().root);
@@ -999,7 +1021,7 @@ export class CustomEditor implements OnDestroy {
   }
 
   private collectSelectionBBoxes(): readonly NodeBBox[] {
-    const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+    const svg = this.rendererSvg();
     if (svg === null) return [];
     const out: NodeBBox[] = [];
     for (const id of this.selection.selectedIds()) {
@@ -1184,7 +1206,7 @@ export class CustomEditor implements OnDestroy {
           this.potentialDrag.startScreenY,
         );
         if (start !== null) {
-          const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+          const svg = this.rendererSvg();
           this.moveStartBBox =
             svg === null ? null : getRenderedNodeBBox(svg, this.potentialDrag.nodeId);
           this.transform.startMove(this.potentialDrag.nodeId, start);
@@ -1232,7 +1254,7 @@ export class CustomEditor implements OnDestroy {
   private collectStaticBBoxes(
     excludeId: NodeId,
   ): readonly { readonly id: NodeId; readonly bbox: BoundingBox }[] {
-    const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+    const svg = this.rendererSvg();
     if (svg === null) return [];
     const out: { id: NodeId; bbox: BoundingBox }[] = [];
     for (const child of this.tree().children) {
@@ -1283,7 +1305,7 @@ export class CustomEditor implements OnDestroy {
     const m = this.marquee.state();
     const r = this.marquee.rect();
     if (m === null || r === null) return;
-    const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+    const svg = this.rendererSvg();
     if (svg === null) return;
 
     const candidates: MarqueeCandidate[] = [];
@@ -1305,14 +1327,15 @@ export class CustomEditor implements OnDestroy {
   }
 
   /**
-   * Thin wrapper over the canonical `screenToDoc` util (D-036). The
-   * playground talks to the canvas via a `document.querySelector` (no
-   * local SVG ref because the renderer is provided as a child component),
-   * so we resolve the `<svg>` here and delegate the math to the util.
+   * Thin wrapper over the canonical `screenToDoc` util (D-036).
+   * **AUDIT-FIX P9**: now resolves the `<svg>` via {@link rendererSvg}
+   * (a `viewChild`-backed accessor) instead of `document.querySelector
+   * ('svge-renderer svg')` — the latter would return whichever renderer
+   * came first on the page, breaking the moment a host mounts two on
+   * the same screen.
    */
   private screenToDoc(clientX: number, clientY: number): Point | null {
-    const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
-    return screenToDoc(svg, clientX, clientY);
+    return screenToDoc(this.rendererSvg(), clientX, clientY);
   }
 }
 

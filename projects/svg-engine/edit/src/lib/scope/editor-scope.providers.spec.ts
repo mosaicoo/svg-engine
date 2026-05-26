@@ -1,4 +1,4 @@
-import { Component, inject, Injector } from '@angular/core';
+import { Component, inject, Injector, type ProviderToken } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
   CommandBus,
@@ -7,13 +7,47 @@ import {
   createRect,
   EditorStateService,
   generateNodeId,
+  HistoryService,
   InsertNodeCommand,
+  SnapshotsService,
 } from 'svg-engine/core';
+import { ViewportService } from 'svg-engine/render';
 import { describe, expect, it } from 'vitest';
 
+import { AlignmentService } from '../alignment/alignment.service';
+import { AnchorSelectionService } from '../anchor-editor/anchor-selection.service';
+import { AUTOSAVE_STORAGE_KEY } from '../autosave/autosave.config';
+import { AutoSaveService } from '../autosave/autosave.service';
+import { ClipboardService } from '../clipboard/clipboard.service';
+import { ChainFilterRegistry } from '../effect/chain-filter';
+import { SelectSameService } from '../find-replace/select-same.service';
 import { IsolationService } from '../isolation/isolation.service';
+import { ActiveDefsService } from '../library/active-defs.service';
+import { AssetManagerService } from '../library/assets/asset-manager.service';
+import { BrushSelectionService } from '../library/brushes/brush-library.service';
+import { ActiveClipPathsService } from '../library/clip-paths/clip-path-library.service';
+import { GradientEditingService } from '../library/gradients/gradient-editing.service';
+import { ActiveGradientsService } from '../library/gradients/gradient-library.service';
+import { ActiveMasksService } from '../library/masks/mask-library.service';
+import { ActivePatternsService } from '../library/patterns/pattern-library.service';
+import { ActiveSymbolsService } from '../library/symbols/symbol-library.service';
+import { SymbolSelectionService } from '../library/symbols/symbol-selection.service';
+import { SymbolSprayerPreviewService } from '../library/symbols/symbol-sprayer-preview.service';
+import { TraceProgressService } from '../autotrace/trace-progress.service';
 import { LayersService } from '../layers/layers.service';
+import { MarqueeService } from '../marquee/marquee.service';
 import { SelectionService } from '../selection/selection.service';
+import { ShortcutService } from '../shortcut/shortcut.service';
+import { SnapService } from '../snap/snap.service';
+import { SnapshotsPersistenceService } from '../snapshots/snapshots-persistence.service';
+import { GradientToolService } from '../tool/extra-tools';
+import { PenToolService } from '../tool/pen-tool.service';
+import { ShapeToolService } from '../tool/shape-tool.service';
+import { InlineTextEditorService } from '../tool/text-tool.service';
+import { ToolHostService } from '../tool/tool-host.service';
+import { TransformService } from '../transform/transform.service';
+import { ViewportCullingService } from '../viewport-culling/viewport-culling.service';
+import { WorkspaceService } from '../workspace/workspace.service';
 import { provideSvgEngineEditorScope } from './editor-scope.providers';
 
 /**
@@ -127,5 +161,181 @@ describe('provideSvgEngineEditorScope', () => {
     expect(a.injector.get(EditorStateService)).toBe(a.state);
     expect(b.injector.get(EditorStateService)).toBe(b.state);
     expect(a.injector.get(EditorStateService)).not.toBe(b.injector.get(EditorStateService));
+  });
+});
+
+/**
+ * **AUDIT-FIX P3 (regression trap)** — exhaustive list of stateful
+ * services that MUST be per-editor scoped. If a service is added with
+ * `providedIn: 'root'` but holds editor-specific signal state, it
+ * silently breaks multi-editor isolation. Listing every required
+ * service explicitly here means the spec fails the next time someone
+ * adds a stateful service and forgets to add it to
+ * `provideSvgEngineEditorScope`.
+ *
+ * **How to extend**: when adding a new stateful service to
+ * `provideSvgEngineEditorScope`, add the corresponding token to
+ * {@link STATEFUL_SCOPED_TOKENS} below. The test will fail until
+ * the addition is consistent across both files.
+ *
+ * **What does NOT belong here**: pure registries (ToolRegistry,
+ * MenuContributionRegistry, ShortcutRegistry, PluginInfoRegistry,
+ * PaletteRegistry, EffectRegistry, ImporterRegistry, ExporterRegistry,
+ * OptimizerRegistry) are app-wide by design — plugins register once
+ * at bootstrap and every editor sees the same contributions. Renderer
+ * registries (NodeRendererRegistry) are also globals. Adding any of
+ * those to this list would be incorrect.
+ */
+const STATEFUL_SCOPED_TOKENS: readonly ProviderToken<unknown>[] = [
+  // core (document + mutations + history + snapshots)
+  EditorStateService,
+  CommandBus,
+  HistoryService,
+  SnapshotsService,
+  SnapshotsPersistenceService,
+  // render (viewport)
+  ViewportService,
+  // edit — selection + isolation + layers + workspace
+  SelectionService,
+  IsolationService,
+  LayersService,
+  WorkspaceService,
+  // edit — gestures + snap + alignment + autosave + clipboard
+  SnapService,
+  TransformService,
+  MarqueeService,
+  AlignmentService,
+  AutoSaveService,
+  ClipboardService,
+  // edit — tools (active tool host + tool state machines)
+  ToolHostService,
+  AnchorSelectionService,
+  PenToolService,
+  ShapeToolService,
+  InlineTextEditorService,
+  GradientToolService,
+  // edit — perf + input
+  ViewportCullingService,
+  ShortcutService,
+  // edit — effects + libraries (active-* + selection-* derived state)
+  ChainFilterRegistry,
+  AssetManagerService,
+  ActiveGradientsService,
+  ActivePatternsService,
+  GradientEditingService,
+  ActiveDefsService,
+  ActiveClipPathsService,
+  ActiveMasksService,
+  ActiveSymbolsService,
+  BrushSelectionService,
+  SymbolSelectionService,
+  SymbolSprayerPreviewService,
+  TraceProgressService,
+  // edit — find/replace + select-same
+  SelectSameService,
+];
+
+describe('provideSvgEngineEditorScope — stateful services exhaustiveness trap', () => {
+  it.each(STATEFUL_SCOPED_TOKENS.map((t) => [t]))(
+    'provides a fresh instance of %p per scope (regression trap)',
+    (token) => {
+      @Component({
+        selector: 'svge-test-trap-a',
+        standalone: true,
+        template: '',
+        providers: [provideSvgEngineEditorScope()],
+      })
+      class HostA {
+        readonly value = inject(token);
+      }
+      @Component({
+        selector: 'svge-test-trap-b',
+        standalone: true,
+        template: '',
+        providers: [provideSvgEngineEditorScope()],
+      })
+      class HostB {
+        readonly value = inject(token);
+      }
+      const a = TestBed.createComponent(HostA).componentInstance;
+      const b = TestBed.createComponent(HostB).componentInstance;
+      expect(a.value).toBeTruthy();
+      expect(b.value).toBeTruthy();
+      // The core invariant: two scoped components get DIFFERENT
+      // instances. If a service silently becomes root-only, this
+      // line fires and points at the exact missing entry in
+      // `provideSvgEngineEditorScope`.
+      expect(a.value).not.toBe(b.value);
+    },
+  );
+});
+
+describe('provideSvgEngineEditorScope({ autoSaveKey }) — AUDIT-FIX P8 contract', () => {
+  it('omitting autoSaveKey keeps the root default "svge:autosave"', () => {
+    @Component({
+      selector: 'svge-test-autosave-default',
+      standalone: true,
+      template: '',
+      providers: [provideSvgEngineEditorScope()],
+    })
+    class Host {
+      readonly key = inject(AUTOSAVE_STORAGE_KEY);
+    }
+    const host = TestBed.createComponent(Host).componentInstance;
+    expect(host.key).toBe('svge:autosave');
+  });
+
+  it('passing a custom autoSaveKey overrides the token within this scope', () => {
+    @Component({
+      selector: 'svge-test-autosave-custom',
+      standalone: true,
+      template: '',
+      providers: [provideSvgEngineEditorScope({ autoSaveKey: 'svge:autosave:editor-a' })],
+    })
+    class Host {
+      readonly key = inject(AUTOSAVE_STORAGE_KEY);
+    }
+    const host = TestBed.createComponent(Host).componentInstance;
+    expect(host.key).toBe('svge:autosave:editor-a');
+  });
+
+  it('passing autoSaveKey: null disables persistence (token resolves to null)', () => {
+    @Component({
+      selector: 'svge-test-autosave-null',
+      standalone: true,
+      template: '',
+      providers: [provideSvgEngineEditorScope({ autoSaveKey: null })],
+    })
+    class Host {
+      readonly key = inject(AUTOSAVE_STORAGE_KEY);
+    }
+    const host = TestBed.createComponent(Host).componentInstance;
+    expect(host.key).toBeNull();
+  });
+
+  it('two scopes with different autoSaveKeys do not bleed', () => {
+    @Component({
+      selector: 'svge-test-autosave-a',
+      standalone: true,
+      template: '',
+      providers: [provideSvgEngineEditorScope({ autoSaveKey: 'editor-a' })],
+    })
+    class HostA {
+      readonly key = inject(AUTOSAVE_STORAGE_KEY);
+    }
+    @Component({
+      selector: 'svge-test-autosave-b',
+      standalone: true,
+      template: '',
+      providers: [provideSvgEngineEditorScope({ autoSaveKey: 'editor-b' })],
+    })
+    class HostB {
+      readonly key = inject(AUTOSAVE_STORAGE_KEY);
+    }
+    const a = TestBed.createComponent(HostA).componentInstance;
+    const b = TestBed.createComponent(HostB).componentInstance;
+    expect(a.key).toBe('editor-a');
+    expect(b.key).toBe('editor-b');
+    expect(a.key).not.toBe(b.key);
   });
 });

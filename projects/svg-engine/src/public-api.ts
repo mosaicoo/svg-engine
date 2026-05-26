@@ -18,4 +18,12 @@
  * into their bundle.
  */
 
-export const SVG_ENGINE_VERSION = '0.0.0';
+/**
+ * Library version string. **Must stay in lockstep with the
+ * `version` field of `projects/svg-engine/package.json`** — release
+ * tooling (D-031 / `standard-version`) bumps both in the same commit.
+ *
+ * Surfaced for consumers that want to log/warn on version mismatch,
+ * or for debugging which build is currently embedded in a host app.
+ */
+export const SVG_ENGINE_VERSION = '0.1.0';

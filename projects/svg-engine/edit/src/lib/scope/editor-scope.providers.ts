@@ -4,6 +4,7 @@ import { ViewportService } from 'svg-engine/render';
 
 import { AlignmentService } from '../alignment/alignment.service';
 import { AnchorSelectionService } from '../anchor-editor/anchor-selection.service';
+import { AUTOSAVE_STORAGE_KEY } from '../autosave/autosave.config';
 import { AutoSaveService } from '../autosave/autosave.service';
 import { ClipboardService } from '../clipboard/clipboard.service';
 import { ChainFilterRegistry } from '../effect/chain-filter';
@@ -128,15 +129,21 @@ import { WorkspaceService } from '../workspace/workspace.service';
  * @Component({
  *   selector: 'split-panel',
  *   template: `
- *     <svg-engine-editor-instance>...</svg-engine-editor-instance>
- *     <svg-engine-editor-instance>...</svg-engine-editor-instance>
+ *     <svg-engine-editor-instance editorId="a">...</svg-engine-editor-instance>
+ *     <svg-engine-editor-instance editorId="b">...</svg-engine-editor-instance>
  *   `,
  * })
  * export class SplitPanel {}
  *
  * @Component({
  *   selector: 'svg-engine-editor-instance',
- *   providers: [provideSvgEngineEditorScope()],
+ *   providers: [
+ *     // AUDIT-FIX P8: distinct autoSaveKey per instance so the two
+ *     // editors don't overwrite each other's recovery payload in
+ *     // localStorage. Without this option both would race for the
+ *     // single 'svge:autosave' slot.
+ *     provideSvgEngineEditorScope({ autoSaveKey: 'svge:autosave:editor-a' }),
+ *   ],
  *   template: `<svge-editor>...</svge-editor>`,
  * })
  * export class EditorInstance {}
@@ -146,8 +153,52 @@ import { WorkspaceService } from '../workspace/workspace.service';
  * scripts, read-only viewers (`<svge-renderer>` standalone). The default
  * `providedIn: 'root'` works fine in those cases.
  */
-export function provideSvgEngineEditorScope(): Provider[] {
+/**
+ * **AUDIT-FIX P8** — optional per-editor configuration honored by
+ * {@link provideSvgEngineEditorScope}.
+ *
+ * Currently exposes the auto-save storage slot; future per-editor knobs
+ * (snapshots storage key, recovery toggle, etc.) hang off the same
+ * object so consumers configure everything in one place.
+ *
+ * **Backward compatible**: every field is optional. Calling
+ * `provideSvgEngineEditorScope()` with no argument keeps the original
+ * `'svge:autosave'` slot, so existing single-editor apps continue
+ * reading their pre-existing recovery payloads.
+ */
+export interface SvgEngineEditorScopeOptions {
+  /**
+   * Override the `localStorage` base key used by
+   * {@link AutoSaveService}. Default `'svge:autosave'`. Pass a
+   * distinct key per editor when the host mounts multiple editor
+   * instances on the same origin — otherwise they'd silently
+   * overwrite each other's recovery payload (the bug this fix
+   * addresses). Pass `null` to disable autosave persistence entirely
+   * for this scope.
+   *
+   * @example
+   * ```ts
+   * providers: [
+   *   provideSvgEngineEditorScope({ autoSaveKey: 'svge:autosave:editor-a' }),
+   * ]
+   * ```
+   */
+  readonly autoSaveKey?: string | null;
+}
+
+export function provideSvgEngineEditorScope(options?: SvgEngineEditorScopeOptions): Provider[] {
+  /**
+   * AUDIT-FIX P8 — when the consumer specified `autoSaveKey`, override
+   * the InjectionToken inside THIS scope only. The `in` check
+   * intentionally lets `null` through (explicit opt-out) while
+   * preserving the root default when the field is omitted entirely.
+   */
+  const autosaveKeyProvider: Provider[] =
+    options !== undefined && 'autoSaveKey' in options
+      ? [{ provide: AUTOSAVE_STORAGE_KEY, useValue: options.autoSaveKey ?? null }]
+      : [];
   return [
+    ...autosaveKeyProvider,
     // ── core (document + mutations + history) ────────────────────
     EditorStateService,
     CommandBus,

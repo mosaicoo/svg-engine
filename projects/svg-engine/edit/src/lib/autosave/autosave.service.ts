@@ -2,14 +2,8 @@ import { DOCUMENT } from '@angular/common';
 import { effect, inject, Injectable } from '@angular/core';
 import { EditorStateService } from 'svg-engine/core';
 import { svgExporter } from 'svg-engine/io';
+import { AUTOSAVE_STORAGE_KEY } from './autosave.config';
 
-/**
- * LocalStorage key under which the auto-saved document SVG is stored.
- * Stable across sessions so the recovery flow can find it on reboot.
- */
-const STORAGE_KEY = 'svge:autosave';
-/** Companion key holding the ISO timestamp of the last save. */
-const STORAGE_TIMESTAMP_KEY = 'svge:autosave:ts';
 /** Debounce delay between document changes and a save commit (ms). */
 const SAVE_DEBOUNCE_MS = 2000;
 /** Hard upper bound on the serialized payload — guards against quota errors. */
@@ -52,6 +46,14 @@ const MAX_PAYLOAD_BYTES = 4 * 1024 * 1024; // 4 MB
 export class AutoSaveService {
   private readonly state = inject(EditorStateService);
   private readonly document = inject(DOCUMENT);
+  /**
+   * **AUDIT-FIX P8**: base localStorage slot for this instance. Pulled
+   * from {@link AUTOSAVE_STORAGE_KEY} so multi-editor hosts can scope
+   * per-editor (see token doc). `null` disables storage writes entirely.
+   *
+   * The companion timestamp slot is derived as `${storageKey}:ts`.
+   */
+  private readonly storageKey = inject(AUTOSAVE_STORAGE_KEY);
   private debounceHandle: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
@@ -70,6 +72,8 @@ export class AutoSaveService {
   /** Force-save right now, bypassing the debounce. */
   snapshotNow(): void {
     if (!this.hasStorage()) return;
+    const keys = this.keys();
+    if (keys === null) return;
     const doc = this.state.document();
     let payload: string;
     try {
@@ -90,8 +94,8 @@ export class AutoSaveService {
     try {
       const win = this.window();
       if (win === null) return;
-      win.localStorage.setItem(STORAGE_KEY, payload);
-      win.localStorage.setItem(STORAGE_TIMESTAMP_KEY, new Date().toISOString());
+      win.localStorage.setItem(keys.storage, payload);
+      win.localStorage.setItem(keys.timestamp, new Date().toISOString());
     } catch (e) {
       console.warn('AutoSaveService: localStorage write failed —', e);
     }
@@ -104,11 +108,13 @@ export class AutoSaveService {
    */
   readRecovery(): { readonly svg: string; readonly savedAt: Date } | null {
     if (!this.hasStorage()) return null;
+    const keys = this.keys();
+    if (keys === null) return null;
     const win = this.window();
     if (win === null) return null;
-    const svg = win.localStorage.getItem(STORAGE_KEY);
+    const svg = win.localStorage.getItem(keys.storage);
     if (svg === null || svg.length === 0) return null;
-    const ts = win.localStorage.getItem(STORAGE_TIMESTAMP_KEY);
+    const ts = win.localStorage.getItem(keys.timestamp);
     const savedAt = ts !== null ? new Date(ts) : new Date(0);
     if (!Number.isFinite(savedAt.getTime())) return { svg, savedAt: new Date(0) };
     return { svg, savedAt };
@@ -117,21 +123,36 @@ export class AutoSaveService {
   /** Drop the saved payload (user declined recovery, or just confirmed it). */
   clearRecovery(): void {
     if (!this.hasStorage()) return;
+    const keys = this.keys();
+    if (keys === null) return;
     const win = this.window();
     if (win === null) return;
-    win.localStorage.removeItem(STORAGE_KEY);
-    win.localStorage.removeItem(STORAGE_TIMESTAMP_KEY);
+    win.localStorage.removeItem(keys.storage);
+    win.localStorage.removeItem(keys.timestamp);
   }
 
   // ── Internals ────────────────────────────────────────────────────
 
   private scheduleSave(): void {
     if (!this.hasStorage()) return;
+    if (this.keys() === null) return;
     if (this.debounceHandle !== null) clearTimeout(this.debounceHandle);
     this.debounceHandle = setTimeout(() => {
       this.debounceHandle = null;
       this.snapshotNow();
     }, SAVE_DEBOUNCE_MS);
+  }
+
+  /**
+   * Resolve the configured storage slot pair (data + timestamp) or
+   * `null` when persistence is explicitly disabled (token bound to
+   * `null`). Centralizing this here keeps every read/write path
+   * honoring the same opt-out switch.
+   */
+  private keys(): { readonly storage: string; readonly timestamp: string } | null {
+    const base = this.storageKey;
+    if (base === null || base.length === 0) return null;
+    return { storage: base, timestamp: `${base}:ts` };
   }
 
   /** Cross-env window accessor — falls back to null in SSR / tests. */
