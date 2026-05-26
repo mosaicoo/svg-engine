@@ -381,6 +381,12 @@ export class SvgeShellInteractions implements OnDestroy {
       if (id === rootId) return;
       const node = findNodeById(this.state.document().root, id);
       if (node === null || node.type !== 'group') return;
+      // DBLCLICK-FIX: bloquear o comportamento padrão do navegador
+      // (que dispara o Selection Action Menu — Translate/Copy popup —
+      // ao detectar um dblclick em texto na vizinhança). Não chamamos
+      // stopPropagation porque outros listeners ancestrais (canvas
+      // gestures, menu bar) podem precisar do evento.
+      event.preventDefault();
       this.isolation.enter(id);
       this.selection.select(id);
       return;

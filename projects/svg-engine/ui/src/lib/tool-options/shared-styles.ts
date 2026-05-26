@@ -18,6 +18,11 @@ export const TOOL_OPT_SHARED_STYLES = `
     gap: 0.5rem;
     flex: 1 1 auto;
     min-width: 0;
+    /* DBLCLICK-FIX: bloquear seleção de texto em qualquer label/hint
+       da barra de opções. Sem isso, dblclick em uma palavra dispara o
+       menu de seleção nativo do Chromium (Translate/Search/Copy). */
+    user-select: none;
+    -webkit-user-select: none;
   }
   .opt-group {
     display: inline-flex;

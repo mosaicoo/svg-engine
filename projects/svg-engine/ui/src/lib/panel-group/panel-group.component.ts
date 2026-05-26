@@ -229,6 +229,12 @@ export class SvgePanelGroupTab {
       min-height: 0;
       overflow: hidden;
       background: var(--mat-sys-surface, transparent);
+      /* DBLCLICK-FIX: tabs/title são chrome — não devem permitir
+         seleção de texto. O conteúdo do body (Inspector, Layers panel,
+         etc.) pode reativar user-select via classe própria se precisar
+         (ex: nome de layer editável). */
+      user-select: none;
+      -webkit-user-select: none;
     }
     .pg-header {
       display: flex;

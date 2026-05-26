@@ -84,6 +84,11 @@ import { ToolOptionsRegistry } from './tool-options-registry.service';
       display: block;
       background: var(--mat-sys-surface, transparent);
       border-bottom: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+      /* DBLCLICK-FIX: chrome bar — não deve permitir seleção de
+         texto de label, senão dblclick na barra dispara o popup
+         nativo do navegador (Selection Action Menu). */
+      user-select: none;
+      -webkit-user-select: none;
     }
     .bar {
       display: flex;

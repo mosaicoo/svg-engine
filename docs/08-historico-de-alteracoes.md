@@ -6,6 +6,54 @@
 
 ---
 
+## 2026-05-26 — DBLCLICK-FIX: bloquear popup nativo do navegador em dblclick
+
+**O quê.** Regressão reportada pelo usuário: dblclick no canvas
+disparava o **Selection Action Menu** nativo do Chromium
+(Translate/Search/Copy popup). Sintoma: ao usar `<svge-shell-pro>`,
+o popup voltou.
+
+**Causa raiz.** Duas falhas combinadas:
+
+1. **Novos componentes TOOL-OPT (A-D)** introduziram muitos
+   `<span>`/`<label>` de hint text dentro de `<svge-tool-options>`
+   sem `user-select: none`. Direct Select options em particular
+   tem um hint dizendo "Double-click to cycle anchor type" —
+   ironicamente, dblclick nesse texto selecionava a palavra e
+   disparava o popup.
+2. **Panel-group e shell-interactions** também faltavam blindagem.
+   No shell-interactions, o handler `onClick` (que detecta dblclick
+   manualmente para entrar em isolation) não chamava
+   `event.preventDefault()`, então o browser ainda processava o
+   dblclick como "selecionar palavra" depois do nosso código rodar.
+
+**Implementação.**
+
+- **`ui/tool-options/shared-styles.ts`**: `:host` ganhou
+  `user-select: none` (cobre 14 componentes que usam o style).
+- **`ui/tool-options/tool-options.component.ts`**: `:host` da barra
+  envoltória também com `user-select: none` (cobre o caso do label/
+  ícone do nome da tool antes do divisor).
+- **`ui/panel-group/panel-group.component.ts`**: `:host` com
+  `user-select: none` — tabs/título do panel-group são chrome,
+  conteúdo do body (Inspector etc.) pode reativar via classe própria
+  quando precisar (ex: nome de layer editável).
+- **`edit/tool/shell-interactions.directive.ts`**: branch de dblclick
+  → isolation agora chama `event.preventDefault()` antes de
+  `isolation.enter()` para bloquear comportamento default do
+  browser sem precisar de `stopPropagation` (que quebraria outros
+  listeners ancestrais como canvas-gestures).
+
+**Bug paralelo de Pattern 5 (recorrente)**: meu primeiro draft tinha
+um backtick dentro do comentário CSS do panel-group
+(`user-select: text`), o que quebrou o template literal `styles: \`...\``e fez Angular compilar`SvgePanelGroup`sem`@Component`. Fix: trocar
+backticks por descrição em texto puro.
+
+**Verificação**: build 9 entry points, lint clean, suite 1672
+passing / 1 skipped.
+
+---
+
 ## 2026-05-26 — KNIFE-FIX: Knife agora corta de verdade
 
 **O quê.** Conserto completo do Knife tool. O comportamento anterior
