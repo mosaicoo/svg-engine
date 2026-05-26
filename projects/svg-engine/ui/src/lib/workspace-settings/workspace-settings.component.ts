@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialogClose, MatDialogRef } from '@angular/material/dialog';
@@ -394,7 +394,23 @@ export class SvgeWorkspaceSettings {
   // ── Background readers (PRO-GAP G1) ───────────────────────────
 
   /**
-   * Map the live {@link BackgroundConfig} signal to a preset id used by
+   * **PRO-GAP-FIX B1** — sticky "user picked Custom" flag.
+   *
+   * Without this signal, choosing Custom while the previous color
+   * happens to match a preset hex (e.g., the user came from "Dark"
+   * with `#222222`) would re-snap the radio back to that preset
+   * inside `backgroundPreset()` — and the `@if` would hide the color
+   * picker. The flag pins the radio to Custom until the user
+   * explicitly picks a different preset.
+   *
+   * Reset to `false` whenever `setBackgroundPreset` is called with a
+   * non-custom preset; also implicitly inert when the live config is
+   * `kind: 'transparent'` (transparent always wins over the flag).
+   */
+  private readonly userChoseCustom = signal(false);
+
+  /**
+   * Map the live `BackgroundConfig` signal to a preset id used by
    * the radio group. Solid colors matching one of the canonical preset
    * swatches snap to that preset; anything else surfaces as "custom"
    * so the color input stays in sync with whatever the user typed.
@@ -404,13 +420,19 @@ export class SvgeWorkspaceSettings {
    * via the color input both push into the service, the UI re-derives.
    * Prevents drift between the radio and the actual canvas state if
    * an external plugin calls `setBackground` directly.
+   *
+   * **PRO-GAP-FIX B1**: honors {@link userChoseCustom} so the radio
+   * doesn't pop back to a preset when the picked color coincides with
+   * one of the preset hex codes.
    */
   protected readonly backgroundPreset = computed<BackgroundPresetId>(() => {
     const bg = this.ws.background();
     if (bg.kind === 'transparent') return 'transparent';
     if (bg.kind === 'image') return 'custom'; // image url → treated as custom-ish
-    // Solid color — snap to one of the canonical presets when the hex
-    // matches; else `custom` (lets the color input drive freely).
+    // Solid color — if the user explicitly chose Custom, stay on
+    // Custom regardless of hex value. Otherwise snap to a canonical
+    // preset when the hex matches; else `custom` (defensive fallback).
+    if (this.userChoseCustom()) return 'custom';
     const hex = bg.color.toLowerCase();
     if (hex === PRESET_COLORS.white.toLowerCase()) return 'white';
     if (hex === PRESET_COLORS['light-gray'].toLowerCase()) return 'light-gray';
@@ -455,19 +477,29 @@ export class SvgeWorkspaceSettings {
    * map to their canonical hex codes; `custom` re-asserts the current
    * custom color (or seeds white if we're switching from transparent
    * so the color input has a sensible starting state).
+   *
+   * **PRO-GAP-FIX B1**: toggles the {@link userChoseCustom} sticky
+   * flag so the radio stays on the user-picked option even when the
+   * resulting hex coincides with a preset (e.g., Custom + #222222
+   * shouldn't snap back to Dark).
    */
   protected setBackgroundPreset(preset: BackgroundPresetId): void {
     if (preset === 'transparent') {
+      this.userChoseCustom.set(false);
       this.ws.setBackground({ kind: 'transparent' });
       return;
     }
     if (preset === 'custom') {
+      this.userChoseCustom.set(true);
       // Use whatever color the picker last had; if we're switching
       // FROM transparent we need to seed something other than ''.
       const seed = this.customColor();
       this.ws.setBackground({ kind: 'solid', color: seed });
       return;
     }
+    // Canonical preset (white / light-gray / dark) — un-stick Custom
+    // so subsequent re-derivation maps the hex back to the preset id.
+    this.userChoseCustom.set(false);
     const hex = PRESET_COLORS[preset];
     this.ws.setBackground({ kind: 'solid', color: hex });
   }
@@ -478,9 +510,14 @@ export class SvgeWorkspaceSettings {
    * resets in some browsers) — the service validator would reject it
    * anyway, but skipping early avoids a spurious change-detection
    * round trip.
+   *
+   * **PRO-GAP-FIX B1**: keep the Custom flag sticky during color
+   * picking — without this, if the user happens to pick a hex matching
+   * a preset, the radio would jump to that preset mid-interaction.
    */
   protected setCustomColor(value: string): void {
     if (typeof value !== 'string' || value.length === 0) return;
+    this.userChoseCustom.set(true);
     this.ws.setBackground({ kind: 'solid', color: value });
   }
 
@@ -519,7 +556,10 @@ export class SvgeWorkspaceSettings {
   protected resetAll(): void {
     // PRO-GAP G1 — include background in "Reset defaults" so users
     // expect the dialog to revert ALL workspace settings (not just
-    // some of them silently).
+    // some of them silently). PRO-GAP-FIX B1: also clear the Custom
+    // sticky flag so post-reset the radio reflects the (transparent)
+    // default cleanly.
+    this.userChoseCustom.set(false);
     this.ws.resetBackground();
     this.ws.resetPage();
     this.ws.resetGrid();

@@ -121,20 +121,48 @@ describe('SnapService — resolveForMove', () => {
     expect(r.guides[0]?.value).toBe(13);
   });
 
-  it('snaps to whichever is closest in both mode', () => {
+  it('snaps to whichever is closest in both mode (objects win on tie — PRO-GAP-FIX B2)', () => {
     const svc = setup();
     svc.setMode('both');
     svc.setGridSize(10);
     svc.setThresholdPx(5);
     const otherId = generateNodeId();
     // Wide moving rect → low feature x=11 only (other features 1011/2011 far away).
-    // Grid 10 (dist 1), object L=12 (dist 1) — tie. Order: grid emitted first → grid wins.
+    // Grid 10 (dist 1), object L=12 (dist 1) — tie. **PRO-GAP-FIX B2**:
+    // objects emitted FIRST, so they win on tie (Illustrator/Affinity
+    // convention — sibling shape alignment is semantically richer than
+    // grid alignment). Without this ordering, dense grid lines pre-empt
+    // every potential object snap and 'both' degenerates into 'grid'.
     const r = svc.resolveForMove(
       bbox(11, 0, 2000, 10),
       [{ id: otherId, bbox: bbox(12, 0, 5, 5) }],
       1,
     );
-    expect(Math.abs(r.delta.x)).toBeCloseTo(1);
+    // Snap target now = object L (x=12), not grid 10 → low feature
+    // 11 moves +1 to land on 12.
+    expect(r.delta.x).toBeCloseTo(1);
+    expect(r.guides[0]?.source).toBe('object');
+    expect(r.guides[0]?.value).toBe(12);
+  });
+
+  it('still picks grid when grid is STRICTLY closer than any object in both mode', () => {
+    const svc = setup();
+    svc.setMode('both');
+    svc.setGridSize(10);
+    svc.setThresholdPx(5);
+    const otherId = generateNodeId();
+    // Wide moving rect, low x = 19. Grid 20 → dist 1. Object L=22 → dist 3.
+    // Object win-on-tie does NOT override "strictly closer wins": grid
+    // remains the snap target here. Proves the fix only flips tie
+    // behavior, not the underlying distance ordering.
+    const r = svc.resolveForMove(
+      bbox(19, 0, 2000, 10),
+      [{ id: otherId, bbox: bbox(22, 0, 5, 5) }],
+      1,
+    );
+    expect(r.delta.x).toBeCloseTo(1);
+    expect(r.guides[0]?.source).toBe('grid');
+    expect(r.guides[0]?.value).toBe(20);
   });
 
   it('scales the threshold by 1/zoom (denser snap range when zoomed in)', () => {

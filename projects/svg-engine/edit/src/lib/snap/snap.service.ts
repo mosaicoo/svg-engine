@@ -96,13 +96,25 @@ export class SnapService {
     const mode = this._mode();
     const thresholdDoc = this._thresholdPx() / Math.max(zoom, 0.0001);
 
+    // **PRO-GAP-FIX B2** — in 'both' mode, push OBJECT targets BEFORE
+    // grid targets so they win in ties. Rationale: grids are dense
+    // (every `gridSize` units, default 10), so a grid line is almost
+    // always within snap range of any moving rect. Without the
+    // ordering swap, grid pre-empts every potential object snap and
+    // 'both' degenerates into 'grid only' from the user's perspective.
+    // Illustrator / Affinity follow the same "objects > grid" rule —
+    // object alignment is semantically richer (aligning to a sibling
+    // shape vs an abstract lattice), so the visual feedback should
+    // surface it when both qualify. `resolveSnap` keeps strictly-less
+    // semantics for tie-breaking, so emitting objects first means
+    // they win when distances are equal.
     const targets: SnapTarget[] = [];
+    if (mode === 'objects' || mode === 'both') {
+      targets.push(...rectsToSnapTargets(staticRects));
+    }
     if (mode === 'grid' || mode === 'both') {
       const g = this._gridSize();
       targets.push(...gridTargetsNear(moving, g, 'x'), ...gridTargetsNear(moving, g, 'y'));
-    }
-    if (mode === 'objects' || mode === 'both') {
-      targets.push(...rectsToSnapTargets(staticRects));
     }
     return resolveSnap(moving, targets, thresholdDoc);
   }

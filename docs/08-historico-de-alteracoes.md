@@ -6,6 +6,83 @@
 
 ---
 
+## 2026-05-26 — PRO-GAP-FIX: 2 bugs reportados após teste visual (B1 + B2)
+
+**O quê.** Dois bugs descobertos ao testar a entrega PRO-GAP no
+browser:
+
+- **B1**: ao selecionar "Custom" no Workspace Settings ▸ Background
+  depois de ter clicado em "Dark" (ou outro preset), o radio "Custom"
+  perdia a seleção visual instantaneamente e o color picker nunca
+  abria — o usuário só via o swatch ficar preto.
+- **B2**: ao escolher "Both" no View ▸ Snap, o snap se comportava
+  exatamente como "Grid only" — alinhamento com outros objetos
+  praticamente nunca acontecia.
+
+**Por quê.** Ambos eram bugs lógicos sutis introduzidos pela
+implementação anterior:
+
+**B1 — round-trip do preset detector.** O `backgroundPreset()`
+computed mapeava o hex do `BackgroundConfig` de volta para um preset
+id (`white` se hex match `#ffffff`, etc.). Quando o usuário clicava
+em Custom vindo de Dark, o seed do `setBackgroundPreset('custom')`
+era `customColor()` que retornava `'#222222'` (o hex do Dark). O
+service gravava `{kind:'solid', color:'#222222'}` e o computed
+re-derivava → `'dark'` (porque hex bate). Radio saltava para Dark,
+`@if (backgroundPreset() === 'custom')` ficava false → color picker
+sumia.
+
+**B2 — densidade do grid pré-emptava objects.** `SnapService.resolveForMove`
+em mode `'both'` empurrava grid targets ANTES de object targets no
+array. O `resolveSnap` itera e usa `bestFeatureDist < bestX.dist`
+(estritamente menor) — empates preservam o primeiro encontrado. Como
+grid lines são densas (a cada 10 unidades por padrão), pelo menos
+uma linha de grid quase sempre cai dentro do threshold de snap (e
+geralmente bem perto). Grid sempre vencia em empate; objetos só
+conseguiam snapar quando estavam ESTRITAMENTE mais perto que
+qualquer linha de grid — cenário raro num documento real.
+
+**Implementação.**
+
+- **B1 fix** (`projects/svg-engine/ui/src/lib/workspace-settings/workspace-settings.component.ts`):
+  - Adicionado `userChoseCustom = signal<boolean>(false)` — flag
+    sticky que pin'a o radio em Custom mesmo quando o hex coincide
+    com um preset.
+  - `backgroundPreset()` consulta a flag ANTES do hex-matching:
+    `if (this.userChoseCustom()) return 'custom'`.
+  - `setBackgroundPreset(preset)` mexe na flag: `'custom'` →
+    `set(true)`, qualquer outro preset → `set(false)`.
+  - `setCustomColor(value)` também `set(true)` para manter sticky
+    durante color picking (sem isso, o usuário poderia acidentalmente
+    snap pro preset ao escolher um hex coincidente).
+  - `resetAll()` também limpa a flag (transparent default não deve
+    herdar estado anterior).
+
+- **B2 fix** (`projects/svg-engine/edit/src/lib/snap/snap.service.ts`):
+  - Reordenado: em mode `'both'`, objects targets são empurrados
+    PRIMEIRO no array, grid depois. `resolveSnap` mantém strict-less
+    para tie-breaking → objects vencem em empates.
+  - Comportamento "strictly-closer ainda vence" preservado: se grid
+    está medibly mais perto que qualquer objeto, grid continua
+    sendo o snap target.
+  - Padrão de mercado (Illustrator / Affinity): alinhar com sibling
+    shape é semanticamente mais útil que alinhar com a malha
+    abstrata. O fix alinha o comportamento com essa convenção.
+
+**Specs.** O spec existente em `snap.service.spec.ts:131` documentava
+o comportamento ANTIGO ("grid wins on tie") como invariante — foi
+atualizado para "objects wins on tie" + adicionado spec novo
+provando que strictly-closer-grid ainda vence (não confundir
+preferência em empate com mudança da função de distância). Suíte
+total: **1617 passing** (+1 do spec novo).
+
+**Não regrediu.** Nenhuma mudança no Custom Editor; mudança em
+SnapService afeta TODAS as visões que usam Snap em mode `'both'`
+(intencional — bug era universal, fix se aplica universal). Suíte
+de testes existente sem regressão.
+
+---
+
 ## 2026-05-26 — PRO-GAP: paridade Custom → Profissional (G1/G2/G3/G4/G5)
 
 **O quê.** Diff visual entre Editor Customizado e Editor Profissional
