@@ -827,6 +827,110 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
       }),
     );
 
+    // ── View ▸ Guides submenu (PRO-GAP G2-G4) ───────────────────────
+    //
+    // Mirror the Custom Editor toolbar's "+H guide / +V guide / Clear
+    // guides" buttons as a proper Illustrator-style submenu in the
+    // Professional shell. Custom users had one-click access from the
+    // toolbar; Pro users discover via View ▸ Guides ▸ … and the same
+    // drag-from-ruler gesture (D-019 polish) keeps working.
+    //
+    // **Position chosen**: the centre of the currently visible viewport
+    // (in document coordinates). Reading `ViewportService.viewBox()`
+    // gives us the live pan/zoom box; centring inside it makes the new
+    // guide land where the user is looking — predictable when zoomed
+    // in/out. Falls back to (0,0) when the viewport isn't initialized
+    // yet (shouldn't happen in practice, defensive only).
+    //
+    // **Clear All disabled gate**: factory reads `WorkspaceService.guides()`
+    // and disables when empty so users get the standard greyed-out
+    // affordance (matches the dialog's "Clear all" behavior).
+    const noGuidesFactory = (injector: Injector): Signal<boolean> => {
+      const ws = injector.get(WorkspaceService);
+      return computed(() => ws.guides().length === 0);
+    };
+    const addGuideAtViewportCentre = (axis: 'h' | 'v', runCtx?: MenuContributionContext): void => {
+      const ws = fromCtx(WorkspaceService, runCtx);
+      const viewport = fromCtx(ViewportService, runCtx);
+      const box = viewport.viewBox();
+      // h(orizontal) guide is a horizontal line at a Y coordinate;
+      // v(ertical) is a vertical line at an X coordinate. Centre the
+      // perpendicular axis inside the currently visible box.
+      const position = axis === 'h' ? box.y + box.height / 2 : box.x + box.width / 2;
+      ws.addGuide(axis, position);
+    };
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.guides',
+        slot: MENU_SLOT.VIEW,
+        label: 'Guides',
+        icon: 'straighten',
+        // After Snap (80), before Workspace Settings (which is on
+        // File menu) — sits with the other "show/hide canvas chrome"
+        // entries. Matches Illustrator's `View ▸ Guides ▸ …` placement.
+        order: 85,
+        run() {
+          /* submenu parent — children drive the actual actions */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.guides.add-h',
+        parentId: 'svge.builtin.view.guides',
+        slot: MENU_SLOT.VIEW,
+        label: 'Add Horizontal Guide',
+        icon: 'horizontal_rule',
+        order: 10,
+        run(runCtx) {
+          addGuideAtViewportCentre('h', runCtx);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.guides.add-v',
+        parentId: 'svge.builtin.view.guides',
+        slot: MENU_SLOT.VIEW,
+        label: 'Add Vertical Guide',
+        // Material has no canonical "vertical_rule" icon at the time of
+        // writing; `vertical_align_center` reads as a single vertical
+        // line in most icon sets, closest available match.
+        icon: 'vertical_align_center',
+        order: 20,
+        run(runCtx) {
+          addGuideAtViewportCentre('v', runCtx);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.guides.divider1',
+        parentId: 'svge.builtin.view.guides',
+        slot: MENU_SLOT.VIEW,
+        label: '',
+        order: 30,
+        divider: true,
+        run() {
+          /* divider */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.guides.clear',
+        parentId: 'svge.builtin.view.guides',
+        slot: MENU_SLOT.VIEW,
+        label: 'Clear All Guides',
+        icon: 'clear_all',
+        order: 40,
+        disabled: noGuidesFactory,
+        run(runCtx) {
+          fromCtx(WorkspaceService, runCtx).clearGuides();
+        },
+      }),
+    );
+
     // ── Object menu ────────────────────────────────────────────────
     const reorder = (direction: ReorderDirection, runCtx?: MenuContributionContext): void => {
       const sel = fromCtx(SelectionService, runCtx);

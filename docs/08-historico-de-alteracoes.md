@@ -6,6 +6,77 @@
 
 ---
 
+## 2026-05-26 — PRO-GAP: paridade Custom → Profissional (G1/G2/G3/G4/G5)
+
+**O quê.** Diff visual entre Editor Customizado e Editor Profissional
+identificou 5 controles presentes no Custom mas ausentes no Pro.
+Implementadas as 5 lacunas mantendo o Custom intocado (instrução
+explícita do usuário) — Pro agora cobre o mesmo conjunto funcional
+do Custom via menus + dialog + canto-da-menu-bar (cada uma escolhida
+pelo usuário via questionário UX).
+
+**Por quê.** O Pro era o shell drop-in "Illustrator-grade", mas
+algumas operações úteis só estavam disponíveis no Custom toolbar:
+background swatches, atalhos de guides, theme toggle. Usuários
+migrando de Custom → Pro sentiam falta. Solução: trazer paridade
+sem inflar o menu superior — cada controle vai pro lugar mais
+natural na linguagem visual profissional.
+
+**Implementação por gap.**
+
+- **G1 — Background swatches no Workspace Settings dialog**
+  (`projects/svg-engine/ui/src/lib/workspace-settings/workspace-settings.component.ts`):
+  Nova seção "Background" no topo do dialog (antes de Page). 5
+  radio buttons (Transparent / White / Light Gray / Dark / Custom)
+  - color picker nativo quando "Custom" é selecionado. Wire para
+    `WorkspaceService.setBackground(config)`. `resetAll()` agora
+    também chama `resetBackground()`. Decisão UX: levar para dialog
+    em vez de poluir menu superior — convive com a estética
+    profissional (Illustrator/Affinity não têm background no menu
+    bar). Hex codes dos 3 solid presets espelham as cores do toolbar
+    swatches do Custom para muscle-memory.
+
+- **G2/G3/G4 — View ▸ Guides ▸ submenu**
+  (`projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts`):
+  Submenu novo no slot `MENU_SLOT.VIEW` (order 85, depois de Snap)
+  com 3 entries:
+  - **Add Horizontal Guide** → `WorkspaceService.addGuide('h',
+centerY)` onde centerY é o centro do viewport visível (lê
+    `ViewportService.viewBox()`). Posição previsível: a guide
+    aparece "onde o usuário está olhando".
+  - **Add Vertical Guide** → análogo no eixo X.
+  - **Clear All Guides** → `WorkspaceService.clearGuides()`,
+    desabilitado quando `guides().length === 0` (factory reactive).
+    Divider antes do Clear All. Drag-from-rulers (D-019) continua
+    funcionando — esses entries adicionam atalhos discoverable.
+
+- **G5 — Theme toggle no canto da menu bar**
+  (`projects/svg-engine/ui/src/lib/shell-pro/shell-pro.component.ts`):
+  `<svge-theme-toggle>` injetado entre `<svge-menu-bar>` e o
+  título "SVGEngine Pro", com `margin-left: auto` no toggle (toggle
+  - title flutuam à direita). Estilo VSCode/Photoshop — ícone
+    sempre visível, 1 click cycle Light → Dark → System. Mantém
+    o título como elemento visualmente ancorado na direita.
+
+**O que NÃO mudou.**
+
+- Custom Editor (`custom-editor.component.ts`) intacto — instrução
+  explícita do usuário ("Não é para remover nada de nenhuma da
+  visões"). Continua com toolbar customizada horizontal cheia de
+  controles.
+- `<svge-editor>` (shell mid-level) não recebe theme toggle — só o
+  shell-pro que tem menu bar nativa para hospedar o botão.
+- Nenhuma mudança em comandos / commands / state services.
+  `WorkspaceService.addGuide/clearGuides/setBackground/resetBackground`
+  já existiam — só ganharam novos call sites na UI.
+
+**Validação**: build 9 entry points ✅, lint clean ✅, 1616 specs
+passando (sem regressão). Específica para G2/G3/G4 não foi adicionada
+spec nova (são apenas registros novos de `MenuContribution` sem lógica
+testável além do registro em si).
+
+---
+
 ## 2026-05-26 — AUDIT-FIX: 4 correções a partir de audit externo (Copilot)
 
 **O quê.** Audit feito por GitHub Copilot levantou 12 pontos de

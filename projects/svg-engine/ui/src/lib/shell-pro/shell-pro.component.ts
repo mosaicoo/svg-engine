@@ -24,6 +24,7 @@ import { LayersPanel } from '../layers-panel';
 import { SvgeLibrariesPanel } from '../libraries-panel';
 import { SnapshotsPanel } from '../snapshots-panel';
 import { SvgeMenuBar } from '../menu-bar';
+import { SvgeThemeToggle } from '../theme-toggle';
 import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
 import { SvgeRulers } from '../rulers';
 import { SvgeStatusBar } from '../status-bar';
@@ -112,6 +113,7 @@ import { SvgeToolsPalette } from '../tools-palette';
     SvgeShellInteractions,
     SvgeContextMenuTrigger,
     SvgeMenuBar,
+    SvgeThemeToggle,
     SvgeToolbar,
     SvgeToolOptions,
     SvgeToolsPalette,
@@ -128,6 +130,16 @@ import { SvgeToolsPalette } from '../tools-palette';
   template: `
     <div class="menu-row">
       <svge-menu-bar />
+      <!--
+        PRO-GAP G5 — floating theme toggle on the menu-bar's right
+        side. Per the UX answer: "Botão flutuante no canto da menu
+        bar (estilo VSCode)" — always visible, 1-click cycle through
+        Light → Dark → System. The .menu-row already uses flex with
+        the title pinned via margin-left:auto; the toggle slots
+        between menu items and the title so the right edge reads
+        "[theme] [title]" — title remains as the rightmost element.
+      -->
+      <svge-theme-toggle class="theme-toggle" />
       <span class="title" aria-hidden="true">{{ title() ?? 'SVGEngine Pro' }}</span>
     </div>
     <div class="toolbar-row">
@@ -274,11 +286,19 @@ import { SvgeToolsPalette } from '../tools-palette';
       border-bottom: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
       background: var(--mat-sys-surface, transparent);
     }
-    .menu-row .title {
+    /* PRO-GAP G5 — push the theme toggle (and the title that follows)
+       to the right edge of the menu-bar. The toggle sits LEFT of the
+       title so the title remains the visual anchor on the far right. */
+    .menu-row .theme-toggle {
       margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+    }
+    .menu-row .title {
       font-size: 13px;
       font-weight: 500;
       opacity: 0.7;
+      padding-left: 4px;
     }
     .toolbar-row {
       display: flex;

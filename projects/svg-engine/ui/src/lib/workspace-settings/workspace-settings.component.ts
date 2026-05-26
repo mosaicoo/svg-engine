@@ -4,9 +4,35 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialogClose, MatDialogRef } from '@angular/material/dialog';
 import { MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
+import { MatRadioModule } from '@angular/material/radio';
 import { MatSelectModule } from '@angular/material/select';
 import { WHEEL_ZOOM_SPEED_MAX, WHEEL_ZOOM_SPEED_MIN, WorkspaceService } from 'svg-engine/edit';
 import { SvgeDialogShell } from '../dialog-shell';
+
+/**
+ * **PRO-GAP G1** — preset identifiers shown as radios in the Background
+ * section. Maps to canonical `BackgroundConfig` values (or `null`
+ * for the "custom solid color" branch, where the user picks via the
+ * color input).
+ *
+ * **Why presets, not free-text**: the four colors below come from the
+ * legacy Custom Editor toolbar swatches (Transparent / White / Light
+ * Gray / Dark). Keeping them as one-click presets matches the muscle
+ * memory of users transitioning from the Custom shell — the Custom
+ * shell stays as-is per the user's instruction, this just makes the
+ * SAME presets reachable from the Professional shell via Workspace
+ * Settings (per the user's UX answer for G1).
+ */
+type BackgroundPresetId = 'transparent' | 'white' | 'light-gray' | 'dark' | 'custom';
+
+/** Hex codes mirror the toolbar swatches in the legacy Custom shell. */
+const PRESET_COLORS: Readonly<
+  Record<Exclude<BackgroundPresetId, 'transparent' | 'custom'>, string>
+> = {
+  white: '#ffffff',
+  'light-gray': '#e0e0e0',
+  dark: '#222222',
+};
 
 /**
  * Settings dialog for the {@link WorkspaceService} — page / grid /
@@ -49,14 +75,76 @@ import { SvgeDialogShell } from '../dialog-shell';
     MatInput,
     MatSelectModule,
     MatCheckboxModule,
+    MatRadioModule,
   ],
   template: `
     <svge-dialog-shell
       icon="tune"
       title="Workspace settings"
-      subtitle="Page · Grid · Rulers · Guides · Interaction"
+      subtitle="Background · Page · Grid · Rulers · Guides · Interaction"
     >
       <!-- Body (default slot) -->
+      <!--
+        PRO-GAP G1 — Canvas Background. Moved into Workspace Settings
+        per the UX answer (instead of polluting the View menu with a
+        4-preset submenu). Mirrors the Custom Editor toolbar swatches
+        as radios + a hex color input that activates when "Custom" is
+        selected. Reset goes back to the default transparent
+        checkerboard via WorkspaceService.resetBackground().
+      -->
+      <section class="group">
+        <h3>Background</h3>
+        <mat-radio-group
+          class="bg-presets"
+          [value]="backgroundPreset()"
+          (change)="setBackgroundPreset($any($event).value)"
+          aria-label="Canvas background preset"
+        >
+          <mat-radio-button value="transparent">
+            <span class="swatch transparent" aria-hidden="true"></span>
+            Transparent
+          </mat-radio-button>
+          <mat-radio-button value="white">
+            <span
+              class="swatch"
+              style="background:#ffffff;border:1px solid #ccc"
+              aria-hidden="true"
+            ></span>
+            White
+          </mat-radio-button>
+          <mat-radio-button value="light-gray">
+            <span class="swatch" style="background:#e0e0e0" aria-hidden="true"></span>
+            Light Gray
+          </mat-radio-button>
+          <mat-radio-button value="dark">
+            <span class="swatch" style="background:#222222" aria-hidden="true"></span>
+            Dark
+          </mat-radio-button>
+          <mat-radio-button value="custom">
+            <span
+              class="swatch"
+              [style.background]="customColor()"
+              [style.border]="'1px solid #ccc'"
+              aria-hidden="true"
+            ></span>
+            Custom
+          </mat-radio-button>
+        </mat-radio-group>
+        @if (backgroundPreset() === 'custom') {
+          <label class="custom-row">
+            <span class="custom-label">Color</span>
+            <input
+              type="color"
+              class="custom-color"
+              [value]="customColor()"
+              (input)="setCustomColor($any($event.target).value)"
+              aria-label="Custom background color"
+            />
+            <span class="custom-hex">{{ customColor() }}</span>
+          </label>
+        }
+      </section>
+
       <section class="group">
         <h3>Page</h3>
         <div class="row">
@@ -231,6 +319,66 @@ import { SvgeDialogShell } from '../dialog-shell';
       font-size: 11px;
       color: var(--mat-sys-on-surface-variant, #777);
     }
+    /* PRO-GAP G1 — Background presets row */
+    .bg-presets {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .bg-presets mat-radio-button {
+      display: flex;
+      align-items: center;
+    }
+    .swatch {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      margin-right: 6px;
+      border-radius: 3px;
+      vertical-align: middle;
+    }
+    /* Checkerboard for the transparent preset — same pattern the
+       <svge-workspace-background> uses on the canvas. */
+    .swatch.transparent {
+      background-image:
+        linear-gradient(45deg, #ccc 25%, transparent 25%),
+        linear-gradient(-45deg, #ccc 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #ccc 75%),
+        linear-gradient(-45deg, transparent 75%, #ccc 75%);
+      background-size: 8px 8px;
+      background-position:
+        0 0,
+        0 4px,
+        4px -4px,
+        -4px 0;
+      background-color: #fff;
+    }
+    .custom-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      padding-left: 28px; /* align under the radio label */
+    }
+    .custom-label {
+      font-size: 13px;
+      color: var(--mat-sys-on-surface, inherit);
+    }
+    .custom-color {
+      width: 36px;
+      height: 26px;
+      padding: 0;
+      border: 1px solid var(--mat-sys-outline-variant, #ccc);
+      border-radius: 3px;
+      background: transparent;
+      cursor: pointer;
+    }
+    .custom-hex {
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      font-size: 12px;
+      color: var(--mat-sys-on-surface-variant, #777);
+      font-variant-numeric: tabular-nums;
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -242,6 +390,45 @@ export class SvgeWorkspaceSettings {
    * vs the implicit dismiss paths if needed in the future.
    */
   protected readonly dialogRef = inject(MatDialogRef<SvgeWorkspaceSettings>);
+
+  // ── Background readers (PRO-GAP G1) ───────────────────────────
+
+  /**
+   * Map the live {@link BackgroundConfig} signal to a preset id used by
+   * the radio group. Solid colors matching one of the canonical preset
+   * swatches snap to that preset; anything else surfaces as "custom"
+   * so the color input stays in sync with whatever the user typed.
+   *
+   * **Why a computed (not a separate signal)**: keeps a single source
+   * of truth — `WorkspaceService.background()`. Editing via radios or
+   * via the color input both push into the service, the UI re-derives.
+   * Prevents drift between the radio and the actual canvas state if
+   * an external plugin calls `setBackground` directly.
+   */
+  protected readonly backgroundPreset = computed<BackgroundPresetId>(() => {
+    const bg = this.ws.background();
+    if (bg.kind === 'transparent') return 'transparent';
+    if (bg.kind === 'image') return 'custom'; // image url → treated as custom-ish
+    // Solid color — snap to one of the canonical presets when the hex
+    // matches; else `custom` (lets the color input drive freely).
+    const hex = bg.color.toLowerCase();
+    if (hex === PRESET_COLORS.white.toLowerCase()) return 'white';
+    if (hex === PRESET_COLORS['light-gray'].toLowerCase()) return 'light-gray';
+    if (hex === PRESET_COLORS.dark.toLowerCase()) return 'dark';
+    return 'custom';
+  });
+
+  /**
+   * Current hex shown in the color input. When the user is on a
+   * canonical preset the input still shows its color (so flipping
+   * "custom" doesn't reset to black); when on transparent we default
+   * to white as a starting point for the color picker.
+   */
+  protected readonly customColor = computed<string>(() => {
+    const bg = this.ws.background();
+    if (bg.kind === 'solid') return bg.color;
+    return '#ffffff';
+  });
 
   // ── Page readers ──────────────────────────────────────────────
 
@@ -261,6 +448,41 @@ export class SvgeWorkspaceSettings {
   protected readonly speedMax = WHEEL_ZOOM_SPEED_MAX;
 
   // ── Mutators (delegate validation to WorkspaceService) ────────
+
+  /**
+   * PRO-GAP G1 — apply a background preset. Transparent uses the
+   * dedicated `kind: 'transparent'` variant; the three solid presets
+   * map to their canonical hex codes; `custom` re-asserts the current
+   * custom color (or seeds white if we're switching from transparent
+   * so the color input has a sensible starting state).
+   */
+  protected setBackgroundPreset(preset: BackgroundPresetId): void {
+    if (preset === 'transparent') {
+      this.ws.setBackground({ kind: 'transparent' });
+      return;
+    }
+    if (preset === 'custom') {
+      // Use whatever color the picker last had; if we're switching
+      // FROM transparent we need to seed something other than ''.
+      const seed = this.customColor();
+      this.ws.setBackground({ kind: 'solid', color: seed });
+      return;
+    }
+    const hex = PRESET_COLORS[preset];
+    this.ws.setBackground({ kind: 'solid', color: hex });
+  }
+
+  /**
+   * Live update from the `<input type="color">` element. We never
+   * commit empty strings (the picker can briefly emit them during
+   * resets in some browsers) — the service validator would reject it
+   * anyway, but skipping early avoids a spurious change-detection
+   * round trip.
+   */
+  protected setCustomColor(value: string): void {
+    if (typeof value !== 'string' || value.length === 0) return;
+    this.ws.setBackground({ kind: 'solid', color: value });
+  }
 
   protected setPageWidth(raw: string): void {
     const n = Number.parseFloat(raw);
@@ -295,6 +517,10 @@ export class SvgeWorkspaceSettings {
     if (Number.isFinite(n)) this.ws.patchInteraction({ wheelZoomSpeed: n });
   }
   protected resetAll(): void {
+    // PRO-GAP G1 — include background in "Reset defaults" so users
+    // expect the dialog to revert ALL workspace settings (not just
+    // some of them silently).
+    this.ws.resetBackground();
     this.ws.resetPage();
     this.ws.resetGrid();
     this.ws.setRulersEnabled(false);
