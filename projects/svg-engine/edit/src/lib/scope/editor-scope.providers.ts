@@ -28,6 +28,8 @@ import { SymbolSprayerPreviewService } from '../library/symbols/symbol-sprayer-p
 import { TraceProgressService } from '../autotrace/trace-progress.service';
 import { LayersService } from '../layers/layers.service';
 import { MarqueeService } from '../marquee/marquee.service';
+import { ActivePageService } from '../pages/active-page.service';
+import { PagesService } from '../pages/pages.service';
 import { SelectionService } from '../selection/selection.service';
 import { ShortcutService } from '../shortcut/shortcut.service';
 import { SnapService } from '../snap/snap.service';
@@ -244,6 +246,13 @@ export function provideSvgEngineEditorScope(options?: SvgEngineEditorScopeOption
     // and dispatch into the wrong editor in multi-editor hosts
     // (same defect class fixed for SelectSameService earlier).
     SmartObjectActionsService,
+    // **D-079** — Pages services (PAGES-B). PagesService derives the
+    // top-level page list from the document; ActivePageService tracks
+    // which page is currently viewed/edited. Both per-editor scope so
+    // two editors don't share active-page state or fight over auto-
+    // recovery when pages get added/removed.
+    PagesService,
+    ActivePageService,
     // **D-077** — Asset Export (batch export panel). Registry holds
     // each editor's slot list; Runner injects EditorStateService +
     // ExporterRegistry to execute the batch. Per-editor scope so two

@@ -151,3 +151,8 @@ export * from './lib/smart-object-actions';
 // executes them in batch with unique-name disambiguation. UI panel
 // lives in `svg-engine/ui` (SvgeAssetExportPanel).
 export * from './lib/asset-export';
+
+// D-079 — Pages / Artboards (per-editor services).
+// Pairs with core/model/page.ts (helpers) + core/commands/page.commands.ts.
+// UI panel lives in `svg-engine/ui` (PAGES-C SvgePagesPanel).
+export * from './lib/pages';
