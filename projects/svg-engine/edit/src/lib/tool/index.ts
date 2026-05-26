@@ -54,6 +54,9 @@ export {
   SymbolSprayerService,
   // TOOL-OPT-C — eyedropper prefs (sampleTarget + autoApply)
   EyedropperToolService,
+  // TOOL-OPT-D — knife/smooth prefs
+  KnifeToolService,
+  SmoothToolService,
   extraToolsPlugin,
   simplifySubpath,
 } from './extra-tools';

@@ -5,24 +5,32 @@ import {
   provideEnvironmentInitializer,
 } from '@angular/core';
 import {
+  DIRECT_SELECT_TOOL_ID,
   ELLIPSE_TOOL_ID,
   EYEDROPPER_TOOL_ID,
   GRADIENT_TOOL_ID,
+  KNIFE_TOOL_ID,
   PEN_TOOL_ID,
   PENCIL_TOOL_ID,
   POLYGON_TOOL_ID,
   RECTANGLE_TOOL_ID,
+  SELECT_TOOL_ID,
+  SMOOTH_TOOL_ID,
   SYMBOL_SPRAYER_TOOL_ID,
   TEXT_TOOL_ID,
   WIDTH_TOOL_ID,
 } from 'svg-engine/edit';
+import { SvgeDirectSelectOptions } from './direct-select-options/direct-select-options.component';
 import { SvgeEyedropperToolOptions } from './eyedropper-tool-options/eyedropper-tool-options.component';
 import { SvgeGradientToolOptions } from './gradient-tool-options/gradient-tool-options.component';
+import { SvgeKnifeToolOptions } from './knife-tool-options/knife-tool-options.component';
 import { SvgePenToolOptions } from './pen-tool-options/pen-tool-options.component';
 import { SvgePencilToolOptions } from './pencil-tool-options/pencil-tool-options.component';
+import { SvgeSelectToolOptions } from './select-tool-options/select-tool-options.component';
 import { SvgeEllipseOptions } from './shape-tool-options/ellipse-options.component';
 import { SvgePolygonOptions } from './shape-tool-options/polygon-options.component';
 import { SvgeRectangleOptions } from './shape-tool-options/rectangle-options.component';
+import { SvgeSmoothToolOptions } from './smooth-tool-options/smooth-tool-options.component';
 import { SvgeSymbolSprayerOptions } from './symbol-sprayer-options/symbol-sprayer-options.component';
 import { SvgeTextToolOptions } from './text-tool-options/text-tool-options.component';
 import { ToolOptionsRegistry } from './tool-options-registry.service';
@@ -84,6 +92,11 @@ export function provideSvgeBuiltinToolOptions(): EnvironmentProviders {
       registry.register(TEXT_TOOL_ID, SvgeTextToolOptions);
       registry.register(GRADIENT_TOOL_ID, SvgeGradientToolOptions);
       registry.register(EYEDROPPER_TOOL_ID, SvgeEyedropperToolOptions);
+      // TOOL-OPT-D — Select + Direct Select + Knife + Smooth.
+      registry.register(SELECT_TOOL_ID, SvgeSelectToolOptions);
+      registry.register(DIRECT_SELECT_TOOL_ID, SvgeDirectSelectOptions);
+      registry.register(KNIFE_TOOL_ID, SvgeKnifeToolOptions);
+      registry.register(SMOOTH_TOOL_ID, SvgeSmoothToolOptions);
     }),
   ]);
 }

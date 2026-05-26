@@ -218,6 +218,25 @@ class EyedropperTool implements Tool {
  *   from the actual curve can be significant for tight bezier curves.
  * - Doesn't split into two PathNodes (single inserted anchor only).
  */
+/**
+ * **TOOL-OPT-D** — preferences for the Knife tool. `snapTolerance`
+ * (px) controls how close to an existing anchor a click needs to land
+ * before snapping to it; `snapToNodes` toggles the snapping entirely.
+ */
+@Injectable({ providedIn: 'root' })
+export class KnifeToolService {
+  private readonly _snapToNodes = signal<boolean>(true);
+  private readonly _snapTolerance = signal<number>(12);
+  readonly snapToNodes = this._snapToNodes.asReadonly();
+  readonly snapTolerance = this._snapTolerance.asReadonly();
+  setSnapToNodes(on: boolean): void {
+    this._snapToNodes.set(on);
+  }
+  setSnapTolerance(px: number): void {
+    if (Number.isFinite(px)) this._snapTolerance.set(Math.max(2, Math.min(100, px)));
+  }
+}
+
 class KnifeTool implements Tool {
   readonly id = KNIFE_TOOL_ID;
   readonly label = 'Knife';
@@ -287,6 +306,21 @@ class KnifeTool implements Tool {
  * empirically good for typical Pencil output (~50-300 points reduces
  * to ~20-80). A tool-options panel can expose this as a slider later.
  */
+/**
+ * **TOOL-OPT-D** — preferences for the Smooth tool. Single signal:
+ * `tolerance` (RDP epsilon in doc units). Higher = more aggressive
+ * simplification, fewer anchors. Default 1.5 matches the prior
+ * hardcoded value.
+ */
+@Injectable({ providedIn: 'root' })
+export class SmoothToolService {
+  private readonly _tolerance = signal<number>(1.5);
+  readonly tolerance = this._tolerance.asReadonly();
+  setTolerance(v: number): void {
+    if (Number.isFinite(v)) this._tolerance.set(Math.max(0.1, Math.min(20, v)));
+  }
+}
+
 class SmoothTool implements Tool {
   readonly id = SMOOTH_TOOL_ID;
   readonly label = 'Smooth';
@@ -302,12 +336,13 @@ class SmoothTool implements Tool {
       console.info('[Smooth] no selection — select a path first');
       return;
     }
+    const tolerance = ctx.injector.get(SmoothToolService).tolerance();
     const bus = ctx.injector.get(CommandBus);
     for (const id of ids) {
       const node = findNodeById(state.document().root, id);
       if (node === null || node.type !== 'path') continue;
       const subpaths = parsePathToAnchors((node as PathNode).d);
-      const reduced = subpaths.map((sp) => simplifySubpath(sp, 1.5));
+      const reduced = subpaths.map((sp) => simplifySubpath(sp, tolerance));
       const nextD = anchorsToPathD(reduced);
       if (nextD !== (node as PathNode).d) {
         bus.dispatch(new SetPropertyCommand<PathNode, 'd'>(id, 'd', nextD));

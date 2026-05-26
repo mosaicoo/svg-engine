@@ -6,6 +6,57 @@
 
 ---
 
+## 2026-05-26 — TOOL-OPT Fase D: Select/DirectSelect/Knife/Smooth — fechamento
+
+**O quê.** Quarta e última fase do TOOL-OPT.
+
+- **Select**: Snap segmented (Off/Grid/Objects/Both) reaproveitando
+  `SnapService` já existente — duplica controle da status bar para
+  facilitar acesso enquanto a tool está ativa.
+- **Direct Select**: barra informacional explicando os atalhos
+  (Alt+drag, double-click cycle).
+- **Knife**: snap-to-nodes toggle + tolerance input. Novo
+  `KnifeToolService` (snapToNodes + snapTolerance, defaults
+  matching prior hardcoded 12px).
+- **Smooth**: tolerance input + slider (RDP epsilon 0.1-10). Novo
+  `SmoothToolService` (tolerance default 1.5 matching prior
+  hardcoded). `SmoothTool.onPointerDown` agora lê do service.
+
+**Cobertura completa do TOOL-OPT.** Resultado dos 4 fases:
+
+| Tool                 | Component                 | Backing service                                                      |
+| -------------------- | ------------------------- | -------------------------------------------------------------------- |
+| Stamp/Symbol Sprayer | SvgeSymbolSprayerOptions  | SymbolSprayerService + SymbolSelectionService + SymbolLibraryService |
+| Width                | SvgeWidthToolOptions      | WidthToolService                                                     |
+| Rectangle            | SvgeRectangleOptions      | ShapeToolService                                                     |
+| Ellipse              | SvgeEllipseOptions        | ShapeToolService                                                     |
+| Polygon              | SvgePolygonOptions        | ShapeToolService                                                     |
+| Pencil               | SvgePencilToolOptions     | PencilToolService                                                    |
+| Pen                  | SvgePenToolOptions        | PenToolService                                                       |
+| Text                 | SvgeTextToolOptions       | InlineTextEditorService                                              |
+| Gradient             | SvgeGradientToolOptions   | (informational)                                                      |
+| Eyedropper           | SvgeEyedropperToolOptions | EyedropperToolService                                                |
+| Select               | SvgeSelectToolOptions     | SnapService                                                          |
+| Direct Select        | SvgeDirectSelectOptions   | (informational)                                                      |
+| Knife                | SvgeKnifeToolOptions      | KnifeToolService                                                     |
+| Smooth               | SvgeSmoothToolOptions     | SmoothToolService                                                    |
+
+15 ferramentas, 14 components UI (Direct Select compartilha um
+informational), 7 services novos+estendidos. Todo wiring via
+`provideSvgeBuiltinToolOptions()` em uma linha do `app.config.ts`.
+
+**Pattern arquitetural reaproveitável.** Plugin de terceiros que
+queira sobrescrever um dos built-ins faz:
+
+`inject(ToolOptionsRegistry).register(SELECT_TOOL_ID, MyCustomSelectOptions);`
+
+— last-write-wins, sem mexer no provider built-in.
+
+**Verificação final**: build 9 entry points, lint clean, suite 1666
+passing / 1 skipped (zero regressão em todas as 4 fases).
+
+---
+
 ## 2026-05-26 — TOOL-OPT Fase C: Text/Gradient/Eyedropper options
 
 **O quê.** Terceira fase: 3 novas barras contextuais.

@@ -21,6 +21,11 @@ export { SvgePenToolOptions } from './pen-tool-options/pen-tool-options.componen
 export { SvgeTextToolOptions } from './text-tool-options/text-tool-options.component';
 export { SvgeGradientToolOptions } from './gradient-tool-options/gradient-tool-options.component';
 export { SvgeEyedropperToolOptions } from './eyedropper-tool-options/eyedropper-tool-options.component';
+// TOOL-OPT-D — select + direct-select + knife + smooth.
+export { SvgeSelectToolOptions } from './select-tool-options/select-tool-options.component';
+export { SvgeDirectSelectOptions } from './direct-select-options/direct-select-options.component';
+export { SvgeKnifeToolOptions } from './knife-tool-options/knife-tool-options.component';
+export { SvgeSmoothToolOptions } from './smooth-tool-options/smooth-tool-options.component';
 // Shared CSS string for option components (consumers can build their
 // own option components with the same visual language).
 export { TOOL_OPT_SHARED_STYLES } from './shared-styles';
