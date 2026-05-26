@@ -6,6 +6,7 @@ import {
   CommandBus,
   EditorStateService,
   findNodeById,
+  KnifeCutPathCommand,
   parsePathToAnchors,
   type PathNode,
   type Point,
@@ -244,49 +245,59 @@ class KnifeTool implements Tool {
   readonly cursor = 'crosshair';
   readonly shortcut = 'c';
 
+  /**
+   * **KNIFE-FIX** (atualizado).
+   *
+   * Comportamento atual:
+   * - Hit-testa QUALQUER nó cuttable (path + rect/ellipse/line/polygon/
+   *   polyline — `KnifeCutPathCommand` faz a auto-conversão pra path
+   *   d via `nodeToPathD` antes de cortar).
+   * - Honra `KnifeToolService.snapTolerance` e `snapToNodes` (era
+   *   hardcoded 12px no v1 — corrigido).
+   * - Dispatch único `KnifeCutPathCommand` que: remove o nó original,
+   *   insere as peças resultantes no mesmo z-index, undo restaura
+   *   o estado anterior em um único Ctrl+Z.
+   * - Atualiza a seleção pras peças novas → o usuário vê IMEDIATAMENTE
+   *   que algo aconteceu (overlay de seleção aparece nas pieces).
+   */
   onPointerDown(event: ToolPointerEvent, ctx: ToolContext): void {
     const state = ctx.injector.get(EditorStateService);
-    const node = hitTestNode(event.raw, state, 'path') as PathNode | null;
-    if (node === null) return;
-
-    const subpaths = parsePathToAnchors(node.d);
-    if (subpaths.length === 0) return;
-
-    // Find the closest segment across all subpaths.
-    let best: { sp: number; seg: number; t: number; dist: number; proj: Point } | null = null;
-    for (let s = 0; s < subpaths.length; s++) {
-      const anchors = subpaths[s]!.anchors;
-      const lastIdx = subpaths[s]!.closed ? anchors.length : anchors.length - 1;
-      for (let i = 0; i < lastIdx; i++) {
-        const a = anchors[i]!.point;
-        const b = anchors[(i + 1) % anchors.length]!.point;
-        const proj = projectPointOnSegment(event.docPoint, a, b);
-        const d = distance(event.docPoint, proj.point);
-        if (best === null || d < best.dist) {
-          best = { sp: s, seg: i, t: proj.t, dist: d, proj: proj.point };
-        }
-      }
+    // No type filter: cuttable types include path + rect/ellipse/line/
+    // polygon/polyline. The command rejects unsupported types with a
+    // clear error message in CommandResult — we just silently no-op
+    // here (clicking on background or text is not an error).
+    const target = hitTestNode(event.raw, state);
+    if (target === null) return;
+    if (
+      target.type !== 'path' &&
+      target.type !== 'rect' &&
+      target.type !== 'ellipse' &&
+      target.type !== 'line' &&
+      target.type !== 'polygon' &&
+      target.type !== 'polyline'
+    ) {
+      // Surfaces are like text/image/group — not cuttable. Bail.
+      console.info(`[Knife] node type "${target.type}" is not cuttable`);
+      return;
     }
-    if (best === null || best.dist > 12) return; // 12px tolerance in doc coords
-
-    // Insert a cusp anchor at the projection point.
-    const newSubpaths: AnchorSubpath[] = subpaths.map((sp, sIdx) => {
-      if (sIdx !== best!.sp) return sp;
-      const anchors = sp.anchors.slice();
-      const newAnchor: AnchorPoint = {
-        point: best!.proj,
-        handleIn: best!.proj,
-        handleOut: best!.proj,
-        kind: 'cusp',
-      };
-      anchors.splice(best!.seg + 1, 0, newAnchor);
-      return { anchors, closed: sp.closed };
-    });
-    const nextD = anchorsToPathD(newSubpaths);
-    if (nextD === node.d) return;
-
-    const bus = ctx.injector.get(CommandBus);
-    bus.dispatch(new SetPropertyCommand<PathNode, 'd'>(node.id, 'd', nextD));
+    const prefs = ctx.injector.get(KnifeToolService);
+    const cmd = new KnifeCutPathCommand(
+      target.id,
+      event.docPoint,
+      prefs.snapTolerance(),
+      prefs.snapToNodes(),
+    );
+    const result = ctx.injector.get(CommandBus).dispatch(cmd);
+    if (!result.ok) {
+      console.info(`[Knife] cut failed: ${result.error}`);
+      return;
+    }
+    // Visual feedback: select the new pieces so the user sees the
+    // selection overlay snap onto them — proof the cut worked.
+    const ids = cmd.createdIds;
+    if (ids.length > 0) {
+      ctx.injector.get(SelectionService).selectMany(ids);
+    }
   }
 }
 

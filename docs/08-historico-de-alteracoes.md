@@ -6,6 +6,72 @@
 
 ---
 
+## 2026-05-26 — KNIFE-FIX: Knife agora corta de verdade
+
+**O quê.** Conserto completo do Knife tool. O comportamento anterior
+era cosmético — clicar inseria uma âncora invisível e nada mais
+mudava. Agora o Knife:
+
+1. **Corta paths abertos em 2 PathNodes separados** (esquerda + direita).
+2. **Corta paths fechados em 1 path aberto** (começa e termina no
+   ponto de corte).
+3. **Auto-converte rect/ellipse/line/polygon/polyline** antes de
+   cortar — não precisa mais passar pelo Inspector ▸ Convert to Path.
+4. **Honra o slider de Tolerance** (era hardcoded 12px — corrigido).
+5. **Honra Snap to nodes** — quando ON e o click cai dentro de
+   tolerance/2 de uma âncora existente, corta naquela âncora sem
+   criar duplicata.
+6. **Feedback visual imediato**: as peças resultantes ficam
+   selecionadas, então o overlay de seleção pula pras 2 metades
+   confirmando que cortou.
+7. **Undo único** restaura o nó original no z-index correto.
+
+**Bugs encontrados (3)**:
+
+- Filtro `'path'` no `hitTestNode` rejeitava qualquer shape
+  silenciosamente — usuário desenhava com Rectangle, tentava cortar,
+  nada acontecia.
+- `if (best.dist > 12)` ignorava o `KnifeToolService.snapTolerance()`
+  exposto pela barra TOOL-OPT-D — slider era cosmético.
+- Mesmo quando o cut tinha sucesso, a única coisa que acontecia era
+  inserir uma âncora num path que já tinha âncoras em cada corner —
+  visualmente zero mudança, usuário concluía que tool estava quebrado.
+
+**Implementação**.
+
+- **`core/commands/knife-cut.command.ts`** (NOVO): `KnifeCutPathCommand`
+  composta — remove o nó original, insere as peças no mesmo z-index,
+  undo restaura tudo. `createdIds` exposto pra tool atualizar
+  seleção. Algoritmo:
+  - `nodeToPathD` para shapes não-path (re-uso do helper D-033).
+  - `parsePathToAnchors` para subpaths.
+  - `splitOpenSubpathAt` / `openClosedSubpathAt` puros para a
+    matemática do corte (insere cusp anchor ou snapa em âncora
+    existente).
+  - Outras subpaths (compound path) vão pra primeira peça por default.
+- **`core/commands/index.ts`**: exporta `KnifeCutPathCommand`.
+- **`edit/tool/extra-tools.ts`** (KnifeTool reescrito): hit-test sem
+  filtro, dispatch único do `KnifeCutPathCommand`, `selectMany`
+  das peças após sucesso, error friendly via `console.info` em
+  vez de silent no-op.
+
+**Specs**: 6 cenários no `knife-cut.command.spec.ts` (open→2,
+closed→1 open, rect auto, ellipse auto, fail outside tolerance, undo
+restaura z-order).
+
+**Verificação**: build 9 entry points, lint clean, suite 1672 passing
+/ 1 skipped (zero regressão, +6 specs).
+
+**Como testar**:
+
+1. Desenhe um rect com `R` no canvas.
+2. `C` para ativar Knife.
+3. Clique numa borda do rect → o rect vira um path aberto, com
+   selection overlay confirmando.
+4. `A` (Direct Select) → arraste a âncora do corte pra ver as 2 metades.
+
+---
+
 ## 2026-05-26 — TOOL-OPT Fase D: Select/DirectSelect/Knife/Smooth — fechamento
 
 **O quê.** Quarta e última fase do TOOL-OPT.

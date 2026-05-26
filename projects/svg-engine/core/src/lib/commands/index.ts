@@ -44,6 +44,9 @@ export { composeAnchoredScale, ResizeNodeCommand } from './resize-node.command';
 export { composePivotRotation, RotateNodeCommand } from './rotate-node.command';
 // D-078 — Flip horizontal/vertical (mirror across an axis through pivot).
 export { composePivotFlip, type FlipAxis, FlipNodeCommand } from './flip-node.command';
+// KNIFE-FIX — real path cut (auto-converts shapes, splits into 2 paths,
+// honours snap-to-nodes + tolerance).
+export { KnifeCutPathCommand } from './knife-cut.command';
 export { SetPropertyCommand } from './set-property.command';
 export { SetPropertyOnManyCommand } from './set-property-on-many.command';
 export { SetStylePropertyOnManyCommand } from './set-style-property-on-many.command';
