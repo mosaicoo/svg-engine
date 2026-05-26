@@ -11,3 +11,12 @@ export { provideSvgeBuiltinToolOptions } from './builtin-tool-options.providers'
 // reference if a consumer wants to override one specific tool).
 export { SvgeSymbolSprayerOptions } from './symbol-sprayer-options/symbol-sprayer-options.component';
 export { SvgeWidthToolOptions } from './width-tool-options/width-tool-options.component';
+// TOOL-OPT-B — shape + draw tool option components.
+export { SvgeRectangleOptions } from './shape-tool-options/rectangle-options.component';
+export { SvgeEllipseOptions } from './shape-tool-options/ellipse-options.component';
+export { SvgePolygonOptions } from './shape-tool-options/polygon-options.component';
+export { SvgePencilToolOptions } from './pencil-tool-options/pencil-tool-options.component';
+export { SvgePenToolOptions } from './pen-tool-options/pen-tool-options.component';
+// Shared CSS string for option components (consumers can build their
+// own option components with the same visual language).
+export { TOOL_OPT_SHARED_STYLES } from './shared-styles';

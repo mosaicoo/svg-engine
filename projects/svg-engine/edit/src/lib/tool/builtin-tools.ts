@@ -174,9 +174,16 @@ class PencilTool implements Tool {
       }
     }
 
-    const d = pointsToPathD(captured);
+    // TOOL-OPT-B: read style + closePath from PencilToolService so the
+    // tool-options bar drives the next commit. Defaults match the prior
+    // hardcoded `fill:none + stroke:#000000 + strokeWidth:2 + open path`.
+    const d = pointsToPathD(captured) + (pencil.closePath() ? ' Z' : '');
     const node = createPath(d, {
-      style: { fill: 'none', stroke: '#000000', strokeWidth: 2 },
+      style: {
+        fill: pencil.fill(),
+        stroke: pencil.stroke(),
+        strokeWidth: pencil.strokeWidth(),
+      },
     });
     const root = ctx.injector.get(EditorStateService).document().root;
     ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(root.id, node));

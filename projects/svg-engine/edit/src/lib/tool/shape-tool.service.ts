@@ -62,6 +62,56 @@ export class ShapeToolService {
   readonly isDrafting = computed(() => this._draft() !== null);
 
   /**
+   * **TOOL-OPT-B** — preference signals consumed by the shape-tools
+   * plugin at commit time. Defaults MATCH the prior hardcoded style
+   * (`fill:none + stroke:#000000 + strokeWidth:1` + polygon sides 6 +
+   * cornerRadius 0) so existing tests/usages stay unchanged. The
+   * options bar reads/writes through the setters below.
+   *
+   * Per-tool relevance:
+   * - `fill`, `stroke`, `strokeWidth`: all 3 shape tools.
+   * - `cornerRadius`: Rectangle only.
+   * - `polygonSides`, `starMode`, `starInnerRadius`: Polygon only.
+   */
+  private readonly _fill = signal<string>('none');
+  private readonly _stroke = signal<string>('#000000');
+  private readonly _strokeWidth = signal<number>(1);
+  private readonly _cornerRadius = signal<number>(0);
+  private readonly _polygonSides = signal<number>(DEFAULT_POLYGON_SIDES);
+  private readonly _starMode = signal<boolean>(false);
+  private readonly _starInnerRadius = signal<number>(0.5);
+
+  readonly fill = this._fill.asReadonly();
+  readonly stroke = this._stroke.asReadonly();
+  readonly strokeWidth = this._strokeWidth.asReadonly();
+  readonly cornerRadius = this._cornerRadius.asReadonly();
+  readonly polygonSides = this._polygonSides.asReadonly();
+  readonly starMode = this._starMode.asReadonly();
+  readonly starInnerRadius = this._starInnerRadius.asReadonly();
+
+  setFill(v: string): void {
+    this._fill.set(v);
+  }
+  setStroke(v: string): void {
+    this._stroke.set(v);
+  }
+  setStrokeWidth(px: number): void {
+    this._strokeWidth.set(Math.max(0, Math.min(200, px)));
+  }
+  setCornerRadius(px: number): void {
+    this._cornerRadius.set(Math.max(0, Math.min(500, px)));
+  }
+  setPolygonSides(n: number): void {
+    this._polygonSides.set(Math.max(3, Math.min(32, Math.round(n))));
+  }
+  setStarMode(on: boolean): void {
+    this._starMode.set(on);
+  }
+  setStarInnerRadius(fraction: number): void {
+    this._starInnerRadius.set(Math.max(0.1, Math.min(0.95, fraction)));
+  }
+
+  /**
    * Begin a press-drag-release. Called from a shape tool's
    * `onPointerDown`. The kind is fixed for the duration of the
    * gesture — switching tools mid-drag is not supported (the new

@@ -4,7 +4,20 @@ import {
   makeEnvironmentProviders,
   provideEnvironmentInitializer,
 } from '@angular/core';
-import { SYMBOL_SPRAYER_TOOL_ID, WIDTH_TOOL_ID } from 'svg-engine/edit';
+import {
+  ELLIPSE_TOOL_ID,
+  PEN_TOOL_ID,
+  PENCIL_TOOL_ID,
+  POLYGON_TOOL_ID,
+  RECTANGLE_TOOL_ID,
+  SYMBOL_SPRAYER_TOOL_ID,
+  WIDTH_TOOL_ID,
+} from 'svg-engine/edit';
+import { SvgePenToolOptions } from './pen-tool-options/pen-tool-options.component';
+import { SvgePencilToolOptions } from './pencil-tool-options/pencil-tool-options.component';
+import { SvgeEllipseOptions } from './shape-tool-options/ellipse-options.component';
+import { SvgePolygonOptions } from './shape-tool-options/polygon-options.component';
+import { SvgeRectangleOptions } from './shape-tool-options/rectangle-options.component';
 import { SvgeSymbolSprayerOptions } from './symbol-sprayer-options/symbol-sprayer-options.component';
 import { ToolOptionsRegistry } from './tool-options-registry.service';
 import { SvgeWidthToolOptions } from './width-tool-options/width-tool-options.component';
@@ -52,8 +65,15 @@ export function provideSvgeBuiltinToolOptions(): EnvironmentProviders {
   return makeEnvironmentProviders([
     provideEnvironmentInitializer(() => {
       const registry = inject(ToolOptionsRegistry);
+      // TOOL-OPT-A — Symbol Sprayer + Width.
       registry.register(SYMBOL_SPRAYER_TOOL_ID, SvgeSymbolSprayerOptions);
       registry.register(WIDTH_TOOL_ID, SvgeWidthToolOptions);
+      // TOOL-OPT-B — Rectangle + Ellipse + Polygon + Pencil + Pen.
+      registry.register(RECTANGLE_TOOL_ID, SvgeRectangleOptions);
+      registry.register(ELLIPSE_TOOL_ID, SvgeEllipseOptions);
+      registry.register(POLYGON_TOOL_ID, SvgePolygonOptions);
+      registry.register(PENCIL_TOOL_ID, SvgePencilToolOptions);
+      registry.register(PEN_TOOL_ID, SvgePenToolOptions);
     }),
   ]);
 }

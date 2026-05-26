@@ -6,6 +6,62 @@
 
 ---
 
+## 2026-05-26 — TOOL-OPT Fase B: Rectangle/Ellipse/Polygon/Pencil/Pen options
+
+**O quê.** Segunda fase: 5 ferramentas de criação ganharam barra de
+opções contextual.
+
+- **Rectangle**: fill (color + "no-fill" toggle) + stroke (color +
+  width input) + corner radius (input + slider) + reset.
+- **Ellipse**: fill + stroke (sem corner radius).
+- **Polygon**: fill + stroke + sides input + Star mode toggle (com
+  inner-radius slider quando ativo) + reset.
+- **Pencil**: fill + stroke + close-path toggle + reset.
+- **Pen**: fill + stroke + rubber-band preview toggle + reset.
+
+**Por quê — extensões de serviço (não-breaking).** Tools de criação
+antes hardcodavam `fill:none + stroke:#000000 + strokeWidth:1`.
+Adicionei signals de preferência em `ShapeToolService`,
+`PencilToolService` e `PenToolService` com **defaults idênticos aos
+valores hardcoded anteriores** — testes existentes passam sem
+alteração. Os tool plugins agora leem dessas signals na hora do
+commit, então a barra de opções afeta a próxima criação.
+
+**Por quê — Star mode (Polygon).** Padrão Illustrator: o tool de
+polígono comuta entre n-gon regular e estrela. Implementado
+`regularStarPoints` no plugin (alterna outer/inner radius) e
+expus via toggle + slider de inner-radius (0.1-0.95). Inner-radius
+slider só renderiza quando star mode está ativo (UI mais limpa).
+
+**Implementação.**
+
+- **`edit/tool/shape-tool.service.ts`**: 7 novos signals
+  (fill/stroke/strokeWidth/cornerRadius/polygonSides/starMode/
+  starInnerRadius) + setters com clamp ranges.
+- **`edit/tool/shape-tools.plugin.ts`**: `buildShapeNode` agora
+  recebe o service e lê todas as prefs; `regularStarPoints`
+  helper adicionado.
+- **`edit/tool/pencil-tool.service.ts`**: 4 signals (fill/stroke/
+  strokeWidth/closePath) + setters.
+- **`edit/tool/builtin-tools.ts`**: PencilTool agora aplica prefs
+  - closePath via Z no path d.
+- **`edit/tool/pen-tool.service.ts`**: 4 signals + setters;
+  `buildPathFromAnchors` consome as prefs (preservando fill black
+  default em paths fechados).
+- **`ui/tool-options/shared-styles.ts`**: string compartilhada com
+  o vocabulário visual (chip, slider, divider, color swatch,
+  toggle button).
+- **`ui/tool-options/shape-tool-options/`**: 3 components.
+- **`ui/tool-options/pencil-tool-options/`**: 1 component.
+- **`ui/tool-options/pen-tool-options/`**: 1 component.
+- **`ui/tool-options/builtin-tool-options.providers.ts`**: registra
+  os 5 novos no `ToolOptionsRegistry`.
+
+**Verificação**: build 9 entry points, lint clean, suite 1666
+passing / 1 skipped (zero regressão).
+
+---
+
 ## 2026-05-26 — TOOL-OPT Fase A: ToolOptionsRegistry + Symbol Sprayer + Width
 
 **O quê.** Primeira fase de uma série de 4 que vai dar opções

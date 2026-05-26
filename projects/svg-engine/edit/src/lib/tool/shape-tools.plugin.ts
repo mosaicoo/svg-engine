@@ -117,7 +117,10 @@ class ShapeTool implements Tool {
     // Filter degenerate shapes — accidental clicks shouldn't pollute
     // the document with invisible 0×0 / 1×1 nodes.
     if (bounds.w < MIN_SHAPE_EDGE_PX || bounds.h < MIN_SHAPE_EDGE_PX) return;
-    const node = buildShapeNode(this.kind, bounds);
+    // TOOL-OPT-B: read style + per-kind options from the service so the
+    // tool-options bar's controls take effect on the next commit. Defaults
+    // match the prior hardcoded values for back-compat.
+    const node = buildShapeNode(this.kind, bounds, shapes);
     if (node === null) return;
     const root = ctx.injector.get(EditorStateService).document().root;
     ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(root.id, node));
@@ -138,18 +141,43 @@ class ShapeTool implements Tool {
 /**
  * Build a `SvgNode` of the right type from the gesture's final
  * bounding box. Returns `null` for degenerate inputs (caller already
- * filters those, but defensive). Default style is `fill:none + stroke
- * black 1px` — matches the existing Pencil tool convention so all
- * creation tools produce uniformly-styled output.
+ * filters those, but defensive). TOOL-OPT-B: reads style + per-kind
+ * options from the ShapeToolService so the options bar's choices
+ * take effect on the next commit. Defaults preserve the prior
+ * `fill:none + stroke:#000000 + strokeWidth:1` look.
  */
 function buildShapeNode(
   kind: ShapeKind,
   bounds: { x: number; y: number; w: number; h: number },
+  prefs: ShapeToolService,
 ): import('svg-engine/core').SvgNode | null {
-  const style = { fill: 'none', stroke: '#000000', strokeWidth: 1 };
+  const style = {
+    fill: prefs.fill(),
+    stroke: prefs.stroke(),
+    strokeWidth: prefs.strokeWidth(),
+  };
   switch (kind) {
-    case 'rect':
-      return createRect({ x: bounds.x, y: bounds.y, width: bounds.w, height: bounds.h }, { style });
+    case 'rect': {
+      const r = prefs.cornerRadius();
+      const rectArgs: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        rx?: number;
+        ry?: number;
+      } = {
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.w,
+        height: bounds.h,
+      };
+      if (r > 0) {
+        rectArgs.rx = r;
+        rectArgs.ry = r;
+      }
+      return createRect(rectArgs, { style });
+    }
     case 'ellipse':
       return createEllipse(
         {
@@ -161,11 +189,45 @@ function buildShapeNode(
         { style },
       );
     case 'polygon': {
-      const points = regularPolygonPoints(bounds, DEFAULT_POLYGON_SIDES);
+      const sides = prefs.polygonSides();
+      const points = prefs.starMode()
+        ? regularStarPoints(bounds, sides, prefs.starInnerRadius())
+        : regularPolygonPoints(bounds, sides);
       if (points.length === 0) return null;
       return createPolygon(points, { style });
     }
   }
+}
+
+/**
+ * Generate the vertices of a regular star polygon — alternating
+ * between outer (bounds-inscribed) and inner (scaled by `innerFrac`)
+ * radii. Used when ShapeToolService.starMode() is true. `innerFrac`
+ * is clamped to [0.1, 0.95] for sane visuals.
+ */
+function regularStarPoints(
+  bounds: { x: number; y: number; w: number; h: number },
+  outerSides: number,
+  innerFrac: number,
+): readonly import('svg-engine/core').Point[] {
+  const n = Math.max(3, Math.min(32, Math.round(outerSides)));
+  if (bounds.w === 0 || bounds.h === 0) return [];
+  const cx = bounds.x + bounds.w / 2;
+  const cy = bounds.y + bounds.h / 2;
+  const rxOuter = bounds.w / 2;
+  const ryOuter = bounds.h / 2;
+  const inner = Math.max(0.1, Math.min(0.95, innerFrac));
+  const rxInner = rxOuter * inner;
+  const ryInner = ryOuter * inner;
+  const out: import('svg-engine/core').Point[] = [];
+  for (let i = 0; i < n * 2; i++) {
+    const angle = -Math.PI / 2 + (i / (n * 2)) * Math.PI * 2;
+    const useOuter = i % 2 === 0;
+    const rx = useOuter ? rxOuter : rxInner;
+    const ry = useOuter ? ryOuter : ryInner;
+    out.push({ x: cx + rx * Math.cos(angle), y: cy + ry * Math.sin(angle) });
+  }
+  return out;
 }
 
 /**

@@ -89,4 +89,33 @@ export class PencilToolService {
   reset(): void {
     this.cancel();
   }
+
+  // ── TOOL-OPT-B preference signals ────────────────────────────────
+  // Style + behavior toggles consumed at commit time. Defaults match
+  // the prior hardcoded values (`fill:none + stroke:#000000 + strokeWidth:2`
+  // + open path) so existing tests/usages stay unchanged. Live with
+  // the service so multi-editor scope (D-042) eventually applies.
+
+  private readonly _fill = signal<string>('none');
+  private readonly _stroke = signal<string>('#000000');
+  private readonly _strokeWidth = signal<number>(2);
+  private readonly _closePath = signal<boolean>(false);
+
+  readonly fill = this._fill.asReadonly();
+  readonly stroke = this._stroke.asReadonly();
+  readonly strokeWidth = this._strokeWidth.asReadonly();
+  readonly closePath = this._closePath.asReadonly();
+
+  setFill(v: string): void {
+    this._fill.set(v);
+  }
+  setStroke(v: string): void {
+    this._stroke.set(v);
+  }
+  setStrokeWidth(px: number): void {
+    this._strokeWidth.set(Math.max(0.5, Math.min(100, px)));
+  }
+  setClosePath(on: boolean): void {
+    this._closePath.set(on);
+  }
 }

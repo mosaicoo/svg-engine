@@ -196,8 +196,43 @@ export class PenToolService {
   private buildPathFromAnchors(anchors: readonly AnchorPoint[], closed: boolean): PathNode {
     const subpath: AnchorSubpath = { anchors, closed };
     const d = anchorsToPathD([subpath]);
+    // TOOL-OPT-B: pull style from prefs. Closed paths default fill to
+    // black for visibility (same as the prior hardcoded behavior);
+    // open paths use the configured fill (default 'none').
     return createPath(d, {
-      style: { fill: closed ? '#000000' : 'none', stroke: '#000000', strokeWidth: 1 },
+      style: {
+        fill: closed && this._fill() === 'none' ? '#000000' : this._fill(),
+        stroke: this._stroke(),
+        strokeWidth: this._strokeWidth(),
+      },
     });
+  }
+
+  // ── TOOL-OPT-B preference signals ────────────────────────────────
+  // Style + behavior toggles consumed by buildPathFromAnchors and the
+  // PenOverlay (rubberBand). Defaults match the prior hardcoded
+  // `fill:none + stroke:#000000 + strokeWidth:1` look.
+
+  private readonly _fill = signal<string>('none');
+  private readonly _stroke = signal<string>('#000000');
+  private readonly _strokeWidth = signal<number>(1);
+  private readonly _rubberBand = signal<boolean>(true);
+
+  readonly fill = this._fill.asReadonly();
+  readonly stroke = this._stroke.asReadonly();
+  readonly strokeWidth = this._strokeWidth.asReadonly();
+  readonly rubberBand = this._rubberBand.asReadonly();
+
+  setFill(v: string): void {
+    this._fill.set(v);
+  }
+  setStroke(v: string): void {
+    this._stroke.set(v);
+  }
+  setStrokeWidth(px: number): void {
+    this._strokeWidth.set(Math.max(0.5, Math.min(100, px)));
+  }
+  setRubberBand(on: boolean): void {
+    this._rubberBand.set(on);
   }
 }
