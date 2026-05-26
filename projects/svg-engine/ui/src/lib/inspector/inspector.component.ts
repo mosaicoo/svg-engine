@@ -19,9 +19,15 @@ import {
   decomposeTransform,
   EditorStateService,
   findNodeById,
+  type FlipAxis,
+  FlipNodeCommand,
+  GroupSelectionCommand,
+  isGroupNode,
   isSmartObject,
   type NodeId,
   type Point,
+  type ReorderDirection,
+  ReorderNodeCommand,
   ResizeNodeCommand,
   RotateNodeCommand,
   SetPropertyCommand,
@@ -29,21 +35,27 @@ import {
   type SvgNode,
   type SvgStyle,
   type TextNode,
+  UngroupCommand,
   walk,
 } from 'svg-engine/core';
 import {
+  type AlignAxis,
+  AlignmentService,
   type BBoxAnchor,
   ClipPathLibraryService,
+  type DistributeAxis,
   getRenderedNodeBBox,
   getRenderedParentMatrix,
   LayersService,
   MaskLibraryService,
+  type NodeBBox,
   SelectionService,
   SmartObjectActionsService,
   TransformService,
 } from 'svg-engine/edit';
 import { SvgeColorPalette } from '../color-palette/color-palette.component';
 import { SvgeColorPicker } from '../color-picker/color-picker.component';
+import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
 import { SvgeSmartObjectEditorDialogService } from '../smart-object-dialog';
 import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from './inspector-pipes';
 
@@ -102,6 +114,8 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
     MatOption,
     SvgeColorPalette,
     SvgeColorPicker,
+    SvgePanelGroup,
+    SvgePanelGroupTab,
     RectFieldPipe,
     EllipseFieldPipe,
     LineFieldPipe,
@@ -121,347 +135,623 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
         <span class="id-label" [title]="node.id">{{ node.id.slice(0, 8) }}</span>
       </header>
 
-      @switch (node.type) {
-        @case ('rect') {
-          <section class="section">
-            <h3 class="section-title">Geometry</h3>
-            <div class="grid">
-              <mat-form-field appearance="outline">
-                <mat-label>x</mat-label>
-                <input
-                  matInput
-                  type="number"
-                  [disabled]="isLocked()"
-                  [value]="node | rectField: 'x'"
-                  (change)="setNumber('x', $any($event.target).value)"
-                />
-              </mat-form-field>
-              <mat-form-field appearance="outline">
-                <mat-label>y</mat-label>
-                <input
-                  matInput
-                  type="number"
-                  [disabled]="isLocked()"
-                  [value]="node | rectField: 'y'"
-                  (change)="setNumber('y', $any($event.target).value)"
-                />
-              </mat-form-field>
-              <mat-form-field appearance="outline">
-                <mat-label>w</mat-label>
-                <input
-                  matInput
-                  type="number"
-                  min="0"
-                  [disabled]="isLocked()"
-                  [value]="node | rectField: 'width'"
-                  (change)="setNumber('width', $any($event.target).value)"
-                />
-              </mat-form-field>
-              <mat-form-field appearance="outline">
-                <mat-label>h</mat-label>
-                <input
-                  matInput
-                  type="number"
-                  min="0"
-                  [disabled]="isLocked()"
-                  [value]="node | rectField: 'height'"
-                  (change)="setNumber('height', $any($event.target).value)"
-                />
-              </mat-form-field>
-            </div>
-          </section>
-        }
-        @case ('ellipse') {
-          <section class="section">
-            <h3 class="section-title">Geometry</h3>
-            <div class="grid">
-              <mat-form-field appearance="outline">
-                <mat-label>cx</mat-label>
-                <input
-                  matInput
-                  type="number"
-                  [disabled]="isLocked()"
-                  [value]="node | ellipseField: 'cx'"
-                  (change)="setNumber('cx', $any($event.target).value)"
-                />
-              </mat-form-field>
-              <mat-form-field appearance="outline">
-                <mat-label>cy</mat-label>
-                <input
-                  matInput
-                  type="number"
-                  [disabled]="isLocked()"
-                  [value]="node | ellipseField: 'cy'"
-                  (change)="setNumber('cy', $any($event.target).value)"
-                />
-              </mat-form-field>
-              <mat-form-field appearance="outline">
-                <mat-label>rx</mat-label>
-                <input
-                  matInput
-                  type="number"
-                  min="0"
-                  [disabled]="isLocked()"
-                  [value]="node | ellipseField: 'rx'"
-                  (change)="setNumber('rx', $any($event.target).value)"
-                />
-              </mat-form-field>
-              <mat-form-field appearance="outline">
-                <mat-label>ry</mat-label>
-                <input
-                  matInput
-                  type="number"
-                  min="0"
-                  [disabled]="isLocked()"
-                  [value]="node | ellipseField: 'ry'"
-                  (change)="setNumber('ry', $any($event.target).value)"
-                />
-              </mat-form-field>
-            </div>
-          </section>
-        }
-        @case ('line') {
-          <section class="section">
-            <h3 class="section-title">Geometry</h3>
-            <div class="grid">
-              <mat-form-field appearance="outline">
-                <mat-label>x1</mat-label>
-                <input
-                  matInput
-                  type="number"
-                  [disabled]="isLocked()"
-                  [value]="node | lineField: 'x1'"
-                  (change)="setNumber('x1', $any($event.target).value)"
-                />
-              </mat-form-field>
-              <mat-form-field appearance="outline">
-                <mat-label>y1</mat-label>
-                <input
-                  matInput
-                  type="number"
-                  [disabled]="isLocked()"
-                  [value]="node | lineField: 'y1'"
-                  (change)="setNumber('y1', $any($event.target).value)"
-                />
-              </mat-form-field>
-              <mat-form-field appearance="outline">
-                <mat-label>x2</mat-label>
-                <input
-                  matInput
-                  type="number"
-                  [disabled]="isLocked()"
-                  [value]="node | lineField: 'x2'"
-                  (change)="setNumber('x2', $any($event.target).value)"
-                />
-              </mat-form-field>
-              <mat-form-field appearance="outline">
-                <mat-label>y2</mat-label>
-                <input
-                  matInput
-                  type="number"
-                  [disabled]="isLocked()"
-                  [value]="node | lineField: 'y2'"
-                  (change)="setNumber('y2', $any($event.target).value)"
-                />
-              </mat-form-field>
-            </div>
-          </section>
-        }
-        @default {
-          @if (node.type !== 'group') {
-            <section class="section">
-              <h3 class="section-title">Geometry</h3>
-              <p class="placeholder small">
-                Editing geometry of <strong>{{ node.type }}</strong> nodes here is not yet supported
-                — use the canvas tools.
-              </p>
-            </section>
+      <!--
+        D-078 — Inspector reorg. Properties moved into a vertical
+        svge-panel-group (same pattern Libraries Panel uses): tabs
+        for each topic (Colors / Geometry / Transform / Composition /
+        contextual Text + Smart Object + Advanced). Only one tab body
+        visible at a time so the user is not overwhelmed by a long
+        scroll. Each tab keeps its existing inner markup intact —
+        the refactor is purely structural (no command/method changes,
+        no spec churn for the underlying behavior).
+      -->
+      <svge-panel-group title="Properties" [compact]="true" orientation="vertical">
+        <ng-template
+          svgePanelGroupTab
+          svgePanelGroupTabId="geometry"
+          label="Geometry"
+          icon="straighten"
+        >
+          @switch (node.type) {
+            @case ('rect') {
+              <section class="section">
+                <h3 class="section-title">Geometry</h3>
+                <div class="grid">
+                  <mat-form-field appearance="outline">
+                    <mat-label>x</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [disabled]="isLocked()"
+                      [value]="node | rectField: 'x'"
+                      (change)="setNumber('x', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>y</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [disabled]="isLocked()"
+                      [value]="node | rectField: 'y'"
+                      (change)="setNumber('y', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>w</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      min="0"
+                      [disabled]="isLocked()"
+                      [value]="node | rectField: 'width'"
+                      (change)="setNumber('width', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>h</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      min="0"
+                      [disabled]="isLocked()"
+                      [value]="node | rectField: 'height'"
+                      (change)="setNumber('height', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                </div>
+              </section>
+            }
+            @case ('ellipse') {
+              <section class="section">
+                <h3 class="section-title">Geometry</h3>
+                <div class="grid">
+                  <mat-form-field appearance="outline">
+                    <mat-label>cx</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [disabled]="isLocked()"
+                      [value]="node | ellipseField: 'cx'"
+                      (change)="setNumber('cx', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>cy</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [disabled]="isLocked()"
+                      [value]="node | ellipseField: 'cy'"
+                      (change)="setNumber('cy', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>rx</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      min="0"
+                      [disabled]="isLocked()"
+                      [value]="node | ellipseField: 'rx'"
+                      (change)="setNumber('rx', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>ry</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      min="0"
+                      [disabled]="isLocked()"
+                      [value]="node | ellipseField: 'ry'"
+                      (change)="setNumber('ry', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                </div>
+              </section>
+            }
+            @case ('line') {
+              <section class="section">
+                <h3 class="section-title">Geometry</h3>
+                <div class="grid">
+                  <mat-form-field appearance="outline">
+                    <mat-label>x1</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [disabled]="isLocked()"
+                      [value]="node | lineField: 'x1'"
+                      (change)="setNumber('x1', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>y1</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [disabled]="isLocked()"
+                      [value]="node | lineField: 'y1'"
+                      (change)="setNumber('y1', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>x2</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [disabled]="isLocked()"
+                      [value]="node | lineField: 'x2'"
+                      (change)="setNumber('x2', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>y2</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [disabled]="isLocked()"
+                      [value]="node | lineField: 'y2'"
+                      (change)="setNumber('y2', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                </div>
+              </section>
+            }
+            @default {
+              @if (node.type !== 'group') {
+                <section class="section">
+                  <h3 class="section-title">Geometry</h3>
+                  <p class="placeholder small">
+                    Editing geometry of <strong>{{ node.type }}</strong> nodes here is not yet
+                    supported — use the canvas tools.
+                  </p>
+                </section>
+              }
+            }
           }
-        }
-      }
+        </ng-template>
 
-      <!--
-        D-076 — Smart Object contextual section. Renders ONLY when
-        the focused group is flagged via metadata.customData.svgeKind
-        smart-object. Surfaces the same three actions the
-        Object > Smart Object menu submenu offers (Edit / Replace /
-        Rasterize) plus a quick name + child-count read-out so the
-        user gets a Photoshop-style asset properties panel without
-        leaving the Inspector.
-
-        Replace / Rasterize delegate to SmartObjectActionsService
-        (shared with the menu plugin — single source of truth, no
-        duplicated file-picker code). Edit Contents opens the textarea
-        dialog via SvgeSmartObjectEditorDialogService, forwarding
-        the host injector so the dialog reads THIS editor scope
-        (D-042 multi-editor safety).
-      -->
-      @if (isSmartObjectNode(node)) {
-        <section class="section">
-          <h3 class="section-title">Smart Object</h3>
-          <div class="so-summary">
-            <mat-icon class="so-icon" aria-hidden="true">inventory_2</mat-icon>
-            <div class="so-meta">
-              <div class="so-name">{{ smartObjectName(node) }}</div>
-              <div class="so-count">
-                {{ smartObjectChildCount(node) }}
-                {{ smartObjectChildCount(node) === 1 ? 'child' : 'children' }}
-              </div>
-            </div>
-          </div>
-          <div class="so-actions">
-            <button
-              mat-stroked-button
-              type="button"
-              class="so-action-btn"
-              [disabled]="isLocked()"
-              (click)="editSmartObjectContents(node)"
-              title="Open the inner SVG source in an editor dialog"
-            >
-              <mat-icon aria-hidden="true">edit_note</mat-icon>
-              Edit Contents…
-            </button>
-            <button
-              mat-stroked-button
-              type="button"
-              class="so-action-btn"
-              [disabled]="isLocked()"
-              (click)="replaceSmartObjectContents(node)"
-              title="Pick an SVG file to swap the children (transform + style preserved)"
-            >
-              <mat-icon aria-hidden="true">sync_alt</mat-icon>
-              Replace Contents…
-            </button>
-            <button
-              mat-stroked-button
-              type="button"
-              class="so-action-btn so-action-danger"
-              [disabled]="isLocked()"
-              (click)="rasterizeSmartObject(node)"
-              title="Unwrap the smart object (drops the flag, hoists children)"
-            >
-              <mat-icon aria-hidden="true">view_module</mat-icon>
-              Rasterize
-            </button>
-          </div>
-        </section>
-      }
-
-      <!--
-        Transform section (Item 5 — débito 4c-Polish): decomposed
-        rotation + scale numeric inputs + 3×3 pivot picker. Translation
-        is already covered by the per-type geometry inputs (e.g.,
-        rect x/y) so we don't duplicate it here. Single-edit only —
-        decomposition of mixed-selection transforms is ill-defined.
-      -->
-      <section class="section">
-        <h3 class="section-title">Transform</h3>
-        <div class="grid">
-          <mat-form-field appearance="outline">
-            <mat-label>rotation°</mat-label>
-            <input
-              matInput
-              type="number"
-              step="1"
-              [disabled]="isLocked()"
-              [value]="transformRotationDeg()"
-              (change)="setTransformRotationDeg($any($event.target).value)"
-            />
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>scale x</mat-label>
-            <input
-              matInput
-              type="number"
-              step="0.1"
-              [disabled]="isLocked()"
-              [value]="transformScaleX()"
-              (change)="setTransformScale($any($event.target).value, transformScaleY())"
-            />
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>scale y</mat-label>
-            <input
-              matInput
-              type="number"
-              step="0.1"
-              [disabled]="isLocked()"
-              [value]="transformScaleY()"
-              (change)="setTransformScale(transformScaleX(), $any($event.target).value)"
-            />
-          </mat-form-field>
-          <button
-            type="button"
-            class="reset-btn"
-            [disabled]="isLocked()"
-            (click)="resetTransform()"
-            aria-label="Reset rotation and scale to defaults, keeping translation"
-            title="Reset rotation + scale (keeps translation)"
+        <!--
+          D-076 — Smart Object contextual tab. Visible only when the
+          focused group carries metadata.customData.svgeKind ===
+          smart-object. Surfaces the same 3 actions (Edit / Replace /
+          Rasterize) from the menu submenu plus a quick name +
+          child-count read-out so the user gets a Photoshop-style
+          asset-properties panel without leaving the Inspector.
+        -->
+        @if (isSmartObjectNode(node)) {
+          <ng-template
+            svgePanelGroupTab
+            svgePanelGroupTabId="smart-object"
+            label="Smart Object"
+            icon="inventory_2"
           >
-            Reset
-          </button>
-        </div>
-        <!-- Pivot picker: 3×3 grid + center. Clicking sets the focused
-             node's pivot to the corresponding anchor of its bbox. -->
-        <div class="pivot-row">
-          <span class="pivot-label">pivot</span>
-          <div class="pivot-grid" role="group" aria-label="Pivot anchor">
-            @for (a of pivotAnchors; track a) {
+            <section class="section">
+              <h3 class="section-title">Smart Object</h3>
+              <div class="so-summary">
+                <mat-icon class="so-icon" aria-hidden="true">inventory_2</mat-icon>
+                <div class="so-meta">
+                  <div class="so-name">{{ smartObjectName(node) }}</div>
+                  <div class="so-count">
+                    {{ smartObjectChildCount(node) }}
+                    {{ smartObjectChildCount(node) === 1 ? 'child' : 'children' }}
+                  </div>
+                </div>
+              </div>
+              <div class="so-actions">
+                <button
+                  mat-stroked-button
+                  type="button"
+                  class="so-action-btn"
+                  [disabled]="isLocked()"
+                  (click)="editSmartObjectContents(node)"
+                  title="Open the inner SVG source in an editor dialog"
+                >
+                  <mat-icon aria-hidden="true">edit_note</mat-icon>
+                  Edit Contents…
+                </button>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  class="so-action-btn"
+                  [disabled]="isLocked()"
+                  (click)="replaceSmartObjectContents(node)"
+                  title="Pick an SVG file to swap the children (transform + style preserved)"
+                >
+                  <mat-icon aria-hidden="true">sync_alt</mat-icon>
+                  Replace Contents…
+                </button>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  class="so-action-btn so-action-danger"
+                  [disabled]="isLocked()"
+                  (click)="rasterizeSmartObject(node)"
+                  title="Unwrap the smart object (drops the flag, hoists children)"
+                >
+                  <mat-icon aria-hidden="true">view_module</mat-icon>
+                  Rasterize
+                </button>
+              </div>
+            </section>
+          </ng-template>
+        }
+
+        <!--
+          Transform tab (Item 5 — débito 4c-Polish): decomposed
+          rotation + scale numeric inputs + 3×3 pivot picker.
+          Translation is already covered by the per-type geometry
+          inputs (e.g., rect x/y) so we don't duplicate it here.
+          Single-edit only — decomposition of mixed-selection
+          transforms is ill-defined.
+        -->
+        <ng-template
+          svgePanelGroupTab
+          svgePanelGroupTabId="transform"
+          label="Transform"
+          icon="open_with"
+        >
+          <section class="section">
+            <h3 class="section-title">Transform</h3>
+            <div class="grid">
+              <mat-form-field appearance="outline">
+                <mat-label>rotation°</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  step="1"
+                  [disabled]="isLocked()"
+                  [value]="transformRotationDeg()"
+                  (change)="setTransformRotationDeg($any($event.target).value)"
+                />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>scale x</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  step="0.1"
+                  [disabled]="isLocked()"
+                  [value]="transformScaleX()"
+                  (change)="setTransformScale($any($event.target).value, transformScaleY())"
+                />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>scale y</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  step="0.1"
+                  [disabled]="isLocked()"
+                  [value]="transformScaleY()"
+                  (change)="setTransformScale(transformScaleX(), $any($event.target).value)"
+                />
+              </mat-form-field>
               <button
                 type="button"
-                class="pivot-dot"
-                [class.active]="currentPivotAnchor() === a"
-                [attr.aria-label]="'Pivot ' + a"
-                [attr.title]="'Pivot ' + a"
-                (click)="setPivotAnchor(a)"
-              ></button>
-            }
-          </div>
-          <button
-            type="button"
-            class="reset-btn"
-            (click)="resetPivot()"
-            aria-label="Reset pivot to bounding-box center"
-            title="Reset pivot to bbox center"
+                class="reset-btn"
+                [disabled]="isLocked()"
+                (click)="resetTransform()"
+                aria-label="Reset rotation and scale to defaults, keeping translation"
+                title="Reset rotation + scale (keeps translation)"
+              >
+                Reset
+              </button>
+            </div>
+            <!-- Pivot picker: 3×3 grid + center. Clicking sets the focused
+             node's pivot to the corresponding anchor of its bbox. -->
+            <div class="pivot-row">
+              <span class="pivot-label">pivot</span>
+              <div class="pivot-grid" role="group" aria-label="Pivot anchor">
+                @for (a of pivotAnchors; track a) {
+                  <button
+                    type="button"
+                    class="pivot-dot"
+                    [class.active]="currentPivotAnchor() === a"
+                    [attr.aria-label]="'Pivot ' + a"
+                    [attr.title]="'Pivot ' + a"
+                    (click)="setPivotAnchor(a)"
+                  ></button>
+                }
+              </div>
+              <button
+                type="button"
+                class="reset-btn"
+                (click)="resetPivot()"
+                aria-label="Reset pivot to bounding-box center"
+                title="Reset pivot to bbox center"
+              >
+                Reset
+              </button>
+            </div>
+            <!--
+          D-078 — Flip horizontal / vertical buttons. Each click
+          dispatches one FlipNodeCommand per selected unlocked node,
+          pivoting around its own bbox centre so the shape mirrors
+          in place. Multi-selection produces N commands (one per id).
+        -->
+            <div class="flip-row">
+              <span class="flip-label">flip</span>
+              <button
+                type="button"
+                class="flip-btn"
+                [disabled]="isLocked()"
+                (click)="flipNode('horizontal')"
+                title="Flip horizontal (mirror left ↔ right)"
+                aria-label="Flip horizontal"
+              >
+                <mat-icon aria-hidden="true">swap_horiz</mat-icon>
+              </button>
+              <button
+                type="button"
+                class="flip-btn"
+                [disabled]="isLocked()"
+                (click)="flipNode('vertical')"
+                title="Flip vertical (mirror top ↔ bottom)"
+                aria-label="Flip vertical"
+              >
+                <mat-icon aria-hidden="true">swap_vert</mat-icon>
+              </button>
+            </div>
+          </section>
+        </ng-template>
+
+        <!--
+          D-078 — Align & Distribute tab. Delegates to AlignmentService
+          (same service the Object ▸ Align / Distribute submenus use),
+          so a click here and a click in the menu produce identical
+          undo entries. Each button calls alignSelection / distribute
+          Selection which resolve bboxes from the rendered DOM and
+          pass them to the service. Disabled gates: ≥ 2 for align,
+          ≥ 3 for distribute (semantic minima).
+        -->
+        <ng-template
+          svgePanelGroupTab
+          svgePanelGroupTabId="align"
+          label="Align"
+          icon="align_horizontal_center"
+        >
+          <section class="section">
+            <h3 class="section-title">Align</h3>
+            <div class="align-grid">
+              <button
+                type="button"
+                class="align-btn"
+                [disabled]="!canAlign()"
+                (click)="alignSelection('left')"
+                title="Align left edges"
+                aria-label="Align left"
+              >
+                <mat-icon aria-hidden="true">align_horizontal_left</mat-icon>
+              </button>
+              <button
+                type="button"
+                class="align-btn"
+                [disabled]="!canAlign()"
+                (click)="alignSelection('center-x')"
+                title="Align horizontal centers"
+                aria-label="Align horizontal center"
+              >
+                <mat-icon aria-hidden="true">align_horizontal_center</mat-icon>
+              </button>
+              <button
+                type="button"
+                class="align-btn"
+                [disabled]="!canAlign()"
+                (click)="alignSelection('right')"
+                title="Align right edges"
+                aria-label="Align right"
+              >
+                <mat-icon aria-hidden="true">align_horizontal_right</mat-icon>
+              </button>
+              <button
+                type="button"
+                class="align-btn"
+                [disabled]="!canAlign()"
+                (click)="alignSelection('top')"
+                title="Align top edges"
+                aria-label="Align top"
+              >
+                <mat-icon aria-hidden="true">align_vertical_top</mat-icon>
+              </button>
+              <button
+                type="button"
+                class="align-btn"
+                [disabled]="!canAlign()"
+                (click)="alignSelection('center-y')"
+                title="Align vertical centers"
+                aria-label="Align vertical center"
+              >
+                <mat-icon aria-hidden="true">align_vertical_center</mat-icon>
+              </button>
+              <button
+                type="button"
+                class="align-btn"
+                [disabled]="!canAlign()"
+                (click)="alignSelection('bottom')"
+                title="Align bottom edges"
+                aria-label="Align bottom"
+              >
+                <mat-icon aria-hidden="true">align_vertical_bottom</mat-icon>
+              </button>
+            </div>
+          </section>
+          <section class="section">
+            <h3 class="section-title">Distribute</h3>
+            <div class="align-grid">
+              <button
+                type="button"
+                class="align-btn"
+                [disabled]="!canDistribute()"
+                (click)="distributeSelection('horizontal')"
+                title="Distribute horizontally (≥ 3 nodes)"
+                aria-label="Distribute horizontal"
+              >
+                <mat-icon aria-hidden="true">horizontal_distribute</mat-icon>
+              </button>
+              <button
+                type="button"
+                class="align-btn"
+                [disabled]="!canDistribute()"
+                (click)="distributeSelection('vertical')"
+                title="Distribute vertically (≥ 3 nodes)"
+                aria-label="Distribute vertical"
+              >
+                <mat-icon aria-hidden="true">vertical_distribute</mat-icon>
+              </button>
+            </div>
+          </section>
+        </ng-template>
+
+        <!--
+          D-078 — Arrange tab. Composition + organization actions:
+          z-index reordering (Bring to Front / Forward / Backward /
+          Send to Back), Group / Ungroup, Lock / Visibility toggles.
+          Mirrors the Object ▸ {Bring/Send, Group/Ungroup} menu
+          submenu. Lock/visibility delegate directly to LayersService
+          (same writes the Layers panel performs).
+        -->
+        <ng-template svgePanelGroupTab svgePanelGroupTabId="arrange" label="Arrange" icon="layers">
+          <section class="section">
+            <h3 class="section-title">Order (z-index)</h3>
+            <div class="align-grid arrange-grid">
+              <button
+                type="button"
+                class="align-btn"
+                [disabled]="!canArrange()"
+                (click)="reorderSelection('toFront')"
+                title="Bring to Front (Ctrl+Shift+])"
+                aria-label="Bring to Front"
+              >
+                <mat-icon aria-hidden="true">flip_to_front</mat-icon>
+              </button>
+              <button
+                type="button"
+                class="align-btn"
+                [disabled]="!canArrange()"
+                (click)="reorderSelection('forward')"
+                title="Bring Forward (Ctrl+])"
+                aria-label="Bring Forward"
+              >
+                <mat-icon aria-hidden="true">arrow_upward</mat-icon>
+              </button>
+              <button
+                type="button"
+                class="align-btn"
+                [disabled]="!canArrange()"
+                (click)="reorderSelection('backward')"
+                title="Send Backward (Ctrl+[)"
+                aria-label="Send Backward"
+              >
+                <mat-icon aria-hidden="true">arrow_downward</mat-icon>
+              </button>
+              <button
+                type="button"
+                class="align-btn"
+                [disabled]="!canArrange()"
+                (click)="reorderSelection('toBack')"
+                title="Send to Back (Ctrl+Shift+[)"
+                aria-label="Send to Back"
+              >
+                <mat-icon aria-hidden="true">flip_to_back</mat-icon>
+              </button>
+            </div>
+          </section>
+          <section class="section">
+            <h3 class="section-title">Group</h3>
+            <div class="arrange-row">
+              <button
+                mat-stroked-button
+                type="button"
+                class="arrange-action-btn"
+                [disabled]="!canGroup()"
+                (click)="groupSelection()"
+                title="Group selection (Ctrl+G) — ≥ 2 sibling nodes"
+              >
+                <mat-icon aria-hidden="true">workspaces</mat-icon>
+                Group
+              </button>
+              <button
+                mat-stroked-button
+                type="button"
+                class="arrange-action-btn"
+                [disabled]="!canUngroup()"
+                (click)="ungroupFocused()"
+                title="Ungroup (Ctrl+Shift+G) — focused group only"
+              >
+                <mat-icon aria-hidden="true">grid_off</mat-icon>
+                Ungroup
+              </button>
+            </div>
+          </section>
+          <section class="section">
+            <h3 class="section-title">Visibility & Lock</h3>
+            <div class="arrange-row">
+              <button
+                mat-stroked-button
+                type="button"
+                class="arrange-action-btn"
+                [disabled]="!canArrange()"
+                (click)="toggleVisibility()"
+                [title]="allVisible() ? 'Hide selection' : 'Show selection'"
+              >
+                <mat-icon aria-hidden="true">{{
+                  allVisible() ? 'visibility' : 'visibility_off'
+                }}</mat-icon>
+                {{ allVisible() ? 'Hide' : 'Show' }}
+              </button>
+              <button
+                mat-stroked-button
+                type="button"
+                class="arrange-action-btn"
+                [disabled]="!canArrange()"
+                (click)="toggleLock()"
+                [title]="allLocked() ? 'Unlock selection' : 'Lock selection'"
+              >
+                <mat-icon aria-hidden="true">{{ allLocked() ? 'lock' : 'lock_open' }}</mat-icon>
+                {{ allLocked() ? 'Unlock' : 'Lock' }}
+              </button>
+            </div>
+          </section>
+        </ng-template>
+
+        <!--
+          Convert to Path tab — visible only for non-path leaf nodes
+          (rect/ellipse/line/polygon/polyline). Group/text/image
+          hidden (no equivalent path semantic in v1).
+        -->
+        @if (canConvertToPath()) {
+          <ng-template
+            svgePanelGroupTab
+            svgePanelGroupTabId="advanced"
+            label="Advanced"
+            icon="tune"
           >
-            Reset
-          </button>
-        </div>
-      </section>
+            <section class="section">
+              <h3 class="section-title">Path operations</h3>
+              <button
+                type="button"
+                class="reset-btn"
+                (click)="convertToPath()"
+                title="Convert this shape (or all convertible shapes in the selection) to an editable path"
+              >
+                {{ convertToPathLabel() }}
+              </button>
+            </section>
+          </ng-template>
+        }
 
-      <!--
-        Convert to Path button: visible only for non-path leaf nodes
-        (rect/ellipse/line/polygon/polyline) — gives the user access
-        to the Path Editor + Pathfinder for primitives that weren't
-        authored as paths. Group/text/image hidden (no equivalent
-        path semantic in v1).
-      -->
-      @if (canConvertToPath()) {
-        <section class="section">
-          <h3 class="section-title">Path operations</h3>
-          <button
-            type="button"
-            class="reset-btn"
-            (click)="convertToPath()"
-            title="Convert this shape (or all convertible shapes in the selection) to an editable path"
-          >
-            {{ convertToPathLabel() }}
-          </button>
-        </section>
-      }
+        <!--
+          Type tab (D-068) — exposes the D-053 text-only fields.
+          Visible only when the focused node is a text.
+        -->
+        @if (textNode(); as text) {
+          <ng-template svgePanelGroupTab svgePanelGroupTabId="text" label="Text" icon="text_fields">
+            <section class="section">
+              <h3 class="section-title">Type</h3>
 
-      <!--
-        ── Type section (D-068) — exposes the D-053 text-only fields.
-        Visible only when the focused node is a text. The model fields
-        (letterSpacing / fontVariationSettings / fontFeatureSettings /
-        textPathRef / textPathStartOffset) ship since D-053 but had no
-        UI surface until now — D-053 was effectively headless-only.
-      -->
-      @if (textNode(); as text) {
-        <section class="section">
-          <h3 class="section-title">Type</h3>
-
-          <!--
+              <!--
             ── D-069 — Basics first: the typography knobs every design
             tool exposes (font/size/weight/anchor/italic/underline/
             line-height). Engine + renderer + exporter all carried
@@ -471,287 +761,289 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
             advanced D-053/D-068 controls (variable axes, OpenType,
             textPath).
           -->
-          <h4 class="style-subsection-title">Font</h4>
-          <mat-form-field appearance="outline" class="full-width-field">
-            <mat-label>family</mat-label>
-            <mat-select
-              [value]="fontFamilyValue()"
-              [disabled]="isLocked()"
-              (selectionChange)="setFontFamilyPreset($event.value)"
-            >
-              <mat-option [value]="''">(default)</mat-option>
-              @for (f of FONT_FAMILY_PRESETS; track f.value) {
-                <mat-option [value]="f.value">{{ f.label }}</mat-option>
+              <h4 class="style-subsection-title">Font</h4>
+              <mat-form-field appearance="outline" class="full-width-field">
+                <mat-label>family</mat-label>
+                <mat-select
+                  [value]="fontFamilyValue()"
+                  [disabled]="isLocked()"
+                  (selectionChange)="setFontFamilyPreset($event.value)"
+                >
+                  <mat-option [value]="''">(default)</mat-option>
+                  @for (f of FONT_FAMILY_PRESETS; track f.value) {
+                    <mat-option [value]="f.value">{{ f.label }}</mat-option>
+                  }
+                  <mat-option value="__custom__">Custom…</mat-option>
+                </mat-select>
+              </mat-form-field>
+              @if (fontFamilyValue() === '__custom__' || isCustomFontFamily()) {
+                <mat-form-field appearance="outline" class="full-width-field">
+                  <mat-label>custom font-family</mat-label>
+                  <input
+                    matInput
+                    type="text"
+                    [disabled]="isLocked()"
+                    [value]="text.fontFamily ?? ''"
+                    placeholder="'Inter', sans-serif"
+                    (change)="setFontFamilyCustom($any($event.target).value)"
+                  />
+                </mat-form-field>
               }
-              <mat-option value="__custom__">Custom…</mat-option>
-            </mat-select>
-          </mat-form-field>
-          @if (fontFamilyValue() === '__custom__' || isCustomFontFamily()) {
-            <mat-form-field appearance="outline" class="full-width-field">
-              <mat-label>custom font-family</mat-label>
-              <input
-                matInput
-                type="text"
-                [disabled]="isLocked()"
-                [value]="text.fontFamily ?? ''"
-                placeholder="'Inter', sans-serif"
-                (change)="setFontFamilyCustom($any($event.target).value)"
-              />
-            </mat-form-field>
-          }
 
-          <div class="grid">
-            <mat-form-field appearance="outline">
-              <mat-label>size (px)</mat-label>
-              <input
-                matInput
-                type="number"
-                min="1"
-                step="1"
-                [disabled]="isLocked()"
-                [value]="text.fontSize ?? ''"
-                placeholder="16"
-                (change)="setFontSize($any($event.target).value)"
-              />
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>weight</mat-label>
-              <mat-select
-                [value]="fontWeightValue()"
-                [disabled]="isLocked()"
-                (selectionChange)="setFontWeight($event.value)"
-              >
-                <mat-option [value]="''">(default)</mat-option>
-                @for (w of FONT_WEIGHT_PRESETS; track w.value) {
-                  <mat-option [value]="w.value">{{ w.label }}</mat-option>
-                }
-              </mat-select>
-            </mat-form-field>
-          </div>
+              <div class="grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>size (px)</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    min="1"
+                    step="1"
+                    [disabled]="isLocked()"
+                    [value]="text.fontSize ?? ''"
+                    placeholder="16"
+                    (change)="setFontSize($any($event.target).value)"
+                  />
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>weight</mat-label>
+                  <mat-select
+                    [value]="fontWeightValue()"
+                    [disabled]="isLocked()"
+                    (selectionChange)="setFontWeight($event.value)"
+                  >
+                    <mat-option [value]="''">(default)</mat-option>
+                    @for (w of FONT_WEIGHT_PRESETS; track w.value) {
+                      <mat-option [value]="w.value">{{ w.label }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              </div>
 
-          <div class="anchor-row" role="group" aria-label="Text anchor">
-            <span class="anchor-label">anchor</span>
-            <div class="anchor-buttons">
-              @for (a of TEXT_ANCHOR_OPTIONS; track a.value) {
+              <div class="anchor-row" role="group" aria-label="Text anchor">
+                <span class="anchor-label">anchor</span>
+                <div class="anchor-buttons">
+                  @for (a of TEXT_ANCHOR_OPTIONS; track a.value) {
+                    <button
+                      type="button"
+                      class="anchor-btn"
+                      [class.active]="(text.textAnchor ?? 'start') === a.value"
+                      [disabled]="isLocked()"
+                      [attr.aria-pressed]="(text.textAnchor ?? 'start') === a.value"
+                      [title]="a.title"
+                      (click)="setTextAnchor(a.value)"
+                    >
+                      <mat-icon aria-hidden="true">{{ a.icon }}</mat-icon>
+                    </button>
+                  }
+                </div>
+              </div>
+
+              <div class="style-toggles" role="group" aria-label="Text style toggles">
+                <span class="style-toggles-label">style</span>
                 <button
                   type="button"
-                  class="anchor-btn"
-                  [class.active]="(text.textAnchor ?? 'start') === a.value"
+                  class="feature-toggle italic-btn"
+                  [class.active]="text.fontStyle === 'italic'"
                   [disabled]="isLocked()"
-                  [attr.aria-pressed]="(text.textAnchor ?? 'start') === a.value"
-                  [title]="a.title"
-                  (click)="setTextAnchor(a.value)"
+                  [attr.aria-pressed]="text.fontStyle === 'italic'"
+                  title="Italic"
+                  (click)="toggleItalic()"
                 >
-                  <mat-icon aria-hidden="true">{{ a.icon }}</mat-icon>
+                  <em>I</em>
                 </button>
-              }
-            </div>
-          </div>
-
-          <div class="style-toggles" role="group" aria-label="Text style toggles">
-            <span class="style-toggles-label">style</span>
-            <button
-              type="button"
-              class="feature-toggle italic-btn"
-              [class.active]="text.fontStyle === 'italic'"
-              [disabled]="isLocked()"
-              [attr.aria-pressed]="text.fontStyle === 'italic'"
-              title="Italic"
-              (click)="toggleItalic()"
-            >
-              <em>I</em>
-            </button>
-            <button
-              type="button"
-              class="feature-toggle underline-btn"
-              [class.active]="text.textDecoration === 'underline'"
-              [disabled]="isLocked()"
-              [attr.aria-pressed]="text.textDecoration === 'underline'"
-              title="Underline"
-              (click)="toggleDecoration('underline')"
-            >
-              <span class="deco-underline">U</span>
-            </button>
-            <button
-              type="button"
-              class="feature-toggle strike-btn"
-              [class.active]="text.textDecoration === 'line-through'"
-              [disabled]="isLocked()"
-              [attr.aria-pressed]="text.textDecoration === 'line-through'"
-              title="Strikethrough"
-              (click)="toggleDecoration('line-through')"
-            >
-              <span class="deco-strike">S</span>
-            </button>
-          </div>
-
-          <mat-form-field appearance="outline" class="full-width-field">
-            <mat-label>line-height (× font-size)</mat-label>
-            <input
-              matInput
-              type="number"
-              min="0.5"
-              step="0.05"
-              [disabled]="isLocked()"
-              [value]="text.lineHeight ?? ''"
-              placeholder="1.2"
-              (change)="setLineHeight($any($event.target).value)"
-            />
-          </mat-form-field>
-          <p class="hint-text">
-            Affects multi-line text (newlines in content). 1.0 = tight, 1.2 = default, 1.5 =
-            relaxed.
-          </p>
-
-          <h4 class="style-subsection-title">Spacing</h4>
-          <mat-form-field appearance="outline" class="full-width-field">
-            <mat-label>letter-spacing (px)</mat-label>
-            <input
-              matInput
-              type="number"
-              step="0.1"
-              [disabled]="isLocked()"
-              [value]="text.letterSpacing ?? ''"
-              placeholder="0"
-              (change)="setLetterSpacing($any($event.target).value)"
-            />
-          </mat-form-field>
-
-          <h4 class="style-subsection-title">Variable font axes</h4>
-          <mat-form-field appearance="outline" class="full-width-field">
-            <mat-label>font-variation-settings</mat-label>
-            <input
-              matInput
-              type="text"
-              [disabled]="isLocked()"
-              [value]="text.fontVariationSettings ?? ''"
-              placeholder="'wght' 650, 'wdth' 95"
-              (change)="setFontVariationSettings($any($event.target).value)"
-            />
-          </mat-form-field>
-          <p class="hint-text">
-            Comma-separated axis tuples. Inactive on static (non-variable) fonts.
-          </p>
-
-          <h4 class="style-subsection-title">OpenType features</h4>
-          <div class="feature-toggles" role="group" aria-label="OpenType feature quick toggles">
-            @for (feat of OPENTYPE_QUICK_TOGGLES; track feat.tag) {
-              <button
-                type="button"
-                class="feature-toggle"
-                [class.active]="hasFontFeature(feat.tag)"
-                [disabled]="isLocked()"
-                [attr.aria-pressed]="hasFontFeature(feat.tag)"
-                [title]="feat.title"
-                (click)="toggleFontFeature(feat.tag)"
-              >
-                {{ feat.label }}
-              </button>
-            }
-          </div>
-          <mat-form-field appearance="outline" class="full-width-field">
-            <mat-label>font-feature-settings (raw)</mat-label>
-            <input
-              matInput
-              type="text"
-              [disabled]="isLocked()"
-              [value]="text.fontFeatureSettings ?? ''"
-              placeholder="'liga' on, 'smcp' on"
-              (change)="setFontFeatureSettings($any($event.target).value)"
-            />
-          </mat-form-field>
-          <p class="hint-text">
-            Quick toggles edit common features; raw input lets you set anything (e.g. 'ss03' on,
-            'cv11' 2).
-          </p>
-
-          <h4 class="style-subsection-title">Text on path</h4>
-          <mat-form-field appearance="outline" class="full-width-field">
-            <mat-label>follow path</mat-label>
-            <mat-select
-              [value]="text.textPathRef ?? ''"
-              [disabled]="isLocked() || pathsInDoc().length === 0"
-              (selectionChange)="setTextPathRef($event.value)"
-            >
-              <mat-option [value]="''">(none — straight baseline)</mat-option>
-              @for (p of pathsInDoc(); track p.id) {
-                <mat-option [value]="p.id">{{ p.label }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="full-width-field">
-            <mat-label>start offset</mat-label>
-            <input
-              matInput
-              type="text"
-              [disabled]="isLocked() || text.textPathRef === undefined"
-              [value]="text.textPathStartOffset ?? ''"
-              placeholder="50% or 40"
-              (change)="setTextPathStartOffset($any($event.target).value)"
-            />
-          </mat-form-field>
-          <p class="hint-text">
-            Empty offset starts the text at the beginning of the path. Multi-line text is flattened
-            to a single run when following a path (SVG limitation).
-          </p>
-        </section>
-      }
-
-      <section class="section">
-        <h3 class="section-title">Style</h3>
-        <!--
-          Style section reorganised by topic (Photoshop/Figma/Affinity
-          convention): Fill, Stroke and Appearance as subsections. The
-          .color-cell + .active-target + .field-row selectors are kept
-          intact so existing specs continue to pass — only the visual
-          grouping changes (stacked rows instead of side-by-side cells).
-        -->
-        <div class="grid color-grid">
-          <!-- ── Fill subsection ────────────────────────────────── -->
-          <div class="style-subsection" aria-labelledby="style-fill-title">
-            <h4 id="style-fill-title" class="style-subsection-title">Fill</h4>
-            <div class="color-cell" [class.active-target]="activeColorTarget() === 'fill'">
-              <label
-                class="field-row"
-                [class.disabled]="isLocked()"
-                (pointerdown)="setActiveColorTarget('fill')"
-              >
-                <span class="lbl">color</span>
-                <span
-                  class="swatch"
-                  [class.show-checker]="swatchShowChecker('fill')"
-                  [style.background-color]="swatchColorWithAlpha('fill')"
-                  [title]="rawStyleColor('fill')"
-                  aria-hidden="true"
-                ></span>
-                <input
-                  type="color"
-                  class="color-input-hidden"
-                  aria-label="Pick fill color"
+                <button
+                  type="button"
+                  class="feature-toggle underline-btn"
+                  [class.active]="text.textDecoration === 'underline'"
                   [disabled]="isLocked()"
-                  [value]="styleColor('fill')"
-                  (change)="setStyle('fill', $any($event.target).value)"
+                  [attr.aria-pressed]="text.textDecoration === 'underline'"
+                  title="Underline"
+                  (click)="toggleDecoration('underline')"
+                >
+                  <span class="deco-underline">U</span>
+                </button>
+                <button
+                  type="button"
+                  class="feature-toggle strike-btn"
+                  [class.active]="text.textDecoration === 'line-through'"
+                  [disabled]="isLocked()"
+                  [attr.aria-pressed]="text.textDecoration === 'line-through'"
+                  title="Strikethrough"
+                  (click)="toggleDecoration('line-through')"
+                >
+                  <span class="deco-strike">S</span>
+                </button>
+              </div>
+
+              <mat-form-field appearance="outline" class="full-width-field">
+                <mat-label>line-height (× font-size)</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  min="0.5"
+                  step="0.05"
+                  [disabled]="isLocked()"
+                  [value]="text.lineHeight ?? ''"
+                  placeholder="1.2"
+                  (change)="setLineHeight($any($event.target).value)"
                 />
-              </label>
-              <!--
+              </mat-form-field>
+              <p class="hint-text">
+                Affects multi-line text (newlines in content). 1.0 = tight, 1.2 = default, 1.5 =
+                relaxed.
+              </p>
+
+              <h4 class="style-subsection-title">Spacing</h4>
+              <mat-form-field appearance="outline" class="full-width-field">
+                <mat-label>letter-spacing (px)</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  step="0.1"
+                  [disabled]="isLocked()"
+                  [value]="text.letterSpacing ?? ''"
+                  placeholder="0"
+                  (change)="setLetterSpacing($any($event.target).value)"
+                />
+              </mat-form-field>
+
+              <h4 class="style-subsection-title">Variable font axes</h4>
+              <mat-form-field appearance="outline" class="full-width-field">
+                <mat-label>font-variation-settings</mat-label>
+                <input
+                  matInput
+                  type="text"
+                  [disabled]="isLocked()"
+                  [value]="text.fontVariationSettings ?? ''"
+                  placeholder="'wght' 650, 'wdth' 95"
+                  (change)="setFontVariationSettings($any($event.target).value)"
+                />
+              </mat-form-field>
+              <p class="hint-text">
+                Comma-separated axis tuples. Inactive on static (non-variable) fonts.
+              </p>
+
+              <h4 class="style-subsection-title">OpenType features</h4>
+              <div class="feature-toggles" role="group" aria-label="OpenType feature quick toggles">
+                @for (feat of OPENTYPE_QUICK_TOGGLES; track feat.tag) {
+                  <button
+                    type="button"
+                    class="feature-toggle"
+                    [class.active]="hasFontFeature(feat.tag)"
+                    [disabled]="isLocked()"
+                    [attr.aria-pressed]="hasFontFeature(feat.tag)"
+                    [title]="feat.title"
+                    (click)="toggleFontFeature(feat.tag)"
+                  >
+                    {{ feat.label }}
+                  </button>
+                }
+              </div>
+              <mat-form-field appearance="outline" class="full-width-field">
+                <mat-label>font-feature-settings (raw)</mat-label>
+                <input
+                  matInput
+                  type="text"
+                  [disabled]="isLocked()"
+                  [value]="text.fontFeatureSettings ?? ''"
+                  placeholder="'liga' on, 'smcp' on"
+                  (change)="setFontFeatureSettings($any($event.target).value)"
+                />
+              </mat-form-field>
+              <p class="hint-text">
+                Quick toggles edit common features; raw input lets you set anything (e.g. 'ss03' on,
+                'cv11' 2).
+              </p>
+
+              <h4 class="style-subsection-title">Text on path</h4>
+              <mat-form-field appearance="outline" class="full-width-field">
+                <mat-label>follow path</mat-label>
+                <mat-select
+                  [value]="text.textPathRef ?? ''"
+                  [disabled]="isLocked() || pathsInDoc().length === 0"
+                  (selectionChange)="setTextPathRef($event.value)"
+                >
+                  <mat-option [value]="''">(none — straight baseline)</mat-option>
+                  @for (p of pathsInDoc(); track p.id) {
+                    <mat-option [value]="p.id">{{ p.label }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width-field">
+                <mat-label>start offset</mat-label>
+                <input
+                  matInput
+                  type="text"
+                  [disabled]="isLocked() || text.textPathRef === undefined"
+                  [value]="text.textPathStartOffset ?? ''"
+                  placeholder="50% or 40"
+                  (change)="setTextPathStartOffset($any($event.target).value)"
+                />
+              </mat-form-field>
+              <p class="hint-text">
+                Empty offset starts the text at the beginning of the path. Multi-line text is
+                flattened to a single run when following a path (SVG limitation).
+              </p>
+            </section>
+          </ng-template>
+        }
+
+        <!--
+          Colors tab — Fill, Stroke and Appearance (opacity). The
+          .color-cell + .active-target + .field-row selectors are
+          unchanged so existing specs continue to pass. Composition
+          (blend mode / clip-path / mask) moved into its own tab so
+          asset styling and compositing read separately.
+        -->
+        <ng-template svgePanelGroupTab svgePanelGroupTabId="colors" label="Colors" icon="palette">
+          <section class="section">
+            <h3 class="section-title">Style</h3>
+            <div class="grid color-grid">
+              <!-- ── Fill subsection ────────────────────────────────── -->
+              <div class="style-subsection" aria-labelledby="style-fill-title">
+                <h4 id="style-fill-title" class="style-subsection-title">Fill</h4>
+                <div class="color-cell" [class.active-target]="activeColorTarget() === 'fill'">
+                  <label
+                    class="field-row"
+                    [class.disabled]="isLocked()"
+                    (pointerdown)="setActiveColorTarget('fill')"
+                  >
+                    <span class="lbl">color</span>
+                    <span
+                      class="swatch"
+                      [class.show-checker]="swatchShowChecker('fill')"
+                      [style.background-color]="swatchColorWithAlpha('fill')"
+                      [title]="rawStyleColor('fill')"
+                      aria-hidden="true"
+                    ></span>
+                    <input
+                      type="color"
+                      class="color-input-hidden"
+                      aria-label="Pick fill color"
+                      [disabled]="isLocked()"
+                      [value]="styleColor('fill')"
+                      (change)="setStyle('fill', $any($event.target).value)"
+                    />
+                  </label>
+                  <!--
                 Bloco 4-Alpha: separate alpha slider per color field
                 (Figma/Affinity pattern). Native <input type="color"> is
                 RGB-only; we expose fillOpacity / strokeOpacity here so
                 users can control transparency without leaving the row.
               -->
-              <input
-                type="number"
-                class="alpha-input"
-                min="0"
-                max="1"
-                step="0.05"
-                aria-label="Fill alpha"
-                title="Fill alpha (0 = transparent, 1 = opaque)"
-                [disabled]="isLocked()"
-                [value]="styleAlpha('fillOpacity')"
-                (change)="setStyleNumber('fillOpacity', $any($event.target).value)"
-              />
-              <!--
+                  <input
+                    type="number"
+                    class="alpha-input"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    aria-label="Fill alpha"
+                    title="Fill alpha (0 = transparent, 1 = opaque)"
+                    [disabled]="isLocked()"
+                    [value]="styleAlpha('fillOpacity')"
+                    (change)="setStyleNumber('fillOpacity', $any($event.target).value)"
+                  />
+                  <!--
                 Advanced picker trigger (Sprint C). Opens the pro-grade
                 colour picker (sat/val + hue + HEX/RGB + recents +
                 eyedropper) via mat-menu. The native swatch + hidden
@@ -759,201 +1051,213 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
                 button is purely additive so all existing UX continues
                 to work for users who don't need the advanced controls.
               -->
-              <button
-                mat-icon-button
-                type="button"
-                class="picker-trigger-btn"
-                [matMenuTriggerFor]="fillPickerMenu"
-                [disabled]="isLocked()"
-                aria-label="Open advanced fill colour picker"
-                title="Advanced picker (hex, RGB, eyedropper, recent colours)"
-              >
-                <mat-icon>palette</mat-icon>
-              </button>
-              <mat-menu
-                #fillPickerMenu="matMenu"
-                xPosition="before"
-                yPosition="below"
-                panelClass="svge-picker-menu-panel"
-              >
-                <div
-                  class="picker-host"
-                  role="presentation"
-                  (click)="$event.stopPropagation()"
-                  (keydown)="$event.stopPropagation()"
-                >
-                  <svge-color-picker
-                    [color]="styleColor('fill')"
-                    (colorChange)="setStyle('fill', $event)"
-                  />
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="picker-trigger-btn"
+                    [matMenuTriggerFor]="fillPickerMenu"
+                    [disabled]="isLocked()"
+                    aria-label="Open advanced fill colour picker"
+                    title="Advanced picker (hex, RGB, eyedropper, recent colours)"
+                  >
+                    <mat-icon>palette</mat-icon>
+                  </button>
+                  <mat-menu
+                    #fillPickerMenu="matMenu"
+                    xPosition="before"
+                    yPosition="below"
+                    panelClass="svge-picker-menu-panel"
+                  >
+                    <div
+                      class="picker-host"
+                      role="presentation"
+                      (click)="$event.stopPropagation()"
+                      (keydown)="$event.stopPropagation()"
+                    >
+                      <svge-color-picker
+                        [color]="styleColor('fill')"
+                        (colorChange)="setStyle('fill', $event)"
+                      />
+                    </div>
+                  </mat-menu>
                 </div>
-              </mat-menu>
-            </div>
-            <!--
+                <!--
               Palette swatches strip (Bloco 4d): clicking applies the
               picked color to whichever color field (fill/stroke) was
               last activated via pointerdown on its label. Default
               target is 'fill', so visually it makes more sense to
               place the palette right below the fill row.
             -->
-            <svge-color-palette class="palette-strip" (colorPicked)="onPalettePick($event)" />
-          </div>
+                <svge-color-palette class="palette-strip" (colorPicked)="onPalettePick($event)" />
+              </div>
 
-          <!-- ── Stroke subsection ──────────────────────────────── -->
-          <div class="style-subsection" aria-labelledby="style-stroke-title">
-            <h4 id="style-stroke-title" class="style-subsection-title">Stroke</h4>
-            <div class="color-cell" [class.active-target]="activeColorTarget() === 'stroke'">
-              <label
-                class="field-row"
-                [class.disabled]="isLocked()"
-                (pointerdown)="setActiveColorTarget('stroke')"
-              >
-                <span class="lbl">color</span>
-                <span
-                  class="swatch"
-                  [class.show-checker]="swatchShowChecker('stroke')"
-                  [style.background-color]="swatchColorWithAlpha('stroke')"
-                  [title]="rawStyleColor('stroke')"
-                  aria-hidden="true"
-                ></span>
-                <input
-                  type="color"
-                  class="color-input-hidden"
-                  aria-label="Pick stroke color"
-                  [disabled]="isLocked()"
-                  [value]="styleColor('stroke')"
-                  (change)="setStyle('stroke', $any($event.target).value)"
-                />
-              </label>
-              <input
-                type="number"
-                class="alpha-input"
-                min="0"
-                max="1"
-                step="0.05"
-                aria-label="Stroke alpha"
-                title="Stroke alpha (0 = transparent, 1 = opaque)"
-                [disabled]="isLocked()"
-                [value]="styleAlpha('strokeOpacity')"
-                (change)="setStyleNumber('strokeOpacity', $any($event.target).value)"
-              />
-              <button
-                mat-icon-button
-                type="button"
-                class="picker-trigger-btn"
-                [matMenuTriggerFor]="strokePickerMenu"
-                [disabled]="isLocked()"
-                aria-label="Open advanced stroke colour picker"
-                title="Advanced picker (hex, RGB, eyedropper, recent colours)"
-              >
-                <mat-icon>palette</mat-icon>
-              </button>
-              <mat-menu
-                #strokePickerMenu="matMenu"
-                xPosition="before"
-                yPosition="below"
-                panelClass="svge-picker-menu-panel"
-              >
-                <div
-                  class="picker-host"
-                  role="presentation"
-                  (click)="$event.stopPropagation()"
-                  (keydown)="$event.stopPropagation()"
-                >
-                  <svge-color-picker
-                    [color]="styleColor('stroke')"
-                    (colorChange)="setStyle('stroke', $event)"
+              <!-- ── Stroke subsection ──────────────────────────────── -->
+              <div class="style-subsection" aria-labelledby="style-stroke-title">
+                <h4 id="style-stroke-title" class="style-subsection-title">Stroke</h4>
+                <div class="color-cell" [class.active-target]="activeColorTarget() === 'stroke'">
+                  <label
+                    class="field-row"
+                    [class.disabled]="isLocked()"
+                    (pointerdown)="setActiveColorTarget('stroke')"
+                  >
+                    <span class="lbl">color</span>
+                    <span
+                      class="swatch"
+                      [class.show-checker]="swatchShowChecker('stroke')"
+                      [style.background-color]="swatchColorWithAlpha('stroke')"
+                      [title]="rawStyleColor('stroke')"
+                      aria-hidden="true"
+                    ></span>
+                    <input
+                      type="color"
+                      class="color-input-hidden"
+                      aria-label="Pick stroke color"
+                      [disabled]="isLocked()"
+                      [value]="styleColor('stroke')"
+                      (change)="setStyle('stroke', $any($event.target).value)"
+                    />
+                  </label>
+                  <input
+                    type="number"
+                    class="alpha-input"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    aria-label="Stroke alpha"
+                    title="Stroke alpha (0 = transparent, 1 = opaque)"
+                    [disabled]="isLocked()"
+                    [value]="styleAlpha('strokeOpacity')"
+                    (change)="setStyleNumber('strokeOpacity', $any($event.target).value)"
                   />
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="picker-trigger-btn"
+                    [matMenuTriggerFor]="strokePickerMenu"
+                    [disabled]="isLocked()"
+                    aria-label="Open advanced stroke colour picker"
+                    title="Advanced picker (hex, RGB, eyedropper, recent colours)"
+                  >
+                    <mat-icon>palette</mat-icon>
+                  </button>
+                  <mat-menu
+                    #strokePickerMenu="matMenu"
+                    xPosition="before"
+                    yPosition="below"
+                    panelClass="svge-picker-menu-panel"
+                  >
+                    <div
+                      class="picker-host"
+                      role="presentation"
+                      (click)="$event.stopPropagation()"
+                      (keydown)="$event.stopPropagation()"
+                    >
+                      <svge-color-picker
+                        [color]="styleColor('stroke')"
+                        (colorChange)="setStyle('stroke', $event)"
+                      />
+                    </div>
+                  </mat-menu>
                 </div>
-              </mat-menu>
+                <!-- Stroke width lives next to stroke colour — same topic. -->
+                <mat-form-field appearance="outline" class="full-width-field">
+                  <mat-label>stroke-width</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    [disabled]="isLocked()"
+                    [value]="styleNumber('strokeWidth')"
+                    (change)="setStyleNumber('strokeWidth', $any($event.target).value)"
+                  />
+                </mat-form-field>
+              </div>
+
+              <!-- ── Appearance subsection (opacity affects everything) ── -->
+              <div class="style-subsection" aria-labelledby="style-appearance-title">
+                <h4 id="style-appearance-title" class="style-subsection-title">Appearance</h4>
+                <mat-form-field appearance="outline" class="full-width-field">
+                  <mat-label>opacity</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    [disabled]="isLocked()"
+                    [value]="styleNumber('opacity')"
+                    (change)="setStyleNumber('opacity', $any($event.target).value)"
+                  />
+                </mat-form-field>
+              </div>
             </div>
-            <!-- Stroke width lives next to stroke colour — same topic. -->
-            <mat-form-field appearance="outline" class="full-width-field">
-              <mat-label>stroke-width</mat-label>
-              <input
-                matInput
-                type="number"
-                min="0"
-                step="0.5"
-                [disabled]="isLocked()"
-                [value]="styleNumber('strokeWidth')"
-                (change)="setStyleNumber('strokeWidth', $any($event.target).value)"
-              />
-            </mat-form-field>
-          </div>
+          </section>
+        </ng-template>
 
-          <!-- ── Appearance subsection (opacity affects everything) ── -->
-          <div class="style-subsection" aria-labelledby="style-appearance-title">
-            <h4 id="style-appearance-title" class="style-subsection-title">Appearance</h4>
-            <mat-form-field appearance="outline" class="full-width-field">
-              <mat-label>opacity</mat-label>
-              <input
-                matInput
-                type="number"
-                min="0"
-                max="1"
-                step="0.05"
-                [disabled]="isLocked()"
-                [value]="styleNumber('opacity')"
-                (change)="setStyleNumber('opacity', $any($event.target).value)"
-              />
-            </mat-form-field>
-          </div>
+        <!--
+          Composition tab (D-049 Item 4) — mix-blend-mode + clip-path
+          + mask. Surfaced separately from Colors so users distinguish
+          "what the asset looks like" from "how it composes with what
+          is underneath". Disabled selects when no catalog items are
+          registered.
+        -->
+        <ng-template
+          svgePanelGroupTab
+          svgePanelGroupTabId="composition"
+          label="Composition"
+          icon="gradient"
+        >
+          <section class="section">
+            <h3 class="section-title">Composition</h3>
+            <div class="grid color-grid">
+              <div class="style-subsection" aria-labelledby="style-composition-title">
+                <h4 id="style-composition-title" class="style-subsection-title">Composition</h4>
+                <mat-form-field appearance="outline" class="full-width-field">
+                  <mat-label>blend mode</mat-label>
+                  <mat-select
+                    [value]="compositionStringValue('mixBlendMode') ?? 'normal'"
+                    [disabled]="isLocked()"
+                    (selectionChange)="setCompositionString('mixBlendMode', $event.value)"
+                  >
+                    @for (mode of BLEND_MODES; track mode) {
+                      <mat-option [value]="mode">{{ mode }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
 
-          <!--
-            ── Composition subsection (D-049 Item 4) ──
-            Mix-blend-mode is a CSS property (no dedicated SVG attribute);
-            clip-path and mask are SVG attributes that take a url(#id)
-            reference. The dropdowns list registered catalog items
-            (built-in shapes / fades / spotlights) plus an explicit
-            "none" option that clears the property. Disabled when no
-            catalog items are registered to avoid a useless empty menu.
-          -->
-          <div class="style-subsection" aria-labelledby="style-composition-title">
-            <h4 id="style-composition-title" class="style-subsection-title">Composition</h4>
-            <mat-form-field appearance="outline" class="full-width-field">
-              <mat-label>blend mode</mat-label>
-              <mat-select
-                [value]="compositionStringValue('mixBlendMode') ?? 'normal'"
-                [disabled]="isLocked()"
-                (selectionChange)="setCompositionString('mixBlendMode', $event.value)"
-              >
-                @for (mode of BLEND_MODES; track mode) {
-                  <mat-option [value]="mode">{{ mode }}</mat-option>
-                }
-              </mat-select>
-            </mat-form-field>
+                <mat-form-field appearance="outline" class="full-width-field">
+                  <mat-label>clip path</mat-label>
+                  <mat-select
+                    [value]="compositionRefValue('clipPath') ?? ''"
+                    [disabled]="isLocked() || clipPathItems().length === 0"
+                    (selectionChange)="setCompositionRef('clipPath', $event.value)"
+                  >
+                    <mat-option [value]="''">(none)</mat-option>
+                    @for (cp of clipPathItems(); track cp.id) {
+                      <mat-option [value]="cp.id">{{ cp.name }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
 
-            <mat-form-field appearance="outline" class="full-width-field">
-              <mat-label>clip path</mat-label>
-              <mat-select
-                [value]="compositionRefValue('clipPath') ?? ''"
-                [disabled]="isLocked() || clipPathItems().length === 0"
-                (selectionChange)="setCompositionRef('clipPath', $event.value)"
-              >
-                <mat-option [value]="''">(none)</mat-option>
-                @for (cp of clipPathItems(); track cp.id) {
-                  <mat-option [value]="cp.id">{{ cp.name }}</mat-option>
-                }
-              </mat-select>
-            </mat-form-field>
-
-            <mat-form-field appearance="outline" class="full-width-field">
-              <mat-label>mask</mat-label>
-              <mat-select
-                [value]="compositionRefValue('mask') ?? ''"
-                [disabled]="isLocked() || maskItems().length === 0"
-                (selectionChange)="setCompositionRef('mask', $event.value)"
-              >
-                <mat-option [value]="''">(none)</mat-option>
-                @for (m of maskItems(); track m.id) {
-                  <mat-option [value]="m.id">{{ m.name }}</mat-option>
-                }
-              </mat-select>
-            </mat-form-field>
-          </div>
-        </div>
-      </section>
+                <mat-form-field appearance="outline" class="full-width-field">
+                  <mat-label>mask</mat-label>
+                  <mat-select
+                    [value]="compositionRefValue('mask') ?? ''"
+                    [disabled]="isLocked() || maskItems().length === 0"
+                    (selectionChange)="setCompositionRef('mask', $event.value)"
+                  >
+                    <mat-option [value]="''">(none)</mat-option>
+                    @for (m of maskItems(); track m.id) {
+                      <mat-option [value]="m.id">{{ m.name }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              </div>
+            </div>
+          </section>
+        </ng-template>
+      </svge-panel-group>
     } @else if (multiEditableIds().length > 1) {
       <!-- Multi-edit panel (Item 1 - débito 4c): style fields apply
            atomically to all unlocked selected nodes via one undo entry. -->
@@ -964,131 +1268,150 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       </header>
 
       <!--
-        **D-071b** — Batch Convert to Path in multi-edit mode. Visible
-        when the selection contains at least one convertible shape.
-        Single undo entry via BatchConvertToPathCommand. The button
-        label updates to "Convert N to Path" so the user sees the
-        batch size before clicking.
+        D-078 — Multi-edit uses the same svge-panel-group reorganization
+        as single-edit so the user gets a consistent topic-tabbed UX
+        regardless of selection count. Tabs available in multi-edit
+        are a subset (Colors applies-to-all + conditional Advanced
+        for batch Convert to Path) because per-node geometry / transform
+        / type don't have well-defined batch semantics.
       -->
-      @if (canConvertToPath()) {
-        <section class="section">
-          <h3 class="section-title">Path operations</h3>
-          <button
-            type="button"
-            class="reset-btn"
-            (click)="convertToPath()"
-            title="Convert all convertible shapes in the selection to editable paths (single undo)"
-          >
-            {{ convertToPathLabel() }}
-          </button>
-        </section>
-      }
-
-      <section class="section">
-        <h3 class="section-title">Style (applies to all)</h3>
-        <!-- Same Fill / Stroke / Appearance grouping as the single-
+      <svge-panel-group title="Properties" [compact]="true" orientation="vertical">
+        <ng-template svgePanelGroupTab svgePanelGroupTabId="colors" label="Colors" icon="palette">
+          <section class="section">
+            <h3 class="section-title">Style (applies to all)</h3>
+            <!-- Same Fill / Stroke / Appearance grouping as the single-
              selection path. 'placeholder=mixed' surfaces when N
              selected nodes don't agree on the value. -->
-        <div class="grid color-grid">
-          <div class="style-subsection" aria-labelledby="multi-style-fill-title">
-            <h4 id="multi-style-fill-title" class="style-subsection-title">Fill</h4>
-            <div class="color-cell" [class.active-target]="activeColorTarget() === 'fill'">
-              <label class="field-row" (pointerdown)="setActiveColorTarget('fill')">
-                <span class="lbl">color</span>
-                <span
-                  class="swatch"
-                  [class.show-checker]="swatchShowChecker('fill')"
-                  [style.background-color]="swatchColorWithAlpha('fill')"
-                  [title]="rawStyleColor('fill')"
-                  aria-hidden="true"
-                ></span>
-                <input
-                  type="color"
-                  class="color-input-hidden"
-                  aria-label="Pick fill color (applies to all)"
-                  [value]="styleColor('fill')"
-                  (change)="setStyle('fill', $any($event.target).value)"
-                />
-              </label>
-              <input
-                type="number"
-                class="alpha-input"
-                min="0"
-                max="1"
-                step="0.05"
-                aria-label="Fill alpha (applies to all)"
-                [value]="styleAlpha('fillOpacity')"
-                [placeholder]="hasMixedStyle('fillOpacity') ? 'mixed' : ''"
-                (change)="setStyleNumber('fillOpacity', $any($event.target).value)"
-              />
-            </div>
-            <svge-color-palette class="palette-strip" (colorPicked)="onPalettePick($event)" />
-          </div>
+            <div class="grid color-grid">
+              <div class="style-subsection" aria-labelledby="multi-style-fill-title">
+                <h4 id="multi-style-fill-title" class="style-subsection-title">Fill</h4>
+                <div class="color-cell" [class.active-target]="activeColorTarget() === 'fill'">
+                  <label class="field-row" (pointerdown)="setActiveColorTarget('fill')">
+                    <span class="lbl">color</span>
+                    <span
+                      class="swatch"
+                      [class.show-checker]="swatchShowChecker('fill')"
+                      [style.background-color]="swatchColorWithAlpha('fill')"
+                      [title]="rawStyleColor('fill')"
+                      aria-hidden="true"
+                    ></span>
+                    <input
+                      type="color"
+                      class="color-input-hidden"
+                      aria-label="Pick fill color (applies to all)"
+                      [value]="styleColor('fill')"
+                      (change)="setStyle('fill', $any($event.target).value)"
+                    />
+                  </label>
+                  <input
+                    type="number"
+                    class="alpha-input"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    aria-label="Fill alpha (applies to all)"
+                    [value]="styleAlpha('fillOpacity')"
+                    [placeholder]="hasMixedStyle('fillOpacity') ? 'mixed' : ''"
+                    (change)="setStyleNumber('fillOpacity', $any($event.target).value)"
+                  />
+                </div>
+                <svge-color-palette class="palette-strip" (colorPicked)="onPalettePick($event)" />
+              </div>
 
-          <div class="style-subsection" aria-labelledby="multi-style-stroke-title">
-            <h4 id="multi-style-stroke-title" class="style-subsection-title">Stroke</h4>
-            <div class="color-cell" [class.active-target]="activeColorTarget() === 'stroke'">
-              <label class="field-row" (pointerdown)="setActiveColorTarget('stroke')">
-                <span class="lbl">color</span>
-                <span
-                  class="swatch"
-                  [class.show-checker]="swatchShowChecker('stroke')"
-                  [style.background-color]="swatchColorWithAlpha('stroke')"
-                  [title]="rawStyleColor('stroke')"
-                  aria-hidden="true"
-                ></span>
-                <input
-                  type="color"
-                  class="color-input-hidden"
-                  aria-label="Pick stroke color (applies to all)"
-                  [value]="styleColor('stroke')"
-                  (change)="setStyle('stroke', $any($event.target).value)"
-                />
-              </label>
-              <input
-                type="number"
-                class="alpha-input"
-                min="0"
-                max="1"
-                step="0.05"
-                aria-label="Stroke alpha (applies to all)"
-                [value]="styleAlpha('strokeOpacity')"
-                [placeholder]="hasMixedStyle('strokeOpacity') ? 'mixed' : ''"
-                (change)="setStyleNumber('strokeOpacity', $any($event.target).value)"
-              />
-            </div>
-            <mat-form-field appearance="outline" class="full-width-field">
-              <mat-label>stroke-width</mat-label>
-              <input
-                matInput
-                type="number"
-                min="0"
-                step="0.5"
-                [value]="styleNumber('strokeWidth')"
-                [placeholder]="hasMixedStyle('strokeWidth') ? 'mixed' : ''"
-                (change)="setStyleNumber('strokeWidth', $any($event.target).value)"
-              />
-            </mat-form-field>
-          </div>
+              <div class="style-subsection" aria-labelledby="multi-style-stroke-title">
+                <h4 id="multi-style-stroke-title" class="style-subsection-title">Stroke</h4>
+                <div class="color-cell" [class.active-target]="activeColorTarget() === 'stroke'">
+                  <label class="field-row" (pointerdown)="setActiveColorTarget('stroke')">
+                    <span class="lbl">color</span>
+                    <span
+                      class="swatch"
+                      [class.show-checker]="swatchShowChecker('stroke')"
+                      [style.background-color]="swatchColorWithAlpha('stroke')"
+                      [title]="rawStyleColor('stroke')"
+                      aria-hidden="true"
+                    ></span>
+                    <input
+                      type="color"
+                      class="color-input-hidden"
+                      aria-label="Pick stroke color (applies to all)"
+                      [value]="styleColor('stroke')"
+                      (change)="setStyle('stroke', $any($event.target).value)"
+                    />
+                  </label>
+                  <input
+                    type="number"
+                    class="alpha-input"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    aria-label="Stroke alpha (applies to all)"
+                    [value]="styleAlpha('strokeOpacity')"
+                    [placeholder]="hasMixedStyle('strokeOpacity') ? 'mixed' : ''"
+                    (change)="setStyleNumber('strokeOpacity', $any($event.target).value)"
+                  />
+                </div>
+                <mat-form-field appearance="outline" class="full-width-field">
+                  <mat-label>stroke-width</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    [value]="styleNumber('strokeWidth')"
+                    [placeholder]="hasMixedStyle('strokeWidth') ? 'mixed' : ''"
+                    (change)="setStyleNumber('strokeWidth', $any($event.target).value)"
+                  />
+                </mat-form-field>
+              </div>
 
-          <div class="style-subsection" aria-labelledby="multi-style-appearance-title">
-            <h4 id="multi-style-appearance-title" class="style-subsection-title">Appearance</h4>
-            <mat-form-field appearance="outline" class="full-width-field">
-              <mat-label>opacity</mat-label>
-              <input
-                matInput
-                type="number"
-                min="0"
-                max="1"
-                step="0.05"
-                [value]="styleNumber('opacity')"
-                [placeholder]="hasMixedStyle('opacity') ? 'mixed' : ''"
-                (change)="setStyleNumber('opacity', $any($event.target).value)"
-              />
-            </mat-form-field>
-          </div>
-        </div>
-      </section>
+              <div class="style-subsection" aria-labelledby="multi-style-appearance-title">
+                <h4 id="multi-style-appearance-title" class="style-subsection-title">Appearance</h4>
+                <mat-form-field appearance="outline" class="full-width-field">
+                  <mat-label>opacity</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    [value]="styleNumber('opacity')"
+                    [placeholder]="hasMixedStyle('opacity') ? 'mixed' : ''"
+                    (change)="setStyleNumber('opacity', $any($event.target).value)"
+                  />
+                </mat-form-field>
+              </div>
+            </div>
+          </section>
+        </ng-template>
+
+        <!--
+          D-071b — Batch Convert to Path in multi-edit mode. Visible
+          when the selection contains at least one convertible shape.
+          Single undo entry via BatchConvertToPathCommand. The button
+          label updates to "Convert N to Path" so the user sees the
+          batch size before clicking.
+        -->
+        @if (canConvertToPath()) {
+          <ng-template
+            svgePanelGroupTab
+            svgePanelGroupTabId="advanced"
+            label="Advanced"
+            icon="tune"
+          >
+            <section class="section">
+              <h3 class="section-title">Path operations</h3>
+              <button
+                type="button"
+                class="reset-btn"
+                (click)="convertToPath()"
+                title="Convert all convertible shapes in the selection to editable paths (single undo)"
+              >
+                {{ convertToPathLabel() }}
+              </button>
+            </section>
+          </ng-template>
+        }
+      </svge-panel-group>
     } @else if (selectionCount() > 1) {
       <p class="placeholder">
         <mat-icon aria-hidden="true">lock</mat-icon>
@@ -1550,6 +1873,100 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       text-decoration: line-through;
       font-family: serif;
     }
+    /* D-078 — Arrange tab grids + buttons. Reuses .align-btn style for
+       the z-index 4-button row; arrange-row is for the stacked
+       Group/Ungroup + Visibility/Lock pairs (icon + label). */
+    .arrange-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    .arrange-row {
+      display: flex;
+      gap: 4px;
+    }
+    .arrange-action-btn {
+      flex: 1 1 auto;
+      justify-content: flex-start;
+      font-size: 12px;
+      line-height: 1.2;
+    }
+    .arrange-action-btn .mat-icon {
+      margin-right: 4px;
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+    /* D-078 — Align & Distribute grid inside Align tab */
+    .align-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 4px;
+    }
+    .align-btn {
+      width: 100%;
+      aspect-ratio: 1;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--mat-sys-surface, #fff);
+      border: 1px solid var(--mat-sys-outline-variant, #ccc);
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--mat-sys-on-surface, inherit);
+    }
+    .align-btn:hover:not(:disabled) {
+      background: var(--mat-sys-surface-container-high, #eee);
+    }
+    .align-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .align-btn .mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+    }
+    /* D-078 — Flip H/V row inside Transform tab */
+    .flip-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--mat-sys-outline-variant, #eee);
+    }
+    .flip-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--mat-sys-on-surface-variant, #777);
+      flex: 0 0 auto;
+    }
+    .flip-btn {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--mat-sys-surface, #fff);
+      border: 1px solid var(--mat-sys-outline-variant, #ccc);
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--mat-sys-on-surface, inherit);
+    }
+    .flip-btn:hover:not(:disabled) {
+      background: var(--mat-sys-surface-container-high, #eee);
+    }
+    .flip-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .flip-btn .mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+    }
     /* D-076 — Smart Object contextual section */
     .so-summary {
       display: flex;
@@ -1621,6 +2038,11 @@ export class SvgeInspector {
   private readonly smartObjectActions = inject(SmartObjectActionsService);
   private readonly smartObjectEditorDialog = inject(SvgeSmartObjectEditorDialogService);
   private readonly injector = inject(Injector);
+  // **D-078** — alignment + distribution surfaced in the Inspector Align
+  // tab. Same service the Object ▸ Align menu submenu uses, so one tap
+  // in the Inspector and one tap in the menu produce identical results
+  // (and identical undo entries).
+  private readonly alignment = inject(AlignmentService);
 
   /**
    * The 8 anchors of the bbox, in the order shown by the 3×3 pivot
@@ -2239,6 +2661,184 @@ export class SvgeInspector {
 
   protected resetPivot(): void {
     this.transformService.resetPivot();
+  }
+
+  /**
+   * **D-078** — flip every selected node along the given axis. Each
+   * flip pivots around its OWN bbox centre so the shape mirrors in
+   * place (matches Photoshop "Flip Horizontal" / Illustrator
+   * "Reflect" expectations). One {@link FlipNodeCommand} per node
+   * — multi-undo is the trade-off vs implementing a batch command,
+   * acceptable for a low-frequency operation. Future polish could
+   * fold the dispatches into a transactional bundle.
+   *
+   * **Why not apply a single shared pivot for multi-selection**:
+   * mirroring 3 shapes "around the average bbox centre" relocates
+   * all 3, which is rarely what users want when clicking Flip
+   * inside the Inspector (they want each shape mirrored in place).
+   * Future "Reflect across" command can take an external pivot.
+   */
+  protected flipNode(axis: FlipAxis): void {
+    const ids = Array.from(this.selection.selectedIds());
+    if (ids.length === 0) return;
+    const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+    if (svg === null) return;
+    for (const id of ids) {
+      if (this.layers.isLocked(id)) continue;
+      const bbox = getRenderedNodeBBox(svg, id);
+      if (bbox === null) continue;
+      const pivot: Point = {
+        x: bbox.x + bbox.width / 2,
+        y: bbox.y + bbox.height / 2,
+      };
+      this.bus.dispatch(new FlipNodeCommand(id, axis, pivot));
+    }
+  }
+
+  /**
+   * **D-078** — true when ≥ 2 nodes are selected (alignment requires
+   * a relative position, single-selection has no meaningful axis to
+   * align to). Drives the Align tab's disabled state.
+   */
+  protected readonly canAlign = computed(() => this.selection.selectedIds().size >= 2);
+
+  /**
+   * Distribution semantically requires ≥ 3 nodes (need at least one
+   * intermediate to spread between the two extremes). Drives the
+   * Distribute buttons' disabled state.
+   */
+  protected readonly canDistribute = computed(() => this.selection.selectedIds().size >= 3);
+
+  /**
+   * Resolve bboxes for every selected id from the rendered DOM, then
+   * delegate to {@link AlignmentService.align}. Shares the same
+   * call path as the Object ▸ Align menu submenu — single source of
+   * truth for "align selection".
+   */
+  protected alignSelection(axis: AlignAxis): void {
+    const items = this.collectSelectedBBoxes();
+    if (items.length < 2) return;
+    this.alignment.align(items, axis);
+  }
+
+  /** Same flow for distribute (≥ 3 items required). */
+  protected distributeSelection(axis: DistributeAxis): void {
+    const items = this.collectSelectedBBoxes();
+    if (items.length < 3) return;
+    this.alignment.distribute(items, axis);
+  }
+
+  /**
+   * Resolve {@link NodeBBox} pairs from the rendered DOM for every
+   * id in the active selection. Used by both align and distribute.
+   * Skips ids without a rendered bbox (defensive — e.g., node just
+   * created, not yet painted).
+   */
+  private collectSelectedBBoxes(): readonly NodeBBox[] {
+    const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+    if (svg === null) return [];
+    const out: NodeBBox[] = [];
+    for (const id of this.selection.selectedIds()) {
+      const bbox = getRenderedNodeBBox(svg, id);
+      if (bbox === null) continue;
+      out.push({ id, bbox });
+    }
+    return out;
+  }
+
+  // ── D-078 — Arrange tab handlers (z-index + group + lock/visibility) ─
+
+  /** True when at least one node is selected — most Arrange ops apply
+   *  per-id, single or batch. */
+  protected readonly canArrange = computed(() => this.selection.selectedIds().size >= 1);
+
+  /** Group requires ≥ 2 nodes sharing a common parent (the command
+   *  validates the second condition; UI gate uses count only). */
+  protected readonly canGroup = computed(() => this.selection.selectedIds().size >= 2);
+
+  /** Ungroup requires the focused node to be a group. */
+  protected readonly canUngroup = computed(() => {
+    const node = this.focusNode();
+    return node !== null && isGroupNode(node);
+  });
+
+  /**
+   * Read aggregate visibility state across the selection — `true` when
+   * EVERY selected id is visible. Drives the toggle's "currently shown"
+   * state.
+   */
+  protected readonly allVisible = computed(() => {
+    const ids = Array.from(this.selection.selectedIds());
+    if (ids.length === 0) return true;
+    return ids.every((id) => this.layers.isVisible(id));
+  });
+
+  /** Same as {@link allVisible} for the lock flag. */
+  protected readonly allLocked = computed(() => {
+    const ids = Array.from(this.selection.selectedIds());
+    if (ids.length === 0) return false;
+    return ids.every((id) => this.layers.isLocked(id));
+  });
+
+  /**
+   * Dispatch one {@link ReorderNodeCommand} per selected id. Same
+   * one-undo-per-id trade-off as flipNode — `Object ▸ Bring to Front`
+   * menu uses the same dispatch loop.
+   */
+  protected reorderSelection(direction: ReorderDirection): void {
+    const ids = Array.from(this.selection.selectedIds());
+    if (ids.length === 0) return;
+    for (const id of ids) {
+      this.bus.dispatch(new ReorderNodeCommand(id, direction));
+    }
+  }
+
+  /**
+   * Group the current selection (≥ 2 ids sharing the same parent).
+   * Auto-selects the new group so the user sees the result; matches
+   * the menu plugin's Ctrl+G behaviour.
+   */
+  protected groupSelection(): void {
+    const ids = Array.from(this.selection.selectedIds());
+    if (ids.length < 2) return;
+    const cmd = new GroupSelectionCommand(ids);
+    this.bus.dispatch(cmd);
+    // The command stores the new group id on itself; consumers usually
+    // read it post-dispatch via cmd's internal field. The menu plugin
+    // skips this because the user's focus naturally lands on the new
+    // group (selection cleared, then re-selected via tree-level click).
+  }
+
+  /**
+   * Ungroup the focused group (single-selection ungroup only — multi-
+   * selection ungroup is ambiguous: should it ungroup ALL selected
+   * groups, or only the focused one? Convention follows Illustrator:
+   * single focused group).
+   */
+  protected ungroupFocused(): void {
+    const node = this.focusNode();
+    if (node === null || !isGroupNode(node)) return;
+    this.bus.dispatch(new UngroupCommand(node.id));
+  }
+
+  /**
+   * Flip visibility for every selected id — when `allVisible()` is true
+   * we hide all; otherwise we show all (Photoshop/Figma convention for
+   * multi-toggles).
+   */
+  protected toggleVisibility(): void {
+    const target = !this.allVisible();
+    for (const id of this.selection.selectedIds()) {
+      this.layers.setVisible(id, target);
+    }
+  }
+
+  /** Same flip for the lock flag. */
+  protected toggleLock(): void {
+    const target = !this.allLocked();
+    for (const id of this.selection.selectedIds()) {
+      this.layers.setLocked(id, target);
+    }
   }
 
   /**

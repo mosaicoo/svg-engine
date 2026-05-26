@@ -6,6 +6,111 @@
 
 ---
 
+## 2026-05-26 — D-078: Properties Panel refatorado em panel-group tabs + Flip/Align/Arrange
+
+**O quê.** O `<svge-inspector>` deixou de ser uma pilha vertical de
+seções e passou a usar o mesmo `<svge-panel-group orientation="vertical">`
+do Libraries Panel (D-061): tabs com ícone na coluna esquerda + corpo
+único à direita. Categorias propostas pelo usuário foram materializadas:
+
+- **Single-edit**: `geometry` (straighten), `smart-object`
+  (inventory_2, condicional), `transform` (open_with — agora com
+  Flip H/V), `align` (align_horizontal_center — 6 align + 2
+  distribute), `arrange` (layers — z-index + group/ungroup +
+  visibility/lock), `advanced` (tune, condicional), `text`
+  (text_fields, condicional), `colors` (palette), `composition`
+  (gradient).
+- **Multi-edit**: `colors` + `advanced` (condicional). Mesmo
+  pattern com `Style (applies to all)` como entrada principal.
+
+Novo comando `FlipNodeCommand` em `svg-engine/core` (mirror
+horizontal/vertical com pivot arbitrário via composição
+`T(pivot) · S(±1, ±1) · T(-pivot) · existing`). Helper
+`composePivotFlip` exportado para preview/test em paridade com
+`composePivotRotation`.
+
+**Por quê.** O Inspector estava sofrendo o mesmo problema do antigo
+right rail: muitas seções competindo por altura, scroll vertical
+infinito, baixa descobribilidade quando um workflow específico
+exigia 3 ou 4 controles distantes (ex: alinhar shapes selecionados
+implicava abrir menu Object ▸ Align em vez de uma aba dedicada).
+Industry pattern (Illustrator/Affinity/Inkscape) agrupa por
+intenção: "transforming this shape" = uma aba; "aligning it
+relative to others" = outra. O orientation="vertical" do panel-
+group preserva o ícone-tab no canto enquanto libera 100% da
+altura para o conteúdo da aba ativa — mesmo padrão usado por
+Photoshop/Affinity em side rails estreitos.
+
+Flip estava ausente — completar paridade com Custom Editor +
+Illustrator "Reflect". Align/Arrange já existiam via menu+comando
+mas não tinham porta de entrada visual no Inspector; promoção a
+tabs dedicadas cumpre o requisito do usuário "não deixar de fora
+da refatoração o que já existe, porém criar os inexistentes como
+complementos".
+
+**Implementação.**
+
+**Core (D-078d)**:
+
+- **`commands/flip-node.command.ts`** novo: `FlipNodeCommand`
+  implements Command (undoable — captura previousTransform no
+  execute, restaura no undo). `FlipAxis = 'horizontal' | 'vertical'`.
+  Helper puro `composePivotFlip(existing, axis, pivot)` exportado.
+- **`commands/index.ts`** exporta `FlipNodeCommand`, `FlipAxis`,
+  `composePivotFlip`.
+- **9 specs** em `flip-node.command.spec.ts` cobrindo helper
+  matemático (4 casos) + comando integrado via CommandBus
+  (5 casos: flip H, flip V, double-flip = identity, undo,
+  fail-graceful em id inexistente).
+
+**UI (D-078b/c/e/f/g)**:
+
+- **`inspector.component.ts`** refatorado:
+  - Imports: `SvgePanelGroup`, `SvgePanelGroupTab`,
+    `FlipNodeCommand`, `FlipAxis`, `GroupSelectionCommand`,
+    `isGroupNode`, `UngroupCommand`, `ReorderNodeCommand`,
+    `ReorderDirection`, `AlignmentService`, `AlignAxis`,
+    `DistributeAxis`, `NodeBBox`, `MatButton`.
+  - Single-edit template envolto em
+    `<svge-panel-group title="Properties" [compact]="true"
+orientation="vertical">`. Cada seção pré-existente migra
+    para `<ng-template svgePanelGroupTab>` com id estável.
+  - Novas tabs:
+    - **Transform** ganhou linha Flip H/V usando
+      `FlipNodeCommand` com pivot no centro do bbox.
+    - **Align** (nova): 6 botões (left/h-center/right + top/
+      v-center/bottom) + 2 botões distribute (h/v), invocam
+      `AlignmentService` com `collectSelectedBBoxes()`.
+    - **Arrange** (nova): 4 botões z-index (front/forward/
+      backward/back) usando `ReorderNodeCommand` + Group/
+      Ungroup + 2 botões toggle (visibility/lock) batendo no
+      `LayersService`.
+  - Multi-edit envolto no mesmo pattern (colors + advanced
+    condicional).
+  - Métodos novos: `flipNode(axis)`, `alignSelection(axis)`,
+    `distributeSelection(axis)`, `collectSelectedBBoxes()`,
+    `canAlign`, `canDistribute`, `canArrange`, `canGroup`,
+    `canUngroup`, `allVisible`, `allLocked`,
+    `reorderSelection(direction)`, `groupSelection()`,
+    `ungroupFocused()`, `toggleVisibility()`, `toggleLock()`.
+  - CSS dedicado: `.flip-row/.flip-btn`,
+    `.align-grid/.align-btn`, `.arrange-grid/.arrange-row/
+.arrange-action-btn`.
+
+**Specs (D-078h)**: o suite do Inspector (1470 linhas, 84 testes)
+sofreu adaptação porque cada `<ng-template svgePanelGroupTab>`
+renderiza lazy — apenas o body da tab ativa fica no DOM. Adicionado
+helper `activateTab(host, tabId)` (localiza `button[role="tab"]`
+pelo sufixo de id `svge-pg-tab-{instance}-{tabId}`). 36 testes
+afetados receberam chamada à `activateTab(...)` + `detectChanges()`
+no ponto certo — sem mudar a intenção do teste, apenas o caminho
+de navegação na nova UI. Tudo verde: 1649 passing, 1 skipped.
+
+**Verificação.** Build (9 entry points), lint clean, full suite
+1649 passing / 1 skipped.
+
+---
+
 ## 2026-05-26 — D-076 + D-077: Inspector Smart Object section + Asset Export panel
 
 **O quê.** Duas entregas relacionadas que fecham o ciclo D-074 (Smart

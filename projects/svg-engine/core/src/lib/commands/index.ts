@@ -42,6 +42,8 @@ export { RemoveNodeCommand } from './remove-node.command';
 export { type ReorderDirection, ReorderNodeCommand } from './reorder-node.command';
 export { composeAnchoredScale, ResizeNodeCommand } from './resize-node.command';
 export { composePivotRotation, RotateNodeCommand } from './rotate-node.command';
+// D-078 — Flip horizontal/vertical (mirror across an axis through pivot).
+export { composePivotFlip, type FlipAxis, FlipNodeCommand } from './flip-node.command';
 export { SetPropertyCommand } from './set-property.command';
 export { SetPropertyOnManyCommand } from './set-property-on-many.command';
 export { SetStylePropertyOnManyCommand } from './set-style-property-on-many.command';

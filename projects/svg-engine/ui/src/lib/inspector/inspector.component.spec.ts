@@ -42,6 +42,28 @@ function placeholderText(host: HTMLElement): string {
   return host.querySelector('.placeholder')?.textContent?.trim() ?? '';
 }
 
+/**
+ * **D-078** — activate one of the inspector's `svge-panel-group` tabs
+ * (geometry / transform / align / arrange / colors / composition /
+ * text / advanced / smart-object). The post-D-078 Inspector wraps each
+ * section in `<ng-template svgePanelGroupTab>` so only the active tab's
+ * body is in the DOM at a time. Specs that query for inputs/buttons
+ * inside a non-default tab must activate the corresponding tab first.
+ *
+ * Locates the button by its id suffix `-${tabId}` (the panel-group
+ * builds ids like `svge-pg-tab-{instance}-{tabId}`) so the helper is
+ * resilient to the instance counter without depending on tab order.
+ */
+function activateTab(host: HTMLElement, tabId: string): void {
+  const btn = host.querySelector(`button[role="tab"][id$="-${tabId}"]`) as HTMLButtonElement | null;
+  if (btn === null) {
+    throw new Error(
+      `activateTab("${tabId}"): tab button not found — is the tab declared for the current focusNode kind?`,
+    );
+  }
+  btn.click();
+}
+
 describe('SvgeInspector — empty / multi states', () => {
   it('shows "No selection" when nothing is selected', () => {
     const { fixture } = setup();
@@ -168,7 +190,13 @@ describe('SvgeInspector — geometry per type', () => {
     });
     selection.select(grp.id);
     fixture.detectChanges();
-    // Style section should still render, but no "Geometry" heading
+    // D-078: Style/Geometry now live in distinct panel-group tabs. For a
+    // group, the "geometry" tab is conditionally omitted entirely (rect/
+    // ellipse/line/path-specific). Activating the "colors" tab exposes
+    // the Style section so we can assert it renders, while Geometry —
+    // which has no tab — is absent from all .section-title nodes.
+    activateTab(fixture.nativeElement, 'colors');
+    fixture.detectChanges();
     const sections = Array.from(
       fixture.nativeElement.querySelectorAll('.section .section-title'),
     ) as HTMLElement[];
@@ -216,6 +244,9 @@ describe('SvgeInspector — command dispatch on edit', () => {
       root: createGroup([r], { id: state.document().root.id }),
     });
     selection.select(r.id);
+    fixture.detectChanges();
+    // D-078: color picker lives in the "colors" tab.
+    activateTab(fixture.nativeElement, 'colors');
     fixture.detectChanges();
 
     const fillInput = fixture.nativeElement.querySelector(
@@ -380,10 +411,13 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
     });
     selection.select(r.id);
     fixture.detectChanges();
+    // D-078: opacity input lives inside the "colors" tab (Appearance row).
+    activateTab(fixture.nativeElement, 'colors');
+    fixture.detectChanges();
     const allNumberInputs = Array.from(
       fixture.nativeElement.querySelectorAll('mat-form-field input[type="number"]'),
     ) as HTMLInputElement[];
-    // Last number input = opacity (after geometry x/y/w/h + strokeWidth)
+    // Last number input in the colors tab = opacity (after strokeWidth).
     const opacityInput = allNumberInputs[allNumberInputs.length - 1]!;
     expect(opacityInput.value).toBe('1');
   });
@@ -396,6 +430,8 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
       root: createGroup([r], { id: state.document().root.id }),
     });
     selection.select(r.id);
+    fixture.detectChanges();
+    activateTab(fixture.nativeElement, 'colors');
     fixture.detectChanges();
     const allNumberInputs = Array.from(
       fixture.nativeElement.querySelectorAll('mat-form-field input[type="number"]'),
@@ -416,6 +452,8 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
     });
     selection.select(r.id);
     fixture.detectChanges();
+    activateTab(fixture.nativeElement, 'colors');
+    fixture.detectChanges();
     const swatches = Array.from(fixture.nativeElement.querySelectorAll('.swatch')) as HTMLElement[];
     expect(swatches.length).toBe(2); // fill + stroke
   });
@@ -431,6 +469,8 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
       root: createGroup([r], { id: state.document().root.id }),
     });
     selection.select(r.id);
+    fixture.detectChanges();
+    activateTab(fixture.nativeElement, 'colors');
     fixture.detectChanges();
     const swatches = Array.from(fixture.nativeElement.querySelectorAll('.swatch')) as HTMLElement[];
     // Browsers normalize CSS colors when parsed — just confirm they're
@@ -451,6 +491,8 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
       root: createGroup([r], { id: state.document().root.id }),
     });
     selection.select(r.id);
+    fixture.detectChanges();
+    activateTab(fixture.nativeElement, 'colors');
     fixture.detectChanges();
     const swatches = Array.from(fixture.nativeElement.querySelectorAll('.swatch')) as HTMLElement[];
     // Browsers represent 'transparent' as 'rgba(0, 0, 0, 0)' in computed style;
@@ -524,6 +566,8 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
     });
     selection.select(r.id);
     fixture.detectChanges();
+    activateTab(fixture.nativeElement, 'colors');
+    fixture.detectChanges();
     const fillInput = fixture.nativeElement.querySelector(
       'input[type="color"]',
     ) as HTMLInputElement | null;
@@ -542,6 +586,9 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
       });
       selection.select(r.id);
       fixture.detectChanges();
+      // D-078: palette lives below the Fill/Stroke rows inside "colors" tab.
+      activateTab(fixture.nativeElement, 'colors');
+      fixture.detectChanges();
       expect(fixture.nativeElement.querySelector('svge-color-palette')).not.toBeNull();
     });
 
@@ -553,6 +600,8 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
         root: createGroup([r], { id: state.document().root.id }),
       });
       selection.select(r.id);
+      fixture.detectChanges();
+      activateTab(fixture.nativeElement, 'colors');
       fixture.detectChanges();
       // Active-target moved from <label.field-row> to the wrapping
       // <div.color-cell> (Bloco 4-Alpha) so the accent ring wraps
@@ -584,6 +633,8 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
       });
       selection.select(r.id);
       fixture.detectChanges();
+      activateTab(fixture.nativeElement, 'colors');
+      fixture.detectChanges();
       // Click the first swatch — Angular @Output binding routes it
       // through onPalettePick → setStyle('fill', '#ff8800').
       const swatch = fixture.nativeElement.querySelector(
@@ -609,6 +660,8 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
         root: createGroup([r], { id: state.document().root.id }),
       });
       selection.select(r.id);
+      fixture.detectChanges();
+      activateTab(fixture.nativeElement, 'colors');
       fixture.detectChanges();
       const rows = Array.from(
         fixture.nativeElement.querySelectorAll('label.field-row'),
@@ -638,6 +691,9 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
         root: createGroup([r], { id: ctx.state.document().root.id }),
       });
       ctx.selection.select(r.id);
+      ctx.fixture.detectChanges();
+      // D-078: alpha inputs live inside Fill/Stroke rows of the "colors" tab.
+      activateTab(ctx.fixture.nativeElement, 'colors');
       ctx.fixture.detectChanges();
       return { ...ctx, r };
     }
@@ -706,6 +762,8 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
     });
     selection.select(r.id);
     fixture.detectChanges();
+    activateTab(fixture.nativeElement, 'colors');
+    fixture.detectChanges();
     const fieldRow = fixture.nativeElement.querySelector(
       'label.field-row',
     ) as HTMLLabelElement | null;
@@ -726,6 +784,8 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
       root: createGroup([r], { id: state.document().root.id }),
     });
     selection.select(r.id);
+    fixture.detectChanges();
+    activateTab(fixture.nativeElement, 'colors');
     fixture.detectChanges();
 
     const fieldRows = Array.from(
@@ -752,6 +812,9 @@ describe('SvgeInspector — transform decomposition (Item 5, débito 4c-Polish)'
     });
     ctx.selection.select(r.id);
     ctx.fixture.detectChanges();
+    // D-078: rotation/scale/reset/pivot picker all live in "transform" tab.
+    activateTab(ctx.fixture.nativeElement, 'transform');
+    ctx.fixture.detectChanges();
     return { ...ctx, r };
   }
 
@@ -760,12 +823,13 @@ describe('SvgeInspector — transform decomposition (Item 5, débito 4c-Polish)'
     const inputs = Array.from(
       fixture.nativeElement.querySelectorAll('mat-form-field input[type="number"]'),
     ) as HTMLInputElement[];
-    // First 4 = rect geometry; then 3 transform inputs (rotation, sx, sy)
-    // then 2 style numbers (stroke-width, opacity).
-    const rotationInput = inputs[4]!;
+    // D-078: only the active "transform" tab is in the DOM. Order is
+    // rotation, scaleX, scaleY — geometry / stroke-width / opacity live
+    // in their own tabs and are not rendered here.
+    const rotationInput = inputs[0]!;
     expect(rotationInput.value).toBe('0.0');
-    expect(inputs[5]!.value).toBe('1.00'); // scaleX
-    expect(inputs[6]!.value).toBe('1.00'); // scaleY
+    expect(inputs[1]!.value).toBe('1.00'); // scaleX
+    expect(inputs[2]!.value).toBe('1.00'); // scaleY
   });
 
   it('decomposes a pure 90° rotation correctly', () => {
@@ -774,9 +838,9 @@ describe('SvgeInspector — transform decomposition (Item 5, débito 4c-Polish)'
     const inputs = Array.from(
       fixture.nativeElement.querySelectorAll('mat-form-field input[type="number"]'),
     ) as HTMLInputElement[];
-    expect(Math.abs(Number(inputs[4]!.value) - 90)).toBeLessThan(0.1);
-    expect(inputs[5]!.value).toBe('1.00');
-    expect(inputs[6]!.value).toBe('1.00');
+    expect(Math.abs(Number(inputs[0]!.value) - 90)).toBeLessThan(0.1);
+    expect(inputs[1]!.value).toBe('1.00');
+    expect(inputs[2]!.value).toBe('1.00');
   });
 
   it('editing rotation dispatches SetPropertyCommand with composed transform', () => {
@@ -784,7 +848,7 @@ describe('SvgeInspector — transform decomposition (Item 5, débito 4c-Polish)'
     const inputs = Array.from(
       fixture.nativeElement.querySelectorAll('mat-form-field input[type="number"]'),
     ) as HTMLInputElement[];
-    const rotationInput = inputs[4]!;
+    const rotationInput = inputs[0]!;
     rotationInput.value = '45';
     rotationInput.dispatchEvent(new Event('change', { bubbles: true }));
     fixture.detectChanges();
@@ -835,6 +899,9 @@ describe('SvgeInspector — pivot picker (Item 5b, débito 4c-Polish)', () => {
     });
     ctx.selection.select(r.id);
     ctx.fixture.detectChanges();
+    // D-078: pivot picker lives in the "transform" tab.
+    activateTab(ctx.fixture.nativeElement, 'transform');
+    ctx.fixture.detectChanges();
     const dots = ctx.fixture.nativeElement.querySelectorAll('.pivot-dot');
     expect(dots.length).toBe(9);
   });
@@ -847,6 +914,8 @@ describe('SvgeInspector — pivot picker (Item 5b, débito 4c-Polish)', () => {
       root: createGroup([r], { id: ctx.state.document().root.id }),
     });
     ctx.selection.select(r.id);
+    ctx.fixture.detectChanges();
+    activateTab(ctx.fixture.nativeElement, 'transform');
     ctx.fixture.detectChanges();
     const dots = Array.from(
       ctx.fixture.nativeElement.querySelectorAll('.pivot-dot'),
@@ -964,6 +1033,9 @@ describe('SvgeInspector — multi-edit (Item 1, débito 4c)', () => {
     expect(ctx.selection.count()).toBe(1);
     // The inspector shows SINGLE-edit for a. Verify a fill change
     // doesn't touch b.
+    // D-078: color picker lives in the "colors" tab (single-edit panel).
+    activateTab(ctx.fixture.nativeElement, 'colors');
+    ctx.fixture.detectChanges();
     const colorInput = ctx.fixture.nativeElement.querySelector(
       'input[type="color"]',
     ) as HTMLInputElement;
@@ -1018,6 +1090,9 @@ describe('SvgeInspector — D-068 Type section visibility', () => {
     });
     selection.select(t.id);
     fixture.detectChanges();
+    // D-078: Type section lives inside the "text" tab (text-only).
+    activateTab(fixture.nativeElement, 'text');
+    fixture.detectChanges();
     const titles = Array.from(
       fixture.nativeElement.querySelectorAll('.section .section-title'),
     ).map((s) => (s as HTMLElement).textContent?.trim());
@@ -1058,6 +1133,9 @@ describe('SvgeInspector — D-068 dispatches SetPropertyCommand on text fields',
       root: createGroup([text], { id: ctx.state.document().root.id }),
     });
     ctx.selection.select(text.id);
+    ctx.fixture.detectChanges();
+    // D-078: every Type-section control lives in the "text" tab.
+    activateTab(ctx.fixture.nativeElement, 'text');
     ctx.fixture.detectChanges();
     return { ...ctx, text };
   }
@@ -1244,6 +1322,10 @@ describe('SvgeInspector — D-068 dispatches SetPropertyCommand on text fields',
     });
     selection.select(t.id);
     fixture.detectChanges();
+    // D-078: Type section lives inside the text tab. Activate it so the
+    // section-title becomes visible in the DOM for the assertion.
+    activateTab(fixture.nativeElement, 'text');
+    fixture.detectChanges();
     expect(
       Array.from(fixture.nativeElement.querySelectorAll('.section-title')).some(
         (s) => (s as HTMLElement).textContent?.trim() === 'Type',
@@ -1251,6 +1333,10 @@ describe('SvgeInspector — D-068 dispatches SetPropertyCommand on text fields',
     ).toBe(true);
     selection.select(r.id);
     fixture.detectChanges();
+    // The "text" tab is gone for a non-text focus; the panel-group's
+    // internal effect falls back to the first available tab (which for
+    // a rect is "geometry") — so the Type section is no longer in the
+    // DOM regardless of which tab is now active.
     expect(
       Array.from(fixture.nativeElement.querySelectorAll('.section-title')).some(
         (s) => (s as HTMLElement).textContent?.trim() === 'Type',
