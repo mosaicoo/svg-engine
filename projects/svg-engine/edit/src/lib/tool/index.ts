@@ -52,6 +52,8 @@ export {
   type WidthProfilePreset,
   // D-062a
   SymbolSprayerService,
+  // TOOL-OPT-C — eyedropper prefs (sampleTarget + autoApply)
+  EyedropperToolService,
   extraToolsPlugin,
   simplifySubpath,
 } from './extra-tools';

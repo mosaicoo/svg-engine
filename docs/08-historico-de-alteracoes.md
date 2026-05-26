@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-05-26 — TOOL-OPT Fase C: Text/Gradient/Eyedropper options
+
+**O quê.** Terceira fase: 3 novas barras contextuais.
+
+- **Text**: font family (dropdown 7 famílias) + size (input) +
+  weight (dropdown 100-900) + italic toggle + text-anchor (3 botões
+  segmented) + fill color + reset.
+- **Gradient**: barra informacional pointing para Composition tab
+  - canvas overlay (heavy editing UX vive lá per D-058).
+- **Eyedropper**: target segmented Fill/Stroke/Both + autoApply
+  toggle + reset. Alt no click ainda flipa fill↔stroke como
+  override (preserva muscle memory).
+
+**Extensões de serviço.** Novos signals em
+`InlineTextEditorService` (fontFamily/fontSize/fontWeight/fontStyle/
+textAnchor/fill) + novo `EyedropperToolService` (sampleTarget/
+autoApply). `TextTool.onPointerDown` agora lê os defaults antes de
+criar o placeholder; `EyedropperTool` consome o target preferido
+(com Alt-override mantido para compat). Defaults preservam o
+comportamento prévio — zero regressão.
+
+**Verificação**: build 9 entry points, lint clean, suite 1666
+passing / 1 skipped.
+
+---
+
 ## 2026-05-26 — TOOL-OPT Fase B: Rectangle/Ellipse/Polygon/Pencil/Pen options
 
 **O quê.** Segunda fase: 5 ferramentas de criação ganharam barra de

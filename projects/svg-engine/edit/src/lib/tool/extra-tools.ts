@@ -120,6 +120,35 @@ function hitTestNode(
  * This matches Illustrator's behaviour and surfaces the missing
  * reference explicitly instead of silently producing a different look.
  */
+/**
+ * **TOOL-OPT-C** — preferences for the Eyedropper tool. Defaults
+ * preserve the prior hardcoded behaviour (Alt-modifier toggles fill→
+ * stroke; otherwise fill). Adding a UI bar exposes:
+ *
+ * - `sampleTarget`: `'fill' | 'stroke' | 'both'` — what to grab from
+ *   the source node. `'both'` writes BOTH fill AND stroke to the
+ *   target selection (useful for "match this object's style"). The
+ *   Alt modifier still flips fill↔stroke at click time as an
+ *   override (so muscle memory keeps working).
+ * - `autoApply`: when `false`, the tool only logs the sample (useful
+ *   for inspection without mutating selection).
+ */
+@Injectable({ providedIn: 'root' })
+export class EyedropperToolService {
+  private readonly _sampleTarget = signal<'fill' | 'stroke' | 'both'>('fill');
+  private readonly _autoApply = signal<boolean>(true);
+
+  readonly sampleTarget = this._sampleTarget.asReadonly();
+  readonly autoApply = this._autoApply.asReadonly();
+
+  setSampleTarget(v: 'fill' | 'stroke' | 'both'): void {
+    this._sampleTarget.set(v);
+  }
+  setAutoApply(v: boolean): void {
+    this._autoApply.set(v);
+  }
+}
+
 class EyedropperTool implements Tool {
   readonly id = EYEDROPPER_TOOL_ID;
   readonly label = 'Eyedropper';
@@ -131,22 +160,37 @@ class EyedropperTool implements Tool {
     const state = ctx.injector.get(EditorStateService);
     const source = hitTestNode(event.raw, state);
     if (source === null) return;
-    const field: 'fill' | 'stroke' = event.altKey ? 'stroke' : 'fill';
-    const sampled = source.style[field];
-    if (sampled === undefined) return;
+    const prefs = ctx.injector.get(EyedropperToolService);
+    // Alt still flips the preferred target as a per-click override
+    // (matches Illustrator muscle memory). Otherwise the service's
+    // `sampleTarget` wins.
+    const baseTarget = prefs.sampleTarget();
+    const target: 'fill' | 'stroke' | 'both' = event.altKey
+      ? baseTarget === 'fill'
+        ? 'stroke'
+        : baseTarget === 'stroke'
+          ? 'fill'
+          : 'both'
+      : baseTarget;
 
-    // Apply to the current selection. When nothing's selected, the
-    // sample is "remembered" in the focus signal so a follow-up click
-    // on a target via Select tool can paint manually (TODO: surface a
-    // floating swatch); for now we just no-op.
+    const fields: ('fill' | 'stroke')[] = target === 'both' ? ['fill', 'stroke'] : [target];
+
     const sel = ctx.injector.get(SelectionService);
     const ids = Array.from(sel.selectedIds());
     if (ids.length === 0) {
-      console.info(`[Eyedropper] sampled ${field}=${sampled} (no selection to apply)`);
+      console.info(`[Eyedropper] sampled ${fields.join('+')} (no selection to apply)`);
+      return;
+    }
+    if (!prefs.autoApply()) {
+      console.info(`[Eyedropper] sample-only mode — not applying`);
       return;
     }
     const bus = ctx.injector.get(CommandBus);
-    bus.dispatch(new SetStylePropertyOnManyCommand(ids, field, sampled));
+    for (const field of fields) {
+      const sampled = source.style[field];
+      if (sampled === undefined) continue;
+      bus.dispatch(new SetStylePropertyOnManyCommand(ids, field, sampled));
+    }
   }
 }
 

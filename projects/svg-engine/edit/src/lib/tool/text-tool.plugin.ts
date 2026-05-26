@@ -97,19 +97,32 @@ class TextTool implements Tool {
     // is immutable but we want the insertion under whichever root
     // is current at click time (not at commit time).
     const rootId = state.document().root.id;
-    // Create the placeholder text node with default font-size + style.
-    // `y` is the text's baseline by SVG spec — we shift up by the
-    // font-size so the click position lands at the TOP of the glyph
-    // (more intuitive than "click puts the baseline here").
+    // TOOL-OPT-C: pull defaults from InlineTextEditorService so the
+    // tool-options bar drives the next placeholder. Fall back to the
+    // original constants (font-size + black fill) when the user hasn't
+    // tweaked anything.
+    const fontSize = editorSvc.fontSize() ?? DEFAULT_FONT_SIZE;
     const node = createText(
       {
         x: event.docPoint.x,
-        y: event.docPoint.y + DEFAULT_FONT_SIZE * 0.8, // baseline ≈ 80% of font-size
+        y: event.docPoint.y + fontSize * 0.8, // baseline ≈ 80% of font-size
         content: PLACEHOLDER_TEXT,
-        fontSize: DEFAULT_FONT_SIZE,
+        fontSize,
       },
-      { style: { fill: '#000000' } },
+      {
+        style: { fill: editorSvc.fill() },
+      },
     );
+    // Apply any optional typography prefs that aren't first-class
+    // factory params (D-053 fields live directly on the TextNode).
+    const ff = editorSvc.fontFamily();
+    if (ff !== null) (node as { fontFamily?: string }).fontFamily = ff;
+    const fw = editorSvc.fontWeight();
+    if (fw !== null) (node as { fontWeight?: number }).fontWeight = fw;
+    const fs = editorSvc.fontStyle();
+    if (fs !== null) (node as { fontStyle?: 'italic' }).fontStyle = fs;
+    const ta = editorSvc.textAnchor();
+    if (ta !== 'start') (node as { textAnchor?: 'start' | 'middle' | 'end' }).textAnchor = ta;
     ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(rootId, node));
     // Open the inline editor on the freshly-created node. The
     // `placeholder=true` flag tells the editor: "if the user cancels

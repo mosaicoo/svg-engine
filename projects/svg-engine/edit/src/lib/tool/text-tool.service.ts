@@ -56,4 +56,47 @@ export class InlineTextEditorService {
     this._editingId.set(null);
     this._isPlaceholder.set(false);
   }
+
+  // ── TOOL-OPT-C preference signals ────────────────────────────────
+  // Defaults consumed by TextTool when creating a new text node.
+  // Defaults match the prior hardcoded values (fontSize comes from
+  // DEFAULT_FONT_SIZE in text-tool.plugin.ts; other fields stay
+  // undefined so the renderer's defaults apply unchanged).
+
+  private readonly _fontFamily = signal<string | null>(null);
+  private readonly _fontSize = signal<number | null>(null);
+  private readonly _fontWeight = signal<number | null>(null);
+  private readonly _fontStyle = signal<'italic' | null>(null);
+  private readonly _textAnchor = signal<'start' | 'middle' | 'end'>('start');
+  private readonly _fill = signal<string>('#000000');
+
+  readonly fontFamily = this._fontFamily.asReadonly();
+  readonly fontSize = this._fontSize.asReadonly();
+  readonly fontWeight = this._fontWeight.asReadonly();
+  readonly fontStyle = this._fontStyle.asReadonly();
+  readonly textAnchor = this._textAnchor.asReadonly();
+  readonly fill = this._fill.asReadonly();
+
+  setFontFamily(v: string | null): void {
+    this._fontFamily.set(v);
+  }
+  setFontSize(v: number | null): void {
+    if (v === null) {
+      this._fontSize.set(null);
+      return;
+    }
+    if (Number.isFinite(v) && v > 0) this._fontSize.set(Math.min(400, v));
+  }
+  setFontWeight(v: number | null): void {
+    this._fontWeight.set(v);
+  }
+  setItalic(on: boolean): void {
+    this._fontStyle.set(on ? 'italic' : null);
+  }
+  setTextAnchor(v: 'start' | 'middle' | 'end'): void {
+    this._textAnchor.set(v);
+  }
+  setFill(v: string): void {
+    this._fill.set(v);
+  }
 }

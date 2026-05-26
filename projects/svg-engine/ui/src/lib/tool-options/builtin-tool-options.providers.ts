@@ -6,19 +6,25 @@ import {
 } from '@angular/core';
 import {
   ELLIPSE_TOOL_ID,
+  EYEDROPPER_TOOL_ID,
+  GRADIENT_TOOL_ID,
   PEN_TOOL_ID,
   PENCIL_TOOL_ID,
   POLYGON_TOOL_ID,
   RECTANGLE_TOOL_ID,
   SYMBOL_SPRAYER_TOOL_ID,
+  TEXT_TOOL_ID,
   WIDTH_TOOL_ID,
 } from 'svg-engine/edit';
+import { SvgeEyedropperToolOptions } from './eyedropper-tool-options/eyedropper-tool-options.component';
+import { SvgeGradientToolOptions } from './gradient-tool-options/gradient-tool-options.component';
 import { SvgePenToolOptions } from './pen-tool-options/pen-tool-options.component';
 import { SvgePencilToolOptions } from './pencil-tool-options/pencil-tool-options.component';
 import { SvgeEllipseOptions } from './shape-tool-options/ellipse-options.component';
 import { SvgePolygonOptions } from './shape-tool-options/polygon-options.component';
 import { SvgeRectangleOptions } from './shape-tool-options/rectangle-options.component';
 import { SvgeSymbolSprayerOptions } from './symbol-sprayer-options/symbol-sprayer-options.component';
+import { SvgeTextToolOptions } from './text-tool-options/text-tool-options.component';
 import { ToolOptionsRegistry } from './tool-options-registry.service';
 import { SvgeWidthToolOptions } from './width-tool-options/width-tool-options.component';
 
@@ -74,6 +80,10 @@ export function provideSvgeBuiltinToolOptions(): EnvironmentProviders {
       registry.register(POLYGON_TOOL_ID, SvgePolygonOptions);
       registry.register(PENCIL_TOOL_ID, SvgePencilToolOptions);
       registry.register(PEN_TOOL_ID, SvgePenToolOptions);
+      // TOOL-OPT-C — Text + Gradient + Eyedropper.
+      registry.register(TEXT_TOOL_ID, SvgeTextToolOptions);
+      registry.register(GRADIENT_TOOL_ID, SvgeGradientToolOptions);
+      registry.register(EYEDROPPER_TOOL_ID, SvgeEyedropperToolOptions);
     }),
   ]);
 }

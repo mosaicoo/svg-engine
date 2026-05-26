@@ -17,6 +17,10 @@ export { SvgeEllipseOptions } from './shape-tool-options/ellipse-options.compone
 export { SvgePolygonOptions } from './shape-tool-options/polygon-options.component';
 export { SvgePencilToolOptions } from './pencil-tool-options/pencil-tool-options.component';
 export { SvgePenToolOptions } from './pen-tool-options/pen-tool-options.component';
+// TOOL-OPT-C — text + gradient + eyedropper.
+export { SvgeTextToolOptions } from './text-tool-options/text-tool-options.component';
+export { SvgeGradientToolOptions } from './gradient-tool-options/gradient-tool-options.component';
+export { SvgeEyedropperToolOptions } from './eyedropper-tool-options/eyedropper-tool-options.component';
 // Shared CSS string for option components (consumers can build their
 // own option components with the same visual language).
 export { TOOL_OPT_SHARED_STYLES } from './shared-styles';
