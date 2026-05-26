@@ -30,7 +30,7 @@ import {
   shapeToolsPlugin,
   textToolPlugin,
 } from 'svg-engine/edit';
-import { builtinUiMenuContributionsPlugin } from 'svg-engine/ui';
+import { builtinUiMenuContributionsPlugin, provideSvgeBuiltinToolOptions } from 'svg-engine/ui';
 import { builtinNluPlugin } from 'svg-engine/ai/nlu';
 
 import { stampToolPlugin } from './plugins/stamp-tool.plugin';
@@ -147,5 +147,11 @@ export const appConfig: ApplicationConfig = {
     // Gradient + 3 stub tools (Width / Mesh / Symbol Sprayer). Opt-out
     // by omitting; each tool's id is exported for selective install.
     provideSvgEnginePlugin(extraToolsPlugin),
+    // TOOL-OPT-A — wire built-in tool option components into the
+    // ToolOptionsRegistry so <svge-tool-options> renders them when
+    // the matching tool activates. Fase A populates Symbol Sprayer
+    // and Width; subsequent fases extend the same provider with
+    // Rectangle/Ellipse/Polygon/Pencil/Pen/Text/Gradient/etc.
+    provideSvgeBuiltinToolOptions(),
   ],
 };

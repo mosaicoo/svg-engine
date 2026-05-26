@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { type Tool, ToolHostService, ToolRegistry } from 'svg-engine/edit';
 import { SvgeToolOptions } from './tool-options.component';
+import { ToolOptionsRegistry } from './tool-options-registry.service';
 
 /** A throwaway component that renders identifiable text so we can assert it mounted. */
 @Component({
@@ -94,6 +95,57 @@ describe('SvgeToolOptions — host ARIA', () => {
     const host = fixture.nativeElement as HTMLElement;
     expect(host.getAttribute('role')).toBe('toolbar');
     expect(host.getAttribute('aria-label')).toContain('Stub');
+  });
+});
+
+/**
+ * **TOOL-OPT-A1** — verify the registry takes precedence over the
+ * Tool's own `optionsComponent`. This is how built-in tools (defined
+ * in `svg-engine/edit` and therefore unable to reference Material UI
+ * classes per D-017) get their options bar — UI registers the
+ * component under the tool's id at bootstrap.
+ */
+@Component({
+  standalone: true,
+  template: `<span class="from-registry">registry component</span>`,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+class RegistryComponent {}
+
+describe('SvgeToolOptions — ToolOptionsRegistry precedence (TOOL-OPT-A1)', () => {
+  it('registry binding wins over tool.optionsComponent for the same id', () => {
+    TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+    TestBed.inject(ToolRegistry).register(new StubTool());
+    TestBed.inject(ToolOptionsRegistry).register('stub.tool', RegistryComponent);
+    TestBed.inject(ToolHostService).activate('stub.tool');
+    const fixture = TestBed.createComponent(SvgeToolOptions);
+    fixture.detectChanges();
+    // Registry-provided component appears
+    expect(fixture.nativeElement.querySelector('.from-registry')).not.toBeNull();
+    // Tool-bound `StubOptionsComponent` is NOT used when registry wins
+    expect(fixture.nativeElement.querySelector('.my-stamp-options')).toBeNull();
+  });
+
+  it('falls back to tool.optionsComponent when registry has no entry', () => {
+    TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+    TestBed.inject(ToolRegistry).register(new StubTool());
+    TestBed.inject(ToolHostService).activate('stub.tool');
+    const fixture = TestBed.createComponent(SvgeToolOptions);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.my-stamp-options')).not.toBeNull();
+  });
+
+  it('renders registry-only options when the tool itself has no optionsComponent', () => {
+    TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+    TestBed.inject(ToolRegistry).register(new StubToolNoOptions());
+    TestBed.inject(ToolOptionsRegistry).register('stub.tool.no-opts', RegistryComponent);
+    TestBed.inject(ToolHostService).activate('stub.tool.no-opts');
+    const fixture = TestBed.createComponent(SvgeToolOptions);
+    fixture.detectChanges();
+    // Registry covers the tool that wouldn't otherwise have options.
+    expect(fixture.nativeElement.querySelector('.from-registry')).not.toBeNull();
+    // No placeholder either — registry binding satisfies the activeOptionsComponent computed.
+    expect(fixture.nativeElement.querySelector('.bar.placeholder')).toBeNull();
   });
 });
 

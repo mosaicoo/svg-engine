@@ -2,6 +2,7 @@ import { NgComponentOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { MatIcon } from '@angular/material/icon';
 import { ToolHostService, ToolRegistry } from 'svg-engine/edit';
+import { ToolOptionsRegistry } from './tool-options-registry.service';
 
 /**
  * Context-sensitive **tool options bar** — Sprint Pro-Editor Phase 3.
@@ -128,6 +129,7 @@ import { ToolHostService, ToolRegistry } from 'svg-engine/edit';
 export class SvgeToolOptions {
   private readonly toolHost = inject(ToolHostService);
   private readonly tools = inject(ToolRegistry);
+  private readonly optionsRegistry = inject(ToolOptionsRegistry);
 
   /**
    * When `true`, render a "No options" placeholder strip when the active
@@ -146,9 +148,22 @@ export class SvgeToolOptions {
     return id === null ? null : this.tools.get(id);
   });
 
-  protected readonly activeOptionsComponent = computed(
-    () => this.activeTool()?.optionsComponent ?? null,
-  );
+  /**
+   * **TOOL-OPT-A1** — resolution order: `ToolOptionsRegistry` first
+   * (covers built-in tools where the Tool definition lives in
+   * `svg-engine/edit` and cannot reference Material UI components),
+   * then falls back to `tool.optionsComponent` (covers per-plugin
+   * tools that ship their own component alongside the Tool class —
+   * e.g. the playground Stamp demo).
+   */
+  protected readonly activeOptionsComponent = computed(() => {
+    const id = this.toolHost.activeId();
+    if (id !== null) {
+      const fromRegistry = this.optionsRegistry.get(id);
+      if (fromRegistry !== null) return fromRegistry;
+    }
+    return this.activeTool()?.optionsComponent ?? null;
+  });
 
   protected readonly activeLabel = computed(() => this.activeTool()?.label ?? '—');
 

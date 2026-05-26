@@ -6,6 +6,67 @@
 
 ---
 
+## 2026-05-26 — TOOL-OPT Fase A: ToolOptionsRegistry + Symbol Sprayer + Width
+
+**O quê.** Primeira fase de uma série de 4 que vai dar opções
+contextuais a TODAS as 15 ferramentas do editor. Foco da Fase A:
+**infra + 2 ferramentas que já tinham service backing** (Symbol
+Sprayer e Width — D-062a/D-062b).
+
+- **Infra**: novo `ToolOptionsRegistry` em `svg-engine/ui` mapeando
+  `toolId → optionsComponent`. `<svge-tool-options>` agora consulta
+  o registry PRIMEIRO, com fallback pra `tool.optionsComponent`
+  (compat plugins como o demo Stamp do playground).
+- **Por que o registry**: tools vivem em `svg-engine/edit` e não
+  podem importar Material UI components (D-017). Sem o registry,
+  não haveria como ter um optionsComponent para os 15 built-ins.
+- **`<svge-symbol-sprayer-options>`**: dropdown de símbolo ativo +
+  chips de tamanho (24/48/96) + slider de spacing + slider de
+  scale jitter + reset.
+- **`<svge-width-tool-options>`**: segmented Uniform/Tapered/
+  Calligraphic (3 ícones) + chips de width (1/5/12/25/50) +
+  slider 1-100 + reset.
+- **`provideSvgeBuiltinToolOptions()`**: environment provider que
+  registra ambos no `ToolOptionsRegistry` via `provideEnvironmentInitializer`.
+  Consumer adiciona uma linha em `app.config.ts`.
+
+**Por quê.** O usuário pediu paridade de "Options Tool" com
+softwares profissionais. O playground tinha apenas o Stamp tool
+(demo plugin) populando essa barra; todas as outras ferramentas
+mostravam barra vazia. A Fase A entrega o pattern arquitetural
+
+- as 2 tools cujo backing está pronto (Width e Symbol Sprayer
+  já tinham `WidthToolService`/`SymbolSprayerService` com signals
+  prontos — D-062). Fases B-D estendem o mesmo provider com as
+  ferramentas restantes (Rectangle, Ellipse, Polygon, Pencil, Pen,
+  Text, Gradient, Eyedropper, Select, Direct Select, Knife, Smooth).
+
+**Implementação.**
+
+- **`ui/tool-options/tool-options-registry.service.ts`** (NOVO):
+  `register/get/unregister/ids`. Last-write-wins. Soft-warn quando
+  toolId não existe ainda no `ToolRegistry` (plugin order tolerance).
+- **`ui/tool-options/tool-options.component.ts`**: novo computed
+  `activeOptionsComponent` consulta `optionsRegistry.get(id)`
+  primeiro, depois `tool.optionsComponent`.
+- **`ui/tool-options/symbol-sprayer-options/`** (NOVO): component
+  - spec (4 testes).
+- **`ui/tool-options/width-tool-options/`** (NOVO): component +
+  spec (3 testes).
+- **`ui/tool-options/builtin-tool-options.providers.ts`** (NOVO):
+  `provideSvgeBuiltinToolOptions()` registra os 2 components.
+- **`ui/tool-options/index.ts`**: exporta `ToolOptionsRegistry`,
+  `provideSvgeBuiltinToolOptions`, `SvgeSymbolSprayerOptions`,
+  `SvgeWidthToolOptions`.
+- **`playground/app.config.ts`**: importa
+  `provideSvgeBuiltinToolOptions` de `svg-engine/ui` e chama
+  no array providers.
+
+**Verificação**: build 9 entry points, lint clean, suite 1666
+passing / 1 skipped. 17 specs novos.
+
+---
+
 ## 2026-05-26 — D-078: Properties Panel refatorado em panel-group tabs + Flip/Align/Arrange
 
 **O quê.** O `<svge-inspector>` deixou de ser uma pilha vertical de
