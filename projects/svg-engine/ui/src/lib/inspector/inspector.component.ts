@@ -3,10 +3,11 @@ import {
   Component,
   computed,
   inject,
+  Injector,
   signal,
   type Signal,
 } from '@angular/core';
-import { MatIconButton } from '@angular/material/button';
+import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
@@ -18,6 +19,7 @@ import {
   decomposeTransform,
   EditorStateService,
   findNodeById,
+  isSmartObject,
   type NodeId,
   type Point,
   ResizeNodeCommand,
@@ -37,10 +39,12 @@ import {
   LayersService,
   MaskLibraryService,
   SelectionService,
+  SmartObjectActionsService,
   TransformService,
 } from 'svg-engine/edit';
 import { SvgeColorPalette } from '../color-palette/color-palette.component';
 import { SvgeColorPicker } from '../color-picker/color-picker.component';
+import { SvgeSmartObjectEditorDialogService } from '../smart-object-dialog';
 import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from './inspector-pipes';
 
 /**
@@ -91,6 +95,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
     MatInput,
     MatIcon,
     MatIconButton,
+    MatButton,
     MatMenu,
     MatMenuTrigger,
     MatSelect,
@@ -273,6 +278,73 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
             </section>
           }
         }
+      }
+
+      <!--
+        D-076 — Smart Object contextual section. Renders ONLY when
+        the focused group is flagged via metadata.customData.svgeKind
+        smart-object. Surfaces the same three actions the
+        Object > Smart Object menu submenu offers (Edit / Replace /
+        Rasterize) plus a quick name + child-count read-out so the
+        user gets a Photoshop-style asset properties panel without
+        leaving the Inspector.
+
+        Replace / Rasterize delegate to SmartObjectActionsService
+        (shared with the menu plugin — single source of truth, no
+        duplicated file-picker code). Edit Contents opens the textarea
+        dialog via SvgeSmartObjectEditorDialogService, forwarding
+        the host injector so the dialog reads THIS editor scope
+        (D-042 multi-editor safety).
+      -->
+      @if (isSmartObjectNode(node)) {
+        <section class="section">
+          <h3 class="section-title">Smart Object</h3>
+          <div class="so-summary">
+            <mat-icon class="so-icon" aria-hidden="true">inventory_2</mat-icon>
+            <div class="so-meta">
+              <div class="so-name">{{ smartObjectName(node) }}</div>
+              <div class="so-count">
+                {{ smartObjectChildCount(node) }}
+                {{ smartObjectChildCount(node) === 1 ? 'child' : 'children' }}
+              </div>
+            </div>
+          </div>
+          <div class="so-actions">
+            <button
+              mat-stroked-button
+              type="button"
+              class="so-action-btn"
+              [disabled]="isLocked()"
+              (click)="editSmartObjectContents(node)"
+              title="Open the inner SVG source in an editor dialog"
+            >
+              <mat-icon aria-hidden="true">edit_note</mat-icon>
+              Edit Contents…
+            </button>
+            <button
+              mat-stroked-button
+              type="button"
+              class="so-action-btn"
+              [disabled]="isLocked()"
+              (click)="replaceSmartObjectContents(node)"
+              title="Pick an SVG file to swap the children (transform + style preserved)"
+            >
+              <mat-icon aria-hidden="true">sync_alt</mat-icon>
+              Replace Contents…
+            </button>
+            <button
+              mat-stroked-button
+              type="button"
+              class="so-action-btn so-action-danger"
+              [disabled]="isLocked()"
+              (click)="rasterizeSmartObject(node)"
+              title="Unwrap the smart object (drops the flag, hoists children)"
+            >
+              <mat-icon aria-hidden="true">view_module</mat-icon>
+              Rasterize
+            </button>
+          </div>
+        </section>
       }
 
       <!--
@@ -1478,6 +1550,61 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       text-decoration: line-through;
       font-family: serif;
     }
+    /* D-076 — Smart Object contextual section */
+    .so-summary {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .so-icon {
+      /* Match the tertiary accent used by the Layers panel for smart-
+         object rows so both surfaces present the same visual language. */
+      color: var(--mat-sys-tertiary, #d97706);
+      font-size: 28px;
+      width: 28px;
+      height: 28px;
+      flex: 0 0 auto;
+    }
+    .so-meta {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .so-name {
+      font-weight: 500;
+      font-size: 13px;
+      color: var(--mat-sys-on-surface, inherit);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .so-count {
+      font-size: 11px;
+      color: var(--mat-sys-on-surface-variant, #777);
+      font-variant-numeric: tabular-nums;
+    }
+    .so-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .so-action-btn {
+      justify-content: flex-start;
+      font-size: 12px;
+      line-height: 1.2;
+    }
+    .so-action-btn .mat-icon {
+      margin-right: 4px;
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+    .so-action-danger {
+      /* Subtle warning tint — rasterize is destructive (drops the
+         wrapper irreversibly via undo only). */
+      color: var(--mat-sys-error, #b3261e);
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -1487,6 +1614,13 @@ export class SvgeInspector {
   private readonly bus = inject(CommandBus);
   private readonly layers = inject(LayersService);
   private readonly transformService = inject(TransformService);
+  // **D-076** — Smart Object action wiring. Service powers Replace +
+  // Rasterize (shared with the menu plugin); dialog service opens the
+  // Material textarea editor for Edit Contents. The host Injector is
+  // forwarded to the dialog so it reads the active editor scope (D-042).
+  private readonly smartObjectActions = inject(SmartObjectActionsService);
+  private readonly smartObjectEditorDialog = inject(SvgeSmartObjectEditorDialogService);
+  private readonly injector = inject(Injector);
 
   /**
    * The 8 anchors of the bbox, in the order shown by the 3×3 pivot
@@ -1505,6 +1639,71 @@ export class SvgeInspector {
     'bc',
     'br',
   ];
+
+  // ── D-076 — Smart Object section helpers ─────────────────────────
+
+  /**
+   * Template guard for the Smart Object section. Re-exposed as a
+   * method (rather than calling `isSmartObject` directly in the
+   * template) so the Inspector keeps its imports tidy and so future
+   * refactors of the guard signature land in one place.
+   */
+  protected isSmartObjectNode(node: SvgNode): boolean {
+    return isSmartObject(node);
+  }
+
+  /**
+   * Display name for the Smart Object header. Falls back to a `id`
+   * slice when no human name was set — matches the layers panel
+   * convention so the same wrapper shows the same string in both
+   * surfaces.
+   */
+  protected smartObjectName(node: SvgNode): string {
+    const name = node.metadata.name;
+    if (name !== undefined && name.length > 0) return name;
+    return `Smart Object (${node.id.slice(0, 6)})`;
+  }
+
+  /**
+   * Children count read-out (just `children.length` for groups, `0`
+   * for non-groups — defensive, the section template already gates on
+   * `isSmartObjectNode` which only succeeds for groups).
+   */
+  protected smartObjectChildCount(node: SvgNode): number {
+    return node.type === 'group' ? node.children.length : 0;
+  }
+
+  /**
+   * Open the textarea source editor for this smart object. The host
+   * `Injector` is forwarded so the dialog's
+   * `inject(EditorStateService)` resolves to THIS editor's scope —
+   * without it, the dialog would see the root document (= empty in
+   * multi-editor apps). Same wiring rationale as the menu plugin's
+   * Edit Contents handler.
+   */
+  protected editSmartObjectContents(node: SvgNode): void {
+    if (!isSmartObject(node)) return;
+    this.smartObjectEditorDialog.open(node.id, this.injector);
+  }
+
+  /**
+   * Delegate to {@link SmartObjectActionsService.replaceContents} —
+   * same file-picker + parse + dispatch used by the menu plugin. Single
+   * source of truth (D-076 refactor).
+   */
+  protected replaceSmartObjectContents(node: SvgNode): void {
+    if (!isSmartObject(node)) return;
+    this.smartObjectActions.replaceContents(node.id);
+  }
+
+  /**
+   * Delegate to {@link SmartObjectActionsService.rasterize} — drops
+   * the wrapper, hoists children. Single undoable history entry.
+   */
+  protected rasterizeSmartObject(node: SvgNode): void {
+    if (!isSmartObject(node)) return;
+    this.smartObjectActions.rasterize(node.id);
+  }
 
   /** Currently focused node, or `null` (no/multi selection or stale id). */
   protected readonly focusNode: Signal<SvgNode | null> = computed(() => {

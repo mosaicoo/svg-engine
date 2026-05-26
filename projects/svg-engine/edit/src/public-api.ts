@@ -139,3 +139,15 @@ export * from './lib/autotrace';
 // consumers can build their own find/replace flow without dragging
 // the dialog in.
 export * from './lib/find-replace';
+
+// D-076 — Smart Object actions service (Replace Contents file picker +
+// Rasterize dispatch). Shared by the edit menu plugin AND the ui
+// Inspector section so both call sites use the SAME code path. The
+// Material "Edit Contents" dialog stays in `svg-engine/ui` per D-017.
+export * from './lib/smart-object-actions';
+
+// D-077 — Asset Export panel (batch export). Registry of "export
+// slots" (target + format + scale + filename) + Runner that
+// executes them in batch with unique-name disambiguation. UI panel
+// lives in `svg-engine/ui` (SvgeAssetExportPanel).
+export * from './lib/asset-export';

@@ -119,3 +119,8 @@ export * from './lib/menu-extras';
 // match the standardized SVGEngine look. See dialog-shell.component.ts
 // for the API and dialog-config.ts for the size buckets.
 export * from './lib/dialog-shell';
+
+// D-077 — Asset Export panel (batch export UI). Pairs with the
+// edit-side AssetExportRegistry + AssetExportRunner. Mount inside
+// any panel-group tab to expose batch-export workflows.
+export * from './lib/asset-export-panel';

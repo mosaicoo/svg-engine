@@ -23,6 +23,7 @@ import { SvgeInspector } from '../inspector';
 import { LayersPanel } from '../layers-panel';
 import { SvgeLibrariesPanel } from '../libraries-panel';
 import { SnapshotsPanel } from '../snapshots-panel';
+import { SvgeAssetExportPanel } from '../asset-export-panel';
 import { SvgeMenuBar } from '../menu-bar';
 import { SvgeThemeToggle } from '../theme-toggle';
 import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
@@ -112,6 +113,7 @@ import { SvgeToolsPalette } from '../tools-palette';
     SvgeCanvasGestures,
     SvgeShellInteractions,
     SvgeContextMenuTrigger,
+    SvgeAssetExportPanel,
     SvgeMenuBar,
     SvgeThemeToggle,
     SvgeToolbar,
@@ -262,6 +264,22 @@ import { SvgeToolsPalette } from '../tools-palette';
             icon="auto_awesome"
           >
             <svge-effects-panel />
+          </ng-template>
+          <!--
+            D-077 — Asset Export tab. Pairs with the per-editor
+            AssetExportRegistry + AssetExportRunner: lists the user's
+            export recipes and runs them in a batch download. Lives
+            beside Layers/Properties/Appearance so the export workflow
+            is reachable without leaving the canvas (Illustrator's
+            Export Persona / Figma Export panel convention).
+          -->
+          <ng-template
+            svgePanelGroupTab
+            svgePanelGroupTabId="export"
+            label="Export"
+            icon="download"
+          >
+            <svge-asset-export-panel />
           </ng-template>
         </svge-panel-group>
       </aside>

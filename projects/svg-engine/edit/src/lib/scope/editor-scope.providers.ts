@@ -4,8 +4,11 @@ import { ViewportService } from 'svg-engine/render';
 
 import { AlignmentService } from '../alignment/alignment.service';
 import { AnchorSelectionService } from '../anchor-editor/anchor-selection.service';
+import { AssetExportRegistry } from '../asset-export/asset-export-registry.service';
+import { AssetExportRunner } from '../asset-export/asset-export-runner.service';
 import { AUTOSAVE_STORAGE_KEY } from '../autosave/autosave.config';
 import { AutoSaveService } from '../autosave/autosave.service';
+import { SmartObjectActionsService } from '../smart-object-actions/smart-object-actions.service';
 import { ClipboardService } from '../clipboard/clipboard.service';
 import { ChainFilterRegistry } from '../effect/chain-filter';
 import { SelectSameService } from '../find-replace/select-same.service';
@@ -234,6 +237,20 @@ export function provideSvgEngineEditorScope(options?: SvgEngineEditorScopeOption
     // D-044: in-memory clipboard. Per-editor scope so two editors mounted
     // side-by-side cannot paste each other's content unintentionally.
     ClipboardService,
+    // **D-076** — Smart Object actions (Replace Contents file picker +
+    // Rasterize dispatch). Scoped per-editor because the service
+    // injects CommandBus at construction; without per-editor scoping,
+    // the Inspector and menu plugin would capture the root CommandBus
+    // and dispatch into the wrong editor in multi-editor hosts
+    // (same defect class fixed for SelectSameService earlier).
+    SmartObjectActionsService,
+    // **D-077** — Asset Export (batch export panel). Registry holds
+    // each editor's slot list; Runner injects EditorStateService +
+    // ExporterRegistry to execute the batch. Per-editor scope so two
+    // editors don't see each other's export recipes and one editor's
+    // "Export All" doesn't accidentally write the sibling's document.
+    AssetExportRegistry,
+    AssetExportRunner,
     // ── edit / tools (active tool host + tool state machines) ───
     ToolHostService,
     AnchorSelectionService,

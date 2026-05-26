@@ -18,15 +18,12 @@ import {
   MakeLayerCommand,
   MakeSmartObjectCommand,
   type NodeId,
-  RasterizeSmartObjectCommand,
   RemoveNodeCommand,
   ReorderNodeCommand,
   type ReorderDirection,
-  ReplaceSmartObjectContentsCommand,
   RestoreSnapshotCommand,
   SnapshotsService,
   SubtractCommand,
-  type SvgNode,
   type TextNode,
   UngroupCommand,
   UnionCommand,
@@ -49,6 +46,7 @@ import { ActiveDefsService } from '../../library/active-defs.service';
 import { type EditorPlugin } from '../../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../../plugin/plugin';
 import { SelectionService } from '../../selection/selection.service';
+import { SmartObjectActionsService } from '../../smart-object-actions/smart-object-actions.service';
 import { SnapService } from '../../snap/snap.service';
 import { WorkspaceService } from '../../workspace/workspace.service';
 import { MenuContributionRegistry } from '../menu-contribution-registry.service';
@@ -1490,7 +1488,11 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
           const sel = fromCtx(SelectionService, runCtx);
           const id = sel.focusId();
           if (id === null) return;
-          replaceSmartObjectContents(id, runCtx, fromCtx);
+          // **D-076 refactor**: delegate to SmartObjectActionsService
+          // (also consumed by the Inspector Smart Object section) so
+          // both call sites share identical file-picker, parsing,
+          // error handling and warning behaviour.
+          fromCtx(SmartObjectActionsService, runCtx).replaceContents(id);
         },
       }),
     );
@@ -1507,7 +1509,11 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
           const sel = fromCtx(SelectionService, runCtx);
           const id = sel.focusId();
           if (id === null) return;
-          fromCtx(CommandBus, runCtx).dispatch(new RasterizeSmartObjectCommand(id));
+          // **D-076 refactor**: same service powers Inspector Rasterize
+          // button. Kept as thin pass-through because the action is a
+          // single dispatch — but funneling through the service keeps
+          // the call surface uniform across plugin and panel.
+          fromCtx(SmartObjectActionsService, runCtx).rasterize(id);
         },
       }),
     );
@@ -2139,58 +2145,12 @@ async function exportAndDownload(
 
 // ── D-074 — Smart Object: Replace Contents (file picker) ──────────
 //
-// Programmatic `<input type="file">` to load a fresh SVG, parses it,
-// and dispatches `ReplaceSmartObjectContentsCommand` to swap the
-// wrapper's children. The wrapper's id / transform / style / metadata
-// are preserved — only the inner content changes, hence "replace
-// contents". Mirrors Photoshop's "Replace Contents…" flow.
-function replaceSmartObjectContents(
-  smartObjectId: NodeId,
-  runCtx: MenuContributionContext | undefined,
-  fromCtx: Resolver,
-): void {
-  if (typeof document === 'undefined') return;
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.svg,image/svg+xml';
-  input.style.display = 'none';
-  input.addEventListener(
-    'change',
-    () => {
-      const file = input.files?.[0];
-      input.remove();
-      if (file === undefined || file === null) return;
-      void file.text().then((text) => {
-        const result = svgImporter.import(text);
-        if (!result.ok) {
-          if (typeof window !== 'undefined') {
-            window.alert(`Replace failed: ${result.error}`);
-          }
-          return;
-        }
-        // The imported document has a root group with the actual
-        // top-level shapes as children. Pull those out — we don't
-        // want to nest a fresh root inside the smart object.
-        const newChildren: readonly SvgNode[] = result.document.root.children;
-        if (newChildren.length === 0) {
-          if (typeof window !== 'undefined') {
-            window.alert('Replace failed: imported SVG has no shapes');
-          }
-          return;
-        }
-        fromCtx(CommandBus, runCtx).dispatch(
-          new ReplaceSmartObjectContentsCommand(smartObjectId, newChildren),
-        );
-        if (result.warnings.length > 0 && typeof console !== 'undefined') {
-          console.warn(`[SVGEngine] Replace warnings:\n${result.warnings.join('\n')}`);
-        }
-      });
-    },
-    { once: true },
-  );
-  document.body.appendChild(input);
-  input.click();
-}
+// **D-076 refactor**: the file-picker + parse + dispatch flow lives in
+// `SmartObjectActionsService` (`svg-engine/edit/src/lib/smart-object-actions/`)
+// so the Inspector Smart Object section calls the SAME code path as
+// this menu entry. The plugin dispatches via
+// `SmartObjectActionsService.replaceContents(id)` — see the
+// `Replace Contents…` registration in the smart-object submenu above.
 
 // D-074 — Edit Smart Object Contents is handled by the UI-layer
 // plugin (svg-engine/ui's `builtinUiMenuContributionsPlugin`)

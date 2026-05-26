@@ -20,8 +20,11 @@ import { AUTOSAVE_STORAGE_KEY } from '../autosave/autosave.config';
 import { AutoSaveService } from '../autosave/autosave.service';
 import { ClipboardService } from '../clipboard/clipboard.service';
 import { ChainFilterRegistry } from '../effect/chain-filter';
+import { AssetExportRegistry } from '../asset-export/asset-export-registry.service';
+import { AssetExportRunner } from '../asset-export/asset-export-runner.service';
 import { SelectSameService } from '../find-replace/select-same.service';
 import { IsolationService } from '../isolation/isolation.service';
+import { SmartObjectActionsService } from '../smart-object-actions/smart-object-actions.service';
 import { ActiveDefsService } from '../library/active-defs.service';
 import { AssetManagerService } from '../library/assets/asset-manager.service';
 import { BrushSelectionService } from '../library/brushes/brush-library.service';
@@ -233,6 +236,12 @@ const STATEFUL_SCOPED_TOKENS: readonly ProviderToken<unknown>[] = [
   TraceProgressService,
   // edit — find/replace + select-same
   SelectSameService,
+  // D-076 — Smart Object actions (Replace Contents + Rasterize) shared
+  // by menu plugin and Inspector section.
+  SmartObjectActionsService,
+  // D-077 — Asset Export (batch export). Registry + Runner per-editor.
+  AssetExportRegistry,
+  AssetExportRunner,
 ];
 
 describe('provideSvgEngineEditorScope — stateful services exhaustiveness trap', () => {

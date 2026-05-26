@@ -6,6 +6,145 @@
 
 ---
 
+## 2026-05-26 — D-076 + D-077: Inspector Smart Object section + Asset Export panel
+
+**O quê.** Duas entregas relacionadas que fecham o ciclo D-074 (Smart
+Objects) e adicionam batch export ao shell profissional:
+
+- **D-076** — seção contextual no `<svge-inspector>` que renderiza
+  APENAS quando o nó focado é um Smart Object. Mostra ícone +
+  nome + contagem de filhos + 3 botões (Edit Contents / Replace
+  Contents / Rasterize) que delegam para o **mesmo** service que o
+  menu plugin usa. Refator paralelo: a função
+  `replaceSmartObjectContents` inline no plugin foi extraída para
+  `SmartObjectActionsService` em `svg-engine/edit` — single source
+  of truth, Inspector e Plugin chamam o mesmo código.
+
+- **D-077** — nova aba "Export" no right rail do `<svge-shell-pro>`
+  com `<svge-asset-export-panel>`. Pattern Illustrator/Figma:
+  listas de "export slots" (target + format + scale + filename)
+  que o usuário monta uma vez e dispara em batch via "Export All".
+  Resolver de nomes únicos disambigua colisões (logo.svg + logo
+  (1).svg) ao estilo Finder/Windows Explorer.
+
+**Por quê.** D-076 completa o D-074 — Smart Objects agora têm
+descobribilidade pelo Inspector além do menu Object ▸ Smart Object.
+Usuários que selecionarem um SO no canvas verão imediatamente as
+ações dedicadas em vez do Inspector genérico de grupo (caía no
+`@default` do switch sem geometria editável).
+
+D-077 fecha uma lacuna de exportação vs Illustrator/Figma — antes
+o editor só exportava o documento inteiro (single shot via menu
+File ▸ Export SVG/PNG); workflows como "exporta logo.svg +
+logo@1x.png + logo@2x.png + logo@3x.png em um click" demandavam
+um painel dedicado de export recipes.
+
+**Implementação.**
+
+**D-076 (3 arquivos)**:
+
+- **`edit/smart-object-actions/`** novo módulo:
+  `SmartObjectActionsService` com `replaceContents(nodeId)` (file
+  picker programático + svgImporter + dispatch
+  `ReplaceSmartObjectContentsCommand`) e `rasterize(nodeId)`
+  (dispatch `RasterizeSmartObjectCommand`). Tratamento de erro
+  unificado (window.alert + console.warn para warnings non-fatal).
+
+- **`edit/menu/builtin/`** refatorado: handlers de `Replace
+Contents…` e `Rasterize Smart Object` agora delegam para
+  `fromCtx(SmartObjectActionsService, runCtx).{replaceContents,
+rasterize}` em vez de inline. Função `replaceSmartObjectContents`
+  inline removida (substituída por chamada de service). Comentário
+  forwarding fica como breadcrumb.
+
+- **`ui/inspector/`** ganhou:
+  - Imports `isSmartObject`, `SmartObjectActionsService`,
+    `SvgeSmartObjectEditorDialogService`, `Injector`, `MatButton`.
+  - Nova seção condicional `@if (isSmartObjectNode(node))` entre
+    Geometry e Transform: ícone `inventory_2` (tertiary accent
+    matching layers panel), nome + child count, 3 botões empilhados.
+  - Métodos `editSmartObjectContents` (abre dialog forwarding
+    injector pra D-042 scope), `replaceSmartObjectContents` e
+    `rasterizeSmartObject` (delegam para o service).
+  - CSS dedicado (.so-summary, .so-icon, .so-actions, danger tint
+    pro Rasterize).
+
+- **Scope provider** ganhou `SmartObjectActionsService` (per-
+  editor scope para D-042 safety — o service injeta CommandBus
+  no construtor, sem scoping capturaria o root CommandBus). Trava
+  de regressão estendida.
+
+**D-077 (5 arquivos novos + wiring)**:
+
+- **`edit/asset-export/asset-export.types.ts`** — `ExportSlot`
+  interface ({ id, target, exporterId, scale, filename }),
+  `ExportSlotInput`, `ExportSlotResult` (ok/error union).
+
+- **`edit/asset-export/asset-export-registry.service.ts`** —
+  signal-based registry (`slots()`, `count()`, `add()`, `update()`,
+  `remove()`, `clear()`, `setAll()`) + `resolveUniqueName(raw,
+ext, used)` que disambigua colisões (logo.svg, logo (1).svg,
+  logo (2).svg) com lookup case-insensitive.
+
+- **`edit/asset-export/asset-export-runner.service.ts`** —
+  `exportSlot(slot, usedNames)` e `exportAll()` que executam o
+  batch via `ExporterRegistry.get(exporterId).export(doc)`,
+  resolve filenames únicos, e dispara downloads via
+  `URL.createObjectURL` + `<a download>`. PNG com scale custom
+  bypassa pngExporter.export() (2× hardcoded) e usa
+  `renderPng(doc, scale)` direto.
+
+- **`ui/asset-export-panel/`** — `<svge-asset-export-panel>`
+  standalone: header com Add Slot (form inline collapsible) +
+  Export All button + count; lista de slot rows com filename
+  input inline, ext tag, scale tag (dim para vector), per-row
+  download + remove buttons + per-row success/fail badge após
+  export. ARIA proper (`role="list"`, `role="listitem"`,
+  `aria-label` descritivo).
+
+- **`ui/shell-pro/`** ganhou nova `<ng-template
+svgePanelGroupTab>` "Export" (icon download) projetando
+  `<svge-asset-export-panel>` ao lado de Layers/History/Properties/
+  Appearance no right-rail panel-group.
+
+- **Scope provider** ganhou `AssetExportRegistry` +
+  `AssetExportRunner` (per-editor — recipes não vazam entre
+  editors, runner usa o documento do scope ativo). Trava de
+  regressão estendida para 41 services agora (era 38 + 3 novos).
+
+**Specs.** **+23 testes**: 4 cobrindo `SmartObjectActionsService.
+rasterize` (incluindo undo round-trip + idempotência); 16 cobrindo
+`AssetExportRegistry` (add/update/remove/clear/setAll +
+`resolveUniqueName` em 7 cenários incluindo case-insensitive); +3
+da expansão da trava de exhaustividade para `SmartObjectActionsService`,
+`AssetExportRegistry`, `AssetExportRunner`. Suíte total: **1640
+passing**, 1 skipped (era 1617).
+
+**Não duplicado / não quebrado.**
+
+- Custom Editor intacto conforme regra estabelecida.
+- Plugin de menu agora consome o mesmo service que o Inspector —
+  zero duplicação de lógica de file picker.
+- Comandos `RasterizeSmartObjectCommand` e
+  `ReplaceSmartObjectContentsCommand` permanecem como API pública;
+  só o **call site** mudou (de inline na plugin para service).
+
+**Trade-offs e escopo deferido (D-077)**:
+
+- Persistência das slots: out of scope. O host pode round-trip
+  via `slots()` / `setAll()` para localStorage se quiser.
+- Per-node target: a interface `target: 'document' | { nodeId }`
+  já contempla, mas v1 só implementa `'document'`. Future polish.
+- Custom naming patterns (`{name}-{scale}x.{ext}`): v1 fica em
+  string literal por previsibilidade. Pode evoluir.
+
+**Cuidados D-042 / D-017 já endereçados.** Smart Object dialog
+forwarding injector (scope-aware); AssetExportRunner per-editor
+scope; nenhum import de Material em `svg-engine/edit`; spec-trava
+agora cobre 41 services stateful obrigatórios no scope.
+
+---
+
 ## 2026-05-26 — PRO-GAP-FIX: 2 bugs reportados após teste visual (B1 + B2)
 
 **O quê.** Dois bugs descobertos ao testar a entrega PRO-GAP no
