@@ -1,5 +1,11 @@
 import { computed, effect, inject, Injectable, signal } from '@angular/core';
-import { type BoundingBox, getPageViewBox, type NodeId } from 'svg-engine/core';
+import {
+  type BoundingBox,
+  EditorStateService,
+  getPageViewBox,
+  type NodeId,
+  type SvgNode,
+} from 'svg-engine/core';
 import { PagesService } from './pages.service';
 
 /**
@@ -25,6 +31,7 @@ import { PagesService } from './pages.service';
 @Injectable({ providedIn: 'root' })
 export class ActivePageService {
   private readonly pages = inject(PagesService);
+  private readonly state = inject(EditorStateService);
 
   /** Writable internal signal — public reads go through {@link activePageId}. */
   private readonly _activePageId = signal<NodeId | null>(null);
@@ -83,4 +90,30 @@ export class ActivePageService {
   setActive(pageId: NodeId | null): void {
     this._activePageId.set(pageId);
   }
+
+  /**
+   * **PAGES-C** — convenience signal for renderers. Returns the
+   * active page's GroupNode when one is selected, otherwise falls
+   * back to the document's root. Lets shells bind their
+   * `<svge-renderer [tree]="..."/>` to a single signal that handles
+   * both "pages mode" and "legacy single-root" docs uniformly.
+   */
+  readonly treeForRendering = computed<SvgNode>(() => {
+    const page = this.activePage();
+    if (page !== null) return page as unknown as SvgNode;
+    return this.state.document().root;
+  });
+
+  /**
+   * **PAGES-C** — companion to {@link treeForRendering}. Returns the
+   * active page's `pageViewBox` when present, otherwise the document's
+   * own viewBox. Bind to `<svge-renderer [viewBox]="..."/>` so the
+   * canvas frames the active page (or the whole document in legacy
+   * mode) correctly.
+   */
+  readonly viewBoxForRendering = computed<BoundingBox>(() => {
+    const pvb = this.activePageViewBox();
+    if (pvb !== null) return pvb;
+    return this.state.document().viewBox;
+  });
 }

@@ -124,3 +124,8 @@ export * from './lib/dialog-shell';
 // edit-side AssetExportRegistry + AssetExportRunner. Mount inside
 // any panel-group tab to expose batch-export workflows.
 export * from './lib/asset-export-panel';
+
+// D-079 — Pages / Artboards tab strip (PAGES-C). Horizontal browser-
+// style tabs above the canvas. Auto-hides when the document has zero
+// pages (back-compat). Pairs with PagesService + ActivePageService.
+export * from './lib/pages-panel';

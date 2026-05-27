@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import { type BoundingBox, EditorStateService, type SvgNode } from 'svg-engine/core';
 import {
   ActiveDefsService,
+  ActivePageService,
   GradientOverlay,
   GridOverlay,
   GuidesOverlay,
@@ -25,6 +26,7 @@ import { SvgeLibrariesPanel } from '../libraries-panel';
 import { SnapshotsPanel } from '../snapshots-panel';
 import { SvgeAssetExportPanel } from '../asset-export-panel';
 import { SvgeMenuBar } from '../menu-bar';
+import { SvgePagesPanel } from '../pages-panel';
 import { SvgeThemeToggle } from '../theme-toggle';
 import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
 import { SvgeRulers } from '../rulers';
@@ -115,6 +117,7 @@ import { SvgeToolsPalette } from '../tools-palette';
     SvgeContextMenuTrigger,
     SvgeAssetExportPanel,
     SvgeMenuBar,
+    SvgePagesPanel,
     SvgeThemeToggle,
     SvgeToolbar,
     SvgeToolOptions,
@@ -148,6 +151,14 @@ import { SvgeToolsPalette } from '../tools-palette';
       <svge-toolbar slot="toolbar.main" />
     </div>
     <svge-tool-options class="tool-options-row" [showPlaceholder]="true" />
+    <!--
+      D-079 / PAGES-C — Pages tab strip. Auto-hides when the document
+      has zero pages (PagesService.hasPages() === false), so legacy
+      single-root documents render the shell unchanged. When pages
+      exist, the strip sits below the tool options bar — Figma/
+      Affinity convention (tabs immediately above the canvas).
+    -->
+    <svge-pages-panel class="pages-row" />
     <div class="main">
       <aside class="tools-side" aria-label="Tools palette">
         <svge-tools-palette />
@@ -289,7 +300,10 @@ import { SvgeToolsPalette } from '../tools-palette';
   styles: `
     :host {
       display: grid;
-      grid-template-rows: auto auto auto 1fr auto;
+      /* 6 rows: menu | toolbar | tool-options | pages (D-079) | main(1fr) | status.
+         pages-row auto-collapses to 0 height when SvgePagesPanel renders
+         nothing (legacy docs with zero pages) — no visual offset. */
+      grid-template-rows: auto auto auto auto 1fr auto;
       width: 100%;
       height: 100%;
       min-height: 0;
@@ -330,6 +344,12 @@ import { SvgeToolsPalette } from '../tools-palette';
       /* No rules — svge-tool-options already paints its own surface +
          bottom border; we keep the selector so the grid row tracking
          in the host doesn't shift if a consumer overrides via ::ng-deep. */
+    }
+    .pages-row {
+      /* No rules — svge-pages-panel paints its own surface + bottom
+         border inside .pages-bar when content is visible; we keep the
+         selector for parity with sibling rows and for consumer
+         overrides via ::ng-deep. */
     }
     .main {
       display: grid;
@@ -389,6 +409,12 @@ export class SvgeShellPro {
   // patterns, effects, chains, clipPaths, masks). Same service feeds
   // the exporter so the exported SVG matches the canvas paint.
   private readonly activeDefs = inject(ActiveDefsService);
+  // D-079 / PAGES-C — when the document has at least one page,
+  // resolvedTree/ViewBox prefer the active page's GroupNode +
+  // pageViewBox. Legacy docs without pages keep the full-document
+  // behavior (treeForRendering / viewBoxForRendering fall back to
+  // root + document.viewBox).
+  private readonly activePage = inject(ActivePageService);
 
   /**
    * **D-040** — Dynamic context-menu slot resolver. Right-click on a
@@ -414,12 +440,20 @@ export class SvgeShellPro {
   /** Slot id for the right-click context menu. Default `'context.canvas'`. */
   readonly contextMenuSlot = input<string>('context.canvas');
 
-  protected readonly resolvedTree = computed<SvgNode>(
-    () => this.tree() ?? this.state.document().root,
-  );
-  protected readonly resolvedViewBox = computed<BoundingBox>(
-    () => this.viewBox() ?? this.state.document().viewBox,
-  );
+  protected readonly resolvedTree = computed<SvgNode>(() => {
+    // Consumer-supplied [tree] always wins (advanced use-cases).
+    const explicit = this.tree();
+    if (explicit !== null) return explicit;
+    // D-079: when a page is active, render only its subtree.
+    // ActivePageService.treeForRendering falls back to document.root
+    // when no page exists (back-compat with legacy docs).
+    return this.activePage.treeForRendering();
+  });
+  protected readonly resolvedViewBox = computed<BoundingBox>(() => {
+    const explicit = this.viewBox();
+    if (explicit !== null) return explicit;
+    return this.activePage.viewBoxForRendering();
+  });
   /**
    * Effective `<defs>` fragment fed to `<svge-renderer>`. Delegates to
    * `ActiveDefsService.buildExportDefs()` — same composer the exporter
