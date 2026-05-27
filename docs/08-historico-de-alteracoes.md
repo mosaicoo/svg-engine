@@ -6,6 +6,72 @@
 
 ---
 
+## 2026-05-27 — D-079 (PAGES-A→E): Pages / Artboards multi-página
+
+**O quê.** Suporte completo a múltiplas páginas (Pages / Artboards /
+Frames) num único documento — feature mais pedida em editores
+vetoriais que ainda não existia no SVGEngine. Cada page tem viewBox
+próprio + nome editável; canvas mostra só a página ativa; tab strip
+estilo browser-tabs acima do canvas pra navegar/criar/deletar/
+renomear; round-trip via SVG preserva tudo.
+
+**Decisão arquitetural** (registrada em D-079 no `04-decisoes-tecnicas.md`):
+adotamos a abordagem "page = GroupNode com `metadata.customData.svgeKind = 'page'`",
+mesma técnica de D-072 (Layer) e D-074 (Smart Object) — o slot
+`svgeKind` foi documentado desde D-072 como genérico para "future
+group-like concepts". **Zero mudança no `SvgDocument` model.**
+Reaproveitamento 100% do código existente (renderer, tools, commands,
+IO, Layers Panel). Centenas de arquivos e ~1660 testes pré-PAGES
+continuam intactos.
+
+**Entregue em 5 fases / commits**:
+
+- **PAGES-A** (`796a301`): core helpers (`isPage`, `getPageViewBox`,
+  `getPageName`, `withPageFlag`, `withoutPageFlag`,
+  `withPageViewBox`, `withPageName`) + 4 commands undoable
+  (`CreatePageCommand`, `DeletePageCommand`, `RenamePageCommand`,
+  `ResizePageCommand`). +34 specs.
+- **PAGES-B** (`4f9fcdd`): `PagesService` (derived list reativa) +
+  `ActivePageService` (signal `activePageId` + computed
+  `activePage` / `activePageViewBox` + auto-recovery effect)
+  per-editor scope (D-042). +10 specs.
+- **PAGES-C** (`e5d1b13`): `<svge-pages-panel>` (browser-tab style
+  com add+/X-delete/dblclick-rename) + wire no `<svge-shell-pro>`
+  (nova grid row + override do `resolvedTree`/`resolvedViewBox`
+  via `ActivePageService.treeForRendering` / `viewBoxForRendering`).
+  Auto-hide quando doc não tem pages (back-compat 100%). +10 specs.
+- **PAGES-D** (`4964c08`): svg-exporter emite
+  `data-svge-kind="page"` + `data-svge-page-viewbox="x y w h"`
+  - opcional `data-svge-page-name`; svg-importer parseia ambos.
+    Inspector ganha tab "Page" condicional com nome editável +
+    viewBox 2×2 grid + delete action. +7 specs.
+- **PAGES-E** (este commit): doc-catchup — D-079 em `04`, entrada
+  resumo em `08`, verificação final.
+
+**Total**: +61 specs novos, zero regressão. Suite saiu de 1672
+(pré-PAGES) para 1733 passing / 1 skipped.
+
+**Como testar**:
+
+1. Abra `<svge-shell-pro>` (rota `/shell-pro-demo`).
+2. Doc legado abre normal — tab strip não aparece.
+3. Crie uma page programaticamente OU adicione import-side
+   `data-svge-kind="page"` num grupo top-level.
+4. Tab strip aparece acima do canvas; canvas passa a mostrar só
+   a page ativa; Inspector ganha aba "Page".
+5. Add (+) cria Page 2, delete (X) remove (Ctrl+Z restaura),
+   dblclick no nome → input → Enter renomeia.
+
+**Limitações documentadas (deferidas)**:
+
+- Reorder de tabs via drag-drop (model suporta; UX CDK DnD pendente).
+- Export multi-page batch (slot pattern AssetExportRegistry já
+  resolve via plugin custom — sem demanda atual).
+- Pages aninhadas em outros groups (model permite, UI ignora — by
+  design, mesmo rule do D-072 Layer).
+
+---
+
 ## 2026-05-26 — DBLCLICK-FIX: bloquear popup nativo do navegador em dblclick
 
 **O quê.** Regressão reportada pelo usuário: dblclick no canvas

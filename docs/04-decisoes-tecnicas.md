@@ -1600,3 +1600,96 @@ Sort secundário (tiebreaker quando |Δconfidence| ≤ 0.05): `matches.length` d
 - Demanda explícita de consumer (Mosaicoo, third-party) por command palette / voice
 - Mosaicoo entrar em modo acessibilidade explícito
 - Atingir nível de maturidade onde o catálogo de intents auto-descobertos do `MenuContributionRegistry` cobrir comandos suficientes para validar a Fase 1 standalone
+
+---
+
+## D-079 — Pages / Artboards via GroupNode metadata flag
+
+**Status**: ✅ Aceito — implementado em PAGES-A→E (2026-05-26/27)
+
+### Contexto
+
+A lista original de 20 features (bootstrap, seção 10) cobria "Camadas"
+mas não Pages/Artboards explicitamente. Editores profissionais
+(Illustrator, Figma, Affinity) tratam pages/frames/artboards como
+contêineres top-level com viewBox próprio — permite múltiplas variantes
+de logo, mockups multi-tela, batch export de assets.
+
+### Alternativas consideradas
+
+**A — Mudar `SvgDocument` para `pages[]`**: refatoração estrutural do
+model. Quebraria centenas de arquivos (Inspector, Renderer, tools,
+IO, ~1660 testes precisariam de ajuste). Custo enorme + risco alto.
+
+**B — Página como `<svg>` aninhado (compound document)**: válido SVG,
+mas Renderer atual não trata `<svg>` recursivo. Mudança significativa
+no Renderer + complexidade no parser/serializer.
+
+**C — Página = `GroupNode` flagado com `metadata.customData.svgeKind = 'page'`**
+(escolhido): zero alteração no model. Pages viram first-class no
+Layers Panel automaticamente. Reaproveitamento total do pattern já
+aplicado em D-072 (Layer) e D-074 (Smart Object) — mesmo slot
+`svgeKind` documentado como genérico para "future group-like
+concepts".
+
+### Decisão
+
+**Adotar abordagem C.** Pages são `GroupNode` com:
+
+- `metadata.customData.svgeKind === 'page'` (single-slot kind)
+- `metadata.customData.svgePageViewBox = {x,y,width,height}` (viewBox próprio)
+- `metadata.customData.svgePageName?: string` (nome opcional, fallback `metadata.name`)
+
+### Implementação
+
+Entregue em 5 fases (PAGES-A→E):
+
+- **PAGES-A** (`796a301`): core helpers (`isPage`, `getPageViewBox`,
+  `getPageName`, `withPageFlag`, `withoutPageFlag`, `withPageViewBox`,
+  `withPageName`) + 4 commands (`CreatePageCommand`,
+  `DeletePageCommand`, `RenamePageCommand`, `ResizePageCommand`).
+  +34 specs.
+- **PAGES-B** (`4f9fcdd`): `PagesService` (derived list) +
+  `ActivePageService` (signal activePageId + auto-recovery effect)
+  per-editor scope (D-042). +10 specs.
+- **PAGES-C** (`e5d1b13`): `<svge-pages-panel>` (browser-tab style
+  UI) + wire no shell-pro (nova grid row + override de
+  resolvedTree/ViewBox via ActivePageService.treeForRendering /
+  viewBoxForRendering). +10 specs.
+- **PAGES-D** (`4964c08`): svg-exporter emite `data-svge-kind="page"`
+  - `data-svge-page-viewbox`; svg-importer parseia ambos.
+    Inspector ganha tab "Page" condicional com nome editável +
+    viewBox 2×2 grid + delete action. +7 specs.
+- **PAGES-E**: doc-catchup (este arquivo + 05 roadmap + 08
+  histórico) + verificação final + push.
+
+**Total**: 5 commits, +61 specs novos, zero regressão em qualquer
+fase. Suite saiu de 1672 (pré-PAGES) para 1733 passing / 1 skipped.
+
+### Consequências
+
+**Positivas**:
+
+- Back-compat 100%: docs sem pages renderizam idênticos ao
+  comportamento pré-D-079 (renderer cai no `document.root` quando
+  `activePageId === null`).
+- Pages aparecem no Layers Panel automaticamente (são groups).
+- Layer Panel drag-drop, lock, visibility — tudo funciona sem
+  código novo, herdou de D-072.
+- Round-trip SVG → re-import preserva pages mesmo via editores
+  terceiros (data-attrs são preservados por Inkscape/Illustrator/
+  Figma).
+- 4 commands undoable via `CommandBus` padrão.
+- `<svge-pages-panel>` auto-hide em docs single-root (sem zeropage
+  state visível).
+
+**Negativas / limitações**:
+
+- Multi-page export via UI usa página ativa apenas; export
+  multi-page completo requer plugin custom (slot pattern já
+  existe via `AssetExportRegistry` D-077). Deferido para
+  follow-up se houver demanda.
+- Reorder de tabs via drag-drop deferido pra v2 (model já
+  suporta, UX da DnD precisa wire CDK).
+- Pages não suportam transform próprio diferente do GroupNode
+  (herdam comportamento — é uma feature, não bug).
