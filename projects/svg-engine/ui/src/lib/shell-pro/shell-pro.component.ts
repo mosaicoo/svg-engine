@@ -164,14 +164,6 @@ import { SvgeToolsPalette } from '../tools-palette';
       <svge-toolbar slot="toolbar.main" />
     </div>
     <svge-tool-options class="tool-options-row" [showPlaceholder]="true" />
-    <!--
-      D-079 / PAGES-C — Pages tab strip. Auto-hides when the document
-      has zero pages (PagesService.hasPages() === false), so legacy
-      single-root documents render the shell unchanged. When pages
-      exist, the strip sits below the tool options bar — Figma/
-      Affinity convention (tabs immediately above the canvas).
-    -->
-    <svge-pages-panel class="pages-row" [alwaysShow]="true" />
     <div class="main">
       <aside class="tools-side" aria-label="Tools palette">
         <svge-tools-palette />
@@ -204,6 +196,18 @@ import { SvgeToolsPalette } from '../tools-palette';
           paints on top of the renderer / workspace-background.
         -->
         <svge-isolation-breadcrumb class="iso-breadcrumb-overlay" />
+        <!--
+          **PAGES-REFACTOR follow-up #8** — D-079 pages tab strip,
+          repositioned as a BOTTOM overlay inside the canvas (mirror of
+          the breadcrumb at top). Was previously its own grid row above
+          the canvas which permanently stole vertical space; now it
+          floats over the bottom of the canvas — same architectural
+          pattern as the isolation breadcrumb. The strip still
+          auto-collapses (alwaysShow=true keeps the "+" button always
+          available; the tab list grows downward only when pages exist),
+          so the overlay claims minimal vertical real estate.
+        -->
+        <svge-pages-panel class="pages-overlay" [alwaysShow]="true" />
         <svge-workspace-background>
           <svge-renderer
             svgeLayersFilter
@@ -342,10 +346,12 @@ import { SvgeToolsPalette } from '../tools-palette';
   styles: `
     :host {
       display: grid;
-      /* 6 rows: menu | toolbar | tool-options | pages (D-079) | main(1fr) | status.
-         pages-row auto-collapses to 0 height when SvgePagesPanel renders
-         nothing (legacy docs with zero pages) — no visual offset. */
-      grid-template-rows: auto auto auto auto 1fr auto;
+      /* 5 rows: menu | toolbar | tool-options | main(1fr) | status.
+         Pages strip (D-079) used to be its own row between tool-options
+         and main; PAGES-REFACTOR follow-up #8 moved it into canvas-cell
+         as a bottom overlay (same pattern as the isolation breadcrumb
+         at top), so the grid row went away. */
+      grid-template-rows: auto auto auto 1fr auto;
       width: 100%;
       height: 100%;
       min-height: 0;
@@ -387,12 +393,9 @@ import { SvgeToolsPalette } from '../tools-palette';
          bottom border; we keep the selector so the grid row tracking
          in the host doesn't shift if a consumer overrides via ::ng-deep. */
     }
-    .pages-row {
-      /* No rules — svge-pages-panel paints its own surface + bottom
-         border inside .pages-bar when content is visible; we keep the
-         selector for parity with sibling rows and for consumer
-         overrides via ::ng-deep. */
-    }
+    /* .pages-row removed in PAGES-REFACTOR follow-up #8 — the strip
+       lives inside .canvas-cell as a bottom overlay now (see
+       .pages-overlay below). */
     .main {
       display: grid;
       /* 4-column layout (D-048):
@@ -417,9 +420,10 @@ import { SvgeToolsPalette } from '../tools-palette';
       background: var(--mat-sys-surface-container-low, transparent);
     }
     /* Generic full-bleed stretch for canvas-cell children (renderer,
-       workspace-background, etc.). Excludes the isolation breadcrumb,
-       which uses its own pinned-top positioning below. */
-    .canvas-cell > *:not(.iso-breadcrumb-overlay) {
+       workspace-background, etc.). Excludes the isolation breadcrumb
+       (pinned top) and the pages overlay (pinned bottom) — see their
+       dedicated rules below. */
+    .canvas-cell > *:not(.iso-breadcrumb-overlay):not(.pages-overlay) {
       position: absolute;
       inset: 0;
     }
@@ -446,6 +450,30 @@ import { SvgeToolsPalette } from '../tools-palette';
        falls back to top: 0 / left: 0 from the base rule above. */
     .canvas-cell.with-rulers > .iso-breadcrumb-overlay {
       top: 24px;
+      left: 24px;
+    }
+    /* PAGES-REFACTOR follow-up #8 — D-079 pages tab strip pinned to
+       the BOTTOM of the canvas (mirror of the breadcrumb at top).
+       Same z-index/pointer-events treatment: the host stays
+       click-through so the canvas underneath remains interactive
+       around the strip's actual buttons; SvgePagesPanel paints its
+       own surface with pointer-events: auto on its inner controls. */
+    .canvas-cell > .pages-overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 3;
+      pointer-events: none;
+    }
+    .canvas-cell > .pages-overlay > * {
+      pointer-events: auto;
+    }
+    /* When rulers are visible, shift the pages strip in by the
+       vertical-ruler width (left only — there's no bottom ruler so
+       the bottom edge stays at 0). Same 24px constant as the
+       breadcrumb's with-rulers offset above. */
+    .canvas-cell.with-rulers > .pages-overlay {
       left: 24px;
     }
     /* Re-enable pointer events on the visible bar only — the host
