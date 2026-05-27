@@ -15,20 +15,27 @@ import { MatMenu, MatMenuTrigger } from '@angular/material/menu';
 import { MatOption, MatSelect } from '@angular/material/select';
 import {
   BatchConvertToPathCommand,
+  type BoundingBox,
   CommandBus,
   decomposeTransform,
+  DeletePageCommand,
   EditorStateService,
   findNodeById,
   type FlipAxis,
   FlipNodeCommand,
+  getPageName,
+  getPageViewBox,
   GroupSelectionCommand,
   isGroupNode,
+  isPage,
   isSmartObject,
   type NodeId,
   type Point,
   type ReorderDirection,
+  RenamePageCommand,
   ReorderNodeCommand,
   ResizeNodeCommand,
+  ResizePageCommand,
   RotateNodeCommand,
   SetPropertyCommand,
   SetStylePropertyOnManyCommand,
@@ -320,6 +327,89 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
           child-count read-out so the user gets a Photoshop-style
           asset-properties panel without leaving the Inspector.
         -->
+        <!--
+          D-079 / PAGES-D — Page section. Conditional on the focused
+          node being a page (mutually exclusive with smart-object).
+          Surfaces editable name + viewBox dimensions + delete action.
+          The Pages tab strip above the canvas handles add/select/
+          reorder; this section is the "property sheet" for the page
+          currently focused.
+        -->
+        @if (isPageNode(node)) {
+          <ng-template
+            svgePanelGroupTab
+            svgePanelGroupTabId="page"
+            label="Page"
+            icon="crop_landscape"
+          >
+            <section class="section">
+              <h3 class="section-title">Page</h3>
+              <div class="page-meta">
+                <mat-icon class="page-icon" aria-hidden="true">crop_landscape</mat-icon>
+                <mat-form-field appearance="outline" class="page-name-field">
+                  <mat-label>Name</mat-label>
+                  <input
+                    matInput
+                    type="text"
+                    [value]="pageName(node)"
+                    (change)="onPageNameChange(node, $event)"
+                  />
+                </mat-form-field>
+              </div>
+              <div class="page-viewbox-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>X</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    [value]="pageViewBoxField(node, 'x')"
+                    (change)="onPageViewBoxChange(node, 'x', $event)"
+                  />
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Y</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    [value]="pageViewBoxField(node, 'y')"
+                    (change)="onPageViewBoxChange(node, 'y', $event)"
+                  />
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Width</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    [value]="pageViewBoxField(node, 'width')"
+                    (change)="onPageViewBoxChange(node, 'width', $event)"
+                  />
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Height</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    [value]="pageViewBoxField(node, 'height')"
+                    (change)="onPageViewBoxChange(node, 'height', $event)"
+                  />
+                </mat-form-field>
+              </div>
+              <div class="page-actions">
+                <button
+                  mat-stroked-button
+                  type="button"
+                  class="page-action-btn page-action-danger"
+                  (click)="deletePage(node)"
+                  title="Delete this page (children removed; Ctrl+Z to restore)"
+                >
+                  <mat-icon aria-hidden="true">delete_outline</mat-icon>
+                  Delete Page
+                </button>
+              </div>
+            </section>
+          </ng-template>
+        }
+
         @if (isSmartObjectNode(node)) {
           <ng-template
             svgePanelGroupTab
@@ -2022,6 +2112,51 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
          wrapper irreversibly via undo only). */
       color: var(--mat-sys-error, #b3261e);
     }
+    /* D-079 / PAGES-D — Page section. Mirrors so-summary / so-actions
+       structure for visual consistency in the Inspector. */
+    .page-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+    }
+    .page-icon {
+      font-size: 24px;
+      width: 24px;
+      height: 24px;
+      opacity: 0.65;
+      flex-shrink: 0;
+    }
+    .page-name-field {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .page-viewbox-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: 4px 0;
+    }
+    .page-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding-top: 4px;
+    }
+    .page-action-btn {
+      justify-content: flex-start;
+      font-size: 12px;
+      line-height: 1.2;
+    }
+    .page-action-btn .mat-icon {
+      margin-right: 4px;
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+    .page-action-danger {
+      color: var(--mat-sys-error, #b3261e);
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -2125,6 +2260,68 @@ export class SvgeInspector {
   protected rasterizeSmartObject(node: SvgNode): void {
     if (!isSmartObject(node)) return;
     this.smartObjectActions.rasterize(node.id);
+  }
+
+  // ── D-079 / PAGES-D — Page section helpers ───────────────────────
+
+  /** Template guard — true when the focused node is a Page. */
+  protected isPageNode(node: SvgNode): boolean {
+    return isPage(node);
+  }
+
+  /** Display name for the Page tab. Falls back via getPageName helper. */
+  protected pageName(node: SvgNode): string {
+    return getPageName(node);
+  }
+
+  /**
+   * Read one component of the page's viewBox for the number-input
+   * binding. Returns empty string when the page's viewBox is missing
+   * — defensive, since the input is editable and a user-cleared field
+   * would temporarily hit this code path between `change` events.
+   */
+  protected pageViewBoxField(node: SvgNode, field: keyof BoundingBox): string {
+    const vb = getPageViewBox(node);
+    if (vb === null) return '';
+    const v = vb[field];
+    return Number.isFinite(v) ? String(v) : '';
+  }
+
+  /** Commit a page rename via {@link RenamePageCommand}. */
+  protected onPageNameChange(node: SvgNode, event: Event): void {
+    if (!isPage(node)) return;
+    const target = event.target as HTMLInputElement | null;
+    if (target === null) return;
+    const next = target.value.trim();
+    this.bus.dispatch(new RenamePageCommand(node.id, next));
+  }
+
+  /**
+   * Commit a single viewBox component edit via
+   * {@link ResizePageCommand}. Reads the current viewBox first to
+   * preserve the other 3 components — the command takes the FULL
+   * new viewBox so we must compose the next state here.
+   */
+  protected onPageViewBoxChange(node: SvgNode, field: keyof BoundingBox, event: Event): void {
+    if (!isPage(node)) return;
+    const current = getPageViewBox(node);
+    if (current === null) return;
+    const target = event.target as HTMLInputElement | null;
+    if (target === null) return;
+    const parsed = Number.parseFloat(target.value);
+    if (!Number.isFinite(parsed)) return;
+    const next: BoundingBox = { ...current, [field]: parsed };
+    this.bus.dispatch(new ResizePageCommand(node.id, next));
+  }
+
+  /**
+   * Delete the focused page via {@link DeletePageCommand}. The
+   * ActivePageService's auto-recovery effect picks a remaining page
+   * automatically — no manual reactivation needed here.
+   */
+  protected deletePage(node: SvgNode): void {
+    if (!isPage(node)) return;
+    this.bus.dispatch(new DeletePageCommand(node.id));
   }
 
   /** Currently focused node, or `null` (no/multi selection or stale id). */

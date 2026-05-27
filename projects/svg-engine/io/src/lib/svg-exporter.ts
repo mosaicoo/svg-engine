@@ -1,9 +1,12 @@
 import {
   type EllipseNode,
+  getPageName,
+  getPageViewBox,
   type GroupNode,
   type ImageNode,
   isGroupNode,
   isLayer,
+  isPage,
   isSmartObject,
   type LineNode,
   type NodeId,
@@ -239,6 +242,12 @@ function renderSymbolUse(node: SymbolUseNode, depth: number, ctx: ExportContext)
 function renderGroup(node: GroupNode, depth: number, ctx: ExportContext): string {
   const indent = '  '.repeat(depth);
   const attrs = baseAttrs(node);
+  // Capture metadata.name BEFORE the kind-narrowing if-chain. The
+  // chained `is GroupNode` guards (isLayer/isSmartObject/isPage) cause
+  // TS to narrow `node` to `never` after a few branches even though
+  // the guards aren't mutually exclusive at the type level — reading
+  // `node.metadata` inside the deeper else-if would error.
+  const groupBaseName = node.metadata.name;
   // **D-072 — Logical Layers**. Mark layer groups with a
   // `data-svge-kind="layer"` attribute so the designation survives a
   // full export → re-import round-trip. `data-*` attributes are valid
@@ -255,6 +264,31 @@ function renderGroup(node: GroupNode, depth: number, ctx: ExportContext): string
   // both — see `withSmartObjectFlag`'s spread semantics).
   else if (isSmartObject(node)) {
     attrs.push(['data-svge-kind', 'smart-object']);
+  }
+  // **D-079 — Pages / Artboards** (PAGES-D). Same data-attribute
+  // mechanism. Pages also carry their own viewBox (separate from the
+  // document-level viewBox) so re-import preserves the page geometry
+  // even when other editors don't recognise `data-svge-kind`. The
+  // viewBox is serialised as a space-separated quartet
+  // (`x y width height`) — same format as the SVG `viewBox` attribute
+  // for symmetry. Optional `data-svge-page-name` overrides
+  // `metadata.name` (mostly useful when an explicit page name diverges
+  // from the layer-style `<title>` we emit elsewhere).
+  else if (isPage(node)) {
+    attrs.push(['data-svge-kind', 'page']);
+    const pvb = getPageViewBox(node);
+    if (pvb !== null) {
+      attrs.push([
+        'data-svge-page-viewbox',
+        `${fmt(pvb.x)} ${fmt(pvb.y)} ${fmt(pvb.width)} ${fmt(pvb.height)}`,
+      ]);
+    }
+    const pname = getPageName(node);
+    // Emit explicit page-name ONLY when it differs from metadata.name
+    // (otherwise the layer-style <title> already carries the name).
+    if (pname.length > 0 && pname !== 'Untitled Page' && pname !== groupBaseName) {
+      attrs.push(['data-svge-page-name', pname]);
+    }
   }
   // **D-072 follow-up — Authored name via `<title>` child**. Emitted
   // as the FIRST child of the group so screen readers announce the

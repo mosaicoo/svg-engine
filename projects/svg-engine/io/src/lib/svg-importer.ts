@@ -15,7 +15,10 @@ import {
   parseTransformAttr,
   SVGE_KIND_KEY,
   SVGE_KIND_LAYER,
+  SVGE_KIND_PAGE,
   SVGE_KIND_SMART_OBJECT,
+  SVGE_PAGE_NAME_KEY,
+  SVGE_PAGE_VIEWBOX_KEY,
   type SvgDocument,
   type SvgNode,
   type SvgStyle,
@@ -269,6 +272,8 @@ function parseElement(
       // D-074 — Smart Object flag. Single-slot with layer; precedence
       // is irrelevant because the exporter never emits both at once.
       const isSmartObjectGroup = svgeKind === SVGE_KIND_SMART_OBJECT;
+      // D-079 / PAGES-D — Page flag + viewBox.
+      const isPageGroup = svgeKind === SVGE_KIND_PAGE;
       const opts = baseFactoryOpts(el);
       if (isLayerGroup) {
         // Merge the layer flag into customData WITHOUT clobbering the
@@ -282,6 +287,35 @@ function parseElement(
         opts.metadata = {
           ...(opts.metadata ?? {}),
           customData: { [SVGE_KIND_KEY]: SVGE_KIND_SMART_OBJECT },
+        };
+      } else if (isPageGroup) {
+        // Parse the page viewBox + optional explicit name. Falls back
+        // silently when the data-attribute is missing/malformed — the
+        // model accepts a page without viewBox (renderer + Inspector
+        // both fall back to the document's viewBox).
+        const customData: Record<string, unknown> = { [SVGE_KIND_KEY]: SVGE_KIND_PAGE };
+        const rawVB = el.getAttribute('data-svge-page-viewbox');
+        if (rawVB !== null) {
+          const parts = rawVB
+            .trim()
+            .split(/[\s,]+/)
+            .map((p) => Number.parseFloat(p));
+          if (parts.length === 4 && parts.every((n) => Number.isFinite(n))) {
+            customData[SVGE_PAGE_VIEWBOX_KEY] = {
+              x: parts[0]!,
+              y: parts[1]!,
+              width: parts[2]!,
+              height: parts[3]!,
+            };
+          }
+        }
+        const rawName = el.getAttribute('data-svge-page-name');
+        if (rawName !== null && rawName.length > 0) {
+          customData[SVGE_PAGE_NAME_KEY] = rawName;
+        }
+        opts.metadata = {
+          ...(opts.metadata ?? {}),
+          customData,
         };
       }
       return createGroup(parseChildren(el, warnings, unsupportedTags), opts);
