@@ -34,6 +34,7 @@ import { SymbolSprayerPreviewService } from '../library/symbols/symbol-sprayer-p
 import { TraceProgressService } from '../autotrace/trace-progress.service';
 import { LayersService } from '../layers/layers.service';
 import { MarqueeService } from '../marquee/marquee.service';
+import { ACTIVE_PAGE_STORAGE_KEY } from '../pages/active-page.config';
 import { ActivePageService } from '../pages/active-page.service';
 import { PagesService } from '../pages/pages.service';
 import { SelectionService } from '../selection/selection.service';
@@ -195,6 +196,27 @@ export interface SvgEngineEditorScopeOptions {
    * ```
    */
   readonly autoSaveKey?: string | null;
+
+  /**
+   * **PAGES-REFACTOR Fase 7** — override the `localStorage` base key
+   * used by {@link ActivePageService} to persist the currently-active
+   * page id. Default `'svge:activePage'`. Pass a distinct key per
+   * editor when the host mounts multiple editor instances so the
+   * sibling editors don't clobber each other's "last open page"
+   * memory. Pass `null` to disable persistence entirely (the service
+   * falls back to its auto-pick-first-page behavior on every mount).
+   *
+   * @example
+   * ```ts
+   * providers: [
+   *   provideSvgEngineEditorScope({
+   *     autoSaveKey: 'svge:autosave:editor-a',
+   *     activePageStorageKey: 'svge:activePage:editor-a',
+   *   }),
+   * ]
+   * ```
+   */
+  readonly activePageStorageKey?: string | null;
 }
 
 export function provideSvgEngineEditorScope(options?: SvgEngineEditorScopeOptions): Provider[] {
@@ -208,8 +230,18 @@ export function provideSvgEngineEditorScope(options?: SvgEngineEditorScopeOption
     options !== undefined && 'autoSaveKey' in options
       ? [{ provide: AUTOSAVE_STORAGE_KEY, useValue: options.autoSaveKey ?? null }]
       : [];
+  /**
+   * PAGES-REFACTOR Fase 7 — same pattern: explicit-presence check
+   * (`in`) lets `null` through as "disable" while leaving the root
+   * default in place when the option is omitted entirely.
+   */
+  const activePageKeyProvider: Provider[] =
+    options !== undefined && 'activePageStorageKey' in options
+      ? [{ provide: ACTIVE_PAGE_STORAGE_KEY, useValue: options.activePageStorageKey ?? null }]
+      : [];
   return [
     ...autosaveKeyProvider,
+    ...activePageKeyProvider,
     // ── core (document + mutations + history) ────────────────────
     EditorStateService,
     CommandBus,

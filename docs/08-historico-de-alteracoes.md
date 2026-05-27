@@ -6,6 +6,37 @@
 
 ---
 
+## 2026-05-27 — PAGES-REFACTOR Fase 7: persistência activePageId + auto-snapshot pré-Delete + selection clear no page switch
+
+**Contexto.** Três follow-ups infraestruturais que faltavam para o multi-page se sentir "real":
+
+1. Recarregar a página perdia a memória de qual página o usuário estava editando (sempre voltava pra primeira).
+2. Deletar uma página era permanente — nenhum buffer de recuperação automático (D-073 SnapshotsService já existia, só faltava o opt-in).
+3. Trocar de página ativa via Pages Panel mantinha a seleção do nó da página anterior — o overlay de seleção continuava desenhando bbox sobre "nada" porque o nó saiu do `treeForRendering()`.
+
+**O quê.**
+
+1. **`DeletePageCommand.isDestructive = true`** (`core/commands/page.commands.ts`). O `CommandBus.dispatch()` consulta esse marker e — se o `SnapshotsService` (D-073) estiver provido na scope — captura um snapshot ANTES do execute. Funciona para QUALQUER caminho que dispara o Delete (Pages Panel button, shortcut, context menu, plugin) sem wire-up por call-site.
+
+2. **Persistência do `activePageId`** (`edit/pages/active-page.config.ts` + `active-page.service.ts`):
+   - Novo `ACTIVE_PAGE_STORAGE_KEY` InjectionToken, default `'svge:activePage'`. Mesmo pattern do `AUTOSAVE_STORAGE_KEY` (AUDIT-FIX P8): multi-editor hosts passam chaves distintas via `provideSvgEngineEditorScope({ activePageStorageKey: '...' })`. `null` desabilita persistência por completo (modo embedded viewer).
+   - No constructor do `ActivePageService`: tenta restaurar o id persistido ANTES do effect de auto-recovery rodar. Se o id ainda existe no doc, fica nele; se não, o effect cai no fallback "pick first" automaticamente.
+   - Um effect adicional escreve no localStorage a cada mudança de `activePageId` (write síncrono — operação rara). Quando o id vira `null` (última página deletada), o slot é limpo.
+   - **Por que slot separado** do AUTOSAVE: payload de autosave é o doc inteiro (multi-MB, debounced 2s); o id é um UUID de 36 chars (rápido, instantâneo). Desacoplar permite desativar um sem afetar o outro.
+
+3. **Selection clear no page switch** (mesmo effect no `ActivePageService`): quando o `activePageId` muda de um id non-null para outro non-null, dispara `selection.clear()`. O ramo "skip when prev was null" protege a seleção pré-existente em duas situações: (a) hidratação inicial (null → first-page é recuperação, não user-driven switch); (b) consumidores que setam seleção programaticamente antes da primeira página existir. Comportamento padrão Illustrator/Affinity (trocar de artboard limpa a seleção).
+
+4. **Scope provider** (`edit/scope/editor-scope.providers.ts`): nova opção `activePageStorageKey?: string | null` em `SvgEngineEditorScopeOptions`. Aceita explicit-`null` (`'in' check`) para opt-out por scope; omissão mantém o default root.
+
+**+8 specs novas** (6 em `pages.spec.ts` + 2 em `page.commands.spec.ts`):
+
+- `pages.spec.ts` (bloco "PAGES-REFACTOR Fase 7"): persiste id em `setActive`, restaura na bootstrap seguinte, fallback "pick first" quando id persistido não existe, limpa slot quando última página é deletada, clear selection no switch, NÃO clear na hidratação inicial.
+- `page.commands.spec.ts` (bloco "PAGES-REFACTOR Fase 7"): `DeletePageCommand.isDestructive === true`, Create/Rename/Resize seguem non-destructive (lock pra forçar awareness de mudanças futuras).
+
+Suite: 1785 passing / 1 skipped (era 1777). Build 9 entry points + lint OK.
+
+---
+
 ## 2026-05-27 — PAGES-REFACTOR Fase 6: resize via 8 handlers + move via handle (interativo)
 
 **Contexto.** Pós Fase 2 (brackets visuais) + Fase 4 (hit-target persistente para selecionar a página), a página fica visível mas não interagível: não dava pra redimensioná-la ou movê-la pelo canvas. O usuário pediu **handlers em cada borda sempre disponíveis** (referência: imagem com 8 handlers — 4 cantos + 4 bordas — estilo Figma/Affinity).

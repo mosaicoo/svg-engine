@@ -7,6 +7,7 @@ import { getPageName, getPageViewBox, isPage, withPageFlag } from '../model/page
 import { EditorStateService } from '../state/editor-state.service';
 import { findNodeById } from '../tree/tree-ops';
 import type { NodeId } from '../types/node-id';
+import type { Command } from './command';
 import {
   CreatePageCommand,
   DeletePageCommand,
@@ -154,6 +155,42 @@ describe('D-079 — ResizePageCommand', () => {
     bus.dispatch(new ResizePageCommand(id, { x: 0, y: 0, width: 100, height: 100 }));
     bus.undo();
     expect(getPageViewBox(findNodeById(state.document().root, id)!)).toEqual(VB);
+  });
+});
+
+describe('PAGES-REFACTOR Fase 7 — DeletePageCommand.isDestructive', () => {
+  /**
+   * The auto-snapshot hook in CommandBus consults `command.isDestructive`
+   * on every dispatch and asks SnapshotsService (optional) to snapshot
+   * BEFORE the command runs. Marking DeletePageCommand as destructive
+   * ensures every Delete Page action — keyboard, context menu, Pages
+   * Panel button — gets a recoverable snapshot for free. Without the
+   * marker, the user would have to remember to take a manual snapshot
+   * BEFORE deleting a page.
+   */
+  it('DeletePageCommand is flagged isDestructive=true', () => {
+    const { state, bus } = setup();
+    bus.dispatch(new CreatePageCommand(VB, 'Doomed'));
+    const id = state.document().root.children[0]!.id;
+    const cmd = new DeletePageCommand(id);
+    expect(cmd.isDestructive).toBe(true);
+  });
+
+  /**
+   * Lock the convention: every other page command stays non-destructive
+   * (resizing / renaming a page should NOT spam the snapshot stack).
+   * If a future change flips one to destructive, this spec forces the
+   * author to acknowledge it.
+   *
+   * Casts to the {@link Command} interface so TS picks up the optional
+   * `isDestructive` field (the concrete classes don't declare it when
+   * they're not destructive, which is the whole point — Command marks
+   * it as `?: boolean`).
+   */
+  it('Create / Rename / Resize page commands stay NON-destructive', () => {
+    expect((new CreatePageCommand(VB, 'X') as Command).isDestructive).toBeFalsy();
+    expect((new RenamePageCommand('any-id' as NodeId, 'X') as Command).isDestructive).toBeFalsy();
+    expect((new ResizePageCommand('any-id' as NodeId, VB) as Command).isDestructive).toBeFalsy();
   });
 });
 

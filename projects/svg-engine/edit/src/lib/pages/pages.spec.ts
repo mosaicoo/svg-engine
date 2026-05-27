@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   CommandBus,
   CreatePageCommand,
@@ -8,8 +8,11 @@ import {
   EditorStateService,
   isPage,
   type NodeId,
+  toNodeId,
   withPageFlag,
 } from 'svg-engine/core';
+import { SelectionService } from '../selection/selection.service';
+import { ACTIVE_PAGE_STORAGE_KEY } from './active-page.config';
 import { ActivePageService } from './active-page.service';
 import { PagesService } from './pages.service';
 
@@ -136,5 +139,160 @@ describe('PAGES-B — ActivePageService auto-select + recovery', () => {
   it('activePageViewBox is null when no active page', () => {
     const { active } = setup();
     expect(active.activePageViewBox()).toBeNull();
+  });
+});
+
+/**
+ * **PAGES-REFACTOR Fase 7** specs — persistence (localStorage round-
+ * trip of activePageId) + selection clear on page switch.
+ *
+ * We isolate the localStorage state per spec via `beforeEach` /
+ * `afterEach` so individual cases don't leak persisted ids into each
+ * other. The default key (`'svge:activePage'`) is shared with prod,
+ * which is fine because the spec lives in a jsdom localStorage that
+ * doesn't survive the test run.
+ */
+describe('PAGES-REFACTOR Fase 7 — persistence + selection clear', () => {
+  const STORAGE_KEY = 'svge:activePage:test';
+
+  beforeEach(() => {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(STORAGE_KEY);
+  });
+  afterEach(() => {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(STORAGE_KEY);
+  });
+
+  /**
+   * Bootstrap a fresh TestBed wired with a custom ACTIVE_PAGE_STORAGE_KEY
+   * so the test runs in isolation from production's default key. Returns
+   * the services we exercise.
+   */
+  function setupWithStorageKey() {
+    TestBed.configureTestingModule({
+      providers: [{ provide: ACTIVE_PAGE_STORAGE_KEY, useValue: STORAGE_KEY }],
+    });
+    const state = TestBed.inject(EditorStateService);
+    state.resetDocument(createEmptyDocument());
+    return {
+      state,
+      bus: TestBed.inject(CommandBus),
+      pages: TestBed.inject(PagesService),
+      active: TestBed.inject(ActivePageService),
+      sel: TestBed.inject(SelectionService),
+    };
+  }
+
+  it('persists activePageId to localStorage on setActive', () => {
+    const { bus, active } = setupWithStorageKey();
+    const a = new CreatePageCommand(VB, 'A');
+    bus.dispatch(a);
+    const b = new CreatePageCommand(VB, 'B');
+    bus.dispatch(b);
+    TestBed.flushEffects();
+    active.setActive(b.getCreatedPageId());
+    TestBed.flushEffects();
+    // localStorage now holds page B's id (NOT A's, even though A was the
+    // first-auto-selected).
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(b.getCreatedPageId());
+  });
+
+  it('restores activePageId from localStorage on next bootstrap', () => {
+    // Step 1: bootstrap, create two pages, pick B, persist.
+    const { bus, active } = setupWithStorageKey();
+    const a = new CreatePageCommand(VB, 'A');
+    bus.dispatch(a);
+    const b = new CreatePageCommand(VB, 'B');
+    bus.dispatch(b);
+    TestBed.flushEffects();
+    active.setActive(b.getCreatedPageId());
+    TestBed.flushEffects();
+    const persistedId = b.getCreatedPageId()!;
+    // Step 2: reset TestBed (simulating a page reload), re-create the
+    // doc with the SAME page ids (we can't recreate via CreatePageCommand
+    // because that mints fresh ids — so we hand-craft the document).
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [{ provide: ACTIVE_PAGE_STORAGE_KEY, useValue: STORAGE_KEY }],
+    });
+    const state2 = TestBed.inject(EditorStateService);
+    state2.resetDocument(createEmptyDocument());
+    // Hand-craft a page carrying the persisted id.
+    const persistedPage = withPageFlag(
+      createGroup([], { id: persistedId, metadata: { name: 'B' } }),
+      VB,
+      'B',
+    );
+    state2.setDocument({
+      ...state2.document(),
+      root: { ...state2.document().root, children: [persistedPage] },
+    });
+    const active2 = TestBed.inject(ActivePageService);
+    TestBed.flushEffects();
+    // Active service should have restored B (not auto-picked the first
+    // page, even though only B exists now — restoration is order-
+    // independent because it reads from localStorage at constructor time).
+    expect(active2.activePageId()).toBe(persistedId);
+  });
+
+  it('falls back to auto-pick when persisted id no longer exists in the doc', () => {
+    // Pre-poison localStorage with an id that never existed in any doc.
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, 'ghost-id-not-in-doc');
+    }
+    const { bus, active } = setupWithStorageKey();
+    const a = new CreatePageCommand(VB, 'A');
+    bus.dispatch(a);
+    TestBed.flushEffects();
+    // Auto-recovery effect saw the persisted id was missing → picked A.
+    expect(active.activePageId()).toBe(a.getCreatedPageId());
+  });
+
+  it('clears localStorage when activePageId becomes null (last page deleted)', () => {
+    const { state, bus, active } = setupWithStorageKey();
+    const a = new CreatePageCommand(VB, 'A');
+    bus.dispatch(a);
+    TestBed.flushEffects();
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(a.getCreatedPageId());
+    // Remove the only page → service nulls active id → effect clears slot.
+    state.setDocument({
+      ...state.document(),
+      root: { ...state.document().root, children: [] },
+    });
+    TestBed.flushEffects();
+    expect(active.activePageId()).toBeNull();
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  it('clears selection when the user switches to a different page', () => {
+    const { bus, active, sel } = setupWithStorageKey();
+    const a = new CreatePageCommand(VB, 'A');
+    bus.dispatch(a);
+    const b = new CreatePageCommand(VB, 'B');
+    bus.dispatch(b);
+    TestBed.flushEffects();
+    // Page A is auto-selected; user selects something on it.
+    const fakeNodeId = toNodeId('fake-shape-id');
+    sel.select(fakeNodeId);
+    expect(sel.isSelected(fakeNodeId)).toBe(true);
+    // Switch to B → selection must clear (the selected node is no
+    // longer in the rendered subtree).
+    active.setActive(b.getCreatedPageId());
+    TestBed.flushEffects();
+    expect(sel.isSelected(fakeNodeId)).toBe(false);
+  });
+
+  it('does NOT clear selection on initial auto-select (null → first page)', () => {
+    const { bus, sel } = setupWithStorageKey();
+    // Stage a selection BEFORE the first page exists (legitimate use
+    // case for consumers that seed selection programmatically).
+    const fakeNodeId = toNodeId('pre-existing-selection');
+    sel.select(fakeNodeId);
+    expect(sel.isSelected(fakeNodeId)).toBe(true);
+    // Now create a page — the constructor's initial hydration triggers
+    // the first activePageId emission (null → A.id). The effect's
+    // "skip when prev was null" branch protects the staged selection.
+    bus.dispatch(new CreatePageCommand(VB, 'A'));
+    TestBed.flushEffects();
+    expect(sel.isSelected(fakeNodeId)).toBe(true);
   });
 });

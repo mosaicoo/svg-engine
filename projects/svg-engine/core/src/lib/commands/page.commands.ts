@@ -121,6 +121,15 @@ export class CreatePageCommand implements Command {
 export class DeletePageCommand implements Command {
   readonly id: string = generateNodeId();
   readonly label = 'Delete Page';
+  /**
+   * **PAGES-REFACTOR Fase 7** — marks page deletion as destructive so
+   * the {@link SnapshotsService} (D-073) auto-snapshots the document
+   * BEFORE the command runs. Gives the user a recoverable "Page 3
+   * before delete" entry in History without any per-call code at the
+   * UI layer (Layer Panel delete button, keyboard shortcut, context
+   * menu item all benefit uniformly).
+   */
+  readonly isDestructive = true;
 
   private previousRootSnapshot: SvgNode | null = null;
 

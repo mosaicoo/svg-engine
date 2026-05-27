@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import {
   type BoundingBox,
@@ -7,7 +8,10 @@ import {
   type NodeId,
   type SvgDocument,
   type SvgNode,
+  toNodeId,
 } from 'svg-engine/core';
+import { SelectionService } from '../selection/selection.service';
+import { ACTIVE_PAGE_STORAGE_KEY } from './active-page.config';
 import { PagesService } from './pages.service';
 
 /**
@@ -34,6 +38,13 @@ import { PagesService } from './pages.service';
 export class ActivePageService implements InsertParentResolver {
   private readonly pages = inject(PagesService);
   private readonly state = inject(EditorStateService);
+  // PAGES-REFACTOR Fase 7 — selection-clear-on-switch + persistence
+  // dependencies. `selection` is optional so legacy unit tests that
+  // instantiate ActivePageService without the full editor scope keep
+  // working; in production every D-042 scope provides it.
+  private readonly selection = inject(SelectionService, { optional: true });
+  private readonly storageKey = inject(ACTIVE_PAGE_STORAGE_KEY);
+  private readonly document = inject(DOCUMENT);
 
   /** Writable internal signal — public reads go through {@link activePageId}. */
   private readonly _activePageId = signal<NodeId | null>(null);
@@ -64,7 +75,28 @@ export class ActivePageService implements InsertParentResolver {
     return getPageViewBox(p);
   });
 
+  /**
+   * Snapshot of the previous active page id — used by the selection-
+   * clear effect to detect "the active page actually CHANGED" vs
+   * "first emission" (initial null → first-page is recovery, not a
+   * user-driven switch and shouldn't clear selection).
+   */
+  private lastActiveSeen: NodeId | null = null;
+
   constructor() {
+    // Try to restore the previously-active page id from localStorage
+    // BEFORE the auto-recovery effect runs. The effect honors an
+    // already-set value if it's still valid; if the persisted id
+    // doesn't match any current page, the effect falls back to "pick
+    // first" automatically. This is a synchronous read so the very
+    // first effect tick sees the restored id (no flash of "first page
+    // momentarily active").
+    const persisted = this.readPersistedId();
+    if (persisted !== null) {
+      this._activePageId.set(persisted);
+    }
+    this.lastActiveSeen = this._activePageId();
+
     // Auto-select / recovery effect: keeps `activePageId` in sync
     // with what actually exists in the document.
     effect(() => {
@@ -79,6 +111,27 @@ export class ActivePageService implements InsertParentResolver {
       const stillExists = current !== null && list.some((p) => p.id === current);
       if (!stillExists) {
         this._activePageId.set(list[0]!.id);
+      }
+    });
+
+    // PAGES-REFACTOR Fase 7 — selection clear + persistence on
+    // active-page changes.
+    effect(() => {
+      const next = this._activePageId();
+      const prev = this.lastActiveSeen;
+      this.lastActiveSeen = next;
+      // (a) Persist the new id so the next page load can restore it.
+      this.persistId(next);
+      // (b) Clear selection ONLY when the user genuinely switched pages
+      // (prev was non-null and the id changed). Skip on initial
+      // hydration (prev === null) so a freshly-loaded editor doesn't
+      // wipe a selection the consumer set programmatically.
+      if (prev !== null && next !== prev && this.selection !== null) {
+        // Selected node from the prior page is no longer visible in
+        // the renderer's "single page" mode — its bbox would draw on
+        // top of "nothing", which is confusing. Illustrator/Affinity
+        // both clear selection on artboard switch.
+        this.selection.clear();
       }
     });
   }
@@ -199,5 +252,65 @@ export class ActivePageService implements InsertParentResolver {
    */
   resolveAutoParent(): NodeId {
     return this.effectiveDrawTargetId();
+  }
+
+  // ── PAGES-REFACTOR Fase 7 — localStorage helpers ─────────────────
+
+  /**
+   * Read the persisted active-page id from localStorage. Returns
+   * `null` when:
+   * - the storage key is disabled (`ACTIVE_PAGE_STORAGE_KEY` bound to null),
+   * - localStorage is unavailable (SSR, privacy mode),
+   * - nothing was stored yet, or
+   * - the stored value is empty / whitespace.
+   *
+   * The auto-recovery effect handles "id no longer exists in doc" —
+   * we don't validate against the current pages list here because
+   * the document may still be loading at constructor time.
+   */
+  private readPersistedId(): NodeId | null {
+    const key = this.storageKey;
+    if (key === null || key.length === 0) return null;
+    const win = this.window();
+    if (win === null) return null;
+    try {
+      const raw = win.localStorage.getItem(key);
+      if (raw === null) return null;
+      const trimmed = raw.trim();
+      if (trimmed.length === 0) return null;
+      return toNodeId(trimmed);
+    } catch {
+      // Some browser privacy modes throw on localStorage access.
+      return null;
+    }
+  }
+
+  /**
+   * Persist the current active-page id to localStorage. Pass `null`
+   * to clear the slot. Silent no-op when the storage key is disabled
+   * or localStorage is unavailable — persistence is best-effort.
+   */
+  private persistId(id: NodeId | null): void {
+    const key = this.storageKey;
+    if (key === null || key.length === 0) return;
+    const win = this.window();
+    if (win === null) return;
+    try {
+      if (id === null) {
+        win.localStorage.removeItem(key);
+      } else {
+        win.localStorage.setItem(key, id);
+      }
+    } catch {
+      // Best-effort write — swallow quota / privacy-mode errors.
+    }
+  }
+
+  /** Cross-env window accessor — falls back to null in SSR / tests. */
+  private window(): (Window & typeof globalThis) | null {
+    const docWindow = this.document.defaultView;
+    if (docWindow !== null) return docWindow as Window & typeof globalThis;
+    if (typeof window !== 'undefined') return window;
+    return null;
   }
 }
