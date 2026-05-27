@@ -164,15 +164,6 @@ import { SvgeToolsPalette } from '../tools-palette';
     </div>
     <svge-tool-options class="tool-options-row" [showPlaceholder]="true" />
     <!--
-      Isolation breadcrumb (post-PAGES-FIX-4 polish). Self-gated via
-      @if(visible()) on the component, so zero footprint when no
-      isolation is active. Gives the Pro shell parity with the
-      custom-editor route which had it wired since D-039 Phase C.
-      Sits between tool-options and pages strip so the breadcrumb
-      reads in the natural top-to-bottom flow.
-    -->
-    <svge-isolation-breadcrumb class="iso-breadcrumb-row" />
-    <!--
       D-079 / PAGES-C — Pages tab strip. Auto-hides when the document
       has zero pages (PagesService.hasPages() === false), so legacy
       single-root documents render the shell unchanged. When pages
@@ -201,6 +192,16 @@ import { SvgeToolsPalette } from '../tools-palette';
         [svgeContextMenu]="contextMenuSlot()"
         [svgeContextMenuResolver]="contextMenuResolver"
       >
+        <!--
+          Isolation breadcrumb (Affinity/Illustrator-style overlay) —
+          mirrors the custom-editor positioning where the breadcrumb
+          sits ABOVE the canvas (absolute, top: 0, z-index: 3) instead
+          of pushing the canvas down. Self-gated via @if(visible())
+          inside the component, so zero footprint when no isolation
+          is active. Must be the FIRST child of canvas-cell so it
+          paints on top of the renderer / workspace-background.
+        -->
+        <svge-isolation-breadcrumb class="iso-breadcrumb-overlay" />
         <svge-workspace-background>
           <svge-renderer
             svgeLayersFilter
@@ -413,9 +414,31 @@ import { SvgeToolsPalette } from '../tools-palette';
       overflow: hidden;
       background: var(--mat-sys-surface-container-low, transparent);
     }
-    .canvas-cell > * {
+    /* Generic full-bleed stretch for canvas-cell children (renderer,
+       workspace-background, etc.). Excludes the isolation breadcrumb,
+       which uses its own pinned-top positioning below. */
+    .canvas-cell > *:not(.iso-breadcrumb-overlay) {
       position: absolute;
       inset: 0;
+    }
+    /* Isolation breadcrumb overlay (parity with custom-editor route).
+       Pinned to the top edge of the canvas-cell with z-index above the
+       renderer so the bar paints on top of the topmost canvas pixels.
+       Self-hides when isolation is inactive — the inner @if returns
+       no DOM, so the overlay claims zero visual / pointer footprint. */
+    .canvas-cell > .iso-breadcrumb-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 3;
+      pointer-events: none;
+    }
+    /* Re-enable pointer events on the visible bar only — the host
+       above is pointer-events: none so clicks pass through to the
+       canvas when isolation is inactive (defensive double-guard). */
+    .canvas-cell > .iso-breadcrumb-overlay > * {
+      pointer-events: auto;
     }
     .right-side {
       display: flex;
