@@ -10,6 +10,8 @@ import {
 import { screenToDoc, ViewportService } from 'svg-engine/render';
 import { capturePointer, releasePointer } from '../pointer';
 import { SelectionService } from '../selection/selection.service';
+import { PAGE_TOOL_ID } from '../tool/builtin-tools';
+import { ToolHostService } from '../tool/tool-host.service';
 import { ActivePageService } from './active-page.service';
 
 /**
@@ -278,6 +280,12 @@ export class SvgePageSelectionOverlay {
   private readonly selection = inject(SelectionService);
   private readonly viewport = inject(ViewportService);
   private readonly bus = inject(CommandBus);
+  // PAGES-REFACTOR follow-up — overlay is GATED on the Page tool
+  // being the active tool. Without the Page tool active, the user
+  // can't accidentally trigger page resize/move handles while editing
+  // shapes (the brackets/label/handles render nothing). Matches the
+  // Illustrator "Artboard Tool" pattern.
+  private readonly toolHost = inject(ToolHostService);
 
   /**
    * In-progress drag state. `null` when no drag is active. Set on
@@ -311,6 +319,16 @@ export class SvgePageSelectionOverlay {
    * cursor in real time without dispatching commands until pointerup.
    */
   protected readonly overlay = computed(() => {
+    // **PAGES-REFACTOR follow-up** — Artboard Tool mode gate.
+    // The overlay is INVISIBLE unless the user explicitly activates
+    // the Page tool (via the tools palette or Shift+O). This
+    // mirrors Illustrator's behavior: artboard handles only appear
+    // when you're in Artboard Tool mode. Net result for the user:
+    // clicking on the page paper with Select tool active = nothing
+    // happens (selection clears via shell-interactions); clicking
+    // with Page tool active = the page is selected and the
+    // brackets+handles+label appear.
+    if (this.toolHost.activeId() !== PAGE_TOOL_ID) return null;
     const page = this.activePage.activePage();
     if (page === null) return null;
     if (!this.selection.isSelected(page.id)) return null;

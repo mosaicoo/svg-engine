@@ -12,6 +12,9 @@ import { findNodeById } from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
 import { CommandBus } from 'svg-engine/core';
 import { SelectionService } from '../selection/selection.service';
+import { PAGE_TOOL_ID } from '../tool/builtin-tools';
+import { ToolHostService } from '../tool/tool-host.service';
+import { ToolRegistry } from '../tool/tool-registry.service';
 import { ActivePageService } from './active-page.service';
 import { SvgePageSelectionOverlay } from './page-selection-overlay.component';
 
@@ -68,6 +71,26 @@ describe('PAGES-REFACTOR Fase 2 + Fase 6 — SvgePageSelectionOverlay', () => {
     return { state, sel, viewport, activePage, bus, overlay };
   }
 
+  /**
+   * Activate the Page tool in the TestBed-provided ToolHostService.
+   * **PAGES-REFACTOR follow-up** gates `overlay()` on this — without
+   * it, every spec that exercises the overlay's `overlay()` computed
+   * returns null and the spec fails.
+   *
+   * Registers a minimal stub Tool so `activate(PAGE_TOOL_ID)` resolves
+   * (the host validates the id is registered before promoting it).
+   */
+  function activatePageTool(): void {
+    const reg = TestBed.inject(ToolRegistry);
+    reg.register({
+      id: PAGE_TOOL_ID,
+      label: 'Page',
+      icon: 'aspect_ratio',
+      cursor: 'default',
+    });
+    TestBed.inject(ToolHostService).activate(PAGE_TOOL_ID);
+  }
+
   function seedActiveSelectedPage(
     state: EditorStateService,
     activePage: ActivePageService,
@@ -82,6 +105,11 @@ describe('PAGES-REFACTOR Fase 2 + Fase 6 — SvgePageSelectionOverlay', () => {
     // Auto-recovery effect is async in tests; pin synchronously.
     activePage.setActive(page.id);
     sel.select(page.id);
+    // **PAGES-REFACTOR follow-up** — overlay is gated on the Page tool
+    // being active (Artboard Tool pattern). Activate it so the existing
+    // specs that assert on the overlay's brackets/handles/preview still
+    // pass.
+    activatePageTool();
     return page;
   }
 

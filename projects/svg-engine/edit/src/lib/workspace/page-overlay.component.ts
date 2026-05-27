@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { getPageOptions, getPageViewBox, type NodeId } from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
 import { ActivePageService } from '../pages/active-page.service';
+import { PAGE_TOOL_ID } from '../tool/builtin-tools';
+import { ToolHostService } from '../tool/tool-host.service';
 import { pageBoundsIn, WorkspaceService } from './workspace.service';
 
 /**
@@ -152,6 +154,15 @@ export class PageOverlay {
   // headless / pre-D-079 documents. Eliminates the visual conflict
   // where the legacy PageConfig disagreed with the active D-079 page.
   private readonly activePage = inject(ActivePageService, { optional: true });
+  /**
+   * **PAGES-REFACTOR follow-up** — Page tool gate for the hit-target.
+   * The paper rect only becomes click-targetable when the Page tool
+   * is active (Artboard Tool pattern). Without this, clicking on
+   * empty page area while Select tool is active would still select
+   * the page node, which is exactly the behavior the user complained
+   * about ("eu clico e a página vira retângulo selecionado").
+   */
+  private readonly toolHost = inject(ToolHostService, { optional: true });
 
   /**
    * Page rectangle in document coordinates — top-left anchored at
@@ -199,6 +210,18 @@ export class PageOverlay {
    * not be intercepted by a no-op hit-target.
    */
   protected readonly pageNodeId = computed<NodeId | null>(() => {
+    // **PAGES-REFACTOR follow-up** — only expose the page id as a
+    // hit-target when the Page tool is the active tool. When any
+    // other tool is active (Select, Pencil, Pen, etc.), the rect's
+    // `data-node-id` stays null AND its `pointer-events` stays 'none'
+    // (the template uses the same null check), so clicks on the
+    // empty page area pass through to the SVG background → the
+    // shell-interactions directive treats them as "click on canvas"
+    // → SelectionService.clear(). This is the Illustrator/Affinity
+    // behavior the user asked for.
+    if (this.toolHost !== null && this.toolHost.activeId() !== PAGE_TOOL_ID) {
+      return null;
+    }
     const active = this.activePage?.activePage() ?? null;
     return active?.id ?? null;
   });

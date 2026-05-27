@@ -49,6 +49,21 @@ export const DIRECT_SELECT_TOOL_ID = 'com.svge.tool.direct-select';
 export const PENCIL_TOOL_ID = 'com.svge.tool.pencil';
 
 /**
+ * **PAGES-REFACTOR follow-up** — stable id of the builtin Page tool
+ * (Illustrator's "Artboard Tool" pattern). When this tool is **active**,
+ * the `<svge-page-selection-overlay>` renders its brackets + label + 8
+ * resize handlers + move handle around the active page, AND the
+ * `<svg:g svgePageOverlay>` paper rect becomes a click-target for
+ * page selection. When this tool is **inactive** (default), the page
+ * is purely visual reference — clicks on its empty area clear the
+ * selection (Illustrator/Affinity convention).
+ *
+ * Shortcut `Shift+O` mirrors Illustrator's Artboard Tool keybinding.
+ * Coexists with `p` (Pencil) and `o` (Polygon) without conflict.
+ */
+export const PAGE_TOOL_ID = 'com.svge.tool.page';
+
+/**
  * Builtin Select tool — a no-op tool that signals "use the default
  * canvas behavior" (selection, marquee, body-drag, snap). The host
  * routes events here; the consumer can check `activeId === SELECT_TOOL_ID`
@@ -212,6 +227,77 @@ export const selectToolPlugin: EditorPlugin = {
     const reg = ctx.injector.get(ToolRegistry);
     ctx.track(reg.register(new SelectTool()));
     ctx.track(reg.register(new DirectSelectTool()));
+  },
+};
+
+/**
+ * **PAGES-REFACTOR follow-up** — Page tool (Artboard Tool pattern).
+ *
+ * **What it is**: an explicit mode the user enters via the tools
+ * palette (or `Shift+O` shortcut) to manipulate the active page's
+ * geometry. While active:
+ *
+ * - The `<svge-page-selection-overlay>` renders its full chrome
+ *   (L-brackets, label "Page N — W×H", 8 axial resize handles, move
+ *   handle) around the active page.
+ * - The `<svg:g svgePageOverlay>` paper rect becomes click-targetable
+ *   (clicks on empty page area select the page).
+ * - Drag operations on the handles dispatch `ResizePageCommand` /
+ *   `MovePageCommand` exclusively — never shape-resize commands.
+ *
+ * **What it is NOT**: a drawing tool. There are no `onPointerDown`/
+ * `onPointerMove`/`onPointerUp` handlers — the
+ * `<svge-page-selection-overlay>` owns the gesture lifecycle directly
+ * (its handle rects bind their own pointer events). The tool is a
+ * pure **mode flag** that the overlay reads via `ToolHostService`.
+ *
+ * **On deactivate**: clear selection so the page selection chrome
+ * disappears cleanly and the user sees a "blank canvas state" — matches
+ * what they see when they first land on the route with the Select tool.
+ *
+ * **Icon `aspect_ratio`**: rectangle with corner accents — reads as
+ * "this is about the artboard / page boundary". Chosen over the
+ * already-used `crop_landscape` (Pages Panel tab) so the two surfaces
+ * stay visually distinct.
+ */
+class PageTool implements Tool {
+  readonly id = PAGE_TOOL_ID;
+  readonly label = 'Page';
+  readonly icon = 'aspect_ratio';
+  readonly cursor = 'default';
+  /**
+   * `Shift+O` follows Illustrator's Artboard Tool convention. The
+   * shortcut string format is the engine's own (lowercase letter +
+   * optional modifiers via the registry contract) — `'shift+o'` lets
+   * the existing `ShortcutService` keymap pick this up without any
+   * special-casing.
+   */
+  readonly shortcut = 'shift+o';
+
+  onDeactivate(ctx: ToolContext): void {
+    // PAGES-REFACTOR — leaving the Page tool should hide the page
+    // selection chrome cleanly. The overlay reads `selection.isSelected`
+    // for the active page; clearing the selection here makes the
+    // brackets/handles disappear the moment the user switches tools,
+    // matching Illustrator's behavior (exiting Artboard Tool deselects
+    // the artboard).
+    ctx.injector.get(SelectionService).clear();
+  }
+}
+
+/**
+ * Builtin Page tool plugin. Registered alongside the Select tools so
+ * any consumer that installs `selectToolPlugin` also gets Page —
+ * keeps the toolbar predictable.
+ */
+export const pageToolPlugin: EditorPlugin = {
+  id: 'com.svge.tools.page',
+  name: 'Page Tool (builtin)',
+  version: '1.0.0',
+  apiVersion: PLUGIN_API_VERSION,
+  install(ctx) {
+    const reg = ctx.injector.get(ToolRegistry);
+    ctx.track(reg.register(new PageTool()));
   },
 };
 

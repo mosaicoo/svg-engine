@@ -3,6 +3,8 @@ export { ToolRegistry } from './tool-registry.service';
 export { ToolHostService } from './tool-host.service';
 export {
   DIRECT_SELECT_TOOL_ID,
+  PAGE_TOOL_ID,
+  pageToolPlugin,
   PENCIL_TOOL_ID,
   pencilToolPlugin,
   pointsToPathD,

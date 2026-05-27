@@ -21,6 +21,7 @@ import {
   builtinSymbolsPlugin,
   builtinTemplatesPlugin,
   extraPalettesPlugin,
+  pageToolPlugin,
   pencilToolPlugin,
   penToolPlugin,
   pngExporterPlugin,
@@ -46,6 +47,14 @@ export const appConfig: ApplicationConfig = {
     // Builtin tool plugins (Bloco 5b). Order matters: select first so it
     // becomes the natural default in the toolbar.
     provideSvgEnginePlugin(selectToolPlugin),
+    // **PAGES-REFACTOR follow-up** — Page tool (Illustrator's Artboard
+    // Tool pattern). Adds a "Page" button to the tools palette + a
+    // `Shift+O` shortcut. When active, the page selection overlay
+    // (brackets + label + handles) renders and the page is
+    // resizable/movable via direct drag. When inactive (default),
+    // the page is purely visual reference — clicking on empty page
+    // area clears the selection just like clicking on the pasteboard.
+    provideSvgEnginePlugin(pageToolPlugin),
     provideSvgEnginePlugin(pencilToolPlugin),
     // Pen tool (Sprint B-PenTool) — vector path creation via clicks
     // (cusp) and click-drag (smooth handles). Sucessor natural do
