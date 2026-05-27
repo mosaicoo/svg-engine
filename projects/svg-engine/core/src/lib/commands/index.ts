@@ -1,4 +1,14 @@
-export { fail, ok, type Command, type CommandContext, type CommandResult } from './command';
+export {
+  fail,
+  ok,
+  type Command,
+  type CommandContext,
+  type CommandResult,
+  type InsertParentResolver,
+} from './command';
+// PAGES-REFACTOR Fase 1 — DI token for the InsertParentResolver
+// implementation. Provided by `svg-engine/edit`'s scope.
+export { INSERT_PARENT_RESOLVER } from './insert-parent-resolver.token';
 export {
   type AnchorRef,
   ConvertAnchorTypeCommand,
@@ -35,7 +45,7 @@ export {
   UnionCommand,
 } from './pathfinder.commands';
 export { GroupSelectionCommand } from './group-selection.command';
-export { InsertNodeCommand } from './insert-node.command';
+export { AUTO_PARENT, InsertNodeCommand, type ParentRef } from './insert-node.command';
 export { MoveNodeCommand } from './move-node.command';
 export { MoveNodeInTreeCommand } from './move-node-in-tree.command';
 export { RemoveNodeCommand } from './remove-node.command';

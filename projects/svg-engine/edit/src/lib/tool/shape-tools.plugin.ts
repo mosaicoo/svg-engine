@@ -1,11 +1,11 @@
 import {
+  AUTO_PARENT,
   CommandBus,
   createEllipse,
   createPolygon,
   createRect,
   InsertNodeCommand,
 } from 'svg-engine/core';
-import { ActivePageService } from '../pages/active-page.service';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../plugin/plugin';
 import { SelectionService } from '../selection/selection.service';
 import {
@@ -122,11 +122,11 @@ class ShapeTool implements Tool {
     // match the prior hardcoded values for back-compat.
     const node = buildShapeNode(this.kind, bounds, shapes);
     if (node === null) return;
-    // PAGES-FIX-2: insert into the active page (when one exists) so
-    // newly drawn shapes appear inside the page the user is viewing.
-    // Falls back to root for legacy single-root docs.
-    const parentId = ctx.injector.get(ActivePageService).effectiveDrawTargetId();
-    ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(parentId, node));
+    // **PAGES-REFACTOR Fase 1**: AUTO_PARENT lets CommandBus thread
+    // the resolver (ActivePageService) into the command's context so
+    // the new shape lands inside the active page automatically — no
+    // explicit `effectiveDrawTargetId()` wire-up needed here.
+    ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(AUTO_PARENT, node));
   }
 
   onPointerCancel(_event: ToolPointerEvent, ctx: ToolContext): void {

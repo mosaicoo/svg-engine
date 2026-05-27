@@ -1,5 +1,4 @@
-import { CommandBus, InsertNodeCommand, type Point } from 'svg-engine/core';
-import { ActivePageService } from '../pages/active-page.service';
+import { AUTO_PARENT, CommandBus, InsertNodeCommand, type Point } from 'svg-engine/core';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../plugin/plugin';
 import { SelectionService } from '../selection/selection.service';
 import { PenToolService } from './pen-tool.service';
@@ -160,9 +159,9 @@ class PenTool implements Tool {
     const pen = ctx.injector.get(PenToolService);
     const node = closed ? pen.buildClosedPath() : pen.buildOpenPath();
     if (node === null) return;
-    // PAGES-FIX-2: route via ActivePageService (page when one is active).
-    const parentId = ctx.injector.get(ActivePageService).effectiveDrawTargetId();
-    ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(parentId, node));
+    // **PAGES-REFACTOR Fase 1**: CommandBus interceptor resolves the
+    // active page from the editor scope when parent is AUTO_PARENT.
+    ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(AUTO_PARENT, node));
     pen.reset();
   }
 }

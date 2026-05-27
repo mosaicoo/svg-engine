@@ -11,6 +11,7 @@ import {
   findParent,
   GroupSelectionCommand,
   HistoryService,
+  AUTO_PARENT,
   InsertNodeCommand,
   IntersectCommand,
   isLayer,
@@ -2005,12 +2006,10 @@ function pasteFromClipboard(runCtx: MenuContributionContext | undefined, fromCtx
   const nodes = clipboard.paste();
   if (nodes.length === 0) return;
   const bus = fromCtx(CommandBus, runCtx);
-  // PAGES-FIX-2: paste into the active page when one exists (legacy
-  // root otherwise). Keeps pasted clones in the same logical container
-  // the user is currently editing.
-  const parentId = fromCtx(ActivePageService, runCtx).effectiveDrawTargetId();
+  // **PAGES-REFACTOR Fase 1**: AUTO_PARENT — CommandBus resolves the
+  // active page (or root) via INSERT_PARENT_RESOLVER, no manual lookup.
   for (const node of nodes) {
-    bus.dispatch(new InsertNodeCommand(parentId, node));
+    bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
   }
   // Select the newly-pasted nodes so subsequent operations target them
   // (matches the convention of every professional editor).

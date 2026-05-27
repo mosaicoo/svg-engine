@@ -9,6 +9,7 @@ import {
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import { MatIcon } from '@angular/material/icon';
 import {
+  AUTO_PARENT,
   CommandBus,
   EditorStateService,
   findNodeById,
@@ -824,8 +825,11 @@ export class SvgeLibrariesPanel {
     const node = item.build();
     const { cx, cy } = this.insertCenter();
     const positioned = translateNode(node, cx - 50, cy - 50);
-    const parentId = this.activePage.effectiveDrawTargetId();
-    this.bus.dispatch(new InsertNodeCommand(parentId, positioned));
+    // **PAGES-REFACTOR Fase 1**: AUTO_PARENT — CommandBus resolves the
+    // page via INSERT_PARENT_RESOLVER. `activePage` is still injected
+    // because `insertCenter()` reads the page's viewBox to clamp the
+    // centering position (UX concern, not parent-resolution concern).
+    this.bus.dispatch(new InsertNodeCommand(AUTO_PARENT, positioned));
   }
 
   /**
@@ -883,10 +887,11 @@ export class SvgeLibrariesPanel {
     const scale = targetSize / Math.max(naturalW, naturalH);
     const w = naturalW * scale;
     const h = naturalH * scale;
-    // PAGES-FIX-4: center clamped to active page + insert into page.
+    // **PAGES-REFACTOR Fase 1**: center clamped to active page (UX);
+    // parent omitted = AUTO_PARENT → CommandBus resolver lands the
+    // symbol use inside the active page automatically.
     const { cx, cy } = this.insertCenter();
-    const parentId = this.activePage.effectiveDrawTargetId();
-    this.bus.dispatch(new InsertSymbolInstanceCommand(id, cx - w / 2, cy - h / 2, w, h, parentId));
+    this.bus.dispatch(new InsertSymbolInstanceCommand(id, cx - w / 2, cy - h / 2, w, h));
   }
 
   /**

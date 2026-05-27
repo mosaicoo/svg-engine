@@ -1,4 +1,5 @@
 import {
+  AUTO_PARENT,
   type Command,
   type CommandContext,
   type CommandResult,
@@ -8,6 +9,7 @@ import {
   insertNode,
   type NodeId,
   ok,
+  type ParentRef,
   removeNode,
 } from 'svg-engine/core';
 
@@ -43,6 +45,15 @@ export class InsertSymbolInstancesBatchCommand implements Command {
   constructor(
     private readonly symbolId: string,
     private readonly drops: readonly SprayDrop[],
+    /**
+     * **PAGES-REFACTOR Fase 1** — parent target. Defaults to
+     * {@link AUTO_PARENT} so the spray lands inside the active page
+     * via the `INSERT_PARENT_RESOLVER` editor scope. **This default
+     * fixes the P0 reported in the audit**: before the refactor the
+     * batch hard-coded `doc.root.id` and the spray vanished as a
+     * sibling of the page (page-filter renderer hid the instances).
+     */
+    private readonly parentId: ParentRef = AUTO_PARENT,
   ) {
     this.label = `Spray ${drops.length} symbol${drops.length === 1 ? '' : 's'} "${symbolId}"`;
   }
@@ -67,8 +78,12 @@ export class InsertSymbolInstancesBatchCommand implements Command {
         width: drop.width,
         height: drop.height,
       });
+      const effectiveParent: NodeId =
+        this.parentId === AUTO_PARENT
+          ? (ctx.parentResolver?.resolveAutoParent() ?? doc.root.id)
+          : this.parentId;
       try {
-        nextRoot = insertNode(nextRoot, doc.root.id, instance);
+        nextRoot = insertNode(nextRoot, effectiveParent, instance);
       } catch (e) {
         return fail(e instanceof Error ? e.message : String(e));
       }

@@ -1,4 +1,5 @@
 import {
+  AUTO_PARENT,
   CommandBus,
   createEllipse,
   createLine,
@@ -177,7 +178,12 @@ export const builtinNluPlugin: EditorPlugin = {
           }
 
           const doc = state.document();
-          const rootId = doc.root.id;
+          // **PAGES-REFACTOR Fase 1**: NLU dispatched inserts now go
+          // through AUTO_PARENT → CommandBus resolves to the active
+          // page. `rootId` kept as the local label for readability;
+          // we just pass AUTO_PARENT to InsertNodeCommand below.
+          const _rootIdRetained = doc.root.id;
+          void _rootIdRetained;
           const vb = doc.viewBox;
           // Center default = centro do viewBox; quando user passar
           // `position`, vira o centro explícito do shape.
@@ -205,18 +211,18 @@ export const builtinNluPlugin: EditorPlugin = {
                 { x: cx - w / 2, y: cy - h / 2, width: w, height: h },
                 style ? { style } : {},
               );
-              bus.dispatch(new InsertNodeCommand(rootId, node));
+              bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
               break;
             }
             case 'ellipse': {
               const node = createEllipse({ cx, cy, rx: w / 2, ry: h / 2 }, style ? { style } : {});
-              bus.dispatch(new InsertNodeCommand(rootId, node));
+              bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
               break;
             }
             case 'circle': {
               const r = Math.min(w, h) / 2;
               const node = createEllipse({ cx, cy, rx: r, ry: r }, style ? { style } : {});
-              bus.dispatch(new InsertNodeCommand(rootId, node));
+              bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
               break;
             }
             // Polígonos regulares — geometria computada a partir do kind.
@@ -230,7 +236,7 @@ export const builtinNluPlugin: EditorPlugin = {
               const r = Math.min(w, h) / 2;
               const points = regularPolygonPoints(cx, cy, r, sides);
               const node = createPolygon(points, style ? { style } : {});
-              bus.dispatch(new InsertNodeCommand(rootId, node));
+              bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
               break;
             }
             // Estrela — 5 pontas, raio interno = 40% do externo.
@@ -238,7 +244,7 @@ export const builtinNluPlugin: EditorPlugin = {
               const outerR = Math.min(w, h) / 2;
               const points = regularStarPoints(cx, cy, outerR);
               const node = createPolygon(points, style ? { style } : {});
-              bus.dispatch(new InsertNodeCommand(rootId, node));
+              bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
               break;
             }
             // Linha horizontal centrada.
@@ -247,7 +253,7 @@ export const builtinNluPlugin: EditorPlugin = {
                 { x1: cx - w / 2, y1: cy, x2: cx + w / 2, y2: cy },
                 style ? { style } : {},
               );
-              bus.dispatch(new InsertNodeCommand(rootId, node));
+              bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
               break;
             }
             // Polyline zigzag (V invertido) com 3 pontos.
@@ -258,7 +264,7 @@ export const builtinNluPlugin: EditorPlugin = {
                 { x: cx + w / 2, y: cy + h / 4 },
               ];
               const node = createPolyline(points, style ? { style } : {});
-              bus.dispatch(new InsertNodeCommand(rootId, node));
+              bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
               break;
             }
             // Text placeholder — "Texto" se input PT, "Text" se EN.
@@ -275,7 +281,7 @@ export const builtinNluPlugin: EditorPlugin = {
                 },
                 style ? { style } : {},
               );
-              bus.dispatch(new InsertNodeCommand(rootId, node));
+              bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
               break;
             }
             // Sem geometria built-in: precisam de input adicional

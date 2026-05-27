@@ -1,12 +1,12 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import {
+  AUTO_PARENT,
   CommandBus,
   createImage,
   EditorStateService,
   type ImageNode,
   InsertNodeCommand,
 } from 'svg-engine/core';
-import { ActivePageService } from '../../pages/active-page.service';
 
 /**
  * Asset Manager (D-048 Item 2) — in-memory catalog of imported
@@ -44,8 +44,6 @@ export interface AssetCatalogEntry {
 export class AssetManagerService {
   private readonly state = inject(EditorStateService);
   private readonly bus = inject(CommandBus);
-  // PAGES-FIX-2: drop assets into the active page (legacy root otherwise).
-  private readonly activePage = inject(ActivePageService);
 
   /** In-memory catalog keyed by entry id. */
   private readonly _catalog = signal<readonly AssetCatalogEntry[]>([]);
@@ -114,7 +112,9 @@ export class AssetManagerService {
       height: h,
       href: entry.href,
     });
-    this.bus.dispatch(new InsertNodeCommand(this.activePage.effectiveDrawTargetId(), node));
+    // **PAGES-REFACTOR Fase 1**: AUTO_PARENT — CommandBus resolves
+    // via INSERT_PARENT_RESOLVER (active page in the editor scope).
+    this.bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
     return node;
   }
 }

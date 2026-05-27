@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
-import type { Command, CommandResult } from '../commands/command';
+import type { Command, CommandContext, CommandResult } from '../commands/command';
 import { fail } from '../commands/command';
+import { INSERT_PARENT_RESOLVER } from '../commands/insert-parent-resolver.token';
 import { HistoryService } from '../history/history.service';
 import { SnapshotsService } from '../snapshots/snapshots.service';
 import { EditorStateService } from '../state/editor-state.service';
@@ -34,6 +35,12 @@ export class CommandBus {
   // (or its `SnapshotsService` entry) get a clean fallback: dispatch
   // continues to work, just without auto-snapshots.
   private readonly snapshots = inject(SnapshotsService, { optional: true });
+  // **PAGES-REFACTOR Fase 1** — optional resolver that turns
+  // `InsertNodeCommand` with `parentId: AUTO_PARENT` into the active
+  // page's id. Wired by `svg-engine/edit`'s scope provider; absent in
+  // headless / Node usage of plain `svg-engine/core` (insert falls
+  // back to `doc.root.id` inside the command).
+  private readonly parentResolver = inject(INSERT_PARENT_RESOLVER, { optional: true });
 
   /**
    * Execute `command`. If it returns `ok`, the command is pushed onto
@@ -51,11 +58,25 @@ export class CommandBus {
    */
   dispatch(command: Command): CommandResult {
     this.maybeAutoSnapshot(command);
-    const result = command.execute({ state: this.state });
+    const result = command.execute(this.buildContext());
     if (result.ok) {
       this.history.push(command);
     }
     return result;
+  }
+
+  /**
+   * **PAGES-REFACTOR Fase 1** — one place where the runtime context
+   * is assembled; shared by `dispatch`, `undo`, and `redo` so insert-
+   * style commands see the same resolver in every code path.
+   *
+   * The `parentResolver` field is omitted entirely (not `undefined`)
+   * when the token isn't provided — keeps the existing
+   * `CommandContext: { state }` shape valid for headless callers.
+   */
+  private buildContext(): CommandContext {
+    if (this.parentResolver === null) return { state: this.state };
+    return { state: this.state, parentResolver: this.parentResolver };
   }
 
   private maybeAutoSnapshot(command: Command): void {
@@ -77,7 +98,7 @@ export class CommandBus {
   undo(): CommandResult {
     const command = this.history.peekUndo();
     if (command === null) return fail('Nothing to undo');
-    const result = command.undo({ state: this.state });
+    const result = command.undo(this.buildContext());
     if (result.ok) {
       this.history.commitUndo();
     }
@@ -90,7 +111,7 @@ export class CommandBus {
   redo(): CommandResult {
     const command = this.history.peekRedo();
     if (command === null) return fail('Nothing to redo');
-    const result = command.execute({ state: this.state });
+    const result = command.execute(this.buildContext());
     if (result.ok) {
       this.history.commitRedo();
     }

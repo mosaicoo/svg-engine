@@ -1,4 +1,5 @@
 import {
+  AUTO_PARENT,
   type Command,
   type CommandContext,
   type CommandResult,
@@ -8,6 +9,7 @@ import {
   insertNode,
   type NodeId,
   ok,
+  type ParentRef,
   removeNode,
 } from 'svg-engine/core';
 
@@ -51,13 +53,17 @@ export class InsertSymbolInstanceCommand implements Command {
     private readonly width?: number,
     private readonly height?: number,
     /**
-     * **PAGES-FIX-4** — optional parent id. When omitted (or null), the
-     * instance is inserted at the document root (back-compat). Callers
-     * with a pages workflow (`<svge-shell-pro>` library panel) pass
-     * `ActivePageService.effectiveDrawTargetId()` so the instance lands
-     * inside the active page rather than as a sibling of the page.
+     * **PAGES-REFACTOR Fase 1** — parent target. Accepts a concrete
+     * `NodeId` OR the sentinel {@link AUTO_PARENT} (default), which
+     * delegates resolution to `ctx.parentResolver` (active page in
+     * the editor scope; document root as fallback for headless).
+     *
+     * Updated from the PAGES-FIX-4 signature (`NodeId | null` with
+     * null = root) so this command participates in the centralized
+     * resolver pattern shared with `InsertNodeCommand`. Callers in
+     * `libraries-panel` simply omit the arg or pass `AUTO_PARENT`.
      */
-    private readonly parentId: NodeId | null = null,
+    private readonly parentId: ParentRef = AUTO_PARENT,
   ) {
     this.label = `Insert symbol "${symbolId}"`;
   }
@@ -76,7 +82,10 @@ export class InsertSymbolInstanceCommand implements Command {
       width: this.width,
       height: this.height,
     });
-    const effectiveParent = this.parentId ?? doc.root.id;
+    const effectiveParent: NodeId =
+      this.parentId === AUTO_PARENT
+        ? (ctx.parentResolver?.resolveAutoParent() ?? doc.root.id)
+        : this.parentId;
     let nextRoot;
     try {
       nextRoot = insertNode(doc.root, effectiveParent, instance);

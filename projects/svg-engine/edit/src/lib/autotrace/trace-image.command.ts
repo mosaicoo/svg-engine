@@ -94,9 +94,15 @@ export class TraceImageCommand implements Command {
     const group = createGroup(paths, {
       metadata: { name: `Traced ${this.imageNodeId}` },
     });
+    // **PAGES-REFACTOR Fase 1**: drop the traced group inside the
+    // active page (via ctx.parentResolver). Falls back to doc root for
+    // headless consumers / legacy single-root docs. Previously this
+    // hard-coded `doc.root.id` which made Auto-trace results vanish
+    // when a page was active (P0 from PAGES-FIX-4 audit).
+    const effectiveParent = ctx.parentResolver?.resolveAutoParent() ?? doc.root.id;
     let nextRoot;
     try {
-      nextRoot = insertNode(doc.root, doc.root.id, group);
+      nextRoot = insertNode(doc.root, effectiveParent, group);
     } catch (e) {
       return fail(e instanceof Error ? e.message : String(e));
     }

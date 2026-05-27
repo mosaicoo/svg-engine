@@ -3,6 +3,7 @@ import {
   type BoundingBox,
   EditorStateService,
   getPageViewBox,
+  type InsertParentResolver,
   type NodeId,
   type SvgDocument,
   type SvgNode,
@@ -30,7 +31,7 @@ import { PagesService } from './pages.service';
  * pages remain. The user is never stuck pointing at a gone page.
  */
 @Injectable({ providedIn: 'root' })
-export class ActivePageService {
+export class ActivePageService implements InsertParentResolver {
   private readonly pages = inject(PagesService);
   private readonly state = inject(EditorStateService);
 
@@ -176,5 +177,27 @@ export class ActivePageService {
         children: page.children,
       },
     };
+  }
+
+  /**
+   * **PAGES-REFACTOR Fase 1** — implementation of {@link InsertParentResolver}.
+   *
+   * Called by `CommandBus` (via the `INSERT_PARENT_RESOLVER` token
+   * wired in `provideSvgEngineEditorScope`) whenever an
+   * `InsertNodeCommand` is dispatched with `parentId: AUTO_PARENT`.
+   * Returns the same value as {@link effectiveDrawTargetId} but
+   * exposed as a plain method so it satisfies the interface contract
+   * (signal `.computed()` would force the resolver shape to be
+   * "computed", coupling consumers to Angular signals).
+   *
+   * **Net effect**: every tool / library / plugin that dispatches
+   * an `InsertNodeCommand` with `AUTO_PARENT` automatically lands its
+   * new node inside the active page — no `inject(ActivePageService)`
+   * or `effectiveDrawTargetId()` call required at the call site.
+   * Eliminates the wire-up spread that produced the 3 known
+   * regressions (Symbol Sprayer, Auto-trace, NLU).
+   */
+  resolveAutoParent(): NodeId {
+    return this.effectiveDrawTargetId();
   }
 }

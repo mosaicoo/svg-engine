@@ -1,5 +1,11 @@
 import type { Provider } from '@angular/core';
-import { CommandBus, EditorStateService, HistoryService, SnapshotsService } from 'svg-engine/core';
+import {
+  CommandBus,
+  EditorStateService,
+  HistoryService,
+  INSERT_PARENT_RESOLVER,
+  SnapshotsService,
+} from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
 
 import { AlignmentService } from '../alignment/alignment.service';
@@ -253,6 +259,13 @@ export function provideSvgEngineEditorScope(options?: SvgEngineEditorScopeOption
     // recovery when pages get added/removed.
     PagesService,
     ActivePageService,
+    // **PAGES-REFACTOR Fase 1** — wire ActivePageService as the
+    // ambient "where do new shapes go?" resolver. CommandBus injects
+    // this token optionally and threads it through CommandContext, so
+    // any InsertNodeCommand dispatched with `parentId: AUTO_PARENT`
+    // automatically lands in the active page — no per-tool wire-up
+    // needed (Symbol Sprayer, Auto-trace, NLU, plugins, etc.).
+    { provide: INSERT_PARENT_RESOLVER, useExisting: ActivePageService },
     // **D-077** — Asset Export (batch export panel). Registry holds
     // each editor's slot list; Runner injects EditorStateService +
     // ExporterRegistry to execute the batch. Per-editor scope so two

@@ -8,13 +8,13 @@ import {
   createPolygon,
   createRect,
   createText,
+  AUTO_PARENT,
   InsertNodeCommand,
   type Point,
   type SvgNode,
 } from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
 
-import { ActivePageService } from '../../pages/active-page.service';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../../plugin/plugin';
 import { SelectionService } from '../../selection/selection.service';
 import { MenuContributionRegistry } from '../menu-contribution-registry.service';
@@ -316,13 +316,13 @@ function insertShape(
   const { centerX, centerY, size } = computeInsertPosition(injector);
   const node = builder(centerX, centerY, size);
   // PAGES-FIX-2: insert into the active page when one exists.
-  const parentId = injector.get(ActivePageService).effectiveDrawTargetId();
+  // PAGES-REFACTOR Fase 1: AUTO_PARENT resolves via CommandBus context.
 
   // InsertNodeCommand inserts at the end of root.children (top of the
   // stacking order). That's the expected behaviour for "insert" —
   // new shapes go above existing ones, matching every other vector
   // editor (Illustrator z-order convention).
-  injector.get(CommandBus).dispatch(new InsertNodeCommand(parentId, node));
+  injector.get(CommandBus).dispatch(new InsertNodeCommand(AUTO_PARENT, node));
   injector.get(SelectionService).select(node.id);
 }
 
@@ -401,8 +401,8 @@ function insertImageViaFilePicker(runCtx: MenuContributionContext | undefined): 
           preserveAspectRatio: 'xMidYMid meet',
         });
         // PAGES-FIX-2: insert into the active page when one exists.
-        const parentId = injector.get(ActivePageService).effectiveDrawTargetId();
-        injector.get(CommandBus).dispatch(new InsertNodeCommand(parentId, node));
+        // PAGES-REFACTOR Fase 1: AUTO_PARENT resolves via CommandBus context.
+        injector.get(CommandBus).dispatch(new InsertNodeCommand(AUTO_PARENT, node));
         injector.get(SelectionService).select(node.id);
       };
       reader.readAsDataURL(file);
