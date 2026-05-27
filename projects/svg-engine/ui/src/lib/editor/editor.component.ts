@@ -20,6 +20,7 @@ import {
 } from 'svg-engine/edit';
 import { CONTEXT_MENU_SLOT, SvgeContextMenuTrigger } from '../context-menu';
 import { SvgeEffectsPanel } from '../effects-panel';
+import { SvgeIsolationBreadcrumb } from '../isolation-breadcrumb';
 import { SvgeLibrariesPanel } from '../libraries-panel';
 import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
 import { SvgeMenuBar } from '../menu-bar';
@@ -106,6 +107,7 @@ import { SvgeToolOptions } from '../tool-options';
     SvgeStatusBar,
     SvgeMenuBar,
     SvgeEffectsPanel,
+    SvgeIsolationBreadcrumb,
     SvgeLibrariesPanel,
     SvgePanelGroup,
     SvgePanelGroupTab,
@@ -143,6 +145,14 @@ import { SvgeToolOptions } from '../tool-options';
     @if (showToolOptions()) {
       <svge-tool-options [showPlaceholder]="toolOptionsShowPlaceholder()" />
     }
+    <!--
+      Isolation breadcrumb — self-gated via @if(visible()) on the
+      component, so this slot is zero-height when no isolation is
+      active. Gives every <svge-editor> shell parity with the custom-
+      editor route (which had the breadcrumb wired since D-039 Phase C).
+      Click a non-current crumb to climb up; click [←] (or Esc) to exit.
+    -->
+    <svge-isolation-breadcrumb class="iso-breadcrumb" />
     <!--
       Canvas row — horizontal flex container that hosts the canvas and
       the optional side rails (libraries / effects). Always present so

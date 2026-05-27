@@ -6,6 +6,31 @@
 
 ---
 
+## 2026-05-27 — UX-PARITY: `<svge-isolation-breadcrumb>` no `<svge-editor>` + `<svge-shell-pro>`
+
+**Gap reportado**: o breadcrumb de isolation (`Root › Group A › Group B` com chip de exit) estava registrado apenas na rota `/custom-editor` (Editor customizado / playground). As outras visões (`<svge-editor>` cobre `/basic-editor` + `/modular-editor` + `/shell-canvas-only`; `<svge-shell-pro>` cobre `/shell-pro-demo`) só mostravam o indicador compacto na status bar (`L1 · 9a3f12`), sem navegação clicável de volta aos níveis ancestrais.
+
+**Fix**: adicionado `<svge-isolation-breadcrumb>` nos dois shells. O componente é self-gated via `@if (visible())` interno — zero footprint quando isolation não está ativa, então nenhuma das visões legacy aparece com banda vazia.
+
+**Posicionamento**:
+
+- `<svge-editor>`: entre `<svge-tool-options>` e o `canvas-row` (linha natural top-to-bottom).
+- `<svge-shell-pro>`: entre `<svge-tool-options>` e o `<svge-pages-panel>` (acima do tab strip de pages para reads naturais).
+
+**Resultado**: as 5 visões do playground agora têm breadcrumb consistente quando isolation está ativa:
+
+| Visão             | Status pré              | Status pós                |
+| ----------------- | ----------------------- | ------------------------- |
+| custom-editor     | ✓ breadcrumb completo   | ✓ inalterado              |
+| basic-editor      | só pílula na status bar | **+ breadcrumb completo** |
+| modular-editor    | só pílula na status bar | **+ breadcrumb completo** |
+| shell-canvas-only | só pílula na status bar | **+ breadcrumb completo** |
+| shell-pro-demo    | só pílula na status bar | **+ breadcrumb completo** |
+
+Suite: 1740 passing / 1 skipped (zero regressão). Build 9 entry points + lint OK.
+
+---
+
 ## 2026-05-27 — PAGES-FIX-4: 3-frente — clique vazio na página seleciona página + marquee só pega objetos + libraries inserem na página + export/Layers Panel page-aware
 
 **Bugs reportados** (Editor Profissional pós PAGES-FIX-3):

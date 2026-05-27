@@ -29,6 +29,7 @@ import { CONTEXT_MENU_SLOT, SvgeContextMenuTrigger } from '../context-menu';
 import { SvgeEffectsPanel } from '../effects-panel';
 import { SvgeGradientEditor } from '../gradient-editor';
 import { SvgeInspector } from '../inspector';
+import { SvgeIsolationBreadcrumb } from '../isolation-breadcrumb';
 import { LayersPanel } from '../layers-panel';
 import { SvgeLibrariesPanel } from '../libraries-panel';
 import { SnapshotsPanel } from '../snapshots-panel';
@@ -136,6 +137,7 @@ import { SvgeToolsPalette } from '../tools-palette';
     SvgeInspector,
     SvgeGradientEditor,
     SvgeEffectsPanel,
+    SvgeIsolationBreadcrumb,
     SvgeLibrariesPanel,
     SvgePanelGroup,
     SvgePanelGroupTab,
@@ -159,6 +161,15 @@ import { SvgeToolsPalette } from '../tools-palette';
       <svge-toolbar slot="toolbar.main" />
     </div>
     <svge-tool-options class="tool-options-row" [showPlaceholder]="true" />
+    <!--
+      Isolation breadcrumb (post-PAGES-FIX-4 polish). Self-gated via
+      @if(visible()) on the component, so zero footprint when no
+      isolation is active. Gives the Pro shell parity with the
+      custom-editor route which had it wired since D-039 Phase C.
+      Sits between tool-options and pages strip so the breadcrumb
+      reads in the natural top-to-bottom flow.
+    -->
+    <svge-isolation-breadcrumb class="iso-breadcrumb-row" />
     <!--
       D-079 / PAGES-C — Pages tab strip. Auto-hides when the document
       has zero pages (PagesService.hasPages() === false), so legacy
