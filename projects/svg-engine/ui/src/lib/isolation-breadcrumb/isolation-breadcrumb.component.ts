@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { EditorStateService, findNodeById, type NodeId } from 'svg-engine/core';
-import { IsolationService } from 'svg-engine/edit';
+import { EditorStateService, findNodeById, findParent, type NodeId } from 'svg-engine/core';
+import { IsolationService, SelectionService } from 'svg-engine/edit';
 
 /**
  * Single entry rendered by the breadcrumb bar. `nodeId === null`
@@ -161,13 +161,68 @@ interface Crumb {
 export class SvgeIsolationBreadcrumb {
   private readonly isolation = inject(IsolationService);
   private readonly state = inject(EditorStateService);
+  /**
+   * **PAGES-REFACTOR follow-up #7** — selection-aware breadcrumb tail.
+   * When the user has a focused selection that lives INSIDE the
+   * isolation scope, the focused node is appended as the last
+   * (current/non-clickable) crumb — Illustrator parity ("Camada 1 ›
+   * ‹Grupo› › ‹Retângulo›" when a rectangle inside a group is the
+   * active selection).
+   *
+   * Optional injection because legacy consumers / headless mounts
+   * may not provide a SelectionService in their scope. When absent
+   * the breadcrumb falls back to the pure isolation path.
+   */
+  private readonly selection = inject(SelectionService, { optional: true });
 
   protected readonly visible = this.isolation.isActive;
 
+  /**
+   * The breadcrumb crumbs in order:
+   *   `[doc root, ...intermediate groups..., isolation root, ?focused selection]`
+   *
+   * **The selection tail** (last entry) only appears when ALL of:
+   * - SelectionService is available (optional inject).
+   * - `focusId` is non-null.
+   * - The focused node is NOT itself the isolation root (avoids a
+   *   redundant duplicate crumb).
+   * - The focused node is a descendant of the isolation root (so the
+   *   selection is in scope — we don't pretend a stale out-of-scope
+   *   selection is "current").
+   *
+   * The selection tail is marked `isCurrent: true` and the previous
+   * isolation-root crumb loses its `isCurrent` flag (becomes clickable
+   * so the user can jump back up by clicking the group name).
+   */
   protected readonly crumbs = computed<readonly Crumb[]>(() => {
     const path = this.isolation.breadcrumbPath();
     if (path.length === 0) return [];
     const root = this.state.document().root;
+
+    // Selection tail — null when there's no focus, no SelectionService,
+    // or the focused id is the isolation root itself.
+    const focusId = this.selection?.focusId() ?? null;
+    const isolationRootId = path[path.length - 1]!;
+    let tailId: NodeId | null = null;
+    if (focusId !== null && focusId !== isolationRootId) {
+      // Only append when the selection is INSIDE the isolation scope.
+      // Walk up from focusId: if we encounter isolationRootId, the
+      // focus is a descendant of it (in scope). If we reach the doc
+      // root first, the focus is out of scope (do not append).
+      let cursor: NodeId | null = focusId;
+      let safety = 1000;
+      while (cursor !== null && safety > 0) {
+        const parentNode = findParent(root, cursor);
+        if (parentNode === null) break; // reached doc root from outside scope
+        if (parentNode.id === isolationRootId || cursor === isolationRootId) {
+          tailId = focusId;
+          break;
+        }
+        cursor = parentNode.id;
+        safety -= 1;
+      }
+    }
+
     const out: Crumb[] = [];
     for (let i = 0; i < path.length; i++) {
       const id = path[i]!;
@@ -176,7 +231,19 @@ export class SvgeIsolationBreadcrumb {
         key: `crumb-${i}-${id}`,
         nodeId: id,
         label: labelFor(node, id, i === 0),
-        isCurrent: i === path.length - 1,
+        // The isolation-root crumb is `current` ONLY when there's no
+        // selection tail to take that role. With a tail present it
+        // becomes clickable so the user can re-select the group.
+        isCurrent: i === path.length - 1 && tailId === null,
+      });
+    }
+    if (tailId !== null) {
+      const tailNode = findNodeById(root, tailId);
+      out.push({
+        key: `crumb-sel-${tailId}`,
+        nodeId: tailId,
+        label: labelFor(tailNode, tailId, false),
+        isCurrent: true,
       });
     }
     return out;
@@ -186,9 +253,34 @@ export class SvgeIsolationBreadcrumb {
     this.isolation.exit();
   }
 
+  /**
+   * Click on a non-current crumb. Two behaviours composed in one
+   * dispatch (user-chosen via AskUserQuestion):
+   *
+   * 1. **Select** the clicked node (so the Inspector / overlays
+   *    immediately reflect it). Only when the SelectionService is
+   *    available — the breadcrumb stays usable on headless mounts.
+   * 2. **Adjust isolation** so the clicked node is the new isolation
+   *    root. If the clicked node was already in the isolation path
+   *    (a parent), this trims isolation back to that level. If the
+   *    clicked node is the doc root, isolation exits entirely.
+   *
+   * The two actions happen back-to-back; auto-exit-isolation effects
+   * elsewhere in the editor are no-ops because the selection is
+   * inside the new isolation scope by construction.
+   */
   protected onCrumbClick(c: Crumb): void {
     if (c.isCurrent || c.nodeId === null) return;
-    this.isolation.setRoot(c.nodeId);
+    if (this.selection !== null) {
+      this.selection.select(c.nodeId);
+    }
+    // Doc root → exit isolation; any deeper node → re-isolate on it.
+    const docRoot = this.state.document().root;
+    if (c.nodeId === docRoot.id) {
+      this.isolation.exit();
+    } else {
+      this.isolation.setRoot(c.nodeId);
+    }
   }
 }
 
