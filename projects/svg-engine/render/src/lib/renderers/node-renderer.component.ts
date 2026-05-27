@@ -1,6 +1,13 @@
 import { NgComponentOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
-import { isGroupNode, type SvgNode, type TextNode } from 'svg-engine/core';
+import {
+  type BoundingBox,
+  getPageViewBox,
+  isGroupNode,
+  isPage,
+  type SvgNode,
+  type TextNode,
+} from 'svg-engine/core';
 import { NodeRendererRegistry } from '../registry/node-renderer-registry.service';
 import { renderTransformAttr } from '../util/transform-attr';
 import { SvgeEllipseDirective } from './ellipse-renderer.directive';
@@ -130,6 +137,39 @@ import { SvgeTextDirective } from './text-renderer.directive';
         <svg:use [svgeSymbolUse]="$any(node())" />
       }
       @case ('group') {
+        @if (pageHitTargetBox(); as pb) {
+          <!--
+            **PAGES-FIX-4** — invisible hit target covering the page's
+            viewBox. Without this, the page's wrapper <g> has no
+            painted geometry in empty areas, so clicks on the white
+            artboard pass straight through to the SVG background and
+            id-resolution returns null (which the shell treats as
+            "start marquee"). With the rect catching pointer events,
+            clicks on empty page area resolve to the page id — the
+            Inspector then shows the page properties, matching
+            Illustrator/Affinity behaviour.
+
+            - fill="transparent" + pointer-events="all" → hit-testable
+              without painting any visible pixels.
+            - Sized to the page's stored viewBox (declares the
+              artboard area as the click region; not the document
+              viewBox, since the page's own dimensions can differ).
+            - Carries no data-node-id of its own: clicks bubble to
+              the parent <g svgeNode> which DOES carry the page's
+              data-node-id (via the host binding above). The
+              hit-testing helper walks up to find it.
+          -->
+          <svg:rect
+            class="page-hit-target"
+            [attr.x]="pb.x"
+            [attr.y]="pb.y"
+            [attr.width]="pb.width"
+            [attr.height]="pb.height"
+            fill="transparent"
+            stroke="none"
+            style="pointer-events: all"
+          />
+        }
         @for (child of groupChildren(); track child.id) {
           <svg:g svgeNode [node]="child"></svg:g>
         }
@@ -310,5 +350,21 @@ export class SvgeNodeRenderer {
   protected groupChildren(): readonly SvgNode[] {
     const n = this.node();
     return isGroupNode(n) ? n.children : [];
+  }
+
+  /**
+   * **PAGES-FIX-4** — returns the page's stored viewBox when the node
+   * is a Page (D-079), otherwise null. Used by the template to render
+   * the hit-target rect inside the page wrapper so clicks on empty
+   * artboard area still select the page.
+   *
+   * Returns `null` for non-page groups (most groups) so the hit-target
+   * rect is only emitted where it matters — zero overhead for ordinary
+   * groups.
+   */
+  protected pageHitTargetBox(): BoundingBox | null {
+    const n = this.node();
+    if (!isPage(n)) return null;
+    return getPageViewBox(n);
   }
 }

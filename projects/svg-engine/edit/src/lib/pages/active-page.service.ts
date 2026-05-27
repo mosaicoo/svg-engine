@@ -4,6 +4,7 @@ import {
   EditorStateService,
   getPageViewBox,
   type NodeId,
+  type SvgDocument,
   type SvgNode,
 } from 'svg-engine/core';
 import { PagesService } from './pages.service';
@@ -140,4 +141,40 @@ export class ActivePageService {
     if (page !== null) return page.id;
     return this.state.document().root.id;
   });
+
+  /**
+   * **PAGES-FIX-4** — derive an "active-page-only" document suitable
+   * for export / SVG source preview / single-page screenshot pipelines.
+   *
+   * Each page is conceptually a standalone artboard; users expect
+   * "Export SVG" or the View Source dialog to show **only** what's
+   * inside the page they're currently editing — not all pages
+   * concatenated as `<g>`s inside a single SVG (which is what the
+   * raw `state.document()` represents on disk for round-trip).
+   *
+   * **Returned shape** (when a page is active):
+   * - `viewBox` = the page's stored viewBox (so the SVG frames the
+   *   artboard, not the whole multi-page document).
+   * - `root.children` = the page's children (the actual content;
+   *   the page wrapper itself is collapsed — it'd just be noise in
+   *   the exported file).
+   * - `defs` / `exportPreferences` preserved verbatim so gradients,
+   *   patterns, filters, and the D-072 title preference still apply.
+   *
+   * When no page is active (legacy doc) this returns the input doc
+   * unchanged — same back-compat shape as the rest of the service.
+   */
+  effectiveExportDoc(doc: SvgDocument): SvgDocument {
+    const page = this.activePage();
+    if (page === null) return doc;
+    const pvb = getPageViewBox(page);
+    return {
+      ...doc,
+      viewBox: pvb ?? doc.viewBox,
+      root: {
+        ...doc.root,
+        children: page.children,
+      },
+    };
+  }
 }

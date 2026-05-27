@@ -50,6 +50,14 @@ export class InsertSymbolInstanceCommand implements Command {
     private readonly y: number,
     private readonly width?: number,
     private readonly height?: number,
+    /**
+     * **PAGES-FIX-4** — optional parent id. When omitted (or null), the
+     * instance is inserted at the document root (back-compat). Callers
+     * with a pages workflow (`<svge-shell-pro>` library panel) pass
+     * `ActivePageService.effectiveDrawTargetId()` so the instance lands
+     * inside the active page rather than as a sibling of the page.
+     */
+    private readonly parentId: NodeId | null = null,
   ) {
     this.label = `Insert symbol "${symbolId}"`;
   }
@@ -68,9 +76,10 @@ export class InsertSymbolInstanceCommand implements Command {
       width: this.width,
       height: this.height,
     });
+    const effectiveParent = this.parentId ?? doc.root.id;
     let nextRoot;
     try {
-      nextRoot = insertNode(doc.root, doc.root.id, instance);
+      nextRoot = insertNode(doc.root, effectiveParent, instance);
     } catch (e) {
       return fail(e instanceof Error ? e.message : String(e));
     }

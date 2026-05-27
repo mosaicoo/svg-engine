@@ -10,6 +10,7 @@ import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatTooltip } from '@angular/material/tooltip';
 import { EditorStateService, type SvgDocument } from 'svg-engine/core';
+import { ActivePageService } from 'svg-engine/edit';
 import { ExporterRegistry, type Exporter, svgExporter } from 'svg-engine/io';
 import { SvgeDialogShell } from '../dialog-shell';
 
@@ -123,6 +124,12 @@ import { SvgeDialogShell } from '../dialog-shell';
 export class SvgeSvgSourceDialog {
   private readonly state = inject(EditorStateService);
   private readonly exporters = inject(ExporterRegistry);
+  // PAGES-FIX-4: when a page is active, the dialog shows only that
+  // page's contents (with its viewBox). Multi-page docs are NOT
+  // dumped as one big SVG full of `<g data-svge-kind="page">` —
+  // each page is conceptually a standalone artboard from the
+  // editor's perspective.
+  private readonly activePage = inject(ActivePageService);
 
   /**
    * Pick the registered SVG exporter when available (plugin override
@@ -140,14 +147,15 @@ export class SvgeSvgSourceDialog {
    * of silently rendering `[object Promise]`.
    */
   protected readonly source = computed<string>(() => {
-    const doc: SvgDocument = this.state.document();
+    const doc: SvgDocument = this.activePage.effectiveExportDoc(this.state.document());
     const result = this.resolvedExporter().export(doc);
     if (typeof result !== 'string') return '';
     return result;
   });
 
   protected readonly errorMessage = computed<string | null>(() => {
-    const result = this.resolvedExporter().export(this.state.document());
+    const doc = this.activePage.effectiveExportDoc(this.state.document());
+    const result = this.resolvedExporter().export(doc);
     if (typeof result !== 'string') {
       return 'The registered SVG exporter is asynchronous; live source preview requires a synchronous string exporter.';
     }

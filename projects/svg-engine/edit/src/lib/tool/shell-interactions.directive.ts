@@ -221,6 +221,23 @@ export class SvgeShellInteractions implements OnDestroy {
       this.selection.select(id);
     }
 
+    // PAGES-FIX-4: page is selectable on click (so Inspector shows
+    // its props), but it is NOT draggable as a unit — page is the
+    // artboard, not a user object. Drag-from-page-area starts a
+    // marquee (Illustrator/Affinity convention). We arm the marquee
+    // immediately; if the user releases without movement, the page
+    // selection sticks and marquee is canceled by the up handler.
+    if (id === this.activePage.activePageId()) {
+      const start = this.toDocPoint(event);
+      if (start !== null) {
+        const mode = event.shiftKey ? 'add' : 'replace';
+        this.marquee.start(start, mode, this.selection.selectedIds());
+      }
+      this.potentialDrag = null;
+      capturePointer(event);
+      return;
+    }
+
     // Arm a potential drag. Locked nodes can be selected but not
     // dragged (consistent with Illustrator/Affinity/Figma).
     // NB: `LayersService.isLocked` lookup happens inside the move flow;
@@ -514,8 +531,17 @@ export class SvgeShellInteractions implements OnDestroy {
     const svg = this.findInnerSvg();
     if (svg === null) return;
 
+    // PAGES-FIX-4: when an active page exists, marquee operates on
+    // the page's children (the actual user objects), not on the
+    // document root's children (which is just `[page]` and would
+    // make every marquee pick the entire page). Falls back to the
+    // legacy root.children behavior for documents without pages.
+    const activePageNode = this.activePage.activePage();
+    const candidateParent: { readonly children: readonly { readonly id: NodeId }[] } =
+      activePageNode !== null ? activePageNode : this.state.document().root;
+
     const candidates: MarqueeCandidate[] = [];
-    for (const child of this.state.document().root.children) {
+    for (const child of candidateParent.children) {
       if (findRenderedNode(svg, child.id) === null) continue;
       const bb = getRenderedNodeBBox(svg, child.id);
       if (bb === null) continue;

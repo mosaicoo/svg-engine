@@ -246,7 +246,16 @@ import { SvgeToolsPalette } from '../tools-palette';
       <aside class="right-side" aria-label="Layers, properties and appearance panels">
         <svge-panel-group class="rs-group">
           <ng-template svgePanelGroupTab svgePanelGroupTabId="layers" label="Layers" icon="layers">
-            <svge-layers-panel />
+            <!--
+              PAGES-FIX-4: when a page is active, pass its GroupNode
+              as the explicit [root] input so the panel lists the
+              page's CHILDREN as top-level entries (no separate
+              "Page 1" wrapper row). The page itself is the implicit
+              scope; users navigate the artboard contents directly,
+              matching Figma / Sketch frame-as-context model.
+              Null (no page) falls back to state.document().root.
+            -->
+            <svge-layers-panel [root]="layersPanelRoot()" />
           </ng-template>
           <!--
             D-073 — History snapshots tab. Sits next to Layers because
@@ -454,6 +463,17 @@ export class SvgeShellPro {
    * shape opens `'context.node'`; right-click on the canvas background
    * opens `'context.canvas'`. Arrow-function to preserve `this`.
    */
+  /**
+   * **PAGES-FIX-4** — feeds `<svge-layers-panel [root]>`. Returns the
+   * active page's GroupNode when present (panel shows its children as
+   * top-level entries), otherwise null (panel falls back to
+   * `state.document().root`).
+   */
+  protected readonly layersPanelRoot = computed<SvgNode | null>(() => {
+    const page = this.activePage.activePage();
+    return page as unknown as SvgNode | null;
+  });
+
   protected readonly contextMenuResolver = (event: MouseEvent): string => {
     const rootId = this.state.document().root.id;
     const activePageId = this.activePage.activePageId();

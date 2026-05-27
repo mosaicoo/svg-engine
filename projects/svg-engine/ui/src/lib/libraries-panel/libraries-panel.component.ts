@@ -12,14 +12,18 @@ import {
   CommandBus,
   EditorStateService,
   findNodeById,
+  getPageViewBox,
   InsertNodeCommand,
   type NodeId,
   type PathNode,
   SetStylePropertyOnManyCommand,
+  type SvgNode,
   type SvgStyle,
+  type Transform,
 } from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
 import {
+  ActivePageService,
   AssetManagerService,
   BrushLibraryService,
   BrushSelectionService,
@@ -625,6 +629,12 @@ export class SvgeLibrariesPanel {
   private readonly state = inject(EditorStateService);
   private readonly viewport = inject(ViewportService);
   private readonly bus = inject(CommandBus);
+  // PAGES-FIX-4: library inserts now target the active page (so the
+  // shape lands INSIDE the artboard the user is editing) AND are
+  // centered on the visible viewport clamped to the page's viewBox
+  // (Figma/Affinity convention — the new shape appears under the
+  // user's eyes, never half off-screen).
+  private readonly activePage = inject(ActivePageService);
   private readonly sanitizer = inject(DomSanitizer);
 
   protected readonly shapesItems = this.shapes.items;
@@ -792,12 +802,49 @@ export class SvgeLibrariesPanel {
     });
   });
 
-  /** Insert a shape from the library into the document root. */
+  /**
+   * Insert a shape from the library.
+   *
+   * **PAGES-FIX-4** — two changes:
+   *
+   * 1. Drop into the **active page** (via
+   *    `ActivePageService.effectiveDrawTargetId()`) instead of the
+   *    document root. Without this, the shape would land as a sibling
+   *    of the page and the page-filter renderer would hide it.
+   * 2. **Translate the shape** so its 100×100 author bbox center
+   *    lands at the visible viewport center, clamped to the active
+   *    page bounds (matches Insert ▸ Shape menu convention from D-052).
+   *    Pre-translation composes with any existing transform by adding
+   *    to the matrix's e/f components — affine-safe for plugin shapes
+   *    that ship a non-identity transform.
+   */
   protected insertShape(id: string): void {
     const item = this.shapes.get(id);
     if (item === null) return;
     const node = item.build();
-    this.bus.dispatch(new InsertNodeCommand(this.state.document().root.id, node));
+    const { cx, cy } = this.insertCenter();
+    const positioned = translateNode(node, cx - 50, cy - 50);
+    const parentId = this.activePage.effectiveDrawTargetId();
+    this.bus.dispatch(new InsertNodeCommand(parentId, positioned));
+  }
+
+  /**
+   * Center for fresh library inserts: viewport center, clamped to the
+   * active page's viewBox when there is one. Without the page clamp
+   * the user could be zoomed-in on the workspace background and the
+   * new shape would land off-artboard (PAGES-FIX-4).
+   */
+  private insertCenter(): { cx: number; cy: number } {
+    const vb = this.viewport.viewBox();
+    let cx = vb.x + vb.width / 2;
+    let cy = vb.y + vb.height / 2;
+    const page = this.activePage.activePage();
+    const pvb = page !== null ? getPageViewBox(page) : null;
+    if (pvb !== null) {
+      cx = Math.min(Math.max(cx, pvb.x), pvb.x + pvb.width);
+      cy = Math.min(Math.max(cy, pvb.y), pvb.y + pvb.height);
+    }
+    return { cx, cy };
   }
 
   /**
@@ -836,9 +883,10 @@ export class SvgeLibrariesPanel {
     const scale = targetSize / Math.max(naturalW, naturalH);
     const w = naturalW * scale;
     const h = naturalH * scale;
-    const cx = vb.x + vb.width / 2;
-    const cy = vb.y + vb.height / 2;
-    this.bus.dispatch(new InsertSymbolInstanceCommand(id, cx - w / 2, cy - h / 2, w, h));
+    // PAGES-FIX-4: center clamped to active page + insert into page.
+    const { cx, cy } = this.insertCenter();
+    const parentId = this.activePage.effectiveDrawTargetId();
+    this.bus.dispatch(new InsertSymbolInstanceCommand(id, cx - w / 2, cy - h / 2, w, h, parentId));
   }
 
   /**
@@ -1009,4 +1057,19 @@ function parseAspectRatio(dims: string | undefined): string {
   const m = /(\d+)\s*[×x]\s*(\d+)/.exec(dims);
   if (m === null) return '1';
   return `${m[1]} / ${m[2]}`;
+}
+
+/**
+ * **PAGES-FIX-4** — pre-translate a node by `(dx, dy)` by adding to
+ * the matrix's `e/f` entries. `translate(dx,dy) * M` applied to point
+ * `(x,y)` yields `(ax+cy+e+dx, bx+dy+f+dy)`, which is mathematically
+ * identical to adding `(dx,dy)` to `(e,f)` — affine-safe for nodes
+ * that already carry a non-identity transform (rotation, scale, etc).
+ *
+ * Pure: returns a new node, leaves input untouched.
+ */
+function translateNode<T extends SvgNode>(node: T, dx: number, dy: number): T {
+  const [a, b, c, d, e, f] = node.transform;
+  const next: Transform = [a, b, c, d, e + dx, f + dy];
+  return { ...node, transform: next };
 }

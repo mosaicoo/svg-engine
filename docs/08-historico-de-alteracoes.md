@@ -6,6 +6,68 @@
 
 ---
 
+## 2026-05-27 — PAGES-FIX-4: 3-frente — clique vazio na página seleciona página + marquee só pega objetos + libraries inserem na página + export/Layers Panel page-aware
+
+**Bugs reportados** (Editor Profissional pós PAGES-FIX-3):
+
+1. **Seleção da página** — page deixou de ser selecionável por clique na área vazia. Inspector ficava vazio. E **marquee drag selecionava a página inteira + todos os objetos** (porque iterava `root.children` que agora é só `[page]`).
+2. **Libraries criam fora da página** — Shapes Library, Symbol Library etc. droppavam no root, fora do artboard. Usuário tinha que mover manualmente via Layer Panel.
+3. **Export agrupa todas as páginas como `<g>`** — single SVG export tratava cada page como um group dentro do documento. Layer Panel mostrava a page como item top-level (deveria ser implícita).
+
+**Fix** (3 frentes, 1 commit):
+
+### Frente 1 — Selection + marquee
+
+- **Renderer** (`node-renderer.component.ts`): quando o group é uma Page (D-079), emite um **hit-target rect transparente** dentro do `<g>` cobrindo a viewBox da page. `fill="transparent" pointer-events="all"` — sem pixel visível, mas captura cliques na área vazia → bubble pro `<g>` da page → `resolveSelectableNodeId` retorna o pageId.
+
+- **shell-interactions** (`shell-interactions.directive.ts`):
+  - Pointer-down em `id === activePageId` → **seleciona a page imediatamente E inicia marquee** (sem arm drag — page não é arrastável). Se usuário só clica, page fica selecionada; se arrasta, marquee toma conta.
+  - Marquee `applyMarqueeSelection` itera **`activePage().children`** (não `root.children`) — candidatos = objetos dentro da page; a page em si nunca é candidata.
+
+### Frente 2 — Library inserts
+
+- **`InsertSymbolInstanceCommand`** ganha parâmetro opcional `parentId` (back-compat — sem `parentId` cai no root).
+- **`libraries-panel.component.ts`**:
+  - `insertShape`: dispatcha `InsertNodeCommand` com `effectiveDrawTargetId()` + **pre-translate o nó** (helper `translateNode`) pro shape (autorado 100×100 centered em 50,50) cair no centro do viewport visível **clamped ao viewBox da page ativa**.
+  - `insertSymbolInstance`: passa `parentId` + center clamp.
+  - Helper `insertCenter()` compartilhado: viewport center clamped a page viewBox.
+
+### Frente 3 — Export per-page + Layers Panel sem page
+
+- **`ActivePageService.effectiveExportDoc(doc)`** (novo método): quando há page ativa, retorna doc com `viewBox = pageViewBox` e `root.children = page.children` (page wrapper colapsado — não aparece como `<g data-svge-kind="page">` no SVG exportado). Sem page ativa → retorna doc original (legacy).
+- **`svg-source-dialog.component.ts`**: passa doc por `effectiveExportDoc()` antes de exportar.
+- **`builtin-menu-contributions.plugin.ts`** (handler de Export SVG/PNG): mesmo tratamento.
+- **`shell-pro.component.ts`**: `<svge-layers-panel [root]="layersPanelRoot()" />` — quando há page ativa, passa o nó da page como `root` para o panel listar **os filhos da page** como top-level (sem header "Page 1"). Padrão Figma/Sketch (active frame = scope).
+
+### Comportamento resultante
+
+| Ação                        | Pré-FIX-4                     | Pós-FIX-4                                  |
+| --------------------------- | ----------------------------- | ------------------------------------------ |
+| Click em área vazia da page | Nada (id=null → marquee)      | **Page selecionada** (Inspector tab Page)  |
+| Drag em área vazia da page  | Marquee pegava page + tudo    | **Marquee só pega objetos** dentro da page |
+| Shape Library click         | Inseria no root, fora da page | **Centro da page** (clamped)               |
+| Symbol Library click        | Inseria no root               | **Centro da page** (clamped)               |
+| File ▸ Export SVG           | Multi-page como `<g>`s        | **Só a página ativa**                      |
+| View Source dialog          | Multi-page como `<g>`s        | **Só a página ativa**                      |
+| Layer Panel raiz            | Page como item top-level      | **Filhos da page** como top-level          |
+
+**Limitações conhecidas** (não escopadas neste fix):
+
+- Template Library ainda substitui o doc inteiro (apaga pages). Templates são "novo doc completo" por design — escapa do conceito multi-página.
+- Editor não-pro (`<svge-editor>`) não passa `[root]` ao Layer Panel — fica com o comportamento legacy (page visível como top-level). Apenas o shell-pro foi atualizado.
+
+Suite: **1740 passing / 1 skipped** (zero regressão). Build 9 entry points + lint OK.
+
+**Como testar**:
+
+1. `/shell-pro-demo`: clique em área vazia da página → handles aparecem em torno do artboard, Inspector mostra tab Page.
+2. Drag-rectangle dentro da página → marquee seleciona só shapes (não a página).
+3. Abra Libraries panel ▸ Shapes ▸ click num shape → aparece **no centro do artboard**.
+4. File ▸ View SVG Source → vê apenas o conteúdo da página ativa (sem `<g data-svge-kind="page">`).
+5. Layer Panel mostra os filhos da página como root list.
+
+---
+
 ## 2026-05-27 — PAGES-FIX-3: Page-as-implicit-scope-root para selection (clique em shape seleciona shape)
 
 **Bug reportado** (Editor Profissional / `<svge-shell-pro>` pós PAGES-FIX-2):

@@ -2119,7 +2119,15 @@ async function exportAndDownload(
   // of `state.document()` that needed defs merged. Centralized via
   // `ActiveDefsService` so renderer + exporter stay in sync.
   const activeDefs = fromCtx(ActiveDefsService, runCtx);
-  const doc = { ...docRaw, defs: activeDefs.buildExportDefs(docRaw.defs) };
+  // PAGES-FIX-4: when a page is active, the export contains only that
+  // page's content (the page's viewBox becomes the SVG viewBox,
+  // the page's children become the root children — no `<g
+  // data-svge-kind="page">` wrapper). Multi-page docs still
+  // round-trip via the importer's page detection; this is purely
+  // an export-side projection.
+  const activePage = fromCtx(ActivePageService, runCtx);
+  const docWithDefs = { ...docRaw, defs: activeDefs.buildExportDefs(docRaw.defs) };
+  const doc = activePage.effectiveExportDoc(docWithDefs);
   const exporter = format === 'svg' ? svgExporter : pngExporter;
   // `Exporter.export` may return `string` (SVG) or `Promise<string | Blob>`
   // (PNG). Normalize both branches into a Blob for download.
