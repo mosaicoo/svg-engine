@@ -17,6 +17,7 @@ import {
   CommandBus,
   createEllipse,
   createPath,
+  AUTO_PARENT,
   createRect,
   EditorStateService,
   findNodeById,
@@ -845,7 +846,14 @@ export class CustomEditor implements OnDestroy {
               style: { fill, stroke: '#333', strokeWidth: 1 },
             });
 
-    this.bus.dispatch(new InsertNodeCommand(this.state.document().root.id, node));
+    // PAGES-REFACTOR Fase 1 follow-up — was previously inserting at
+    // `state.document().root.id`, which lands the new shape as a
+    // SIBLING of the active page (invisible under page-filter mode).
+    // AUTO_PARENT routes the insert through the CommandBus's
+    // `InsertParentResolver` → ActivePageService.resolveAutoParent(),
+    // dropping the shape inside the active page when one exists; falls
+    // back to root for legacy single-root docs.
+    this.bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
   }
 
   protected nudgeFirst(): void {

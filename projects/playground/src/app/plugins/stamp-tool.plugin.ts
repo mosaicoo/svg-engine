@@ -1,4 +1,4 @@
-import { CommandBus, createEllipse, EditorStateService, InsertNodeCommand } from 'svg-engine/core';
+import { AUTO_PARENT, CommandBus, createEllipse, InsertNodeCommand } from 'svg-engine/core';
 import {
   type EditorPlugin,
   PLUGIN_API_VERSION,
@@ -43,14 +43,19 @@ class StampTool implements Tool {
   onPointerDown(event: ToolPointerEvent, ctx: ToolContext): void {
     const state = ctx.injector.get(StampToolService);
     const bus = ctx.injector.get(CommandBus);
-    const root = ctx.injector.get(EditorStateService).document().root;
 
     const r = state.radius();
     const node = createEllipse(
       { cx: event.docPoint.x, cy: event.docPoint.y, rx: r, ry: r },
       { style: { fill: state.resolvedHex(), stroke: '#222', strokeWidth: 1 } },
     );
-    bus.dispatch(new InsertNodeCommand(root.id, node));
+    // PAGES-REFACTOR Fase 1 follow-up — was previously inserting at
+    // `EditorStateService.document().root.id` (which lands the stamp
+    // as a SIBLING of the active page in page-filter mode → invisible).
+    // AUTO_PARENT routes through the CommandBus's InsertParentResolver
+    // so the stamp lands inside the active D-079 page when one exists;
+    // falls back to root for legacy single-root docs.
+    bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
   }
 }
 
