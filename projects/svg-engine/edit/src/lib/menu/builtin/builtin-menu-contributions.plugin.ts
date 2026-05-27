@@ -43,6 +43,7 @@ import { ClipboardService } from '../../clipboard/clipboard.service';
 import { SelectSameService } from '../../find-replace/select-same.service';
 import { getRenderedNodeBBox } from '../../geometry/node-bbox';
 import { ActiveDefsService } from '../../library/active-defs.service';
+import { ActivePageService } from '../../pages/active-page.service';
 import { type EditorPlugin } from '../../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../../plugin/plugin';
 import { SelectionService } from '../../selection/selection.service';
@@ -2003,13 +2004,13 @@ function pasteFromClipboard(runCtx: MenuContributionContext | undefined, fromCtx
   const clipboard = fromCtx(ClipboardService, runCtx);
   const nodes = clipboard.paste();
   if (nodes.length === 0) return;
-  const state = fromCtx(EditorStateService, runCtx);
   const bus = fromCtx(CommandBus, runCtx);
-  const rootId = state.document().root.id;
-  // Insert each clone into the root. Caller (or a future "paste at
-  // selection" enhancement) could insert into a focused group instead.
+  // PAGES-FIX-2: paste into the active page when one exists (legacy
+  // root otherwise). Keeps pasted clones in the same logical container
+  // the user is currently editing.
+  const parentId = fromCtx(ActivePageService, runCtx).effectiveDrawTargetId();
   for (const node of nodes) {
-    bus.dispatch(new InsertNodeCommand(rootId, node));
+    bus.dispatch(new InsertNodeCommand(parentId, node));
   }
   // Select the newly-pasted nodes so subsequent operations target them
   // (matches the convention of every professional editor).

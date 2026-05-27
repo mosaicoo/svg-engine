@@ -1,15 +1,10 @@
-import {
-  CommandBus,
-  createPath,
-  EditorStateService,
-  InsertNodeCommand,
-  type Point,
-} from 'svg-engine/core';
+import { CommandBus, createPath, InsertNodeCommand, type Point } from 'svg-engine/core';
 import {
   BrushLibraryService,
   BrushSelectionService,
 } from '../library/brushes/brush-library.service';
 import { expandStrokeWithProfile } from '../library/brushes/expand-stroke';
+import { ActivePageService } from '../pages/active-page.service';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../plugin/plugin';
 import { SelectionService } from '../selection/selection.service';
 import { PencilToolService } from './pencil-tool.service';
@@ -164,8 +159,9 @@ class PencilTool implements Tool {
             // default centerline color.
             style: { fill: '#000000', stroke: 'none' },
           });
-          const root = ctx.injector.get(EditorStateService).document().root;
-          ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(root.id, node));
+          // PAGES-FIX-2: insert into the active page when one exists.
+          const parentId = ctx.injector.get(ActivePageService).effectiveDrawTargetId();
+          ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(parentId, node));
           return;
         }
         // Empty `expanded` (degenerate stroke) falls through to the
@@ -185,8 +181,9 @@ class PencilTool implements Tool {
         strokeWidth: pencil.strokeWidth(),
       },
     });
-    const root = ctx.injector.get(EditorStateService).document().root;
-    ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(root.id, node));
+    // PAGES-FIX-2: same parent resolution as the brush-expanded branch.
+    const parentId = ctx.injector.get(ActivePageService).effectiveDrawTargetId();
+    ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(parentId, node));
   }
 
   onPointerCancel(_event: ToolPointerEvent, ctx: ToolContext): void {

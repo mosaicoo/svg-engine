@@ -116,4 +116,28 @@ export class ActivePageService {
     if (pvb !== null) return pvb;
     return this.state.document().viewBox;
   });
+
+  /**
+   * **PAGES-FIX-2** — "where should new shapes be inserted?" The
+   * drawing tools (Pencil, Pen, Rectangle, Ellipse, Polygon, Text,
+   * Stamp, asset-manager drop) call this when they need a parent id
+   * for {@link InsertNodeCommand}.
+   *
+   * - When a page is active → returns the page's id (shapes become
+   *   children of the page → visible in the renderer's page-filter
+   *   mode → user sees them in the canvas).
+   * - When no page is active → returns the document root id (legacy
+   *   pre-D-079 behavior; renderer shows everything).
+   *
+   * **Why a single source of truth**: without this, tools that
+   * hard-code `state.document().root.id` would insert shapes as
+   * SIBLINGS of pages, and the renderer's page-filter would hide them.
+   * Centralizing the lookup here means every drawing tool stays in
+   * sync with the active-page selection.
+   */
+  readonly effectiveDrawTargetId = computed<NodeId>(() => {
+    const page = this.activePage();
+    if (page !== null) return page.id;
+    return this.state.document().root.id;
+  });
 }

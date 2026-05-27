@@ -6,6 +6,71 @@
 
 ---
 
+## 2026-05-27 — PAGES-FIX-2: Auto-bootstrap Page 1 + tools desenham na page ativa + Select default
+
+**Bugs reportados** (Editor Profissional / `<svge-shell-pro>`):
+
+1. Editor abria sem nenhuma página criada — usuário tinha que clicar
+   "+" antes de poder desenhar significativamente.
+2. Shapes desenhados pelo Pencil/Pen/Rect/Ellipse/Polygon/Text e
+   inseridos via Insert menu / Asset Manager / Paste apareciam no
+   Layers Panel mas **sumiam do canvas** quando o documento tinha
+   pages — o renderer renderiza só os filhos da page ativa, e os
+   shapes eram inseridos como **siblings** da page (no root).
+3. Tabela de propriedades não mostrava nada ao selecionar a page.
+4. Toolbar abria sem ferramenta ativa — cursor não fazia nada na
+   prancheta até o usuário clicar num tool.
+
+**Fix**:
+
+- **Novo `EnsureDefaultPageCommand`** em `svg-engine/core` —
+  idempotent: se já existe page, no-op; senão cria `Page 1` com
+  `doc.viewBox` e **migra todos os filhos top-level** pra dentro
+  dela (preserva o desenho do usuário que possa ter rolado antes).
+  Undo restaura o root anterior verbatim.
+
+- **Novo `ActivePageService.effectiveDrawTargetId()`** — single
+  source of truth pra "onde inserir nova shape?". Retorna o id da
+  page ativa quando há uma; cai pro `root.id` no modo legacy
+  (back-compat com docs sem pages).
+
+- **8 call-sites refatorados** para usar `effectiveDrawTargetId()`
+  em vez de `state.document().root.id` hardcoded:
+  - `shape-tools.plugin.ts` (Rect/Ellipse/Polygon)
+  - `pen-tool.plugin.ts`
+  - `text-tool.plugin.ts`
+  - `builtin-tools.ts` Pencil (ambos os branches: brush + centerline)
+  - `builtin-insert-menu.plugin.ts` (2 lugares)
+  - `builtin-menu-contributions.plugin.ts` (paste handler)
+  - `library/assets/asset-manager.service.ts` (insertIntoDocument)
+
+- **`<svge-shell-pro>` constructor** dispara, via microtask,
+  `EnsureDefaultPageCommand` + ativa `SELECT_TOOL_ID` se nenhum
+  tool está ativo. Microtask garante que o DI scope (D-042) já
+  esteja completamente resolvido.
+
+**Bug 3 (propriedades da page)**: era falso positivo — Inspector
+tab "Page" já existe desde PAGES-D, condicionada a haver uma page
+ativa. Bug 1 (page nunca criada) ⇒ tab nunca aparecia. Resolvido
+indiretamente pelo auto-bootstrap.
+
+**+4 specs** (`ensure-default-page.command.spec.ts`) cobrindo
+bootstrap, idempotência, migração de pre-existing children, e undo
+verbatim. Suite: 1737 passing / 1 skipped (de 1733 pré-fix).
+
+**Como testar**:
+
+1. Abra `/shell-pro-demo` num doc fresh → tab "Page 1" já visível,
+   tool "Select" pré-ativo.
+2. Troque pra Pencil/Rect/Ellipse/Polygon/Text e desenhe → shape
+   aparece tanto no Layers Panel quanto no canvas (dentro da page).
+3. Clique na tab "Page 1" → Inspector mostra tab "Page" com nome
+   editável e viewBox.
+4. Paste / Insert menu / Asset drop também caem dentro da page
+   ativa (não como siblings).
+
+---
+
 ## 2026-05-27 — D-079 (PAGES-A→E): Pages / Artboards multi-página
 
 **O quê.** Suporte completo a múltiplas páginas (Pages / Artboards /

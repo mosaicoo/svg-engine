@@ -56,6 +56,10 @@ export {
   RenamePageCommand,
   ResizePageCommand,
 } from './page.commands';
+// PAGES-FIX-2 — idempotent bootstrap of Page 1 (migrates loose root
+// shapes into the new page). Called by shells that opt into the
+// multi-page workflow from mount (e.g. `<svge-shell-pro>`).
+export { EnsureDefaultPageCommand } from './ensure-default-page.command';
 export { SetPropertyCommand } from './set-property.command';
 export { SetPropertyOnManyCommand } from './set-property-on-many.command';
 export { SetStylePropertyOnManyCommand } from './set-style-property-on-many.command';

@@ -3,9 +3,9 @@ import {
   createEllipse,
   createPolygon,
   createRect,
-  EditorStateService,
   InsertNodeCommand,
 } from 'svg-engine/core';
+import { ActivePageService } from '../pages/active-page.service';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../plugin/plugin';
 import { SelectionService } from '../selection/selection.service';
 import {
@@ -122,8 +122,11 @@ class ShapeTool implements Tool {
     // match the prior hardcoded values for back-compat.
     const node = buildShapeNode(this.kind, bounds, shapes);
     if (node === null) return;
-    const root = ctx.injector.get(EditorStateService).document().root;
-    ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(root.id, node));
+    // PAGES-FIX-2: insert into the active page (when one exists) so
+    // newly drawn shapes appear inside the page the user is viewing.
+    // Falls back to root for legacy single-root docs.
+    const parentId = ctx.injector.get(ActivePageService).effectiveDrawTargetId();
+    ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(parentId, node));
   }
 
   onPointerCancel(_event: ToolPointerEvent, ctx: ToolContext): void {

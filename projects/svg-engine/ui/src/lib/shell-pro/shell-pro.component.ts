@@ -1,5 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
-import { type BoundingBox, EditorStateService, type SvgNode } from 'svg-engine/core';
+import {
+  type BoundingBox,
+  CommandBus,
+  EditorStateService,
+  EnsureDefaultPageCommand,
+  type SvgNode,
+} from 'svg-engine/core';
 import {
   ActiveDefsService,
   ActivePageService,
@@ -12,8 +18,10 @@ import {
   OutlineFilter,
   PageOverlay,
   resolveSelectableNodeId,
+  SELECT_TOOL_ID,
   SvgeCanvasGestures,
   SvgeShellInteractions,
+  ToolHostService,
   WorkspaceBackground,
 } from 'svg-engine/edit';
 import { SvgeRenderer } from 'svg-engine/render';
@@ -415,6 +423,31 @@ export class SvgeShellPro {
   // behavior (treeForRendering / viewBoxForRendering fall back to
   // root + document.viewBox).
   private readonly activePage = inject(ActivePageService);
+  private readonly bus = inject(CommandBus);
+  private readonly toolHost = inject(ToolHostService);
+
+  /**
+   * **PAGES-FIX-2** — on mount:
+   *
+   * 1. Bootstrap `Page 1` (idempotent; migrates root-level shapes if any).
+   *    Calls {@link EnsureDefaultPageCommand} so the multi-page workflow
+   *    is active immediately and drawing tools have a valid parent.
+   * 2. Activate the **Select** tool by default — without this, the
+   *    tools palette opens with no active tool and the cursor doesn't
+   *    interact with the canvas as expected (Illustrator/Affinity/
+   *    Figma all default to Select on open).
+   *
+   * Wrapped in a microtask so it runs AFTER all the scope providers
+   * have settled (Angular's DI graph is fully resolved by then).
+   */
+  constructor() {
+    queueMicrotask(() => {
+      this.bus.dispatch(new EnsureDefaultPageCommand());
+      if (this.toolHost.activeId() === null) {
+        this.toolHost.activate(SELECT_TOOL_ID);
+      }
+    });
+  }
 
   /**
    * **D-040** — Dynamic context-menu slot resolver. Right-click on a

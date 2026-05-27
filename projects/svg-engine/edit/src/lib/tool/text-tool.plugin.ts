@@ -6,6 +6,7 @@ import {
   InsertNodeCommand,
 } from 'svg-engine/core';
 import { resolveNodeIdFromEvent } from '../hit-testing/hit-testing';
+import { ActivePageService } from '../pages/active-page.service';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../plugin/plugin';
 import { SelectionService } from '../selection/selection.service';
 import { InlineTextEditorService } from './text-tool.service';
@@ -93,10 +94,9 @@ class TextTool implements Tool {
       }
     }
 
-    // Snapshot the doc-root id BEFORE dispatching — the document
-    // is immutable but we want the insertion under whichever root
-    // is current at click time (not at commit time).
-    const rootId = state.document().root.id;
+    // PAGES-FIX-2: insert into the active page when one exists
+    // (otherwise root for back-compat). Resolved at click time.
+    const parentId = ctx.injector.get(ActivePageService).effectiveDrawTargetId();
     // TOOL-OPT-C: pull defaults from InlineTextEditorService so the
     // tool-options bar drives the next placeholder. Fall back to the
     // original constants (font-size + black fill) when the user hasn't
@@ -123,7 +123,7 @@ class TextTool implements Tool {
     if (fs !== null) (node as { fontStyle?: 'italic' }).fontStyle = fs;
     const ta = editorSvc.textAnchor();
     if (ta !== 'start') (node as { textAnchor?: 'start' | 'middle' | 'end' }).textAnchor = ta;
-    ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(rootId, node));
+    ctx.injector.get(CommandBus).dispatch(new InsertNodeCommand(parentId, node));
     // Open the inline editor on the freshly-created node. The
     // `placeholder=true` flag tells the editor: "if the user cancels
     // without typing, remove this node entirely (it was never real
