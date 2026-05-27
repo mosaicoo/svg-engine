@@ -81,14 +81,27 @@ import { ActivePageService, PagesService } from 'svg-engine/edit';
         (click)="$event.stopPropagation()"
       >
         @for (page of pages.pages(); track page.id) {
-          <button
-            type="button"
+          <!--
+            **AUDIT FIX B1** — was a button.page-tab with a NESTED
+            button.close-btn AND an input inside. HTML5 forbids
+            interactive descendants inside button; browsers re-parent
+            the inner button, which broke the close (x) hit target
+            and the rename input (the close button could end up
+            outside its visual area). Replaced with a div role=tab
+            tabindex=0 so the inner button + input are legal
+            children. Keyboard parity preserved: tabindex makes it
+            Tab-focusable, and Enter/Space activate the tab.
+          -->
+          <div
             class="page-tab"
             role="tab"
+            tabindex="0"
             [class.active]="page.id === active.activePageId()"
             [attr.aria-selected]="page.id === active.activePageId()"
             (click)="setActive(page.id)"
             (dblclick)="beginRename(page.id, $event)"
+            (keydown.enter)="setActive(page.id); $event.preventDefault()"
+            (keydown.space)="setActive(page.id); $event.preventDefault()"
             [title]="tooltipFor(page.id)"
           >
             <mat-icon class="page-icon" aria-hidden="true">crop_landscape</mat-icon>
@@ -120,7 +133,7 @@ import { ActivePageService, PagesService } from 'svg-engine/edit';
                 <mat-icon>close</mat-icon>
               </button>
             }
-          </button>
+          </div>
         }
         <button
           type="button"
@@ -153,17 +166,30 @@ import { ActivePageService, PagesService } from 'svg-engine/edit';
        gated out (legacy docs with zero pages). Saves a stray
        horizontal line across the shell for users who never opt
        into pages. */
+    /* **AUDIT FIX U3** — was display: flex (full-width strip);
+       switched to display: inline-flex so the bar only occupies the
+       width of its content. Used to be its own grid row so full-width
+       was fine; after PAGES-REFACTOR follow-up #8 moved it into the
+       canvas as a bottom overlay, full-width blocked clicks across
+       the entire bottom 30 px of the canvas. Inline-flex + max-width
+       caps the bar to its content, so shapes to the left/right of
+       the visible tabs are clickable through the transparent area
+       around the bar. The host (display: block) is positioned by the
+       consumer; the inline-flex child sits at its natural inline
+       position (text-align: start = left, matching Illustrator). */
     .pages-bar {
-      display: flex;
+      display: inline-flex;
       align-items: stretch;
       gap: 2px;
       padding: 2px 0.5rem;
       min-height: 30px;
+      max-width: 100%;
       overflow-x: auto;
       scrollbar-width: thin;
       font-size: 12px;
       background: var(--mat-sys-surface-container-low, transparent);
       border-bottom: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+      border-radius: 4px 4px 0 0;
     }
     .page-tab {
       display: inline-flex;
@@ -343,16 +369,30 @@ export class SvgePagesPanel {
   protected setActive(pageId: NodeId): void {
     // Ignore clicks while renaming this exact tab — the input owns the gesture.
     if (this.renamingId() === pageId) return;
+    // **AUDIT FIX B3** — if the user is renaming another tab and
+    // clicks a different tab, commit the in-flight rename FIRST so
+    // the keystrokes already typed land on the right page. Without
+    // this, the `(blur)` on the rename input would fire after the
+    // setActive, dispatching the rename against the now-previous
+    // active page id (still correct id-wise, but the order felt
+    // wrong because the page switched mid-keystroke). Committing
+    // proactively here keeps the sequence intuitive.
+    if (this.renamingId() !== null) {
+      this.commitRename();
+    }
     this.active.setActive(pageId);
   }
 
   protected addPage(): void {
-    // New page inherits the CURRENT document's viewBox so the user's
-    // mental model of "page = canvas size" stays intact. Falls back
-    // to the command's A4 default when the document has no viewBox
-    // (shouldn't happen in practice but defensive).
-    const docVB = this.state.document().viewBox;
-    const cmd = new CreatePageCommand(docVB);
+    // **AUDIT FIX I4** — new page inherits the ACTIVE page's viewBox
+    // (Illustrator / Inkscape convention: "new artboard same size as
+    // the current one"). Falls back to the document's viewBox if no
+    // active page yet (legacy single-root flow) and finally to the
+    // command's A4 default if the document has no viewBox set.
+    const activePage = this.active.activePage();
+    const activeVB = activePage !== null ? getPageViewBox(activePage) : null;
+    const viewBox = activeVB ?? this.state.document().viewBox;
+    const cmd = new CreatePageCommand(viewBox);
     const result = this.bus.dispatch(cmd);
     if (result.ok) {
       const id = cmd.getCreatedPageId();

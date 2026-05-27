@@ -58,8 +58,13 @@ describe('SvgeStatusBar — sections render', () => {
   });
 
   it('exports STATUS_BAR_SECTIONS as the full default list', () => {
+    // **AUDIT FIX U4** — 'page' section added between 'tool' and
+    // 'selection' so the user has a persistent "which page" signal
+    // (the pages strip moved into the canvas overlay, so it's no
+    // longer always present in the layout).
     expect(STATUS_BAR_SECTIONS).toEqual([
       'tool',
+      'page',
       'selection',
       'cursor',
       'zoom',

@@ -542,16 +542,23 @@ export class SvgeShellPro {
    *    interact with the canvas as expected (Illustrator/Affinity/
    *    Figma all default to Select on open).
    *
-   * Wrapped in a microtask so it runs AFTER all the scope providers
-   * have settled (Angular's DI graph is fully resolved by then).
+   * **AUDIT FIX I2** — was wrapped in `queueMicrotask` for "scope
+   * providers have settled" caution. By shell-pro constructor time,
+   * Angular's DI graph IS fully resolved (all `providedIn: 'root'`
+   * services exist, the editor scope has been provided, and any
+   * plugins installed via APP_INITIALIZER ran during bootstrap).
+   * Running synchronously avoids a one-frame race where the renderer
+   * receives its first `[tree]` input pointing at the legacy
+   * doc.root before the bootstrap page exists — manifested as a
+   * brief flash of un-paged content on routes with existing content.
+   * Synchronous dispatch makes the first paint already show the
+   * bootstrapped Page 1 with its content moved inside.
    */
   constructor() {
-    queueMicrotask(() => {
-      this.bus.dispatch(new EnsureDefaultPageCommand());
-      if (this.toolHost.activeId() === null) {
-        this.toolHost.activate(SELECT_TOOL_ID);
-      }
-    });
+    this.bus.dispatch(new EnsureDefaultPageCommand());
+    if (this.toolHost.activeId() === null) {
+      this.toolHost.activate(SELECT_TOOL_ID);
+    }
   }
 
   /**

@@ -11,7 +11,9 @@ import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatTooltip } from '@angular/material/tooltip';
 import { EditorStateService } from 'svg-engine/core';
 import {
+  ActivePageService,
   IsolationService,
+  PagesService,
   SelectionService,
   type SnapMode,
   SnapService,
@@ -34,6 +36,7 @@ import { ViewportService } from 'svg-engine/render';
  */
 export const STATUS_BAR_SECTIONS = [
   'tool',
+  'page',
   'selection',
   'cursor',
   'zoom',
@@ -98,6 +101,18 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
       <span class="section section-tool" matTooltip="Active tool">
         <mat-icon class="icon" aria-hidden="true">{{ toolIcon() }}</mat-icon>
         <span class="value">{{ toolLabel() }}</span>
+      </span>
+    }
+    @if (showSection('page') && hasPages()) {
+      <!-- **AUDIT FIX U4** — page index/name indicator. After
+           PAGES-REFACTOR follow-up #8 moved the pages strip into the
+           canvas overlay, the status bar lost any persistent "which
+           page" signal. This section closes that gap with a compact
+           "Page N/M — Name" pill. Auto-hides when the document has
+           zero pages (legacy single-root flow). -->
+      <span class="section section-page" [matTooltip]="pageTooltip()">
+        <mat-icon class="icon" aria-hidden="true">crop_landscape</mat-icon>
+        <span class="value">{{ pageLabel() }}</span>
       </span>
     }
     @if (showSection('selection')) {
@@ -326,6 +341,12 @@ export class SvgeStatusBar {
   private readonly snap = inject(SnapService);
   private readonly isolation = inject(IsolationService);
   private readonly traceProgress = inject(TraceProgressService);
+  // **AUDIT FIX U4** — pages indicator data sources. Optional inject
+  // so headless consumers that don't provide pages services in scope
+  // (raw `<svge-renderer>` users) still get a working status bar —
+  // the page section just auto-hides via the `hasPages()` guard.
+  private readonly pagesService = inject(PagesService, { optional: true });
+  private readonly activePage = inject(ActivePageService, { optional: true });
 
   /**
    * Which sections to render. Order in the array = render order.
@@ -358,6 +379,38 @@ export class SvgeStatusBar {
     const id = this.toolHost.activeId();
     if (id === null) return 'help_outline';
     return this.tools.get(id)?.icon ?? 'build';
+  });
+
+  // ── Page section (AUDIT FIX U4) ─────────────────────────────────
+
+  /**
+   * `true` when there is at least one D-079 page in the document.
+   * Used by the template `@if` to auto-hide the section on legacy
+   * single-root docs (parity with the pages-panel's own auto-hide).
+   */
+  protected readonly hasPages = computed(() => this.pagesService?.hasPages() ?? false);
+
+  /**
+   * Compact "Page N/M — Name" label. N is 1-based for human readability;
+   * Name is truncated to 24 chars to keep the section narrow. Falls
+   * back to "— · ?" when the active page id is stale (shouldn't happen
+   * but defensive).
+   */
+  protected readonly pageLabel = computed(() => {
+    const pages = this.pagesService?.pages() ?? [];
+    if (pages.length === 0) return '—';
+    const activeId = this.activePage?.activePageId() ?? null;
+    const idx = activeId !== null ? pages.findIndex((p) => p.id === activeId) : -1;
+    const total = pages.length;
+    if (idx < 0) return `?/${total}`;
+    const name = this.pagesService?.nameOf(pages[idx]!.id) ?? '';
+    const shortName = name.length > 24 ? `${name.slice(0, 23)}…` : name;
+    return `${idx + 1}/${total}${shortName ? ` · ${shortName}` : ''}`;
+  });
+
+  protected readonly pageTooltip = computed(() => {
+    const total = this.pagesService?.count() ?? 0;
+    return `Active page (${total} in document)`;
   });
 
   // ── Selection section ───────────────────────────────────────────

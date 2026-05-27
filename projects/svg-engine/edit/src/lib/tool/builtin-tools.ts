@@ -60,7 +60,9 @@ export const PENCIL_TOOL_ID = 'com.svge.tool.pencil';
  * selection (Illustrator/Affinity convention).
  *
  * Shortcut `Shift+O` mirrors Illustrator's Artboard Tool keybinding.
- * Coexists with `p` (Pencil) and `o` (Polygon) without conflict.
+ * **AUDIT FIX B4** — Coexists with `p` (Pencil), `y` (Polygon), and
+ * `o` (Symbol Sprayer, from extra-tools) without conflict — the
+ * `shift+` modifier disambiguates from the bare-`o` Symbol Sprayer.
  */
 export const PAGE_TOOL_ID = 'com.svge.tool.page';
 
@@ -301,11 +303,25 @@ class PageTool implements Tool {
   onDeactivate(ctx: ToolContext): void {
     // PAGES-REFACTOR — leaving the Page tool should hide the page
     // selection chrome cleanly. The overlay reads `selection.isSelected`
-    // for the active page; clearing the selection here makes the
+    // for the active page; clearing the selection makes the
     // brackets/handles disappear the moment the user switches tools,
     // matching Illustrator's behavior (exiting Artboard Tool deselects
     // the artboard).
-    ctx.injector.get(SelectionService).clear();
+    //
+    // **AUDIT FIX I3** — only clear when the FOCUSED selection is the
+    // active page itself. If the user had a shape selected (e.g.,
+    // clicked through to a shape via Layer Panel mid-Page-tool, or
+    // had a multi-selection that includes shapes), preserve those so
+    // switching back to Select tool doesn't wipe their working
+    // context. Old behavior was a blanket clear regardless of what
+    // was selected — surprised users with multi-tool workflows.
+    const activePage =
+      ctx.injector.get(ActivePageService, { optional: true })?.activePage() ?? null;
+    if (activePage === null) return;
+    const sel = ctx.injector.get(SelectionService);
+    if (sel.focusId() === activePage.id) {
+      sel.clear();
+    }
   }
 }
 

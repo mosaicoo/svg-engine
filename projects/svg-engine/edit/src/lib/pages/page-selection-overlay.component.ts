@@ -18,7 +18,7 @@ import {
 import { screenToDoc, ViewportService } from 'svg-engine/render';
 import { capturePointer, releasePointer } from '../pointer';
 import { SelectionService } from '../selection/selection.service';
-import { PAGE_TOOL_ID } from '../tool/builtin-tools';
+import { PAGE_TOOL_ID, SELECT_TOOL_ID } from '../tool/builtin-tools';
 import { ToolHostService } from '../tool/tool-host.service';
 import { ActivePageService } from './active-page.service';
 import { PageDragService } from './page-drag.service';
@@ -525,6 +525,20 @@ export class SvgePageSelectionOverlay {
    * `_drag.currentPoint`; pointerup dispatches `MovePageCommand`.
    */
   protected onMoveHandlePointerDown(event: PointerEvent): void {
+    // **AUDIT FIX I1** — Alt+click on the move area exits Page tool
+    // (activates Select) so the user can interact with shapes that
+    // sit under the page interior. Without this escape hatch the
+    // user had to manually click Select in the tools palette before
+    // every shape-click — annoying for mixed page/shape editing
+    // sessions. The next click after this lands normally on the
+    // shape since the overlay (and its move-area) is gone once
+    // Page tool deactivates.
+    if (event.altKey) {
+      event.stopPropagation();
+      event.preventDefault();
+      this.toolHost.activate(SELECT_TOOL_ID);
+      return;
+    }
     const page = this.activePage.activePage();
     if (page === null) return;
     const vb = getPageViewBox(page);
