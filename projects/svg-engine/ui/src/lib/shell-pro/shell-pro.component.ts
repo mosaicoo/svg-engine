@@ -24,6 +24,7 @@ import {
   SvgeShellInteractions,
   ToolHostService,
   WorkspaceBackground,
+  WorkspaceService,
 } from 'svg-engine/edit';
 import { SvgeRenderer } from 'svg-engine/render';
 import { CONTEXT_MENU_SLOT, SvgeContextMenuTrigger } from '../context-menu';
@@ -187,6 +188,7 @@ import { SvgeToolsPalette } from '../tools-palette';
       </aside>
       <div
         class="canvas-cell"
+        [class.with-rulers]="ws.rulers().enabled"
         svgeCanvasGestures
         svgeShellInteractions
         [svgeContextMenu]="contextMenuSlot()"
@@ -434,6 +436,18 @@ import { SvgeToolsPalette } from '../tools-palette';
       z-index: 3;
       pointer-events: none;
     }
+    /* PAGES-REFACTOR follow-up #5 — when rulers are visible (View ▸
+       Show Rulers), shift the breadcrumb to start AFTER the vertical
+       ruler (left: 24px) and BELOW the horizontal ruler (top: 24px).
+       Matches Illustrator: the breadcrumb stays inside the canvas
+       area, not stamped on top of the ruler tracks. Rulers are 24px
+       per side (matches the width/height: 24px constants in
+       rulers.component.ts). When rulers are hidden, the breadcrumb
+       falls back to top: 0 / left: 0 from the base rule above. */
+    .canvas-cell.with-rulers > .iso-breadcrumb-overlay {
+      top: 24px;
+      left: 24px;
+    }
     /* Re-enable pointer events on the visible bar only — the host
        above is pointer-events: none so clicks pass through to the
        canvas when isolation is inactive (defensive double-guard). */
@@ -479,6 +493,15 @@ export class SvgeShellPro {
   private readonly activePage = inject(ActivePageService);
   private readonly bus = inject(CommandBus);
   private readonly toolHost = inject(ToolHostService);
+  /**
+   * **PAGES-REFACTOR follow-up #5** — exposed `protected` so the
+   * template can bind `.with-rulers` on the canvas-cell. When the
+   * rulers overlay is enabled (View ▸ Show Rulers) the breadcrumb
+   * shifts to `top: 24px / left: 24px` so it doesn't overlap the
+   * ruler tracks (Illustrator parity — breadcrumb sits in the canvas
+   * area, not on top of the rulers).
+   */
+  protected readonly ws = inject(WorkspaceService);
 
   /**
    * **PAGES-FIX-2** — on mount:
