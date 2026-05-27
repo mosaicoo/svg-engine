@@ -10,8 +10,12 @@ import {
   createRect,
   EditorStateService,
   findNodeById,
+  getPageOptions,
   HistoryService,
   InsertNodeCommand,
+  type PageMargins,
+  type SvgNode,
+  withPageFlag,
 } from 'svg-engine/core';
 import { LayersService, PaletteRegistry, SelectionService } from 'svg-engine/edit';
 import { cssColorToHex6, SvgeInspector } from './inspector.component';
@@ -134,7 +138,7 @@ describe('SvgeInspector — header', () => {
 });
 
 describe('SvgeInspector — geometry per type', () => {
-  function setupWith(node: import('svg-engine/core').SvgNode) {
+  function setupWith(node: SvgNode) {
     const ctx = setup();
     ctx.state.setDocument({
       ...ctx.state.document(),
@@ -1551,5 +1555,163 @@ describe('SvgeInspector — D-069 typography basics dispatch', () => {
     inspector.setLineHeight('');
     fixture.detectChanges();
     expect((findNodeById(state.document().root, text.id) as TextNode).lineHeight).toBeUndefined();
+  });
+});
+
+/**
+ * **PAGES-REFACTOR Fase 8** — extended Page options in the Inspector:
+ * background (transparent/solid/image), margins (4 sides),
+ * orientation (portrait/landscape), format (preset string). Each
+ * control dispatches `SetPageOptionsCommand` with a partial patch.
+ *
+ * Specs exercise the **handler methods** directly (no DOM-event
+ * synthesis) because the controls are mat-form-field / mat-select
+ * which add a lot of jsdom fragility. The handlers ARE the contract
+ * the template wires up — testing them directly proves both that the
+ * read helpers return the right defaults AND that each dispatch
+ * mutates the document via the expected SetPageOptionsCommand patch.
+ */
+describe('SvgeInspector — PAGES-REFACTOR Fase 8 extended page options', () => {
+  /**
+   * Mount the Inspector with a single-page document and focus the page.
+   * Returns the inspector + page id so individual specs can call
+   * protected handlers via the access-cast shim and assert on the
+   * resulting document mutation.
+   */
+  function setupWithPage() {
+    const { fixture, state, selection, bus } = setup();
+    const baseGroup = createGroup([], { metadata: { name: 'Cover' } });
+    const page = withPageFlag(baseGroup, { x: 0, y: 0, width: 800, height: 600 }, 'Cover');
+    state.setDocument({
+      ...state.document(),
+      root: { ...state.document().root, children: [page] },
+    });
+    selection.select(page.id);
+    fixture.detectChanges();
+    return { fixture, state, selection, bus, pageId: page.id };
+  }
+
+  /**
+   * Protected-access shim. The Inspector's Fase 8 helpers are
+   * `protected` (template-only). Tests reach in via this shim — same
+   * pattern used by other Inspector specs (multi-edit / type / etc.).
+   */
+  interface PageHandlersShim {
+    pageOrientation(node: SvgNode): string;
+    pageFormat(node: SvgNode): string;
+    pageBackgroundKind(node: SvgNode): string;
+    pageMargin(node: SvgNode, side: keyof PageMargins): string;
+    onPageOrientationChange(node: SvgNode, v: string): void;
+    onPageFormatChange(node: SvgNode, v: string): void;
+    onPageBackgroundKindChange(node: SvgNode, v: string): void;
+    onPageBackgroundColorChange(node: SvgNode, e: Event): void;
+    onPageBackgroundHrefChange(node: SvgNode, e: Event): void;
+    onPageMarginChange(node: SvgNode, side: keyof PageMargins, e: Event): void;
+  }
+
+  function inspectorOf(
+    fixture: ReturnType<typeof TestBed.createComponent<TestHost>>,
+  ): SvgeInspector & PageHandlersShim {
+    const debugElement = fixture.debugElement.query(
+      (de) => de.componentInstance instanceof SvgeInspector,
+    );
+    if (debugElement === null) throw new Error('inspectorOf: SvgeInspector not found');
+    return debugElement.componentInstance as SvgeInspector & PageHandlersShim;
+  }
+
+  it('reads default options (defaults injected by getPageOptions)', () => {
+    const { fixture, state, pageId } = setupWithPage();
+    const node = findNodeById(state.document().root, pageId)!;
+    const ins = inspectorOf(fixture);
+    expect(ins.pageOrientation(node)).toBe('landscape');
+    expect(ins.pageFormat(node)).toBe('custom');
+    expect(ins.pageBackgroundKind(node)).toBe('transparent');
+    expect(ins.pageMargin(node, 'top')).toBe('0');
+  });
+
+  it('onPageOrientationChange dispatches SetPageOptionsCommand and mutates options', () => {
+    const { fixture, state, pageId } = setupWithPage();
+    const node = findNodeById(state.document().root, pageId)!;
+    inspectorOf(fixture).onPageOrientationChange(node, 'portrait');
+    fixture.detectChanges();
+    const after = getPageOptions(findNodeById(state.document().root, pageId)!);
+    expect(after.orientation).toBe('portrait');
+  });
+
+  it('onPageFormatChange persists the format hint', () => {
+    const { fixture, state, pageId } = setupWithPage();
+    const node = findNodeById(state.document().root, pageId)!;
+    inspectorOf(fixture).onPageFormatChange(node, 'a4');
+    fixture.detectChanges();
+    expect(getPageOptions(findNodeById(state.document().root, pageId)!).format).toBe('a4');
+  });
+
+  it('onPageBackgroundKindChange resets dependent payload to a sane default', () => {
+    const { fixture, state, pageId } = setupWithPage();
+    const node = findNodeById(state.document().root, pageId)!;
+    const ins = inspectorOf(fixture);
+    ins.onPageBackgroundKindChange(node, 'solid');
+    fixture.detectChanges();
+    const afterSolid = getPageOptions(findNodeById(state.document().root, pageId)!).background;
+    expect(afterSolid).toEqual({ kind: 'solid', color: '#ffffff' });
+    // Switching back to transparent drops the color.
+    const node2 = findNodeById(state.document().root, pageId)!;
+    ins.onPageBackgroundKindChange(node2, 'transparent');
+    fixture.detectChanges();
+    expect(getPageOptions(findNodeById(state.document().root, pageId)!).background).toEqual({
+      kind: 'transparent',
+    });
+  });
+
+  it('onPageBackgroundColorChange writes the new color while keeping kind=solid', () => {
+    const { fixture, state, pageId } = setupWithPage();
+    const node = findNodeById(state.document().root, pageId)!;
+    const ins = inspectorOf(fixture);
+    // First switch to solid so the color slot exists.
+    ins.onPageBackgroundKindChange(node, 'solid');
+    fixture.detectChanges();
+    const node2 = findNodeById(state.document().root, pageId)!;
+    const fakeEvent = { target: { value: '#abcdef' } as HTMLInputElement } as unknown as Event;
+    ins.onPageBackgroundColorChange(node2, fakeEvent);
+    fixture.detectChanges();
+    expect(getPageOptions(findNodeById(state.document().root, pageId)!).background).toEqual({
+      kind: 'solid',
+      color: '#abcdef',
+    });
+  });
+
+  it('onPageMarginChange writes ONE side while preserving the other three', () => {
+    const { fixture, state, pageId } = setupWithPage();
+    const node = findNodeById(state.document().root, pageId)!;
+    const ins = inspectorOf(fixture);
+    ins.onPageMarginChange(node, 'top', {
+      target: { value: '15' } as HTMLInputElement,
+    } as unknown as Event);
+    fixture.detectChanges();
+    const opts = getPageOptions(findNodeById(state.document().root, pageId)!);
+    expect(opts.margins).toEqual({ top: 15, right: 0, bottom: 0, left: 0 });
+    // A second write to a different side leaves top intact.
+    const node2 = findNodeById(state.document().root, pageId)!;
+    ins.onPageMarginChange(node2, 'right', {
+      target: { value: '20' } as HTMLInputElement,
+    } as unknown as Event);
+    fixture.detectChanges();
+    expect(getPageOptions(findNodeById(state.document().root, pageId)!).margins).toEqual({
+      top: 15,
+      right: 20,
+      bottom: 0,
+      left: 0,
+    });
+  });
+
+  it('onPageMarginChange rejects negative values silently', () => {
+    const { fixture, state, pageId } = setupWithPage();
+    const node = findNodeById(state.document().root, pageId)!;
+    inspectorOf(fixture).onPageMarginChange(node, 'top', {
+      target: { value: '-5' } as HTMLInputElement,
+    } as unknown as Event);
+    fixture.detectChanges();
+    // No-op: still defaults (top stays 0).
+    expect(getPageOptions(findNodeById(state.document().root, pageId)!).margins.top).toBe(0);
   });
 });

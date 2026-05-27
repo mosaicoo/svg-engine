@@ -6,6 +6,39 @@
 
 ---
 
+## 2026-05-27 — PAGES-REFACTOR Fase 8: Inspector Page tab estendido (background/margins/format/orientation)
+
+**Contexto.** A Fase 3 entregou `PageOptions` (background/margins/orientation/format) + `SetPageOptionsCommand`, mas o Inspector só tinha controles para nome + viewBox. Os outros 4 grupos de opções só podiam ser editados via código. Esta fase entrega a UI completa.
+
+**O quê.**
+
+1. **Inspector Page tab** (`ui/inspector/inspector.component.ts`): 4 novos sub-grupos adicionados ao `<svge-panel-group-tab svgePanelGroupTabId="page">`:
+   - **Format & Orientation**: dois `mat-select` lado a lado. Format expõe os 10 presets do tipo `PageFormat` (A4/A5/A3/Letter/Legal/Tabloid/Square-1080/1200/2048/Custom). Orientation é portrait/landscape.
+   - **Background**: `mat-select` de kind (Transparent / Solid color / Image URL). Quando `solid`, expõe um campo de cor (aceita hex / rgb / nomes CSS); quando `image`, expõe um campo de URL. O field condicional só renderiza para os dois kinds que precisam de payload extra.
+   - **Margins**: 4 inputs numéricos (Top / Right / Bottom / Left) em grid 2×2. Cada edit recompõe o struct completo e dispatcha — `SetPageOptionsCommand`'s `margins` patch substitui o sub-struct inteiro, não um lado por vez.
+
+2. **Handlers + readers** (mesma classe Inspector): 5 read-helpers (`pageOrientation`, `pageFormat`, `pageBackgroundKind`, `pageBackgroundColor`, `pageBackgroundHref`, `pageMargin`) sempre delegando a `getPageOptions` (que injeta defaults para slots vazios). 6 handlers — cada um dispatcha UM `SetPageOptionsCommand` com patch parcial, mantendo o ciclo "uma edit = uma entrada de undo".
+
+3. **Background-kind reset cirúrgico**: trocar kind (`solid` → `image`) reseta o payload dependente para defaults sãos (`{ kind: 'image', href: '' }` em vez de manter o `color` órfão).
+
+4. **Margins validation**: o handler rejeita valores negativos silenciosamente (`Number.parseFloat(...) < 0` → no-op). Defesa em profundidade — o `min="0"` do `<input type="number">` é cliente-side só.
+
+5. **CSS sub-section pattern**: nova classe `.subsection-title` divide os 4 grupos visualmente sem inflar a hierarquia (todos os 4 ficam dentro do mesmo `<section>` da tab).
+
+**+7 specs novas** no bloco "SvgeInspector — PAGES-REFACTOR Fase 8":
+
+- Defaults via `getPageOptions` quando opções nunca foram setadas.
+- Cada handler dispatcha `SetPageOptionsCommand` e o documento aceita a mutação.
+- Background-kind reset: trocar kind reseta o payload dependente.
+- Margins: write em um lado preserva os outros três.
+- Margins negativos → no-op.
+
+Suite: 1792 passing / 1 skipped (era 1785). Build 9 entry points + lint OK.
+
+**Diferimento intencional:** Fase 9 fará o cleanup (audit do que sobrou do `WorkspaceService` legacy + doc-catchup final em todos os files relevantes 04/06/08/09/10).
+
+---
+
 ## 2026-05-27 — PAGES-REFACTOR Fase 7: persistência activePageId + auto-snapshot pré-Delete + selection clear no page switch
 
 **Contexto.** Três follow-ups infraestruturais que faltavam para o multi-page se sentir "real":

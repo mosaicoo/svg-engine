@@ -18,18 +18,24 @@ import {
   type BoundingBox,
   CommandBus,
   decomposeTransform,
+  DEFAULT_PAGE_OPTIONS,
   DeletePageCommand,
   EditorStateService,
   findNodeById,
   type FlipAxis,
   FlipNodeCommand,
   getPageName,
+  getPageOptions,
   getPageViewBox,
   GroupSelectionCommand,
   isGroupNode,
   isPage,
   isSmartObject,
   type NodeId,
+  type PageBackground,
+  type PageFormat,
+  type PageMargins,
+  type PageOrientation,
   type Point,
   type ReorderDirection,
   RenamePageCommand,
@@ -37,6 +43,7 @@ import {
   ResizeNodeCommand,
   ResizePageCommand,
   RotateNodeCommand,
+  SetPageOptionsCommand,
   SetPropertyCommand,
   SetStylePropertyOnManyCommand,
   type SvgNode,
@@ -391,6 +398,120 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
                     type="number"
                     [value]="pageViewBoxField(node, 'height')"
                     (change)="onPageViewBoxChange(node, 'height', $event)"
+                  />
+                </mat-form-field>
+              </div>
+              <!--
+                **PAGES-REFACTOR Fase 8** — extended Page options. Four
+                sub-groups powered by SetPageOptionsCommand (one undoable
+                command per field edit). Each control reads from
+                getPageOptions(node) and writes a partial patch — fields
+                not in the patch are preserved.
+              -->
+              <h4 class="subsection-title">Format & Orientation</h4>
+              <div class="page-format-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Format</mat-label>
+                  <mat-select
+                    [value]="pageFormat(node)"
+                    (selectionChange)="onPageFormatChange(node, $event.value)"
+                  >
+                    @for (opt of pageFormatOptions; track opt.value) {
+                      <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Orientation</mat-label>
+                  <mat-select
+                    [value]="pageOrientation(node)"
+                    (selectionChange)="onPageOrientationChange(node, $event.value)"
+                  >
+                    <mat-option value="landscape">Landscape</mat-option>
+                    <mat-option value="portrait">Portrait</mat-option>
+                  </mat-select>
+                </mat-form-field>
+              </div>
+
+              <h4 class="subsection-title">Background</h4>
+              <div class="page-bg-row">
+                <mat-form-field appearance="outline" class="page-bg-kind-field">
+                  <mat-label>Background</mat-label>
+                  <mat-select
+                    [value]="pageBackgroundKind(node)"
+                    (selectionChange)="onPageBackgroundKindChange(node, $event.value)"
+                  >
+                    <mat-option value="transparent">Transparent</mat-option>
+                    <mat-option value="solid">Solid color</mat-option>
+                    <mat-option value="image">Image URL</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                @if (pageBackgroundKind(node) === 'solid') {
+                  <mat-form-field appearance="outline" class="page-bg-value-field">
+                    <mat-label>Color</mat-label>
+                    <input
+                      matInput
+                      type="text"
+                      placeholder="#000000 / rgb() / named"
+                      [value]="pageBackgroundColor(node)"
+                      (change)="onPageBackgroundColorChange(node, $event)"
+                    />
+                  </mat-form-field>
+                }
+                @if (pageBackgroundKind(node) === 'image') {
+                  <mat-form-field appearance="outline" class="page-bg-value-field">
+                    <mat-label>Image URL</mat-label>
+                    <input
+                      matInput
+                      type="text"
+                      placeholder="https://… or data:image/…"
+                      [value]="pageBackgroundHref(node)"
+                      (change)="onPageBackgroundHrefChange(node, $event)"
+                    />
+                  </mat-form-field>
+                }
+              </div>
+
+              <h4 class="subsection-title">Margins</h4>
+              <div class="page-margins-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Top</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    min="0"
+                    [value]="pageMargin(node, 'top')"
+                    (change)="onPageMarginChange(node, 'top', $event)"
+                  />
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Right</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    min="0"
+                    [value]="pageMargin(node, 'right')"
+                    (change)="onPageMarginChange(node, 'right', $event)"
+                  />
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Bottom</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    min="0"
+                    [value]="pageMargin(node, 'bottom')"
+                    (change)="onPageMarginChange(node, 'bottom', $event)"
+                  />
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Left</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    min="0"
+                    [value]="pageMargin(node, 'left')"
+                    (change)="onPageMarginChange(node, 'left', $event)"
                   />
                 </mat-form-field>
               </div>
@@ -2157,6 +2278,36 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
     .page-action-danger {
       color: var(--mat-sys-error, #b3261e);
     }
+    /* PAGES-REFACTOR Fase 8 — extended Page options sub-groups. Same
+       visual rhythm as page-viewbox-grid: tight padding, modest gap
+       between fields, secondary heading tone for the group labels. */
+    .subsection-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      opacity: 0.6;
+      margin: 12px 0 4px;
+    }
+    .page-format-grid,
+    .page-margins-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: 4px 0;
+    }
+    .page-bg-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 4px 0;
+    }
+    .page-bg-kind-field {
+      width: 100%;
+    }
+    .page-bg-value-field {
+      width: 100%;
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -2322,6 +2473,129 @@ export class SvgeInspector {
   protected deletePage(node: SvgNode): void {
     if (!isPage(node)) return;
     this.bus.dispatch(new DeletePageCommand(node.id));
+  }
+
+  // ── PAGES-REFACTOR Fase 8 — extended Page options ────────────────
+
+  /**
+   * Static option list bound to the Format `<mat-select>`. Mirrors the
+   * `PageFormat` discriminated union exactly — when a new preset is
+   * added to the type, append here too. Order: print-paper first
+   * (most common), then square presets, then "custom" as escape hatch.
+   */
+  protected readonly pageFormatOptions: readonly { value: PageFormat; label: string }[] = [
+    { value: 'a4', label: 'A4' },
+    { value: 'a5', label: 'A5' },
+    { value: 'a3', label: 'A3' },
+    { value: 'letter', label: 'Letter' },
+    { value: 'legal', label: 'Legal' },
+    { value: 'tabloid', label: 'Tabloid' },
+    { value: 'square-1080', label: 'Square 1080' },
+    { value: 'square-1200', label: 'Square 1200' },
+    { value: 'square-2048', label: 'Square 2048' },
+    { value: 'custom', label: 'Custom' },
+  ];
+
+  /** Current orientation hint — defaults via getPageOptions. */
+  protected pageOrientation(node: SvgNode): PageOrientation {
+    return getPageOptions(node).orientation;
+  }
+
+  /** Current format preset — defaults via getPageOptions. */
+  protected pageFormat(node: SvgNode): PageFormat {
+    return getPageOptions(node).format;
+  }
+
+  /** Current background kind ('transparent' | 'solid' | 'image'). */
+  protected pageBackgroundKind(node: SvgNode): PageBackground['kind'] {
+    return getPageOptions(node).background.kind;
+  }
+
+  /**
+   * Current background color when kind === 'solid'; empty string
+   * otherwise (the template guards the input visibility on kind, so
+   * an empty fallback here is defensive only).
+   */
+  protected pageBackgroundColor(node: SvgNode): string {
+    const bg = getPageOptions(node).background;
+    return bg.kind === 'solid' ? bg.color : '';
+  }
+
+  /** Current background image URL when kind === 'image'; empty otherwise. */
+  protected pageBackgroundHref(node: SvgNode): string {
+    const bg = getPageOptions(node).background;
+    return bg.kind === 'image' ? bg.href : '';
+  }
+
+  /** One component of the margins struct as a string for the number-input binding. */
+  protected pageMargin(node: SvgNode, side: keyof PageMargins): string {
+    const v = getPageOptions(node).margins[side];
+    return Number.isFinite(v) ? String(v) : '0';
+  }
+
+  /** Commit an orientation change via SetPageOptionsCommand. */
+  protected onPageOrientationChange(node: SvgNode, value: PageOrientation): void {
+    if (!isPage(node)) return;
+    this.bus.dispatch(new SetPageOptionsCommand(node.id, { orientation: value }));
+  }
+
+  /** Commit a format change via SetPageOptionsCommand. */
+  protected onPageFormatChange(node: SvgNode, value: PageFormat): void {
+    if (!isPage(node)) return;
+    this.bus.dispatch(new SetPageOptionsCommand(node.id, { format: value }));
+  }
+
+  /**
+   * Commit a background-kind change. Switching kinds resets the
+   * dependent payload (color / href) to a sensible default — the
+   * user can fill it in via the conditionally-rendered field that
+   * appears below the kind dropdown. Without this, switching from
+   * solid → image would surface an undefined href that produces an
+   * "image not found" paint on the page rect.
+   */
+  protected onPageBackgroundKindChange(node: SvgNode, kind: PageBackground['kind']): void {
+    if (!isPage(node)) return;
+    let background: PageBackground;
+    if (kind === 'transparent') background = { kind: 'transparent' };
+    else if (kind === 'solid') background = { kind: 'solid', color: '#ffffff' };
+    else background = { kind: 'image', href: '' };
+    this.bus.dispatch(new SetPageOptionsCommand(node.id, { background }));
+  }
+
+  /** Commit a color change to the current solid background. */
+  protected onPageBackgroundColorChange(node: SvgNode, event: Event): void {
+    if (!isPage(node)) return;
+    const target = event.target as HTMLInputElement | null;
+    if (target === null) return;
+    const color = target.value.trim();
+    if (color.length === 0) return;
+    this.bus.dispatch(new SetPageOptionsCommand(node.id, { background: { kind: 'solid', color } }));
+  }
+
+  /** Commit a URL change to the current image background. */
+  protected onPageBackgroundHrefChange(node: SvgNode, event: Event): void {
+    if (!isPage(node)) return;
+    const target = event.target as HTMLInputElement | null;
+    if (target === null) return;
+    const href = target.value.trim();
+    this.bus.dispatch(new SetPageOptionsCommand(node.id, { background: { kind: 'image', href } }));
+  }
+
+  /**
+   * Commit a single margin-side edit. Reads the full margins struct
+   * first because SetPageOptionsCommand's partial-margins semantics
+   * REPLACES the whole sub-struct (the patch field is `margins`, not
+   * `margins.top`) — we have to recompose all four sides.
+   */
+  protected onPageMarginChange(node: SvgNode, side: keyof PageMargins, event: Event): void {
+    if (!isPage(node)) return;
+    const target = event.target as HTMLInputElement | null;
+    if (target === null) return;
+    const parsed = Number.parseFloat(target.value);
+    if (!Number.isFinite(parsed) || parsed < 0) return;
+    const current = getPageOptions(node).margins ?? DEFAULT_PAGE_OPTIONS.margins;
+    const next: PageMargins = { ...current, [side]: parsed };
+    this.bus.dispatch(new SetPageOptionsCommand(node.id, { margins: next }));
   }
 
   /** Currently focused node, or `null` (no/multi selection or stale id). */
