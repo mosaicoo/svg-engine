@@ -47,6 +47,26 @@ interface Crumb {
 @Component({
   selector: 'svge-isolation-breadcrumb',
   standalone: true,
+  /**
+   * **PAGES-REFACTOR follow-up #6 / shell-pro breadcrumb bug** —
+   * stop pointerdown at the host so it never reaches the canvas-cell
+   * underneath. The shell-interactions directive (mounted on
+   * canvas-cell) interprets a pointerdown that resolves to "no svg
+   * node" as "click on empty canvas" and, when isolation is active,
+   * dispatches `isolation.exit()` (Affinity convention). Without this
+   * guard, every click on a crumb button would:
+   *   1. Trigger shell-interactions pointerdown → isolation.exit() →
+   *      visible() flips to false → @if removes the <nav> from DOM.
+   *   2. The (click) on the now-removed button never fires (or fires
+   *      against a detached element), so setRoot() is never called.
+   *   3. User sees the breadcrumb "fecha e não faz nada".
+   * Stopping pointerdown at the host preserves the click chain end-
+   * to-end while keeping all the normal pointer-events: auto handling
+   * for the visible bar.
+   */
+  host: {
+    '(pointerdown)': '$event.stopPropagation()',
+  },
   template: `
     @if (visible()) {
       <nav class="bar" aria-label="Isolation breadcrumb">
