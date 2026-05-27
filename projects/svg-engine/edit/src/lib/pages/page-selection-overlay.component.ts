@@ -16,10 +16,18 @@ import { ActivePageService } from './active-page.service';
 
 /**
  * Bracket arm length in CSS pixels — the visible "L" extends this far
- * INWARD from each page corner. 12px reads as a crisp affordance at
- * default zoom without competing with the artboard content.
+ * INWARD from each page corner. 16px reads as a crisp affordance at
+ * default zoom without competing with the artboard content. Bumped
+ * from 12 → 16 alongside the bracket-as-handle refactor so the click
+ * target along the visible bracket is large enough to grab comfortably.
  */
-const BRACKET_ARM_PX = 12;
+const BRACKET_ARM_PX = 16;
+
+// **PAGES-REFACTOR follow-up #3** — bracket-hit invisible stroke is
+// `stroke-width: 14` in the .bracket-hit CSS rule (see styles block).
+// We don't keep a JS-side constant because the rule is purely static
+// (the engine uses `vector-effect: non-scaling-stroke` so the 14 CSS
+// px hit zone is zoom-independent without needing JS-side scaling).
 
 /**
  * Distance (CSS px) from the page's top edge to the bottom of the
@@ -36,27 +44,25 @@ const LABEL_OFFSET_PX = 6;
 const LABEL_FONT_SIZE_PX = 11;
 
 /**
- * Move-handle square side in CSS pixels. Same scale as shape resize
- * handles (8 px) but visually distinct via fill colour — see styles.
- */
-const HANDLE_SIZE_PX = 8;
-
-/**
- * Distance (CSS px) from the page's top edge to the move handle's
- * BOTTOM. Sits right next to the label so the user reads them as a
- * unit ("this is the page metadata + drag affordance").
- */
-const HANDLE_OFFSET_PX = 18;
-
-/**
  * Minimum page dimension (doc units). Resize gestures clamp width/
  * height to this so the user can't drag a page down to zero (which
  * would make it un-selectable and visually invisible).
  */
 const MIN_PAGE_DIM = 10;
 
-/** Resize anchor identifier (4 corners + 4 edges). */
-type ResizeAnchor = 'tl' | 'tr' | 'bl' | 'br' | 't' | 'r' | 'b' | 'l';
+/**
+ * Resize anchor identifier. **PAGES-REFACTOR follow-up #3** — narrowed
+ * from 8 anchors (4 corners + 4 edges) to **4 corners only** when the
+ * 8 square resize handles + the move-handle square were dropped in
+ * favor of "L-brackets only" visual. Each L-bracket is anchored at
+ * a corner of the page, so only corner resize is wired up. Edge
+ * resize was dropped (lower-frequency operation; Inspector Page tab
+ * still exposes precise W/H input as the keyboard path).
+ *
+ * The drag-state union keeps `ResizeAnchor | null` so move-drag
+ * (`anchor: null`) stays type-safe.
+ */
+type ResizeAnchor = 'tl' | 'tr' | 'bl' | 'br';
 
 /**
  * In-progress drag state. `null` when no drag is active. The overlay's
@@ -161,20 +167,32 @@ interface DragState {
       </svg:text>
 
       <!--
-        Top-center MOVE handle. Sits between the label and the page's
-        top edge — close enough to the label that they read as one
-        UI group ("page metadata + drag handle"). The handle is a
-        small square with a distinctive blue fill so it doesn't get
-        confused with shape resize handles (which have a white fill).
-        Fase 6 — wired to MovePageCommand on pointerup.
+        **PAGES-REFACTOR follow-up #3** — invisible MOVE area covering
+        the page interior. Replaces the dedicated move-handle square
+        (top-center) — the user asked for "brackets only" visually but
+        we still need a drag affordance, so we use the page interior
+        itself (Illustrator/Affinity convention: with Artboard Tool
+        active, dragging anywhere on the artboard moves it).
+
+        'fill: transparent' + 'pointer-events: all' makes the entire
+        rect clickable while staying visually invisible. Cursor: move
+        gives the affordance hint. Rendered BEFORE the brackets so the
+        bracket hit-areas (rendered LATER → on top) intercept clicks
+        near the corners → start a resize drag instead of a move drag.
+
+        Because PageSelectionOverlay is mounted in the FRONT slot of
+        SvgeRenderer, this rect sits ABOVE shape content. That's
+        intentional: Page tool isn't for editing shapes, so click-
+        through to shapes is undesirable — we want clicks on the page
+        interior to move the page, not select a shape underneath.
       -->
       <svg:rect
-        class="page-move-handle"
-        [attr.x]="o.x + o.width / 2 - handleHalfDoc()"
-        [attr.y]="o.y - handleOffsetDoc()"
-        [attr.width]="handleSizeDoc()"
-        [attr.height]="handleSizeDoc()"
-        aria-label="Page move handle — drag to reposition the page"
+        class="page-move-area"
+        [attr.x]="o.x"
+        [attr.y]="o.y"
+        [attr.width]="o.width"
+        [attr.height]="o.height"
+        aria-label="Page move area — drag to reposition the page"
         role="button"
         (pointerdown)="onMoveHandlePointerDown($event)"
         (pointermove)="onHandlePointerMove($event)"
@@ -182,39 +200,62 @@ interface DragState {
       ></svg:rect>
 
       <!--
-        4 corner brackets — draw.io style "L" marks at each corner of
-        the page's viewBox. Decorative only (pointer-events: none); the
-        actual resize affordance lives on the 8 square handles below
-        which sit ON TOP of the bracket vertices and corners.
-      -->
-      <svg:path class="page-bracket" [attr.d]="bracketTL(o)"></svg:path>
-      <svg:path class="page-bracket" [attr.d]="bracketTR(o)"></svg:path>
-      <svg:path class="page-bracket" [attr.d]="bracketBL(o)"></svg:path>
-      <svg:path class="page-bracket" [attr.d]="bracketBR(o)"></svg:path>
+        **PAGES-REFACTOR follow-up #3** — 4 corner L-brackets, each
+        wrapped in an svg:g that owns the resize drag gesture. The
+        bracket-hit path under each visible bracket gives a wider
+        invisible stroke for comfortable click targeting (visible
+        stroke is only ~3 CSS px wide). Cursor + anchor are corner-
+        specific (nwse-resize for tl/br diagonal, nesw-resize for
+        tr/bl anti-diagonal — Illustrator/Figma convention).
 
-      <!--
-        Fase 6 — 8 resize handles (4 corners + 4 edge midpoints). Each
-        handle is a small square that dispatches ResizePageCommand on
-        pointerup. The cursor style hints the axis of resize (n-resize,
-        e-resize, etc.) — matches the user's reference image where the
-        handles are always available, not just on hover.
+        Rendered AFTER the move-area so SVG hit-testing picks the
+        bracket first when the pointer is near a corner → resize
+        drag fires; everywhere else in the page interior → move drag.
       -->
-      @for (h of resizeHandles(); track h.anchor) {
-        <svg:rect
-          class="page-resize-handle"
-          [class]="'page-resize-handle anchor-' + h.anchor"
-          [attr.x]="h.x - handleHalfDoc()"
-          [attr.y]="h.y - handleHalfDoc()"
-          [attr.width]="handleSizeDoc()"
-          [attr.height]="handleSizeDoc()"
-          [attr.data-svge-page-handle]="h.anchor"
-          [attr.aria-label]="'Page resize handle, ' + anchorLabel(h.anchor)"
-          role="button"
-          (pointerdown)="onResizeHandlePointerDown($event, h.anchor)"
-          (pointermove)="onHandlePointerMove($event)"
-          (pointerup)="onHandlePointerUp($event)"
-        ></svg:rect>
-      }
+      <svg:g
+        class="bracket-group bracket-tl"
+        aria-label="Page resize handle, top-left corner"
+        role="button"
+        (pointerdown)="onResizeHandlePointerDown($event, 'tl')"
+        (pointermove)="onHandlePointerMove($event)"
+        (pointerup)="onHandlePointerUp($event)"
+      >
+        <svg:path class="bracket-hit" [attr.d]="bracketTL(o)"></svg:path>
+        <svg:path class="page-bracket" [attr.d]="bracketTL(o)"></svg:path>
+      </svg:g>
+      <svg:g
+        class="bracket-group bracket-tr"
+        aria-label="Page resize handle, top-right corner"
+        role="button"
+        (pointerdown)="onResizeHandlePointerDown($event, 'tr')"
+        (pointermove)="onHandlePointerMove($event)"
+        (pointerup)="onHandlePointerUp($event)"
+      >
+        <svg:path class="bracket-hit" [attr.d]="bracketTR(o)"></svg:path>
+        <svg:path class="page-bracket" [attr.d]="bracketTR(o)"></svg:path>
+      </svg:g>
+      <svg:g
+        class="bracket-group bracket-bl"
+        aria-label="Page resize handle, bottom-left corner"
+        role="button"
+        (pointerdown)="onResizeHandlePointerDown($event, 'bl')"
+        (pointermove)="onHandlePointerMove($event)"
+        (pointerup)="onHandlePointerUp($event)"
+      >
+        <svg:path class="bracket-hit" [attr.d]="bracketBL(o)"></svg:path>
+        <svg:path class="page-bracket" [attr.d]="bracketBL(o)"></svg:path>
+      </svg:g>
+      <svg:g
+        class="bracket-group bracket-br"
+        aria-label="Page resize handle, bottom-right corner"
+        role="button"
+        (pointerdown)="onResizeHandlePointerDown($event, 'br')"
+        (pointermove)="onHandlePointerMove($event)"
+        (pointerup)="onHandlePointerUp($event)"
+      >
+        <svg:path class="bracket-hit" [attr.d]="bracketBR(o)"></svg:path>
+        <svg:path class="page-bracket" [attr.d]="bracketBR(o)"></svg:path>
+      </svg:g>
     }
   `,
   styles: `
@@ -228,49 +269,65 @@ interface DragState {
       pointer-events: none;
       user-select: none;
     }
+    /*
+     * **PAGES-REFACTOR follow-up #3** — visible bracket. Decorative
+     * (pointer-events: none) — the bracket-hit sibling underneath
+     * owns the click. Bumped from stroke-width 2 → 3 so the visible
+     * affordance reads at parity with the wider invisible hit-area
+     * (no jarring mismatch when the user hovers).
+     */
     .page-bracket {
       fill: none;
       stroke: var(--svge-page-overlay-stroke, #1976d2);
-      stroke-width: 2;
+      stroke-width: 3;
       stroke-linecap: round;
       stroke-linejoin: round;
       vector-effect: non-scaling-stroke;
       pointer-events: none;
     }
-    .page-move-handle {
-      fill: var(--svge-page-overlay-stroke, #1976d2);
-      stroke: var(--svge-page-overlay-handle-stroke, #ffffff);
-      stroke-width: 1.5;
+    /*
+     * Invisible wider stroke painted under each visible bracket so
+     * the click target is comfortable (~14 CSS px) without bloating
+     * the visible mark. pointer-events: stroke makes only the
+     * stroked path region clickable (not the empty interior of the L).
+     */
+    .bracket-hit {
+      fill: none;
+      stroke: transparent;
+      stroke-width: 14;
+      stroke-linecap: round;
+      stroke-linejoin: round;
       vector-effect: non-scaling-stroke;
-      cursor: move;
-      touch-action: none;
-      pointer-events: all;
+      pointer-events: stroke;
     }
-    .page-resize-handle {
-      fill: #ffffff;
-      stroke: var(--svge-page-overlay-stroke, #1976d2);
-      stroke-width: 1.5;
-      vector-effect: non-scaling-stroke;
+    /*
+     * Per-corner bracket groups — cursor signals the resize axis.
+     * Illustrator/Figma convention: tl/br use the NW↘SE diagonal
+     * cursor; tr/bl use the NE↗SW anti-diagonal cursor.
+     */
+    .bracket-group {
       touch-action: none;
-      pointer-events: all;
     }
-    /* Axis-aware cursors for each anchor — Illustrator/Figma convention.
-       Corners use diagonal resize cursors; edges use cardinal cursors. */
-    .page-resize-handle.anchor-tl,
-    .page-resize-handle.anchor-br {
+    .bracket-group.bracket-tl,
+    .bracket-group.bracket-br {
       cursor: nwse-resize;
     }
-    .page-resize-handle.anchor-tr,
-    .page-resize-handle.anchor-bl {
+    .bracket-group.bracket-tr,
+    .bracket-group.bracket-bl {
       cursor: nesw-resize;
     }
-    .page-resize-handle.anchor-t,
-    .page-resize-handle.anchor-b {
-      cursor: ns-resize;
-    }
-    .page-resize-handle.anchor-l,
-    .page-resize-handle.anchor-r {
-      cursor: ew-resize;
+    /*
+     * **PAGES-REFACTOR follow-up #3** — invisible move area covering
+     * the page interior. fill: transparent + pointer-events: all
+     * keeps the rect visually absent while making the entire interior
+     * draggable. Cursor: move gives the affordance hint as the user
+     * hovers anywhere on the page surface (Illustrator parity).
+     */
+    .page-move-area {
+      fill: transparent;
+      cursor: move;
+      pointer-events: all;
+      touch-action: none;
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -295,15 +352,19 @@ export class SvgePageSelectionOverlay {
   private readonly _drag = signal<DragState | null>(null);
 
   /**
-   * All visual sizes are doc-unit values derived from CSS-pixel
-   * constants divided by current zoom. Keeping the conversion in
-   * one `computed` per dimension makes the template render path
-   * trivial (single multiplication / sum per attribute) and avoids
-   * re-computing zoom for every element.
+   * Visual sizes are doc-unit values derived from CSS-pixel constants
+   * divided by current zoom. Keeping the conversion in one `computed`
+   * per dimension makes the template render path trivial (single
+   * multiplication / sum per attribute) and avoids re-computing zoom
+   * for every element.
+   *
+   * **PAGES-REFACTOR follow-up #3** — the `handleSizeDoc` / `handleHalfDoc`
+   * / `handleOffsetDoc` computeds were dropped when the 8 square resize
+   * handles + move-handle square were removed from the template. All
+   * that remains is the bracket / label scale: brackets are paths (use
+   * `bracketArmDoc`) and the label is a `<text>` element (uses
+   * `labelOffsetDoc` + `labelFontSizeDoc`).
    */
-  protected readonly handleSizeDoc = computed(() => HANDLE_SIZE_PX / this.viewport.zoom());
-  protected readonly handleHalfDoc = computed(() => this.handleSizeDoc() / 2);
-  protected readonly handleOffsetDoc = computed(() => HANDLE_OFFSET_PX / this.viewport.zoom());
   protected readonly labelOffsetDoc = computed(() => LABEL_OFFSET_PX / this.viewport.zoom());
   protected readonly labelFontSizeDoc = computed(() => LABEL_FONT_SIZE_PX / this.viewport.zoom());
   protected readonly bracketArmDoc = computed(() => BRACKET_ARM_PX / this.viewport.zoom());
@@ -350,32 +411,6 @@ export class SvgePageSelectionOverlay {
   });
 
   /**
-   * Positions of the 8 resize handles (in doc coords) derived from the
-   * current overlay rect. Each handle has an anchor id so the
-   * pointerdown handler knows which sides to update during the drag.
-   */
-  protected readonly resizeHandles = computed<{ anchor: ResizeAnchor; x: number; y: number }[]>(
-    () => {
-      const o = this.overlay();
-      if (o === null) return [];
-      const cx = o.x + o.width / 2;
-      const cy = o.y + o.height / 2;
-      const x2 = o.x + o.width;
-      const y2 = o.y + o.height;
-      return [
-        { anchor: 'tl', x: o.x, y: o.y },
-        { anchor: 't', x: cx, y: o.y },
-        { anchor: 'tr', x: x2, y: o.y },
-        { anchor: 'r', x: x2, y: cy },
-        { anchor: 'br', x: x2, y: y2 },
-        { anchor: 'b', x: cx, y: y2 },
-        { anchor: 'bl', x: o.x, y: y2 },
-        { anchor: 'l', x: o.x, y: cy },
-      ];
-    },
-  );
-
-  /**
    * Format a dimension as an integer when it's a clean number,
    * otherwise round to 1 decimal. Avoids "800.000000001" noise
    * from float arithmetic without showing useless ".0" suffixes
@@ -412,21 +447,6 @@ export class SvgePageSelectionOverlay {
     const x2 = o.x + o.width;
     const y2 = o.y + o.height;
     return `M${x2 - L},${y2} L${x2},${y2} L${x2},${y2 - L}`;
-  }
-
-  /** Human-readable expansion of the 8 anchor codes (for aria-label). */
-  protected anchorLabel(a: ResizeAnchor): string {
-    const labels: Record<ResizeAnchor, string> = {
-      tl: 'top-left corner',
-      t: 'top-center edge',
-      tr: 'top-right corner',
-      r: 'right edge',
-      br: 'bottom-right corner',
-      b: 'bottom-center edge',
-      bl: 'bottom-left corner',
-      l: 'left edge',
-    };
-    return labels[a];
   }
 
   // ── Pointer handlers ─────────────────────────────────────────────
@@ -555,16 +575,16 @@ export class SvgePageSelectionOverlay {
     let h = sv.height;
     const x2 = sv.x + sv.width;
     const y2 = sv.y + sv.height;
+    // **PAGES-REFACTOR follow-up #3** — only the 4 corner anchors
+    // remain after the bracket-as-handle refactor. Edge resize was
+    // dropped because there's no L-bracket on the edges to grab; the
+    // Inspector Page tab is the keyboard/precision path for one-axis
+    // resize when needed.
     switch (ds.anchor) {
       case 'tl': {
         x = Math.min(sv.x + dx, x2 - MIN_PAGE_DIM);
         y = Math.min(sv.y + dy, y2 - MIN_PAGE_DIM);
         w = x2 - x;
-        h = y2 - y;
-        break;
-      }
-      case 't': {
-        y = Math.min(sv.y + dy, y2 - MIN_PAGE_DIM);
         h = y2 - y;
         break;
       }
@@ -574,16 +594,8 @@ export class SvgePageSelectionOverlay {
         w = Math.max(sv.width + dx, MIN_PAGE_DIM);
         break;
       }
-      case 'r': {
-        w = Math.max(sv.width + dx, MIN_PAGE_DIM);
-        break;
-      }
       case 'br': {
         w = Math.max(sv.width + dx, MIN_PAGE_DIM);
-        h = Math.max(sv.height + dy, MIN_PAGE_DIM);
-        break;
-      }
-      case 'b': {
         h = Math.max(sv.height + dy, MIN_PAGE_DIM);
         break;
       }
@@ -591,11 +603,6 @@ export class SvgePageSelectionOverlay {
         x = Math.min(sv.x + dx, x2 - MIN_PAGE_DIM);
         w = x2 - x;
         h = Math.max(sv.height + dy, MIN_PAGE_DIM);
-        break;
-      }
-      case 'l': {
-        x = Math.min(sv.x + dx, x2 - MIN_PAGE_DIM);
-        w = x2 - x;
         break;
       }
       case null:

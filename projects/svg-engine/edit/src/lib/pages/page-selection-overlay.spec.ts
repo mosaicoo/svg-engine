@@ -41,7 +41,14 @@ describe('PAGES-REFACTOR Fase 2 + Fase 6 — SvgePageSelectionOverlay', () => {
     overlay: () => { x: number; y: number; width: number; height: number; label: string } | null;
     bracketTL: (o: { x: number; y: number }) => string;
     bracketBR: (o: { x: number; y: number; width: number; height: number }) => string;
-    resizeHandles: () => readonly { anchor: string; x: number; y: number }[];
+    // **PAGES-REFACTOR follow-up #3** — `resizeHandles()` was removed
+    // when the 8 square handles + move-handle square were dropped in
+    // favor of "L-brackets only" visual. The 4 corner L-brackets ARE
+    // the resize affordance now (each bracket-group binds pointerdown
+    // directly to onResizeHandlePointerDown). Tests that assert handle
+    // positions are obsolete — the bracket-path geometry specs already
+    // cover the corner positions, and the drag-preview specs cover the
+    // resize math via the `_drag` signal.
     onMoveHandlePointerDown: (e: unknown) => void;
     onResizeHandlePointerDown: (e: unknown, anchor: string) => void;
     onHandlePointerMove: (e: unknown) => void;
@@ -150,7 +157,10 @@ describe('PAGES-REFACTOR Fase 2 + Fase 6 — SvgePageSelectionOverlay', () => {
   it('bracketTL emits a 3-vertex path starting at corner-going-down', () => {
     const { viewport, overlay } = setup();
     viewport.reset();
-    const armDoc = 12 / viewport.zoom();
+    // **PAGES-REFACTOR follow-up #3** — bracket arm bumped from 12 → 16 px
+    // when the bracket-as-handle refactor landed (wider visible affordance
+    // matches the wider invisible hit-area painted underneath).
+    const armDoc = 16 / viewport.zoom();
     const d = overlay.bracketTL({ x: 0, y: 0 });
     expect(d).toBe(`M0,${armDoc} L0,0 L${armDoc},0`);
   });
@@ -158,31 +168,25 @@ describe('PAGES-REFACTOR Fase 2 + Fase 6 — SvgePageSelectionOverlay', () => {
   it('bracketBR emits a 3-vertex path ending at corner-going-up', () => {
     const { viewport, overlay } = setup();
     viewport.reset();
-    const armDoc = 12 / viewport.zoom();
+    // **PAGES-REFACTOR follow-up #3** — bracket arm bumped from 12 → 16 px
+    // when the bracket-as-handle refactor landed (wider visible affordance
+    // matches the wider invisible hit-area painted underneath).
+    const armDoc = 16 / viewport.zoom();
     const d = overlay.bracketBR({ x: 0, y: 0, width: 800, height: 600 });
     expect(d).toBe(`M${800 - armDoc},600 L800,600 L800,${600 - armDoc}`);
   });
 
   // ─────────────────────────────────────────────────────────────────
-  // Fase 6 specs — 8 resize handles + drag-→-dispatch
+  // Fase 6 specs — drag-→-dispatch via the 4 corner brackets
   // ─────────────────────────────────────────────────────────────────
-
-  it('resizeHandles returns 8 entries (4 corners + 4 edges) at the right positions', () => {
-    const { state, sel, activePage, overlay } = setup();
-    seedActiveSelectedPage(state, activePage, sel);
-    const hs = overlay.resizeHandles();
-    expect(hs).toHaveLength(8);
-    // 800×600 page at origin → expected positions per anchor.
-    const map = new Map(hs.map((h) => [h.anchor, { x: h.x, y: h.y }]));
-    expect(map.get('tl')).toEqual({ x: 0, y: 0 });
-    expect(map.get('t')).toEqual({ x: 400, y: 0 });
-    expect(map.get('tr')).toEqual({ x: 800, y: 0 });
-    expect(map.get('r')).toEqual({ x: 800, y: 300 });
-    expect(map.get('br')).toEqual({ x: 800, y: 600 });
-    expect(map.get('b')).toEqual({ x: 400, y: 600 });
-    expect(map.get('bl')).toEqual({ x: 0, y: 600 });
-    expect(map.get('l')).toEqual({ x: 0, y: 300 });
-  });
+  //
+  // **PAGES-REFACTOR follow-up #3** — the "resizeHandles returns 8
+  // entries" spec was removed when the 8 square resize handles were
+  // dropped in favor of "L-brackets only" visual. The 4 corner
+  // brackets (tl/tr/bl/br) double as the resize affordance — their
+  // positions are covered by the bracket geometry specs above. Edge
+  // resize was dropped entirely; precision one-axis resize lives in
+  // the Inspector Page tab instead.
 
   /**
    * The component's `screenToDoc` private uses
