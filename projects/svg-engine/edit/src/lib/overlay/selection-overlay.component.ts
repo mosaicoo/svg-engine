@@ -14,6 +14,7 @@ import {
   CommandBus,
   EditorStateService,
   findNodeById,
+  isPage,
   type Point,
   RotateNodeCommand,
   type TextNode,
@@ -267,6 +268,20 @@ export class SelectionOverlay {
     if (this.layers.hiddenIds().has(id)) return null;
     const node = findNodeById(this.state.document().root, id);
     if (node !== null && node.metadata.visible === false) return null;
+    // **PAGES-REFACTOR Fase 6 follow-up**: when the focused node is a
+    // D-079 page, suppress the regular shape-selection bbox + handles.
+    // The dedicated `<svg:g svgePageSelectionOverlay>` renders its own
+    // L-brackets + label + 8 page-resize handles + move handle (which
+    // dispatch `ResizePageCommand` / `MovePageCommand`, not
+    // `ResizeNodeCommand` which would bake a transform on the page —
+    // wrong semantics, pages resize their viewBox instead).
+    //
+    // Without this guard, BOTH overlays render around a selected page:
+    // the user sees shape-style white handles AND the page brackets,
+    // gets confused about which one to grab, and dragging a shape
+    // handle dispatches the wrong command. Hiding the regular overlay
+    // for pages makes the page selection visual unambiguous.
+    if (node !== null && isPage(node)) return null;
     return this._focusBBox();
   });
 

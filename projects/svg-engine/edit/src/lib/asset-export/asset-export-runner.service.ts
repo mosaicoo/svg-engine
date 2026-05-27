@@ -2,6 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { inject, Injectable } from '@angular/core';
 import { EditorStateService } from 'svg-engine/core';
 import { ExporterRegistry, renderPng } from 'svg-engine/io';
+import { ActivePageService } from '../pages/active-page.service';
 import { AssetExportRegistry } from './asset-export-registry.service';
 import type { ExportSlot, ExportSlotResult } from './asset-export.types';
 
@@ -38,6 +39,15 @@ export class AssetExportRunner {
   private readonly exporters = inject(ExporterRegistry);
   private readonly registry = inject(AssetExportRegistry);
   private readonly document = inject(DOCUMENT);
+  /**
+   * **PAGES-REFACTOR Fase 6 follow-up** — when an active D-079 page
+   * is present, the batch exporter projects the document down to that
+   * SINGLE page's content (page.children become the export root, the
+   * page's viewBox becomes the SVG viewBox). Without this, "Export
+   * All" emits the FULL document with every page's shapes overlapping
+   * inside one file — the bug the user reported.
+   */
+  private readonly activePage = inject(ActivePageService);
 
   /**
    * Execute one slot. Returns either `{ ok: true, filename }` (after
@@ -53,7 +63,12 @@ export class AssetExportRunner {
     if (exporter === null) {
       return { ok: false, slotId: slot.id, error: `Exporter "${slot.exporterId}" not registered` };
     }
-    const doc = this.state.document();
+    // PAGES-REFACTOR Fase 6 follow-up — same active-page projection
+    // as the File→Export SVG/PNG path (builtin-menu-contributions
+    // plugin). Mirrors that helper's call to `effectiveExportDoc` so
+    // both export paths render the same single-page output. Falls back
+    // to the raw doc in legacy single-root docs (no active page).
+    const doc = this.activePage.effectiveExportDoc(this.state.document());
     const filename = this.registry.resolveUniqueName(slot.filename, exporter.extension, usedNames);
     let payload: string | Blob;
     try {
