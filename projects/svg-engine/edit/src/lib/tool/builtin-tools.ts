@@ -10,6 +10,7 @@ import {
   BrushSelectionService,
 } from '../library/brushes/brush-library.service';
 import { expandStrokeWithProfile } from '../library/brushes/expand-stroke';
+import { ActivePageService } from '../pages/active-page.service';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../plugin/plugin';
 import { SelectionService } from '../selection/selection.service';
 import { PencilToolService } from './pencil-tool.service';
@@ -273,6 +274,29 @@ class PageTool implements Tool {
    * special-casing.
    */
   readonly shortcut = 'shift+o';
+
+  /**
+   * **PAGES-REFACTOR follow-up #2** — auto-select the active page on
+   * activation. Without this, `SvgePageSelectionOverlay.overlay()`
+   * stays null (its gating chain requires the active page to be in
+   * the selection) and the user sees **nothing** when they press
+   * Shift+O / click the Page button — exactly the bug the user
+   * reported with the green-arrow screenshot.
+   *
+   * **Illustrator parity**: entering Artboard Tool mode immediately
+   * shows handles around the current artboard — the user doesn't
+   * have to also click it. This `onActivate` mirrors that.
+   *
+   * Defensive: if there's no active page (a fresh editor before any
+   * page exists) the call is a no-op — the overlay's own null check
+   * on `activePage()` takes over.
+   */
+  onActivate(ctx: ToolContext): void {
+    const activePage = ctx.injector.get(ActivePageService, { optional: true });
+    const page = activePage?.activePage() ?? null;
+    if (page === null) return;
+    ctx.injector.get(SelectionService).select(page.id);
+  }
 
   onDeactivate(ctx: ToolContext): void {
     // PAGES-REFACTOR — leaving the Page tool should hide the page
