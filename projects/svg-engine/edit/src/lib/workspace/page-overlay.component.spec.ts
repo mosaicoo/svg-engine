@@ -1,8 +1,15 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { createEmptyDocument, type SvgDocument } from 'svg-engine/core';
+import {
+  createEmptyDocument,
+  createGroup,
+  EditorStateService,
+  type SvgDocument,
+  withPageFlag,
+} from 'svg-engine/core';
 import { SvgeRenderer } from 'svg-engine/render';
 import { describe, expect, it } from 'vitest';
+import { ActivePageService } from '../pages/active-page.service';
 import { PageOverlay } from './page-overlay.component';
 import { WorkspaceService } from './workspace.service';
 
@@ -150,6 +157,52 @@ describe('PageOverlay — reacts to WorkspaceService.patchPage', () => {
     const r = pageRect(fixture.nativeElement);
     expect(r?.getAttribute('width')).toBe('400');
     expect(r?.getAttribute('height')).toBe('700');
+  });
+});
+
+describe('PAGES-REFACTOR Fase 4 — PageOverlay as persistent hit-target', () => {
+  /**
+   * Without an active D-079 page (legacy single-root document) the rect
+   * must remain click-through: no `data-node-id` AND
+   * `pointer-events: none`. Otherwise the rect would intercept all
+   * canvas clicks in pre-D-079 docs, breaking selection on shapes.
+   */
+  it('legacy doc (no active D-079 page): rect has no data-node-id and pointer-events=none', () => {
+    const { fixture } = setup();
+    const r = pageRect(fixture.nativeElement);
+    expect(r).not.toBeNull();
+    expect(r?.getAttribute('data-node-id')).toBeNull();
+    expect(r?.getAttribute('pointer-events')).toBe('none');
+  });
+
+  /**
+   * With an active D-079 page, the rect carries the page's id and
+   * pointer-events=all so clicks resolve to the page node via
+   * {@link findOwningNodeId}. This replaces the PAGES-FIX-4 hit-target
+   * rect that used to live inside the page's `<g>` in node-renderer
+   * (the rect was re-mounted on every selection change, producing the
+   * visible flicker the user reported in 2026-05-26).
+   */
+  it('active D-079 page: rect carries data-node-id and pointer-events=all', () => {
+    TestBed.configureTestingModule({ imports: [TestHost] });
+    const state = TestBed.inject(EditorStateService);
+    state.resetDocument(createEmptyDocument());
+    const vb = { x: 0, y: 0, width: 800, height: 600 };
+    const page = withPageFlag(createGroup([], {}), vb, 'Cover');
+    state.setDocument({
+      ...state.document(),
+      root: { ...state.document().root, children: [page] },
+    });
+    const active = TestBed.inject(ActivePageService);
+    // Auto-recovery effect is async in tests; set explicitly so the
+    // assertion is deterministic.
+    active.setActive(page.id);
+    const fixture = TestBed.createComponent(TestHost);
+    fixture.detectChanges();
+    const r = pageRect(fixture.nativeElement);
+    expect(r).not.toBeNull();
+    expect(r?.getAttribute('data-node-id')).toBe(page.id);
+    expect(r?.getAttribute('pointer-events')).toBe('all');
   });
 });
 

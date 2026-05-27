@@ -1,13 +1,6 @@
 import { NgComponentOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
-import {
-  type BoundingBox,
-  getPageViewBox,
-  isGroupNode,
-  isPage,
-  type SvgNode,
-  type TextNode,
-} from 'svg-engine/core';
+import { isGroupNode, type SvgNode, type TextNode } from 'svg-engine/core';
 import { NodeRendererRegistry } from '../registry/node-renderer-registry.service';
 import { renderTransformAttr } from '../util/transform-attr';
 import { SvgeEllipseDirective } from './ellipse-renderer.directive';
@@ -137,39 +130,19 @@ import { SvgeTextDirective } from './text-renderer.directive';
         <svg:use [svgeSymbolUse]="$any(node())" />
       }
       @case ('group') {
-        @if (pageHitTargetBox(); as pb) {
-          <!--
-            **PAGES-FIX-4** — invisible hit target covering the page's
-            viewBox. Without this, the page's wrapper <g> has no
-            painted geometry in empty areas, so clicks on the white
-            artboard pass straight through to the SVG background and
-            id-resolution returns null (which the shell treats as
-            "start marquee"). With the rect catching pointer events,
-            clicks on empty page area resolve to the page id — the
-            Inspector then shows the page properties, matching
-            Illustrator/Affinity behaviour.
-
-            - fill="transparent" + pointer-events="all" → hit-testable
-              without painting any visible pixels.
-            - Sized to the page's stored viewBox (declares the
-              artboard area as the click region; not the document
-              viewBox, since the page's own dimensions can differ).
-            - Carries no data-node-id of its own: clicks bubble to
-              the parent <g svgeNode> which DOES carry the page's
-              data-node-id (via the host binding above). The
-              hit-testing helper walks up to find it.
-          -->
-          <svg:rect
-            class="page-hit-target"
-            [attr.x]="pb.x"
-            [attr.y]="pb.y"
-            [attr.width]="pb.width"
-            [attr.height]="pb.height"
-            fill="transparent"
-            stroke="none"
-            style="pointer-events: all"
-          />
-        }
+        <!--
+          PAGES-REFACTOR Fase 4 — the page hit-target rect that used
+          to live here (PAGES-FIX-4) was removed because it was
+          rendered inside the page's wrapper g and re-mounted on
+          every selection change, producing the visible "flicker"
+          the user reported. The same affordance now lives on the
+          projected svgePageOverlay (edit/workspace/): its existing
+          paper rect now carries data-node-id={pageId} +
+          pointer-events: all when a D-079 page is active, so it
+          serves as a persistent hit-target without re-mounting on
+          selection change. See Fase 4 in
+          docs/08-historico-de-alteracoes.md.
+        -->
         @for (child of groupChildren(); track child.id) {
           <svg:g svgeNode [node]="child"></svg:g>
         }
@@ -352,19 +325,12 @@ export class SvgeNodeRenderer {
     return isGroupNode(n) ? n.children : [];
   }
 
-  /**
-   * **PAGES-FIX-4** — returns the page's stored viewBox when the node
-   * is a Page (D-079), otherwise null. Used by the template to render
-   * the hit-target rect inside the page wrapper so clicks on empty
-   * artboard area still select the page.
-   *
-   * Returns `null` for non-page groups (most groups) so the hit-target
-   * rect is only emitted where it matters — zero overhead for ordinary
-   * groups.
-   */
-  protected pageHitTargetBox(): BoundingBox | null {
-    const n = this.node();
-    if (!isPage(n)) return null;
-    return getPageViewBox(n);
-  }
+  // **PAGES-REFACTOR Fase 4** — the page hit-target helper that
+  // used to live here was removed; the same affordance is provided
+  // by `<g svgePageOverlay svgeBehind>` (`svg-engine/edit/workspace/
+  // page-overlay.component.ts`), whose paper rect carries
+  // `data-node-id={pageId}` and `pointer-events: all` when a D-079
+  // page is active. It renders outside the page's `<g>` (in the
+  // svgeBehind projection slot) so it never re-mounts on selection
+  // change → no flicker.
 }

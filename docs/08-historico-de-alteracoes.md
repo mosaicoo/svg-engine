@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-05-27 — PAGES-REFACTOR Fase 4: hit-target persistente no PageOverlay (fim do flicker)
+
+**Contexto.** A Fase 2 introduziu o `<svge-page-selection-overlay>` para a parte VISUAL da seleção de página (brackets + label + move handle), mas o hit-testing continuava dependente do `<rect transparent>` que a PAGES-FIX-4 havia colocado **dentro do `<g>` da página** no `node-renderer.component.ts`. Esse rect era a fonte do flicker reportado: como ele vivia no subtree do nó, qualquer mudança de seleção forçava Angular a re-avaliar o `@case ('group')` e re-mount do rect (efeito Off→On visível). Além disso, o rect tinha dependência tipográfica em três imports (`BoundingBox`, `getPageViewBox`, `isPage`) que vazavam preocupação de página para o renderer headless.
+
+**O quê.** Duas mudanças cirúrgicas:
+
+1. **Remoção do rect no `node-renderer`** (`render/src/lib/renderers/node-renderer.component.ts`): apagado o `<svg:rect>` dentro do `@case ('group')`, o helper `pageHitTargetBox()`, e os 3 imports relacionados. Comentário explicativo no lugar aponta para o novo home. O renderer volta a ser estritamente headless / agnóstico de "page" — back-compat preservada via fallback do `WorkspaceService`.
+
+2. **Hit-target persistente no `PageOverlay`** (`edit/workspace/page-overlay.component.ts`): o rect "paper" que já desenhava a página agora carrega `data-node-id` (bound ao id da D-079 page ativa via novo computed `pageNodeId`) e `pointer-events` alterna entre `all` (quando há página ativa) e `none` (legacy single-root). Como o `PageOverlay` é projetado no slot `svgeBehind` (renderiza ANTES do `<svg:g svgeNode>`), clicks em shapes ainda atingem as shapes primeiro (paint order + pointer capture); clicks em área vazia da página caem no rect e o `findOwningNodeId` resolve para o id da página.
+
+**Por que isso elimina o flicker.** O `PageOverlay` é um componente sempre montado, OnPush + signals — quando a seleção muda, apenas atributos atualizam (não há re-mount do `<svg:rect>`). Single source of truth para o hit-target da página = zero competição entre o rect do renderer e o rect do overlay.
+
+**Back-compat.** Em documentos pré-D-079 (sem `withPageFlag` em nenhum filho do root), `pageNodeId()` retorna null → o rect fica com `pointer-events: none` e sem `data-node-id`, restaurando o comportamento click-through original do paper rect legacy. Nenhuma regressão para consumidores do `<svge-editor>` headless.
+
+**+1 spec** (`page-overlay.component.spec.ts` — bloco "PAGES-REFACTOR Fase 4 — PageOverlay as persistent hit-target"): cobre os dois caminhos (legacy doc → `pointer-events=none` + sem `data-node-id`; D-079 page ativa → `pointer-events=all` + `data-node-id={pageId}`). Suite: 1763 passing / 1 skipped (de 1762).
+
+Build 9 entry points + lint OK.
+
+---
+
 ## 2026-05-27 — PAGES-REFACTOR Fase 3: PageOptions per-page + PageOverlay derive da página ativa
 
 **O quê.** Resolve o ponto P0 da auditoria "sobreposição WorkspaceService legacy vs D-079 Page" sem reescrever o WorkspaceService inteiro. Três mudanças cirúrgicas:

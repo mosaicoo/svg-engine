@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { getPageOptions, getPageViewBox } from 'svg-engine/core';
+import { getPageOptions, getPageViewBox, type NodeId } from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
 import { ActivePageService } from '../pages/active-page.service';
 import { pageBoundsIn, WorkspaceService } from './workspace.service';
@@ -68,7 +68,25 @@ import { pageBoundsIn, WorkspaceService } from './workspace.service';
   template: `
     @if (pageBounds(); as p) {
       <!--
-        Outer page rectangle — the visible "paper" of the canvas.
+        Outer page rectangle — the visible "paper" of the canvas AND
+        (PAGES-REFACTOR Fase 4) the persistent hit-target for the
+        active D-079 page. The rect carries data-node-id with the
+        page id whenever a D-079 page is active so that
+        findOwningNodeId resolves clicks on the empty page interior
+        to the page node — replacing the PAGES-FIX-4 hit-target rect
+        that lived inside the page's wrapper g and re-mounted on
+        every selection change (the flicker source). Because
+        PageOverlay is mounted in the svgeBehind slot, the rect
+        renders UNDER the document content — so clicks on shapes
+        still hit the shapes first (their geometry is on top in the
+        paint order and intercepts the pointer), and clicks on empty
+        page area fall through to this rect.
+
+        pointer-events flips between 'all' (when there's an active
+        page id worth resolving to) and 'none' (legacy single-root
+        documents) so the legacy click-through behavior is preserved
+        for pre-D-079 docs.
+
         Anchored at the page's origin (top-left at 0,0 in document
         coordinates via the pageBoundsIn helper — reverted from the
         earlier "centered in viewport" behaviour in 2026-05-18). Grid
@@ -81,6 +99,8 @@ import { pageBoundsIn, WorkspaceService } from './workspace.service';
         [attr.y]="p.y"
         [attr.width]="p.width"
         [attr.height]="p.height"
+        [attr.data-node-id]="pageNodeId()"
+        [attr.pointer-events]="pageNodeId() === null ? 'none' : 'all'"
       />
       @if (marginsRect(); as m) {
         <!--
@@ -104,7 +124,11 @@ import { pageBoundsIn, WorkspaceService } from './workspace.service';
       stroke: var(--svge-page-stroke, #1976d2);
       stroke-width: 1;
       vector-effect: non-scaling-stroke;
-      pointer-events: none;
+      /*
+       * pointer-events is set via attribute binding from the template
+       * (toggle between 'all' and 'none' based on whether a D-079
+       * page is active). We don't lock it in CSS so the binding wins.
+       */
     }
     .margin-rect {
       fill: none;
@@ -159,6 +183,24 @@ export class PageOverlay {
     const page = this.ws.page();
     if (page.width <= 0 || page.height <= 0) return null;
     return pageBoundsIn(this.viewport.contentBox(), page);
+  });
+
+  /**
+   * **PAGES-REFACTOR Fase 4** — node id of the active D-079 page (or
+   * `null` for legacy single-root documents). Bound into the rect's
+   * `data-node-id` attribute so {@link findOwningNodeId} resolves
+   * clicks on the empty page interior to the page node.
+   *
+   * Returning `null` for legacy docs keeps the rect un-clickable in
+   * that case (the template uses the same null check to keep
+   * `pointer-events: none`), preserving the previous click-through
+   * behavior — critical for back-compat because legacy clicks on the
+   * canvas background should fall through to the document content,
+   * not be intercepted by a no-op hit-target.
+   */
+  protected readonly pageNodeId = computed<NodeId | null>(() => {
+    const active = this.activePage?.activePage() ?? null;
+    return active?.id ?? null;
   });
 
   /**
