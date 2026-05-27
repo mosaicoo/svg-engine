@@ -262,6 +262,76 @@ export class ResizePageCommand implements Command {
   }
 }
 
+// ── Move ─────────────────────────────────────────────────────────────
+
+/**
+ * **PAGES-REFACTOR Fase 6** — translate a Page (update its
+ * `pageViewBox.x` / `.y`, keep width/height intact). The page's
+ * children are UNTOUCHED — they keep their own coordinates. The
+ * renderer's "single page" mode shifts which slice of the canvas
+ * frames the page next time it paints.
+ *
+ * **Why a separate command** (instead of `ResizePageCommand` with
+ * unchanged width/height): the user-facing intent is different —
+ * "move the page" vs "resize the page" — and the visible bookkeeping
+ * (history label, undo stack readability) is cleaner with a dedicated
+ * command. The implementation is intentionally similar to
+ * `ResizePageCommand` so the snapshot + undo pattern reads at a glance.
+ *
+ * No-op (returns `ok()` without snapshotting) when the new origin
+ * equals the current one — keeps the undo stack clean for stuck-drag
+ * pointerups that didn't actually move anything.
+ */
+export class MovePageCommand implements Command {
+  readonly id: string = generateNodeId();
+  readonly label = 'Move Page';
+
+  private previousRootSnapshot: SvgNode | null = null;
+
+  constructor(
+    private readonly nodeId: NodeId,
+    private readonly newOrigin: { readonly x: number; readonly y: number },
+  ) {}
+
+  execute(ctx: CommandContext): CommandResult {
+    const doc = ctx.state.document();
+    const node = findNodeById(doc.root, this.nodeId);
+    if (node === null) return fail(`${this.label}: node "${this.nodeId}" not found`);
+    if (!isPage(node)) return fail(`${this.label}: node "${this.nodeId}" is not a page`);
+    const current = getPageViewBox(node);
+    if (current === null) {
+      return fail(`${this.label}: node "${this.nodeId}" has no pageViewBox`);
+    }
+    if (current.x === this.newOrigin.x && current.y === this.newOrigin.y) {
+      return ok(); // no-op
+    }
+    this.previousRootSnapshot = doc.root;
+    const nextRoot = updateNode<GroupNode>(doc.root, this.nodeId, (g) =>
+      withPageViewBox(g, {
+        x: this.newOrigin.x,
+        y: this.newOrigin.y,
+        width: current.width,
+        height: current.height,
+      }),
+    );
+    ctx.state.setDocument({ ...doc, root: nextRoot });
+    return ok();
+  }
+
+  undo(ctx: CommandContext): CommandResult {
+    // PAGES-REFACTOR Fase 6 — when execute was a no-op (origin
+    // unchanged) the snapshot is null; undo is a silent no-op too
+    // (matches SetPageOptionsCommand pattern, avoids "stuck on no-op"
+    // loop where the bus would re-undo the same failed command forever).
+    if (this.previousRootSnapshot === null) return ok();
+    const snap = this.previousRootSnapshot;
+    if (snap.type !== 'group') return fail(`${this.label} undo: snapshot root not a group`);
+    const doc = ctx.state.document();
+    ctx.state.setDocument({ ...doc, root: snap });
+    return ok();
+  }
+}
+
 /**
  * **PAGES-REFACTOR Fase 3** — patch a page's presentation options
  * (background, margins, orientation, format). Partial: only the fields

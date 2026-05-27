@@ -62,9 +62,12 @@ export { KnifeCutPathCommand } from './knife-cut.command';
 // over the metadata-flag model (see core/lib/model/page.ts).
 // PAGES-REFACTOR Fase 3 — adds SetPageOptionsCommand for the new
 // per-page background/margins/orientation/format struct.
+// PAGES-REFACTOR Fase 6 — adds MovePageCommand for the drag-the-handle
+// gesture wired in the page selection overlay.
 export {
   CreatePageCommand,
   DeletePageCommand,
+  MovePageCommand,
   RenamePageCommand,
   ResizePageCommand,
   SetPageOptionsCommand,

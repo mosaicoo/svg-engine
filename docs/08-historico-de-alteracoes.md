@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-05-27 — PAGES-REFACTOR Fase 6: resize via 8 handlers + move via handle (interativo)
+
+**Contexto.** Pós Fase 2 (brackets visuais) + Fase 4 (hit-target persistente para selecionar a página), a página fica visível mas não interagível: não dava pra redimensioná-la ou movê-la pelo canvas. O usuário pediu **handlers em cada borda sempre disponíveis** (referência: imagem com 8 handlers — 4 cantos + 4 bordas — estilo Figma/Affinity).
+
+**O quê.**
+
+1. **`MovePageCommand`** (`core/commands/page.commands.ts`): novo comando que atualiza apenas `viewBox.x` / `viewBox.y` (preserva width/height). Mesmo pattern de snapshot+undo do `ResizePageCommand`. No-op short-circuit + silent-undo quando o novo origin é igual ao corrente — segue a convenção do `SetPageOptionsCommand` (não polui undo stack com pointerups de drag-zero).
+
+2. **`<svge-page-selection-overlay>` — 8 resize handlers + move handle wirados**:
+   - 8 handles quadrados (TL/T/TR/R/BR/B/BL/L) renderizados ao redor da página quando ela está selecionada. Estilo Illustrator: fundo branco, stroke azul, cursores axiais (`nwse-resize`, `nesw-resize`, `ns-resize`, `ew-resize`).
+   - Os L-brackets ficam apenas decorativos (`pointer-events: none`); os 8 handles novos sentam sobre os vértices/cantos e absorvem o pointer.
+   - Move handle (topo-centro, fill azul) ganha `pointer-events: all` + cursor `move`.
+   - Drag model: pointerdown → captura pointer + snapshot viewBox + cursor doc-coord → pointermove atualiza `_drag.currentPoint` (sinal interno) → `overlay()` computed lê o preview e re-renderiza brackets/handles/label na geometria nova → pointerup dispatcha **UMA** command (`MovePageCommand` ou `ResizePageCommand` conforme tipo do drag). Preview é overlay-only; conteúdo da página só salta no pointerup. Vantagem: undo stack limpo (uma entrada por drag), sem flood de commands intermediários.
+
+3. **Math de resize com clamp**: cada anchor (corner ou edge) calcula novo viewBox preservando o lado oposto. `MIN_PAGE_DIM = 10` doc-units garante que o usuário não consegue colapsar a página a zero (clamp em `Math.min/Math.max`).
+
+**Aria + acessibilidade**: cada handle tem `role="button"` + `aria-label` descrevendo qual canto/borda (ex.: "Page resize handle, top-right corner"). Move handle ganha um aria-label explícito ("Page move handle — drag to reposition the page").
+
+**+8 specs novas** (1 no `MovePageCommand` + 6 no `SvgePageSelectionOverlay`):
+
+- `move-page.command.spec.ts`: happy path (origin atualiza, dims preservadas), undo, no-op + silent-undo, fail em non-page, fail em missing viewBox.
+- `page-selection-overlay.spec.ts`: novos blocos cobrindo as 8 posições de handlers, preview do drag (move + resize TR), clamp do `MIN_PAGE_DIM` (resize BL além da borda), pointerup dispatch e mutação do documento (move + resize BR).
+
+Suite: 1777 passing / 1 skipped (era 1766). Build 9 entry points + lint OK.
+
+**Não muda** (intencional — fica para Fase 7+):
+
+- Persistência do `activePageId` entre sessões.
+- Auto-snapshot pré-DeletePage para recuperação.
+- Limpeza de seleção ao trocar de página ativa (selection clear).
+- Tools de página no menu/context-menu (Inspector tab gerencia options).
+
+---
+
 ## 2026-05-27 — PAGES-REFACTOR Fase 5: paridade `<svge-editor>` ↔ `<svge-shell-pro>` (PageSelectionOverlay + Pages strip + bootstrap opt-in)
 
 **Contexto.** `<svge-shell-pro>` ganhou todas as peças de Pages/Artboards nas Fases 1-4 (interceptor AUTO_PARENT, bracket overlay, fusão PageOptions, hit-target persistente). `<svge-editor>` — o shell drop-in mais leve que serve outros projetos Mosaicoo + integrações de terceiros — ficou parcialmente desalinhado: brackets de página NÃO renderizavam, Pages strip não existia, e `resolvedTree`/`resolvedViewBox` ignoravam `activePage` (renderizava sempre `state.document().root`, então quem entrasse via `<svge-editor>` com D-079 doc via TUDO empilhado em vez do artboard ativo).
