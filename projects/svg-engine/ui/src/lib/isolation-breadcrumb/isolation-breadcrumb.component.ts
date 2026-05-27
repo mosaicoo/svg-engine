@@ -47,29 +47,41 @@ interface Crumb {
 @Component({
   selector: 'svge-isolation-breadcrumb',
   standalone: true,
-  /**
-   * **PAGES-REFACTOR follow-up #6 / shell-pro breadcrumb bug** —
-   * stop pointerdown at the host so it never reaches the canvas-cell
-   * underneath. The shell-interactions directive (mounted on
-   * canvas-cell) interprets a pointerdown that resolves to "no svg
-   * node" as "click on empty canvas" and, when isolation is active,
-   * dispatches `isolation.exit()` (Affinity convention). Without this
-   * guard, every click on a crumb button would:
-   *   1. Trigger shell-interactions pointerdown → isolation.exit() →
-   *      visible() flips to false → @if removes the <nav> from DOM.
-   *   2. The (click) on the now-removed button never fires (or fires
-   *      against a detached element), so setRoot() is never called.
-   *   3. User sees the breadcrumb "fecha e não faz nada".
-   * Stopping pointerdown at the host preserves the click chain end-
-   * to-end while keeping all the normal pointer-events: auto handling
-   * for the visible bar.
-   */
-  host: {
-    '(pointerdown)': '$event.stopPropagation()',
-  },
   template: `
     @if (visible()) {
-      <nav class="bar" aria-label="Isolation breadcrumb">
+      <!--
+        **PAGES-REFACTOR follow-up #6 (v2) — definitive shell-agnostic
+        click guard.** Earlier attempts added the stopPropagation as a
+        \`host\` binding, which works in consumers that leave host
+        pointer-events untouched but FAILS in consumers that set the
+        host to \`pointer-events: none\` (shell-pro applies that so the
+        breadcrumb overlay area around the bar lets clicks fall
+        through to the canvas). A host with pointer-events: none never
+        receives the pointerdown bubble, so the Angular host listener
+        never fires and the shell-interactions directive on
+        canvas-cell still sees the event → calls \`isolation.exit()\` →
+        the breadcrumb hides → click is lost.
+
+        Putting the stopPropagation directly on the <nav class="bar">
+        element guarantees the listener fires on a real DOM element
+        that ALWAYS has \`pointer-events: auto\` (set explicitly in the
+        component's own styles below). Adds (click) too as defense in
+        depth — shell-interactions also has a click handler used for
+        manual dblclick detection, so even if pointerdown somehow
+        leaks, click is still contained.
+      -->
+      <!--
+        eslint-disable-next-line @angular-eslint/template/click-events-have-key-events,@angular-eslint/template/interactive-supports-focus
+        -- the (click) here is a propagation guard, not an interactive
+        affordance; real interaction lives on the <button>s inside,
+        which are focusable + keyboard-accessible by default.
+      -->
+      <nav
+        class="bar"
+        aria-label="Isolation breadcrumb"
+        (pointerdown)="$event.stopPropagation()"
+        (click)="$event.stopPropagation()"
+      >
         <button
           type="button"
           class="exit"
