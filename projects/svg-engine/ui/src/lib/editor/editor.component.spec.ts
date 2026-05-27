@@ -242,3 +242,56 @@ describe('SvgeEditor — custom status bar slot (replace default)', () => {
 // alongside the `undoTriggered` / `redoTriggered` outputs. Consumers
 // that need to react to history events now subscribe to `CommandBus`
 // or `HistoryService` directly (matches every other editor service).
+
+describe('PAGES-REFACTOR Fase 5 — <svge-editor> parity opt-ins', () => {
+  /**
+   * Default (no opt-in flags): no <svge-pages-panel> rendered, no
+   * bootstrap happens. Guards back-compat — every existing canvas-only
+   * / shell-parcial consumer must keep its current visible shape.
+   */
+  @Component({
+    standalone: true,
+    imports: [SvgeEditor],
+    template: `<svge-editor />`,
+  })
+  class DefaultsHost {}
+
+  /**
+   * Opt-in showPagesPanel: <svge-pages-panel> renders in the dedicated
+   * row between the isolation breadcrumb and the canvas row.
+   */
+  @Component({
+    standalone: true,
+    imports: [SvgeEditor],
+    template: `<svge-editor [showPagesPanel]="true" />`,
+  })
+  class WithPagesPanelHost {}
+
+  it('default: no <svge-pages-panel> renders (opt-in off)', () => {
+    TestBed.configureTestingModule({ imports: [DefaultsHost] });
+    const fixture = TestBed.createComponent(DefaultsHost);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('svge-pages-panel')).toBeNull();
+  });
+
+  it('[showPagesPanel]="true": <svge-pages-panel> renders', () => {
+    TestBed.configureTestingModule({ imports: [WithPagesPanelHost] });
+    const fixture = TestBed.createComponent(WithPagesPanelHost);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('svge-pages-panel')).not.toBeNull();
+  });
+
+  it('default: <svge-page-selection-overlay> g-host is always projected (zero-cost when no page)', () => {
+    // The selection overlay is self-gated by its own @if(overlay())
+    // so it's safe to project unconditionally; this test pins the
+    // imports list so the projection survives refactors.
+    TestBed.configureTestingModule({ imports: [DefaultsHost] });
+    const fixture = TestBed.createComponent(DefaultsHost);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    const overlay = fixture.nativeElement.querySelector('g[svgepageselectionoverlay]');
+    expect(overlay).not.toBeNull();
+  });
+});

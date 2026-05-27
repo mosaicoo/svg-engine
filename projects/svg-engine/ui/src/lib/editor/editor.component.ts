@@ -1,6 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { MatToolbar } from '@angular/material/toolbar';
-import { type BoundingBox, EditorStateService, type SvgNode } from 'svg-engine/core';
+import {
+  type BoundingBox,
+  CommandBus,
+  EditorStateService,
+  EnsureDefaultPageCommand,
+  type SvgNode,
+} from 'svg-engine/core';
 import { SvgeRenderer } from 'svg-engine/render';
 import {
   ActiveDefsService,
@@ -14,14 +20,18 @@ import {
   OutlineFilter,
   PageOverlay,
   resolveSelectableNodeId,
+  SELECT_TOOL_ID,
   SvgeCanvasGestures,
+  SvgePageSelectionOverlay,
   SvgeShellInteractions,
+  ToolHostService,
   WorkspaceBackground,
 } from 'svg-engine/edit';
 import { CONTEXT_MENU_SLOT, SvgeContextMenuTrigger } from '../context-menu';
 import { SvgeEffectsPanel } from '../effects-panel';
 import { SvgeIsolationBreadcrumb } from '../isolation-breadcrumb';
 import { SvgeLibrariesPanel } from '../libraries-panel';
+import { SvgePagesPanel } from '../pages-panel';
 import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
 import { SvgeMenuBar } from '../menu-bar';
 import { SvgeRulers } from '../rulers';
@@ -95,6 +105,7 @@ import { SvgeToolOptions } from '../tool-options';
     SvgeRenderer,
     WorkspaceBackground,
     PageOverlay,
+    SvgePageSelectionOverlay,
     GridOverlay,
     GuidesOverlay,
     OutlineFilter,
@@ -109,6 +120,7 @@ import { SvgeToolOptions } from '../tool-options';
     SvgeEffectsPanel,
     SvgeIsolationBreadcrumb,
     SvgeLibrariesPanel,
+    SvgePagesPanel,
     SvgePanelGroup,
     SvgePanelGroupTab,
     SvgeContextMenuTrigger,
@@ -153,6 +165,17 @@ import { SvgeToolOptions } from '../tool-options';
       Click a non-current crumb to climb up; click [←] (or Esc) to exit.
     -->
     <svge-isolation-breadcrumb class="iso-breadcrumb" />
+    @if (showPagesPanel()) {
+      <!--
+        PAGES-REFACTOR Fase 5 — opt-in Pages tab strip. Off by
+        default to preserve back-compat for D-037 "canvas-only" /
+        "shell-parcial" consumers that don't want multi-page chrome.
+        Same component used by <svge-shell-pro>; auto-hides itself
+        when the document has zero pages (legacy single-root docs
+        render the strip as 0-height when alwaysShow=false).
+      -->
+      <svge-pages-panel class="pages-row" [alwaysShow]="true" />
+    }
     <!--
       Canvas row — horizontal flex container that hosts the canvas and
       the optional side rails (libraries / effects). Always present so
@@ -234,6 +257,16 @@ import { SvgeToolOptions } from '../tool-options';
               Auto-hides otherwise (computed gate inside).
             -->
             <svg:g svgeGradientOverlay></svg:g>
+            <!--
+              PAGES-REFACTOR Fase 5 — page selection overlay (corner
+              brackets + floating label + move handle). Self-gated:
+              renders nothing when no page is selected, so this is a
+              zero-cost addition for headless / pre-D-079 consumers.
+              Paints on top of every other overlay (last sibling of
+              the renderer's FRONT projection slot) so the brackets
+              read as a crisp affordance.
+            -->
+            <svg:g svgePageSelectionOverlay></svg:g>
           </svge-renderer>
         </svge-workspace-background>
         <!--
@@ -353,6 +386,13 @@ import { SvgeToolOptions } from '../tool-options';
     .status-area > * {
       width: 100%;
     }
+    /* PAGES-REFACTOR Fase 5 — pages strip row when opt-in. The
+       <svge-pages-panel> paints its own surface + bottom border;
+       we just give the row a deterministic flex slot so it sits
+       between the breadcrumb and the canvas row. */
+    .pages-row {
+      flex: 0 0 auto;
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -363,6 +403,8 @@ export class SvgeEditor {
   // Keeps right-click semantics aligned with the click semantics in
   // SvgeShellInteractions (clicking on shape = node menu, clicking on
   // empty page area = canvas menu when page is the implicit root).
+  // PAGES-REFACTOR Fase 5: also drives resolvedTree/ViewBox so the
+  // canvas frames the active page (matches <svge-shell-pro>).
   private readonly activePage = inject(ActivePageService);
   // D-058 export fix — single composer for the dynamic `<defs>` block
   // (gradients, patterns, effects, chains, clipPaths, masks). Replaces
@@ -370,6 +412,44 @@ export class SvgeEditor {
   // service feeds the exporter (built-in File › Export SVG menu) so
   // canvas vs exported file stay in sync.
   private readonly activeDefs = inject(ActiveDefsService);
+  // PAGES-REFACTOR Fase 5 — opt-in bootstrap dependencies. Resolved
+  // lazily inside the constructor's microtask so consumers that opt
+  // out (default) don't pay for the lookups during view init.
+  private readonly bus = inject(CommandBus);
+  private readonly toolHost = inject(ToolHostService);
+
+  /**
+   * **PAGES-REFACTOR Fase 5** — opt-in mount-time bootstrap. When
+   * `[autoBootstrapPage]="true"`:
+   *
+   * 1. Dispatch {@link EnsureDefaultPageCommand} (idempotent — no-op
+   *    when the document already has a page). New shapes drawn by
+   *    the tools land inside the page via the AUTO_PARENT resolver
+   *    (Fase 1) instead of as siblings of the page.
+   * 2. Activate the **Select** tool when no tool is active yet —
+   *    matches Illustrator / Affinity / Figma default-on-open
+   *    behavior. Without this, the canvas opens with no active tool
+   *    and pointer input does nothing visible.
+   *
+   * Default: `false` — preserves D-037 invariants for all existing
+   * "canvas-only" / "shell-parcial" consumers (the bootstrap WOULD
+   * write to the document, so it must stay opt-in for embedded /
+   * viewer use-cases).
+   *
+   * The microtask wrapper ensures the dispatch runs AFTER all scope
+   * providers settle — `provideSvgEngineEditorScope` services may
+   * still be resolving their constructor effects at component-init
+   * time.
+   */
+  constructor() {
+    queueMicrotask(() => {
+      if (!this.autoBootstrapPage()) return;
+      this.bus.dispatch(new EnsureDefaultPageCommand());
+      if (this.toolHost.activeId() === null) {
+        this.toolHost.activate(SELECT_TOOL_ID);
+      }
+    });
+  }
 
   /**
    * **D-040** — Resolver for the dynamic context-menu slot. Bound to
@@ -411,14 +491,30 @@ export class SvgeEditor {
   /** Optional viewBox — when omitted, falls back to the document's viewBox. */
   readonly viewBox = input<BoundingBox | null>(null);
 
-  /** Effective tree fed to `<svge-renderer>` (input → state fallback). */
+  /**
+   * Effective tree fed to `<svge-renderer>`.
+   *
+   * Resolution order:
+   * 1. Explicit `[tree]` input (consumer override — advanced use-cases
+   *    like rendering a snapshot or a synthesised preview tree).
+   * 2. `ActivePageService.treeForRendering()` — when a D-079 page is
+   *    active (multi-page workflow), the canvas frames the page's
+   *    subtree so the user sees ONE artboard at a time. When no page
+   *    is active, the service falls back to the document root
+   *    automatically — back-compat for every legacy single-root
+   *    consumer, no behavior change for them.
+   */
   protected readonly resolvedTree = computed<SvgNode>(
-    () => this.tree() ?? this.state.document().root,
+    () => this.tree() ?? this.activePage.treeForRendering(),
   );
 
-  /** Effective viewBox fed to `<svge-renderer>` (input → state fallback). */
+  /**
+   * Effective viewBox fed to `<svge-renderer>`. Same resolution rules
+   * as {@link resolvedTree} — explicit input wins, then the active
+   * page's `pageViewBox`, then the document's own `viewBox`.
+   */
   protected readonly resolvedViewBox = computed<BoundingBox>(
-    () => this.viewBox() ?? this.state.document().viewBox,
+    () => this.viewBox() ?? this.activePage.viewBoxForRendering(),
   );
 
   /**
@@ -562,6 +658,30 @@ export class SvgeEditor {
    * pipeline editor. Default `false`.
    */
   readonly showEffectsPanel = input<boolean>(false);
+
+  /**
+   * **PAGES-REFACTOR Fase 5** — opt-in `<svge-pages-panel>` (the
+   * Figma/Affinity tabs strip that lets the user switch / add /
+   * delete / rename pages). Sits between the isolation breadcrumb
+   * and the canvas row. Default `false` — preserves the lighter
+   * `<svge-editor>` chrome for canvas-only consumers; consumers
+   * wanting the full multi-page workflow flip this on AND typically
+   * pair it with `[autoBootstrapPage]="true"`.
+   */
+  readonly showPagesPanel = input<boolean>(false);
+
+  /**
+   * **PAGES-REFACTOR Fase 5** — opt-in mount-time bootstrap that
+   * dispatches `EnsureDefaultPageCommand` (creates Page 1 +
+   * migrates any root-level shapes into it) and activates the
+   * Select tool when no tool is active. Default `false` — embedded
+   * / viewer consumers must NOT see writes happen behind their
+   * back, so the document mutation must stay opt-in.
+   *
+   * Pair with `[showPagesPanel]="true"` for the full multi-page
+   * experience (matches `<svge-shell-pro>` defaults).
+   */
+  readonly autoBootstrapPage = input<boolean>(false);
 
   /**
    * Which `MenuContributionRegistry` slot the embedded `<svge-toolbar>`

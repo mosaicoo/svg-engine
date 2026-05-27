@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-05-27 — PAGES-REFACTOR Fase 5: paridade `<svge-editor>` ↔ `<svge-shell-pro>` (PageSelectionOverlay + Pages strip + bootstrap opt-in)
+
+**Contexto.** `<svge-shell-pro>` ganhou todas as peças de Pages/Artboards nas Fases 1-4 (interceptor AUTO_PARENT, bracket overlay, fusão PageOptions, hit-target persistente). `<svge-editor>` — o shell drop-in mais leve que serve outros projetos Mosaicoo + integrações de terceiros — ficou parcialmente desalinhado: brackets de página NÃO renderizavam, Pages strip não existia, e `resolvedTree`/`resolvedViewBox` ignoravam `activePage` (renderizava sempre `state.document().root`, então quem entrasse via `<svge-editor>` com D-079 doc via TUDO empilhado em vez do artboard ativo).
+
+**O quê.** Migra `<svge-editor>` para paridade visual+comportamental com `<svge-shell-pro>` SEM mudar o default visual de nenhum consumidor existente:
+
+1. **`SvgePageSelectionOverlay` projetado** (sempre): adicionado ao último slot do `<svge-renderer>` (depois do gradient overlay). Self-gated via `@if (overlay())` na própria componente — zero footprint quando nenhuma página está selecionada. Quem usa D-079 ganha os L-brackets + label + move handle imediatamente, mesmo no shell light.
+
+2. **`SvgePagesPanel` opt-in** via novo `[showPagesPanel]="true"`: a tabs strip do Figma/Affinity passa a ser projetada entre o isolation breadcrumb e o canvas row quando o consumidor pede. Default `false` preserva D-037 (modo canvas-only / shell-parcial intactos).
+
+3. **`autoBootstrapPage` opt-in** via novo `[autoBootstrapPage]="true"`: dispara `EnsureDefaultPageCommand` + ativa Select tool no `queueMicrotask` do constructor. Mesmo padrão usado por `<svge-shell-pro>`. Default `false` é mandatório — embedded viewers NÃO podem ter writes acontecendo silenciosamente no documento.
+
+4. **`resolvedTree` / `resolvedViewBox` agora delegam a `ActivePageService`**: trocam o fallback de `state.document().root` / `state.document().viewBox` por `activePage.treeForRendering()` / `activePage.viewBoxForRendering()`. Essas helpers JÁ caem de volta para root/viewBox quando não há página ativa (legacy single-root docs continuam idênticos). Quando há página ativa, o canvas frame UM artboard de cada vez — mesmo behavior do shell-pro.
+
+**Back-compat blindada.** Os 4 testes-trava existentes (`MODE 2 Shell completo`, `MODE 3a/3b/3c Shell parcial`) seguem verdes. As novas flags ficam OFF por default; o overlay novo é self-gated. Documentos pré-D-079 vêem o exato comportamento anterior.
+
+**+3 specs** no bloco "PAGES-REFACTOR Fase 5 — `<svge-editor>` parity opt-ins": (a) default sem pages-panel, (b) `[showPagesPanel]="true"` mostra a strip, (c) `<g svgePageSelectionOverlay>` sempre projetado (independente de seleção, mas auto-hide via `@if`). Suite: 1766 passing / 1 skipped (de 1763).
+
+Build 9 entry points + lint OK.
+
+---
+
 ## 2026-05-27 — PAGES-REFACTOR Fase 4: hit-target persistente no PageOverlay (fim do flicker)
 
 **Contexto.** A Fase 2 introduziu o `<svge-page-selection-overlay>` para a parte VISUAL da seleção de página (brackets + label + move handle), mas o hit-testing continuava dependente do `<rect transparent>` que a PAGES-FIX-4 havia colocado **dentro do `<g>` da página** no `node-renderer.component.ts`. Esse rect era a fonte do flicker reportado: como ele vivia no subtree do nó, qualquer mudança de seleção forçava Angular a re-avaliar o `@case ('group')` e re-mount do rect (efeito Off→On visível). Além disso, o rect tinha dependência tipográfica em três imports (`BoundingBox`, `getPageViewBox`, `isPage`) que vazavam preocupação de página para o renderer headless.
