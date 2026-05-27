@@ -5,6 +5,7 @@ import {
   CommandBus,
   EditorStateService,
   findNodeById,
+  isPage,
   type NodeId,
   type Point,
   RemoveNodeCommand,
@@ -15,6 +16,7 @@ import { resolveSelectableNodeId } from '../hit-testing/hit-testing';
 import { IsolationService } from '../isolation/isolation.service';
 import { type MarqueeCandidate, nodesInsideMarquee } from '../marquee/marquee-hit-testing';
 import { MarqueeService } from '../marquee/marquee.service';
+import { ActivePageService } from '../pages/active-page.service';
 import { isEditableTarget } from '../pointer/is-editable-target';
 import { capturePointer, releasePointer } from '../pointer/capture';
 import { SelectionService } from '../selection/selection.service';
@@ -102,6 +104,14 @@ export class SvgeShellInteractions implements OnDestroy {
   // primeira versão; shell-pro estava com paridade incompleta.
   private readonly viewport = inject(ViewportService);
   private readonly isolation = inject(IsolationService);
+  // PAGES-FIX-3: pages act as an *implicit* selection scope root.
+  // Without this, group-mode hit-testing would always bubble selection
+  // up to the page (because the page is the direct child of the
+  // document root). With pages as the scope root, clicking a shape
+  // inside the active page resolves to the shape itself; clicking
+  // empty page area resolves to the page (so Inspector shows page
+  // props); clicking outside the page returns null (marquee).
+  private readonly activePage = inject(ActivePageService);
   private readonly shortcuts = inject(ShortcutService);
   /**
    * Used by `onPointerMove` to publish doc-space cursor coordinates
@@ -170,11 +180,14 @@ export class SvgeShellInteractions implements OnDestroy {
     //    tool's convention (clicking a child of a group selects the
     //    group, not the child); Direct-Select tool not handled in this
     //    pass — drag-to-isolate-then-edit is a Phase E concern.
+    //    PAGES-FIX-3: when no isolation is active, the active page (if
+    //    any) becomes the scope root so clicks resolve to shapes inside
+    //    the page rather than to the page itself.
     const rootId = this.state.document().root.id;
     const id = resolveSelectableNodeId(event, {
       mode: 'group',
       rootId,
-      isolationRootId: this.isolation.isolationRootId(),
+      isolationRootId: this.isolation.isolationRootId() ?? this.activePage.activePageId(),
     });
 
     // 3a. Click on empty canvas → start marquee (or exit isolation).
@@ -368,7 +381,8 @@ export class SvgeShellInteractions implements OnDestroy {
     const id = resolveSelectableNodeId(event, {
       mode: 'group',
       rootId,
-      isolationRootId: this.isolation.isolationRootId(),
+      // PAGES-FIX-3: same page-as-scope-root logic as onPointerDown.
+      isolationRootId: this.isolation.isolationRootId() ?? this.activePage.activePageId(),
     });
     const now = performance.now();
     const isSecondClickOnSameTarget =
@@ -381,6 +395,12 @@ export class SvgeShellInteractions implements OnDestroy {
       if (id === rootId) return;
       const node = findNodeById(this.state.document().root, id);
       if (node === null || node.type !== 'group') return;
+      // PAGES-FIX-3: pages already act as an implicit isolation scope
+      // (see ActivePageService binding above). Dblclicking a page must
+      // not push *another* isolation level on top of the page — it
+      // would only confuse the breadcrumb / Esc-out flow. Pages are
+      // entered/exited via the Pages Panel, not via dblclick.
+      if (isPage(node)) return;
       // DBLCLICK-FIX: bloquear o comportamento padrão do navegador
       // (que dispara o Selection Action Menu — Translate/Copy popup —
       // ao detectar um dblclick em texto na vizinhança). Não chamamos

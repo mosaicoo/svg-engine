@@ -456,12 +456,18 @@ export class SvgeShellPro {
    */
   protected readonly contextMenuResolver = (event: MouseEvent): string => {
     const rootId = this.state.document().root.id;
+    const activePageId = this.activePage.activePageId();
     const id = resolveSelectableNodeId(event, {
       mode: 'group',
       rootId,
-      isolationRootId: this.isolation.isolationRootId(),
+      // PAGES-FIX-3: active page acts as implicit isolation scope so
+      // clicks on shapes resolve to the shape (not the page).
+      isolationRootId: this.isolation.isolationRootId() ?? activePageId,
     });
-    return id !== null && id !== rootId ? CONTEXT_MENU_SLOT.NODE : CONTEXT_MENU_SLOT.CANVAS;
+    // Page itself counts as canvas for the context-menu (the page IS
+    // the artboard, not a user object). Document root + null map to canvas too.
+    const isCanvasClick = id === null || id === rootId || id === activePageId;
+    return isCanvasClick ? CONTEXT_MENU_SLOT.CANVAS : CONTEXT_MENU_SLOT.NODE;
   };
 
   /** Optional document override — same semantics as `<svge-editor>`. */

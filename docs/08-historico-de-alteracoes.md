@@ -6,6 +6,83 @@
 
 ---
 
+## 2026-05-27 — PAGES-FIX-3: Page-as-implicit-scope-root para selection (clique em shape seleciona shape)
+
+**Bug reportado** (Editor Profissional / `<svge-shell-pro>` pós PAGES-FIX-2):
+
+Ao clicar em um shape no canvas, a **página inteira** estava sendo
+selecionada em vez do shape. Inspector mostrava propriedades da page
+(Group + Width/Height) e handles cobriam toda a área da page. Drag/
+move do shape não funcionava.
+
+**Causa raiz** (arquitetural):
+
+O `resolveSelectableNodeId` em modo `'group'` faz bubble do click até
+o "filho direto do scope root". O scope root é
+`isolationRootId ?? rootId`. Como `rootId === document.root.id`, o
+filho direto do document root é a **Page** (porque agora toda shape
+está dentro de Page 1). Cadeia de DOM no click de um shape:
+
+```
+chain = [shapeId, pageId, rootId]
+scopeIdx = chain.indexOf(rootId) = 2
+return chain[1] = pageId   ← BUG: page selecionada em vez do shape
+```
+
+A fix de PAGES-B (renderer page-filter) + PAGES-FIX-2 (tools
+inserem dentro da page) trouxeram esse efeito colateral porque o
+resolver de hit-testing **não foi atualizado** para considerar a
+page como um scope root implícito.
+
+**Fix**:
+
+- **shell-interactions.directive.ts**: injeta `ActivePageService`
+  e passa `isolationRootId: isolation.isolationRootId() ?? activePage.activePageId()`
+  para `resolveSelectableNodeId` em ambos os call sites (pointer-down
+  - dblclick). Page ativa atua como scope root implícito; isolation
+    explícita (dblclick em group) continua tendo precedência.
+- **shell-interactions.directive.ts** (dblclick guard): bloqueia
+  `isolation.enter(pageId)` quando o nó é uma page — pages são
+  navegadas via Pages Panel, não via dblclick (evita level extra de
+  isolation que confunde o breadcrumb / Esc-out).
+- **editor.component.ts** + **shell-pro.component.ts**
+  (`contextMenuResolver`): mesma lógica de page-as-scope-root.
+  Adicionalmente, page passa a contar como **canvas** (CONTEXT_MENU_SLOT.CANVAS)
+  no resolver — a page É o artboard, não um objeto do usuário.
+
+**Comportamento resultante**:
+
+| Click em                           | Selection      | Inspector   | Context menu |
+| ---------------------------------- | -------------- | ----------- | ------------ |
+| Shape inside page                  | Shape          | Shape props | NODE         |
+| Página vazia (área branca)         | Page           | Page props  | CANVAS       |
+| Workspace fora da page             | null → marquee | (vazio)     | CANVAS       |
+| Group dentro da page               | Group          | Group props | NODE         |
+| Shape dentro de group em isolation | Shape          | Shape props | NODE         |
+
+**+3 specs** em `hit-testing.spec.ts` validando:
+
+1. Click em shape dentro de page → resolve para shape (não page).
+2. Click na page vazia → resolve para page.
+3. Regression guard: sem `isolationRootId`, click em shape **ainda**
+   resolveria para a page (demonstra o bug original e trava a
+   contract).
+
+Suite: 1740 passing / 1 skipped (de 1737 pré-fix).
+
+**Como testar**:
+
+1. Abra `/shell-pro-demo` (auto-bootstraps Page 1).
+2. Desenhe um rect com a tool Rectangle.
+3. Troque pra Select (V).
+4. Clique no rect → handles aparecem **em torno do rect** (não da
+   page). Inspector mostra propriedades de rect (X/Y/W/H, fill, etc).
+5. Clique em área vazia da page → handles aparecem em torno da
+   page. Inspector mostra tab "Page" com Name + Width + Height.
+6. Clique fora da page (workspace cinza) → marquee inicia.
+
+---
+
 ## 2026-05-27 — PAGES-FIX-2: Auto-bootstrap Page 1 + tools desenham na page ativa + Select default
 
 **Bugs reportados** (Editor Profissional / `<svge-shell-pro>`):

@@ -185,3 +185,66 @@ describe('resolveSelectableNodeId — group mode', () => {
     ).toBe('scope');
   });
 });
+
+/**
+ * **PAGES-FIX-3** — verifies that the active page can act as an
+ * "implicit isolation root" so that click-on-shape inside a page
+ * resolves to the SHAPE (not bubbles up to the page itself).
+ *
+ * The contract is: pass `isolationRootId: pageId` and the resolver
+ * behaves exactly like a one-level isolation scoped to the page —
+ * leaves selectable, page itself selectable when clicked directly,
+ * clicks outside the page return null.
+ */
+describe('resolveSelectableNodeId — PAGES-FIX-3 (page-as-scope-root)', () => {
+  function makePageDom() {
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const docRoot = document.createElementNS(SVG_NS, 'g');
+    docRoot.setAttribute('data-node-id', 'doc-root');
+    const page = document.createElementNS(SVG_NS, 'g');
+    page.setAttribute('data-node-id', 'page-1');
+    const shape = document.createElementNS(SVG_NS, 'rect');
+    shape.setAttribute('data-node-id', 'shape-1');
+    page.appendChild(shape);
+    docRoot.appendChild(page);
+    return { docRoot, page, shape };
+  }
+
+  it('returns the shape (not the page) when clicking a shape inside the active page', () => {
+    const { shape } = makePageDom();
+    const event = { target: shape } as unknown as Event;
+    expect(
+      resolveSelectableNodeId(event, {
+        mode: 'group',
+        rootId: toNodeId('doc-root'),
+        isolationRootId: toNodeId('page-1'),
+      }),
+    ).toBe('shape-1');
+  });
+
+  it('returns the page itself when clicking the page background', () => {
+    const { page } = makePageDom();
+    const event = { target: page } as unknown as Event;
+    expect(
+      resolveSelectableNodeId(event, {
+        mode: 'group',
+        rootId: toNodeId('doc-root'),
+        isolationRootId: toNodeId('page-1'),
+      }),
+    ).toBe('page-1');
+  });
+
+  it('without the page-as-scope-root fix, clicking a shape would resolve to the page (regression guard)', () => {
+    const { shape } = makePageDom();
+    const event = { target: shape } as unknown as Event;
+    // Demonstrates the BUG: with isolationRootId omitted, scopeRoot
+    // falls back to `doc-root`, and the direct child of doc-root in
+    // the chain is the page → page is selected instead of the shape.
+    expect(
+      resolveSelectableNodeId(event, {
+        mode: 'group',
+        rootId: toNodeId('doc-root'),
+      }),
+    ).toBe('page-1');
+  });
+});

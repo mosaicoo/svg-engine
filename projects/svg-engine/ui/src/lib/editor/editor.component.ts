@@ -4,6 +4,7 @@ import { type BoundingBox, EditorStateService, type SvgNode } from 'svg-engine/c
 import { SvgeRenderer } from 'svg-engine/render';
 import {
   ActiveDefsService,
+  ActivePageService,
   GradientOverlay,
   GridOverlay,
   GuidesOverlay,
@@ -348,6 +349,11 @@ import { SvgeToolOptions } from '../tool-options';
 export class SvgeEditor {
   private readonly state = inject(EditorStateService);
   private readonly isolation = inject(IsolationService);
+  // PAGES-FIX-3: page-as-scope-root for context-menu hit testing.
+  // Keeps right-click semantics aligned with the click semantics in
+  // SvgeShellInteractions (clicking on shape = node menu, clicking on
+  // empty page area = canvas menu when page is the implicit root).
+  private readonly activePage = inject(ActivePageService);
   // D-058 export fix — single composer for the dynamic `<defs>` block
   // (gradients, patterns, effects, chains, clipPaths, masks). Replaces
   // the 6 individual inject() calls previously duplicated here. Same
@@ -369,12 +375,19 @@ export class SvgeEditor {
    */
   protected readonly contextMenuResolver = (event: MouseEvent): string => {
     const rootId = this.state.document().root.id;
+    const activePageId = this.activePage.activePageId();
     const id = resolveSelectableNodeId(event, {
       mode: 'group',
       rootId,
-      isolationRootId: this.isolation.isolationRootId(),
+      // PAGES-FIX-3: active page acts as implicit isolation scope so
+      // clicks on shapes resolve to the shape (not the page).
+      isolationRootId: this.isolation.isolationRootId() ?? activePageId,
     });
-    return id !== null && id !== rootId ? CONTEXT_MENU_SLOT.NODE : CONTEXT_MENU_SLOT.CANVAS;
+    // Page itself counts as canvas for the context-menu (the page is
+    // the artboard background, not a user object). Document root and
+    // null also map to canvas.
+    const isCanvasClick = id === null || id === rootId || id === activePageId;
+    return isCanvasClick ? CONTEXT_MENU_SLOT.CANVAS : CONTEXT_MENU_SLOT.NODE;
   };
 
   /**
