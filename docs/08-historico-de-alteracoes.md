@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-05-27 — PAGES-REFACTOR Fase 2: `<svge-page-selection-overlay>` (brackets em L, sem flicker)
+
+**Contexto.** Pós-auditoria + reunião arquitetural (vide diálogo doc), o usuário pediu para refatorar a seleção visual de página por dois motivos:
+
+1. O `<rect transparent>` do PAGES-FIX-4 (hit-target dentro do `<g>` da página) provocava **flickering visual** ao trocar de seleção (Angular re-mount + sobreposição com `PageOverlay` legacy do `WorkspaceService`).
+2. O visual de seleção da página estava **idêntico ao de shapes** (8 handles brancos via `SelectionOverlay`), provocando confusão sobre o que está selecionado.
+
+**O quê.** Novo componente `<svge-page-selection-overlay>` em `svg-engine/edit/src/lib/pages/page-selection-overlay.component.ts`. Padrão draw.io / diagrams.net:
+
+- **4 corner brackets em "L"** — `<svg:path>` por canto, cada um 3 vértices, stroke azul (`#1976d2`) + `stroke-linecap=round` + `vector-effect=non-scaling-stroke` para se manter crisp em qualquer zoom. Arms estendem-se para DENTRO do canto (wrap do artboard, não crop-mark).
+- **Label flutuante** acima da borda superior — texto `"{name} — {width}×{height}"` (ex.: `"Page 1 — 800×600"`). Formato confirmado em pergunta direta ao usuário. Em-dash + multiplication sign para leitura limpa.
+- **Move handle central** no topo (8 CSS px, fill azul + stroke branco) — visualmente distinto dos resize handles brancos de shape. `pointer-events: none` na Fase 2 (Fase 6 hookará o move).
+
+**Por que não pisca.** Single `@if (overlay()) { ... }` no template — quando seleção muda, apenas os atributos atualizam (positions, label string), não há re-mount. `ChangeDetectionStrategy.OnPush` + signals garante zero re-render fora de seleção/zoom changes. Substitui o rect transparent que provocava flicker.
+
+**Tamanho zoom-stable.** Constantes em CSS px (`BRACKET_ARM_PX=12`, `LABEL_FONT_SIZE_PX=11`, `HANDLE_SIZE_PX=8`, etc.) divididas por `viewport.zoom()` em `computed`s dedicados. `vector-effect: non-scaling-stroke` complementa para stroke widths constantes. Brackets/label/handle ficam do mesmo tamanho perceptual em 25% zoom ou 400% zoom.
+
+**Projeção.** Adicionado ao `<svge-shell-pro>` como último filho do `<svge-renderer>` (paint na frente de tudo). Auto-gated via `@if (overlay())` — zero footprint quando nenhuma página está selecionada.
+
+**Diferimento intencional.** Fase 2 entrega APENAS a parte visual:
+
+- Fase 4 vai hookar pointer events nos brackets / label area para que cliquem na overlay selecionem a página (substituirá o rect transparent do PAGES-FIX-4).
+- Fase 6 vai transformar brackets em handles de resize + wire do move handle.
+
+Hoje a seleção continua chegando via o hit-target rect existente; o overlay só pinta o feedback visual melhorado por cima.
+
+**+5 specs** em `page-selection-overlay.spec.ts` validando gating (3 paths: no-page / page-not-selected / page-selected) + geometria dos brackets (TL e BR como amostras das fórmulas de canto). Suite: 1749 passing / 1 skipped (de 1744 pré-Fase-2).
+
+---
+
 ## 2026-05-27 — UX-PARITY: `<svge-isolation-breadcrumb>` no `<svge-editor>` + `<svge-shell-pro>`
 
 **Gap reportado**: o breadcrumb de isolation (`Root › Group A › Group B` com chip de exit) estava registrado apenas na rota `/custom-editor` (Editor customizado / playground). As outras visões (`<svge-editor>` cobre `/basic-editor` + `/modular-editor` + `/shell-canvas-only`; `<svge-shell-pro>` cobre `/shell-pro-demo`) só mostravam o indicador compacto na status bar (`L1 · 9a3f12`), sem navegação clicável de volta aos níveis ancestrais.

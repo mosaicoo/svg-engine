@@ -2,3 +2,6 @@
 // Pairs with core/model/page.ts (helpers) and core/commands/page.commands.ts.
 export { ActivePageService } from './active-page.service';
 export { PagesService } from './pages.service';
+// PAGES-REFACTOR Fase 2 — visual selection overlay for the active
+// page (draw.io style corner brackets + floating label + move handle).
+export { SvgePageSelectionOverlay } from './page-selection-overlay.component';

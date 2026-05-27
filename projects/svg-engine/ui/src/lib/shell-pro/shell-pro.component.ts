@@ -18,6 +18,7 @@ import {
   OutlineFilter,
   PageOverlay,
   resolveSelectableNodeId,
+  SvgePageSelectionOverlay,
   SELECT_TOOL_ID,
   SvgeCanvasGestures,
   SvgeShellInteractions,
@@ -114,6 +115,7 @@ import { SvgeToolsPalette } from '../tools-palette';
     SvgeRenderer,
     WorkspaceBackground,
     PageOverlay,
+    SvgePageSelectionOverlay,
     GridOverlay,
     GuidesOverlay,
     OutlineFilter,
@@ -237,6 +239,15 @@ import { SvgeToolsPalette } from '../tools-palette';
             <svg:g svgeGuidesOverlay></svg:g>
             <!-- D-058: gradient inline editor overlay (auto-hides). -->
             <svg:g svgeGradientOverlay></svg:g>
+            <!--
+              **PAGES-REFACTOR Fase 2** — page selection overlay
+              (corner brackets + floating label + move handle).
+              Self-gated: renders nothing when no page is selected.
+              Sits AFTER the gradient overlay so the brackets paint
+              on top of everything (including dragged anchors and
+              gradient stops) for a crisp affordance.
+            -->
+            <svg:g svgePageSelectionOverlay></svg:g>
           </svge-renderer>
         </svge-workspace-background>
         <!--
