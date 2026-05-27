@@ -6,6 +6,43 @@
 
 ---
 
+## 2026-05-27 — PAGES-REFACTOR Fase 9: doc-catchup + D-080 + wrap-up final
+
+**Contexto.** Fechamento do sprint PAGES-REFACTOR (Fases 1-9). Não há novo código de feature — esta fase consolida documentação e valida o conjunto end-to-end.
+
+**O quê.**
+
+1. **`docs/04-decisoes-tecnicas.md`** ganha **D-080 — Pages como camada contextual (PAGES-REFACTOR, Fases 1-9)**. Justificativa arquitetural completa: contexto (3 P0 regressions + sobreposição visual + flicker do hit-target rect), 3 pivots estruturais escolhidos (CommandBus interceptor / overlay visual dedicado / persistência + recuperação), implementação fase a fase com commit hashes, consequências positivas/negativas (incluindo o trade-off preview-only durante drag).
+
+2. **`docs/06-componentes-editor-svg.md`** atualizado:
+   - `<svg:g svgePageOverlay>` agora documenta o role dual: paper visual + hit-target persistente (D-079 + D-080 Fase 4).
+   - `<svg:g svgePageSelectionOverlay>` adicionado (D-080 Fases 2/6) com brackets em L + 8 resize handlers + move handle.
+   - `<svge-pages-panel>` adicionado (D-079 PAGES-C + opt-in flag no `<svge-editor>`).
+   - `WorkspaceService` row anotada com o downgrade pós-D-080 (não é mais fonte de verdade quando há D-079 page ativa).
+   - Nova row para `PagesService` / `ActivePageService` cobrindo `InsertParentResolver` + helpers de renderização + persistência localStorage + selection-clear.
+
+3. **`docs/09-api-publica.md`** ganha 10 novas linhas no bloco Commands (`./lib/commands/`) cobrindo: `AUTO_PARENT`/`ParentRef`/`InsertParentResolver`/`INSERT_PARENT_RESOLVER`/`CreatePageCommand`/`DeletePageCommand`/`RenamePageCommand`/`ResizePageCommand`/`MovePageCommand`/`SetPageOptionsCommand`/`EnsureDefaultPageCommand`. Cada uma anotada com D-079 ou D-080 Fase X para rastreabilidade.
+
+4. **Validação final** end-to-end: build 9 entry points OK, lint OK, suite 1792 passing / 1 skipped, push para `main`.
+
+**Estado consolidado pós PAGES-REFACTOR**:
+
+| Aspecto                                       | Pré-Fase 1                                              | Pós-Fase 9                                              |
+| --------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------- |
+| Per-tool wire-up para inserir em página ativa | 8 sítios + 3 P0 missed                                  | Zero (interceptor + `AUTO_PARENT`)                      |
+| Hit-target da página                          | rect dentro do `<g>`, re-mount cada selection → flicker | rect no `svgeBehind` slot, sempre montado → sem flicker |
+| Visual de seleção da página                   | igual ao de shape (8 handles brancos)                   | brackets em "L" + label + 8 handles azuis + move handle |
+| Editar background/margins/format/orientation  | só programaticamente                                    | Inspector Page tab                                      |
+| Resize/move da página via canvas              | impossível                                              | 8 handles axiais + move handle dragáveis                |
+| Persistência do `activePageId`                | nenhuma                                                 | localStorage via `ACTIVE_PAGE_STORAGE_KEY`              |
+| Auto-snapshot pré-Delete                      | manual                                                  | `DeletePageCommand.isDestructive = true`                |
+| Selection clear no page switch                | quebrado (bbox em "nada")                               | `SelectionService.clear()` no effect                    |
+| Paridade `<svge-editor>` ↔ `<svge-shell-pro>` | desalinhada (4 pontos)                                  | igual (overlay sempre + 2 opt-ins controlados)          |
+
+**Total do sprint** (9 commits + este wrap-up): aprox. +60 specs novas, +1 command novo (`MovePageCommand`), +1 InjectionToken novo (`ACTIVE_PAGE_STORAGE_KEY`), +1 sentinel novo (`AUTO_PARENT`), +1 interface nova (`InsertParentResolver`), +1 componente reescrito (`SvgePageSelectionOverlay`), +5 sub-grupos no Inspector Page tab. Zero regressão em nenhuma fase. Suite saiu de 1761 (pré-Fase 1) para 1792 passing.
+
+---
+
 ## 2026-05-27 — PAGES-REFACTOR Fase 8: Inspector Page tab estendido (background/margins/format/orientation)
 
 **Contexto.** A Fase 3 entregou `PageOptions` (background/margins/orientation/format) + `SetPageOptionsCommand`, mas o Inspector só tinha controles para nome + viewBox. Os outros 4 grupos de opções só podiam ser editados via código. Esta fase entrega a UI completa.

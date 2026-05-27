@@ -1693,3 +1693,120 @@ fase. Suite saiu de 1672 (pré-PAGES) para 1733 passing / 1 skipped.
   suporta, UX da DnD precisa wire CDK).
 - Pages não suportam transform próprio diferente do GroupNode
   (herdam comportamento — é uma feature, não bug).
+
+---
+
+## D-080 — Pages como camada contextual (PAGES-REFACTOR, Fases 1-9)
+
+**Status**: ✅ Aceito — implementado em PAGES-REFACTOR Fases 1-9 (2026-05-27)
+
+### Contexto
+
+Pós PAGES-A→E (D-079), a auditoria técnica do sistema de Pages
+revelou três sintomas de complexidade arquitetural espalhada:
+
+1. **3 P0 regressions** (Symbol Sprayer, Auto-trace, NLU) — cada nova
+   ferramenta que dispatchava `InsertNodeCommand` esquecia de
+   resolver o parent via `ActivePageService.effectiveDrawTargetId()`,
+   inserindo shapes como SIBLINGS da página em vez de filhos.
+   Padrão clássico de "todo plugin precisa lembrar de algo".
+2. **Sobreposição visual** entre `WorkspaceService.PageConfig` legacy
+   (paper rect via `pageBoundsIn`) e D-079 Page ativa (viewBox próprio
+   via `getPageViewBox`) — em docs multi-página, dois "papers"
+   diferentes apareciam ao mesmo tempo.
+3. **Hit-target rect** (PAGES-FIX-4) dentro do `<g>` da página
+   provocava flicker visível ao trocar seleção (Angular re-mount).
+
+O usuário pediu uma refatoração que tratasse Pages como uma
+**camada contextual** — quando ativa, dirige o comportamento; quando
+ausente, o editor funciona como pré-D-079. Vez de espalhar
+"if (pageActive)" por todo lado.
+
+### Decisão
+
+Tratar Pages como uma **layer arquitetural transversal** que se
+plugga em pontos centralizados, não em cada call-site. Três pivots
+estruturais:
+
+1. **Interceptor no `CommandBus`** (Fase 1): novo
+   `InsertParentResolver` injection token. CommandBus consulta o
+   resolver quando `InsertNodeCommand` recebe `parentId: AUTO_PARENT`.
+   `ActivePageService` implementa o resolver e retorna a página ativa.
+   Net effect: TODA ferramenta que usa `AUTO_PARENT` (8 sítios
+   migrados + 3 P0 regressions corrigidos) ganha o page-routing
+   automaticamente.
+2. **Overlay visual dedicado** (Fases 2/4/6): novo
+   `<svge-page-selection-overlay>` substitui o paper rect compartilhado
+   por brackets em L + label + move handle + 8 resize handlers. Hit-
+   target persistente migra para o `<svge-page-overlay>` (que já está
+   no slot `svgeBehind`) eliminando o flicker.
+3. **Persistência + recuperação automática** (Fase 7):
+   `ACTIVE_PAGE_STORAGE_KEY` mirroring `AUTOSAVE_STORAGE_KEY` pattern;
+   `DeletePageCommand.isDestructive = true` ativa auto-snapshot via
+   D-073 sem wire-up por entry-point.
+
+### Implementação
+
+Entregue em 9 fases atômicas (cada uma um commit + push):
+
+- **Fase 1** (`4319cb3`): `InsertParentResolver` token + `AUTO_PARENT`
+  sentinel + CommandBus interceptor. 3 P0 fixes (Symbol Sprayer,
+  Auto-trace, NLU) + 8 call-sites migrados.
+- **Fase 2** (`cd34651`): `<svge-page-selection-overlay>` visual
+  (brackets + label + handle, `pointer-events: none`).
+- **Fase 3** (`7bd1af2`): `PageOptions` (background/margins/
+  orientation/format) + `SetPageOptionsCommand` + PageOverlay deriva
+  da página ativa (fim do conflito visual).
+- **Fase 4** (`d868e7c`): Hit-target persistente no PageOverlay
+  (fim do flicker — single source of truth para click-on-empty-page).
+- **Fase 5** (`a3362eb`): Paridade `<svge-editor>` ↔ `<svge-shell-pro>`
+  (PageSelectionOverlay + opt-in Pages strip + opt-in bootstrap +
+  resolvedTree/ViewBox delegam a ActivePageService).
+- **Fase 6** (`12e2473`): Resize via 8 handlers + move via handle
+  interativo + `MovePageCommand`.
+- **Fase 7** (`4d23e8d`): Persistência activePageId + auto-snapshot
+  pré-Delete + selection clear no page switch.
+- **Fase 8** (`7b04e04`): Inspector Page tab estendido (background/
+  margins/format/orientation via `SetPageOptionsCommand`).
+- **Fase 9**: Cleanup + doc-catchup (este D-080 + ajustes 06/09 +
+  wrap-up no 08) + validação final.
+
+**Total**: 9 commits, +60+ specs novos, suite saiu de 1733 (pós
+PAGES-E) para 1792+ passing. Zero regressão em nenhuma fase.
+
+### Consequências
+
+**Positivas**:
+
+- Zero per-plugin wire-up para page-routing: tudo passa pelo
+  `CommandBus` interceptor. Adicionar uma nova tool é uma linha
+  (`new InsertNodeCommand(AUTO_PARENT, node)`) e ela já desenha
+  na página ativa.
+- Editor sem páginas (legacy single-root) renderiza idêntico ao
+  pré-D-079 — ActivePageService.treeForRendering / viewBoxForRendering
+  caem de volta automaticamente.
+- Visual de página é distinto de visual de shape (brackets em L vs
+  handles quadrados) — usuário enxerga "isto é um artboard, não um
+  objeto" sem ler legenda.
+- Persistência cross-reload — usuário não perde memória de qual
+  página estava editando.
+- Inspector Page tab é o único lugar de edição de page properties
+  (não 3 dialogs diferentes) — ergonomia padrão Figma/Affinity.
+
+**Negativas / limitações**:
+
+- `WorkspaceService.PageConfig` legacy permanece no código para
+  back-compat com docs pré-D-079 + Workspace Settings dialog
+  (PRO-GAP G1). Não é fonte de erro: a fonte de verdade do "paper"
+  na UI é o `ActivePageService.activePage()` quando há página
+  ativa; fallback automático para o legacy quando não há.
+- Move handle no overlay translada o `viewBox.x/y` da página, mas o
+  conteúdo continua nas coords originais (renderer mostra o
+  "novo recorte" da página). Comportamento idêntico ao "Move
+  Artboard with Content" desligado no Illustrator. Modo "with
+  content" seria uma flag futura.
+- Live preview do conteúdo durante drag de resize/move foi adiado
+  (Fase 6 entrega preview-only via brackets/handles, conteúdo só
+  salta no pointerup). Comprimisso: undo stack limpo (1 drag =
+  1 entrada) vs feedback completamente live. Pode virar plugin
+  opcional via gesture service futuro.
