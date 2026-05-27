@@ -285,8 +285,24 @@ export class SelectionOverlay {
     return this._focusBBox();
   });
 
-  /** Bounding box of the hovered node (when not part of the selection). */
-  readonly hoverBBox = this._hoverBBox.asReadonly();
+  /**
+   * Bounding box of the hovered node (when not part of the selection).
+   *
+   * **PAGES-REFACTOR Fase 6 follow-up**: suppress the hover outline
+   * when the hovered node is a D-079 page — the page already has its
+   * own visual treatment (paper rect + brackets when selected). A
+   * cyan dashed bbox on top of all that just adds noise and reinforces
+   * the user's perception that "the page is just another rectangle".
+   */
+  readonly hoverBBox = computed<BoundingBox | null>(() => {
+    const raw = this._hoverBBox();
+    if (raw === null) return null;
+    const hoverId = this.selection.hoverId();
+    if (hoverId === null) return raw;
+    const node = findNodeById(this.state.document().root, hoverId);
+    if (node !== null && isPage(node)) return null;
+    return raw;
+  });
 
   protected readonly singleSelection = this.selection.isSingleSelection;
 
