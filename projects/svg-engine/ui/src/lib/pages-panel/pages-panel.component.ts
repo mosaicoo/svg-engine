@@ -57,7 +57,29 @@ import { ActivePageService, PagesService } from 'svg-engine/edit';
   imports: [MatIcon],
   template: `
     @if (pages.hasPages() || alwaysShow()) {
-      <div class="pages-bar" role="tablist" aria-label="Pages">
+      <!--
+        **PAGES-REFACTOR follow-up #8 — same guard as
+        SvgeIsolationBreadcrumb's <nav class="bar">.** When shell-pro
+        mounts this panel as a canvas overlay (.pages-overlay inside
+        .canvas-cell), pointerdown / click events from the tab
+        buttons bubble up to the [svgeShellInteractions] directive on
+        canvas-cell. That directive treats any pointerdown whose
+        hit-test returns null (HTML buttons aren't SVG nodes) as
+        "click on empty canvas" and, when isolation is active,
+        dispatches isolation.exit() — which would race with our
+        click handlers and break tab switching. Stopping both events
+        at the bar element guarantees the panel's own (click)
+        handlers run alone, regardless of which shell hosts the
+        component.
+      -->
+      <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events,@angular-eslint/template/interactive-supports-focus -- the (click) here is a propagation guard, not an interactive affordance; real interaction lives on the <button>s inside, which are focusable + keyboard-accessible by default. -->
+      <div
+        class="pages-bar"
+        role="tablist"
+        aria-label="Pages"
+        (pointerdown)="$event.stopPropagation()"
+        (click)="$event.stopPropagation()"
+      >
         @for (page of pages.pages(); track page.id) {
           <button
             type="button"
