@@ -59,6 +59,103 @@ export const SVGE_PAGE_VIEWBOX_KEY = 'svgePageViewBox' as const;
 export const SVGE_PAGE_NAME_KEY = 'svgePageName' as const;
 
 /**
+ * **PAGES-REFACTOR Fase 3** — Key under `metadata.customData` for the
+ * per-page presentation options (background, margins, format,
+ * orientation). Separate from `pageViewBox` because viewBox is the
+ * geometric authority while options describe how the artboard is
+ * presented / hinted to consumers (Inspector, print preview,
+ * Workspace Settings dialog).
+ */
+export const SVGE_PAGE_OPTIONS_KEY = 'svgePageOptions' as const;
+
+/**
+ * Background mode for a page's "paper" — same conceptual variants as
+ * `WorkspaceService.BackgroundConfig` but **per-page** and persisted
+ * via the page node's metadata.
+ *
+ * - `transparent` (default): checkerboard pattern via PageOverlay.
+ * - `solid`: a CSS color string (named / hex / rgb / hsl). Not validated
+ *   client-side — browser's job.
+ * - `image`: a tile / background URL.
+ */
+export type PageBackground =
+  | { readonly kind: 'transparent' }
+  | { readonly kind: 'solid'; readonly color: string }
+  | { readonly kind: 'image'; readonly href: string };
+
+/**
+ * Inner safe-area inset (top / right / bottom / left) in document
+ * units. Drives the dashed margin rect in `PageOverlay` and informs
+ * future print-preview / cropping pipelines. Each field >= 0.
+ */
+export interface PageMargins {
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+  readonly left: number;
+}
+
+/**
+ * Page orientation hint. Independent from the viewBox's actual W/H
+ * shape — when they disagree, consumers may swap (the legacy
+ * `pageBoundsIn` helper in WorkspaceService does this).
+ */
+export type PageOrientation = 'portrait' | 'landscape';
+
+/**
+ * Optional named-format hint for the page. Used by the Inspector's
+ * format dropdown ("A4", "Letter", "Tabloid", "Square", "Custom") to
+ * round-trip the user's choice without forcing the model to derive
+ * format from W/H every time.
+ *
+ * `null` (or absent) means "no preset" — the dimensions are custom.
+ * The Inspector shows "Custom" when this slot is null or unknown.
+ */
+export type PageFormat =
+  | 'a4'
+  | 'a5'
+  | 'a3'
+  | 'letter'
+  | 'legal'
+  | 'tabloid'
+  | 'square-1080'
+  | 'square-1200'
+  | 'square-2048'
+  | 'custom';
+
+/**
+ * **PAGES-REFACTOR Fase 3** — full per-page presentation options.
+ * Persisted in `metadata.customData.svgePageOptions`. All fields are
+ * optional; absent fields use the documented defaults.
+ *
+ * **Defaults** (applied by {@link getPageOptions} when the slot is
+ * missing OR partial):
+ * - `background`: `{ kind: 'transparent' }`
+ * - `margins`:    `{ top: 0, right: 0, bottom: 0, left: 0 }`
+ * - `orientation`: `'landscape'`
+ * - `format`:     `'custom'`
+ *
+ * **Why one struct (not 4 metadata slots)**: keeps the metadata
+ * footprint compact, makes round-trip JSON.stringify trivial, and
+ * lets the Inspector / Workspace Settings dialog edit the whole
+ * struct in a single `SetPageOptionsCommand`.
+ */
+export interface PageOptions {
+  readonly background: PageBackground;
+  readonly margins: PageMargins;
+  readonly orientation: PageOrientation;
+  readonly format: PageFormat;
+}
+
+/** Default applied when a page has no options metadata or partial options. */
+export const DEFAULT_PAGE_OPTIONS: PageOptions = {
+  background: { kind: 'transparent' },
+  margins: { top: 0, right: 0, bottom: 0, left: 0 },
+  orientation: 'landscape',
+  format: 'custom',
+};
+
+/**
  * Type-guard: is this node a Page (a group flagged via metadata)?
  * Pure read, allocation-free. Returns `false` for non-group nodes by
  * definition. Also returns `false` for layer-flagged or smart-object-
@@ -203,4 +300,112 @@ export function withPageName(group: GroupNode, name: string): GroupNode {
       customData: cd,
     },
   };
+}
+
+/**
+ * **PAGES-REFACTOR Fase 3** — read the page's full presentation
+ * options. Returns {@link DEFAULT_PAGE_OPTIONS} (a frozen object) when
+ * the slot is missing OR for non-page inputs. Always returns a fully-
+ * populated struct so consumers can read `.background.kind`,
+ * `.margins.top`, etc. without guards.
+ *
+ * For each field, if the stored value is malformed (wrong shape, wrong
+ * type), the default for that field is substituted — partial reads
+ * never throw. This is the same defensive pattern as
+ * {@link getPageViewBox}.
+ */
+export function getPageOptions(node: SvgNode): PageOptions {
+  if (!isPage(node)) return DEFAULT_PAGE_OPTIONS;
+  const raw = node.metadata.customData?.[SVGE_PAGE_OPTIONS_KEY];
+  if (typeof raw !== 'object' || raw === null) return DEFAULT_PAGE_OPTIONS;
+  const obj = raw as Partial<PageOptions>;
+  const background = isValidPageBackground(obj.background)
+    ? obj.background
+    : DEFAULT_PAGE_OPTIONS.background;
+  const margins = isValidPageMargins(obj.margins) ? obj.margins : DEFAULT_PAGE_OPTIONS.margins;
+  const orientation =
+    obj.orientation === 'portrait' || obj.orientation === 'landscape'
+      ? obj.orientation
+      : DEFAULT_PAGE_OPTIONS.orientation;
+  const format = isValidPageFormat(obj.format) ? obj.format : DEFAULT_PAGE_OPTIONS.format;
+  return { background, margins, orientation, format };
+}
+
+/**
+ * **PAGES-REFACTOR Fase 3** — produce a copy of `group` with the
+ * given page options patched. Partial input — only the fields in
+ * `patch` are overwritten; the rest are read from the existing
+ * options. No-op (same ref) when the group isn't a page.
+ *
+ * **Why patch (not full replace)**: matches the `patchPage` semantics
+ * users were used to from `WorkspaceService.patchPage`. UIs typically
+ * change one field at a time (e.g., toggle orientation) — forcing
+ * them to assemble the full struct would be tedious and error-prone.
+ */
+export function withPageOptions(group: GroupNode, patch: Partial<PageOptions>): GroupNode {
+  if (!isPage(group)) return group;
+  const current = getPageOptions(group);
+  const next: PageOptions = {
+    background: patch.background ?? current.background,
+    margins: patch.margins ?? current.margins,
+    orientation: patch.orientation ?? current.orientation,
+    format: patch.format ?? current.format,
+  };
+  return {
+    ...group,
+    metadata: {
+      ...group.metadata,
+      customData: {
+        ...(group.metadata.customData ?? {}),
+        [SVGE_PAGE_OPTIONS_KEY]: next,
+      },
+    },
+  };
+}
+
+// ── Validation helpers ─────────────────────────────────────────────
+
+function isValidPageBackground(value: unknown): value is PageBackground {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as { kind?: unknown; color?: unknown; href?: unknown };
+  switch (v.kind) {
+    case 'transparent':
+      return true;
+    case 'solid':
+      return typeof v.color === 'string' && v.color.length > 0;
+    case 'image':
+      return typeof v.href === 'string' && v.href.length > 0;
+    default:
+      return false;
+  }
+}
+
+function isValidPageMargins(value: unknown): value is PageMargins {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as { top?: unknown; right?: unknown; bottom?: unknown; left?: unknown };
+  return (
+    isNonNegFinite(v.top) &&
+    isNonNegFinite(v.right) &&
+    isNonNegFinite(v.bottom) &&
+    isNonNegFinite(v.left)
+  );
+}
+
+function isValidPageFormat(value: unknown): value is PageFormat {
+  return (
+    value === 'a4' ||
+    value === 'a5' ||
+    value === 'a3' ||
+    value === 'letter' ||
+    value === 'legal' ||
+    value === 'tabloid' ||
+    value === 'square-1080' ||
+    value === 'square-1200' ||
+    value === 'square-2048' ||
+    value === 'custom'
+  );
+}
+
+function isNonNegFinite(n: unknown): n is number {
+  return typeof n === 'number' && Number.isFinite(n) && n >= 0;
 }

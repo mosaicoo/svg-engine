@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-05-27 — PAGES-REFACTOR Fase 3: PageOptions per-page + PageOverlay derive da página ativa
+
+**O quê.** Resolve o ponto P0 da auditoria "sobreposição WorkspaceService legacy vs D-079 Page" sem reescrever o WorkspaceService inteiro. Três mudanças cirúrgicas:
+
+1. **Modelo** (`core/model/page.ts`): novo struct `PageOptions` persistido em `customData.svgePageOptions` por página. Carrega `background` (transparent/solid/image), `margins` (top/right/bottom/left), `orientation` (portrait/landscape) e `format` (preset A4/Letter/Tabloid/Square/Custom — hint para o Inspector). `DEFAULT_PAGE_OPTIONS` exportado para preencher campos ausentes. Helpers defensivos `getPageOptions(node)` e `withPageOptions(group, patch)` validam cada slot e retornam defaults para dados malformados.
+
+2. **Command** (`core/commands/page.commands.ts`): novo `SetPageOptionsCommand(nodeId, patch)`. Undoable via snapshot do root. No-op short-circuit quando o patch não muda nada (clique duplo na mesma orientação não polui o undo stack). Undo de no-op é silencioso (evita o loop "stuck on no-op" que aparece quando o bus tenta re-undo um comando que falhou no undo).
+
+3. **PageOverlay legacy** (`edit/workspace/page-overlay.component.ts`): passa a derivar `pageBounds` e `marginsRect` da **active page** quando uma existe (`ActivePageService.activePage()` + `getPageViewBox()` + `getPageOptions().margins`). Fallback para `WorkspaceService.page()` permanece para documentos sem pages (back-compat). Elimina o conflito visual onde a PageConfig legacy desenhava um "paper" diferente da D-079 Page ativa.
+
+**Não muda** (intencional):
+
+- `WorkspaceService` segue intacto. Patch interno via `patchPage()` / `setBackground()` continua funcionando — só não é mais a fonte visual de verdade quando há uma página ativa.
+- Workspace Settings dialog continua editando o PageConfig legacy. Fase 8 migra para o `SetPageOptionsCommand` quando o Inspector Page tab for estendido.
+
+**+12 specs** (page-options + set-page-options): defaults, partial patch, defensive reads on malformed data, undo round-trip, no-op short-circuit. Suite: 1761 passing / 1 skipped (de 1749).
+
+Build 9 entry points + lint OK.
+
+---
+
 ## 2026-05-27 — PAGES-REFACTOR Fase 2: `<svge-page-selection-overlay>` (brackets em L, sem flicker)
 
 **Contexto.** Pós-auditoria + reunião arquitetural (vide diálogo doc), o usuário pediu para refatorar a seleção visual de página por dois motivos:

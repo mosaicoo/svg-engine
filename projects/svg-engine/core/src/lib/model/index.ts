@@ -25,15 +25,26 @@ export {
 
 // D-079 — Pages / Artboards (metadata-flag on GroupNode; same family
 // as Layer + Smart Object). Each page carries its own viewBox.
+// PAGES-REFACTOR Fase 3 — extends with PageOptions (background /
+// margins / orientation / format) persisted per page.
 export {
+  DEFAULT_PAGE_OPTIONS,
   getPageName,
+  getPageOptions,
   getPageViewBox,
   isPage,
+  type PageBackground,
+  type PageFormat,
+  type PageMargins,
+  type PageOptions,
+  type PageOrientation,
   SVGE_KIND_PAGE,
   SVGE_PAGE_NAME_KEY,
+  SVGE_PAGE_OPTIONS_KEY,
   SVGE_PAGE_VIEWBOX_KEY,
   withPageFlag,
   withPageName,
+  withPageOptions,
   withPageViewBox,
   withoutPageFlag,
 } from './page';

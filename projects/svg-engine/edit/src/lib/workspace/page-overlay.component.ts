@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { getPageOptions, getPageViewBox } from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
+import { ActivePageService } from '../pages/active-page.service';
 import { pageBoundsIn, WorkspaceService } from './workspace.service';
 
 /**
@@ -119,6 +121,13 @@ import { pageBoundsIn, WorkspaceService } from './workspace.service';
 export class PageOverlay {
   private readonly ws = inject(WorkspaceService);
   private readonly viewport = inject(ViewportService);
+  // **PAGES-REFACTOR Fase 3** — optional active-page injection. When
+  // a D-079 Page is active, its stored `pageViewBox` is the source of
+  // truth for the paper rect AND its `svgePageOptions.margins` drives
+  // the dashed safe-area. Falls back to `WorkspaceService.page()` for
+  // headless / pre-D-079 documents. Eliminates the visual conflict
+  // where the legacy PageConfig disagreed with the active D-079 page.
+  private readonly activePage = inject(ActivePageService, { optional: true });
 
   /**
    * Page rectangle in document coordinates — top-left anchored at
@@ -126,8 +135,13 @@ export class PageOverlay {
    * the earlier "centered in viewport" behaviour in 2026-05-18 so the
    * page matches the document coordinate system).
    *
-   * Returns null when page has zero dims (defensive — patchPage
-   * validation rejects that, but tests may stub).
+   * **PAGES-REFACTOR Fase 3**: when there is an active D-079 page,
+   * read its `pageViewBox` directly — the page IS the artboard
+   * geometry. Falls back to `WorkspaceService.page()` for documents
+   * without pages (legacy single-root flow).
+   *
+   * Returns null when dimensions are zero (defensive — `patchPage` /
+   * `CreatePageCommand` reject zeros, but tests may stub).
    */
   protected readonly pageBounds = computed<{
     x: number;
@@ -135,6 +149,13 @@ export class PageOverlay {
     width: number;
     height: number;
   } | null>(() => {
+    const active = this.activePage?.activePage() ?? null;
+    if (active !== null) {
+      const vb = getPageViewBox(active);
+      if (vb !== null && vb.width > 0 && vb.height > 0) {
+        return { x: vb.x, y: vb.y, width: vb.width, height: vb.height };
+      }
+    }
     const page = this.ws.page();
     if (page.width <= 0 || page.height <= 0) return null;
     return pageBoundsIn(this.viewport.contentBox(), page);
@@ -144,6 +165,10 @@ export class PageOverlay {
    * Inner safe-area rect dimensions, OR null when all margins are zero
    * (skip rendering the dashed inset rect entirely). Anchored to the
    * page's resolved origin so it slides with the centered page.
+   *
+   * **PAGES-REFACTOR Fase 3**: when there is an active D-079 page,
+   * read margins from `getPageOptions(active).margins`. Falls back to
+   * `WorkspaceService.page().margins` for legacy documents.
    */
   protected readonly marginsRect = computed<{
     x: number;
@@ -151,7 +176,8 @@ export class PageOverlay {
     width: number;
     height: number;
   } | null>(() => {
-    const m = this.ws.page().margins;
+    const active = this.activePage?.activePage() ?? null;
+    const m = active !== null ? getPageOptions(active).margins : this.ws.page().margins;
     const bounds = this.pageBounds();
     if (bounds === null) return null;
     if (m.top === 0 && m.right === 0 && m.bottom === 0 && m.left === 0) return null;

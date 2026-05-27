@@ -60,11 +60,14 @@ export { KnifeCutPathCommand } from './knife-cut.command';
 
 // D-079 — Pages / Artboards: 4 commands (Create/Delete/Rename/Resize)
 // over the metadata-flag model (see core/lib/model/page.ts).
+// PAGES-REFACTOR Fase 3 — adds SetPageOptionsCommand for the new
+// per-page background/margins/orientation/format struct.
 export {
   CreatePageCommand,
   DeletePageCommand,
   RenamePageCommand,
   ResizePageCommand,
+  SetPageOptionsCommand,
 } from './page.commands';
 // PAGES-FIX-2 — idempotent bootstrap of Page 1 (migrates loose root
 // shapes into the new page). Called by shells that opt into the

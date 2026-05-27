@@ -2,10 +2,13 @@ import type { GroupNode } from '../model/group-node';
 import { createGroup } from '../model/node-factory';
 import {
   getPageName,
+  getPageOptions,
   getPageViewBox,
   isPage,
+  type PageOptions,
   withPageFlag,
   withPageName,
+  withPageOptions,
   withPageViewBox,
 } from '../model/page';
 import type { SvgNode } from '../model/svg-node';
@@ -257,4 +260,84 @@ export class ResizePageCommand implements Command {
     ctx.state.setDocument({ ...doc, root: snap });
     return ok();
   }
+}
+
+/**
+ * **PAGES-REFACTOR Fase 3** — patch a page's presentation options
+ * (background, margins, orientation, format). Partial: only the fields
+ * in `patch` are overwritten; the rest are preserved from the existing
+ * `getPageOptions(page)` result.
+ *
+ * **Undo model**: snapshots the prior root before mutating; `undo()`
+ * restores the snapshot. Same memory pattern as `ResizePageCommand`.
+ *
+ * **No-op short-circuit**: if every field in `patch` equals the current
+ * value, returns `ok()` without snapshotting — keeps the undo stack
+ * clean when the user clicks the same orientation radio twice.
+ */
+export class SetPageOptionsCommand implements Command {
+  readonly id: string = generateNodeId();
+  readonly label: string;
+  private previousRootSnapshot: SvgNode | null = null;
+
+  constructor(
+    private readonly nodeId: NodeId,
+    private readonly patch: Partial<PageOptions>,
+  ) {
+    this.label = `Set page options`;
+  }
+
+  execute(ctx: CommandContext): CommandResult {
+    const doc = ctx.state.document();
+    const node = findNodeById(doc.root, this.nodeId);
+    if (node === null) return fail(`${this.label}: node "${this.nodeId}" not found`);
+    if (!isPage(node)) return fail(`${this.label}: node "${this.nodeId}" is not a page`);
+    const current = getPageOptions(node);
+    const next: PageOptions = {
+      background: this.patch.background ?? current.background,
+      margins: this.patch.margins ?? current.margins,
+      orientation: this.patch.orientation ?? current.orientation,
+      format: this.patch.format ?? current.format,
+    };
+    if (samePageOptions(current, next)) return ok();
+    this.previousRootSnapshot = doc.root;
+    const nextRoot = updateNode<GroupNode>(doc.root, this.nodeId, (g) =>
+      withPageOptions(g, this.patch),
+    );
+    ctx.state.setDocument({ ...doc, root: nextRoot });
+    return ok();
+  }
+
+  undo(ctx: CommandContext): CommandResult {
+    // **PAGES-REFACTOR Fase 3** — when execute was a no-op (the
+    // patch matched current options), `previousRootSnapshot` is null;
+    // undo is a silent no-op in that case so the history step is
+    // consumed cleanly. Avoids the "stuck on no-op" loop where the
+    // bus would re-undo the same failed command forever.
+    if (this.previousRootSnapshot === null) return ok();
+    const snap = this.previousRootSnapshot;
+    if (snap.type !== 'group') return fail(`${this.label} undo: snapshot root not a group`);
+    const doc = ctx.state.document();
+    ctx.state.setDocument({ ...doc, root: snap });
+    return ok();
+  }
+}
+
+function samePageOptions(a: PageOptions, b: PageOptions): boolean {
+  return (
+    sameBackground(a.background, b.background) &&
+    a.margins.top === b.margins.top &&
+    a.margins.right === b.margins.right &&
+    a.margins.bottom === b.margins.bottom &&
+    a.margins.left === b.margins.left &&
+    a.orientation === b.orientation &&
+    a.format === b.format
+  );
+}
+
+function sameBackground(a: PageOptions['background'], b: PageOptions['background']): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === 'solid' && b.kind === 'solid') return a.color === b.color;
+  if (a.kind === 'image' && b.kind === 'image') return a.href === b.href;
+  return true; // both 'transparent'
 }
