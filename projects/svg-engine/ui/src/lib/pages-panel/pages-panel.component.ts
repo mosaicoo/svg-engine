@@ -4,6 +4,7 @@ import {
   effect,
   ElementRef,
   inject,
+  input,
   signal,
   viewChild,
 } from '@angular/core';
@@ -102,11 +103,15 @@ import { ActivePageService, PagesService } from 'svg-engine/edit';
         <button
           type="button"
           class="add-btn"
+          [class.add-btn--wide]="!pages.hasPages()"
           (click)="addPage()"
           aria-label="Add page"
           title="Add page (Page N)"
         >
           <mat-icon>add</mat-icon>
+          @if (!pages.hasPages()) {
+            <span class="add-btn-label">Add Page</span>
+          }
         </button>
       </div>
     }
@@ -228,6 +233,23 @@ import { ActivePageService, PagesService } from 'svg-engine/edit';
       height: 22px;
       opacity: 0.7;
     }
+    /* When there are zero pages, expand the button so users can see
+       "Add Page" affordance and discover the workflow. Otherwise
+       it stays compact (the tabs already convey context). */
+    .add-btn--wide {
+      width: auto;
+      padding: 0 10px 0 6px;
+      gap: 4px;
+      border-radius: 4px;
+      opacity: 1;
+      color: var(--mat-sys-primary, #1976d2);
+      background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.04));
+    }
+    .add-btn-label {
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
     .add-btn:hover {
       opacity: 1;
       background: var(--mat-sys-surface-container-high, rgba(0, 0, 0, 0.06));
@@ -248,11 +270,18 @@ export class SvgePagesPanel {
   private readonly bus = inject(CommandBus);
   private readonly state = inject(EditorStateService);
 
-  /** When `true`, the bar shows even on docs with zero pages — adds
-   *  a single "+ Add page" button so the user can start a multi-
-   *  page workflow. Default `false` (auto-hides on single-root docs
-   *  for back-compat). */
-  protected readonly alwaysShow = signal<boolean>(false);
+  /**
+   * When `true`, the bar shows even on docs with zero pages — adds
+   * a single "+ Add page" button so the user can start a multi-
+   * page workflow. Default `false` (auto-hides on single-root docs
+   * for back-compat with consumers that don't want the chrome).
+   *
+   * **PAGES-FIX**: `<svge-shell-pro>` opts in to `true` so the
+   * Add Page (+) button is always reachable — without it, users
+   * with a fresh single-root doc had no UI path to create the
+   * first page.
+   */
+  readonly alwaysShow = input<boolean>(false);
 
   /** Id of the page currently being renamed, or `null`. */
   protected readonly renamingId = signal<NodeId | null>(null);

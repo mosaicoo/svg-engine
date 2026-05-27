@@ -158,7 +158,7 @@ import { SvgeToolsPalette } from '../tools-palette';
       exist, the strip sits below the tool options bar — Figma/
       Affinity convention (tabs immediately above the canvas).
     -->
-    <svge-pages-panel class="pages-row" />
+    <svge-pages-panel class="pages-row" [alwaysShow]="true" />
     <div class="main">
       <aside class="tools-side" aria-label="Tools palette">
         <svge-tools-palette />
