@@ -16,6 +16,7 @@ import { PAGE_TOOL_ID } from '../tool/builtin-tools';
 import { ToolHostService } from '../tool/tool-host.service';
 import { ToolRegistry } from '../tool/tool-registry.service';
 import { ActivePageService } from './active-page.service';
+import { PageDragService } from './page-drag.service';
 import { SvgePageSelectionOverlay } from './page-selection-overlay.component';
 
 /**
@@ -320,5 +321,115 @@ describe('PAGES-REFACTOR Fase 2 + Fase 6 — SvgePageSelectionOverlay', () => {
     inner.onHandlePointerUp({ target: null, pointerId: 1 });
     const after = findNodeById(state.document().root, page.id);
     expect(getPageViewBox(after!)).toEqual({ x: 0, y: 0, width: 1000, height: 800 });
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+  // PAGES-REFACTOR follow-up #4 — shared drag preview + ESC cancel
+  // ─────────────────────────────────────────────────────────────────
+
+  it('pushes the previewed viewBox into PageDragService on every _drag mutation', () => {
+    const { state, sel, activePage, overlay } = setup();
+    const page = seedActiveSelectedPage(state, activePage, sel);
+    const pageDrag = TestBed.inject(PageDragService);
+    const inner = overlay as unknown as { _drag: { set: (v: unknown) => void } };
+
+    // No drag → no preview.
+    expect(pageDrag.previewFor(page.id)).toBeNull();
+
+    // Begin a move drag.
+    inner._drag.set({
+      kind: 'move',
+      anchor: null,
+      pageId: page.id,
+      startViewBox: { x: 0, y: 0, width: 800, height: 600 },
+      startPoint: { x: 0, y: 0 },
+      currentPoint: { x: 50, y: 30 },
+    });
+    // Effects flush on the next microtask in test environment.
+    TestBed.flushEffects();
+    expect(pageDrag.previewFor(page.id)).toEqual({ x: 50, y: 30, width: 800, height: 600 });
+
+    // Update mid-drag.
+    inner._drag.set({
+      kind: 'move',
+      anchor: null,
+      pageId: page.id,
+      startViewBox: { x: 0, y: 0, width: 800, height: 600 },
+      startPoint: { x: 0, y: 0 },
+      currentPoint: { x: 200, y: 150 },
+    });
+    TestBed.flushEffects();
+    expect(pageDrag.previewFor(page.id)).toEqual({ x: 200, y: 150, width: 800, height: 600 });
+
+    // End drag → preview clears.
+    inner._drag.set(null);
+    TestBed.flushEffects();
+    expect(pageDrag.previewFor(page.id)).toBeNull();
+  });
+
+  it('ESC cancels an in-flight drag without dispatching and clears the preview', () => {
+    const { state, sel, activePage, overlay } = setup();
+    const page = seedActiveSelectedPage(state, activePage, sel);
+    const pageDrag = TestBed.inject(PageDragService);
+    const inner = overlay as unknown as {
+      _drag: { set: (v: unknown) => void };
+      onEscape: (e: Event) => void;
+    };
+
+    // Snapshot the pre-drag stored viewBox to confirm ESC didn't mutate it.
+    const storedBefore = getPageViewBox(findNodeById(state.document().root, page.id)!);
+
+    // Begin a resize drag mid-gesture.
+    inner._drag.set({
+      kind: 'resize',
+      anchor: 'br',
+      pageId: page.id,
+      startViewBox: { x: 0, y: 0, width: 800, height: 600 },
+      startPoint: { x: 800, y: 600 },
+      currentPoint: { x: 1000, y: 800 },
+    });
+    TestBed.flushEffects();
+    expect(pageDrag.previewFor(page.id)).toEqual({ x: 0, y: 0, width: 1000, height: 800 });
+
+    // Fire ESC. Stub Event so stopPropagation / preventDefault no-op.
+    const fakeEvent = {
+      stopPropagation: () => undefined,
+      preventDefault: () => undefined,
+    } as unknown as Event;
+    inner.onEscape(fakeEvent);
+    TestBed.flushEffects();
+
+    // Stored viewBox must be UNCHANGED (no command was dispatched).
+    const storedAfter = getPageViewBox(findNodeById(state.document().root, page.id)!);
+    expect(storedAfter).toEqual(storedBefore);
+    // Preview cleared — PageOverlay would now fall back to stored.
+    expect(pageDrag.previewFor(page.id)).toBeNull();
+    // Local _drag was reset to null (so the inner `previewViewBox`
+    // helper returns the stored vb unchanged on the next read). We
+    // peek at the protected `_drag` via the same cast pattern other
+    // tests use rather than going through `overlay()` — the latter
+    // depends on TestBed change-detection timing in ways unrelated
+    // to what this test is actually exercising.
+    const drag = (overlay as unknown as { _drag: () => unknown })._drag();
+    expect(drag).toBeNull();
+  });
+
+  it('ESC outside a drag is a no-op (the handler short-circuits before stopping propagation)', () => {
+    const { state, sel, activePage, overlay } = setup();
+    seedActiveSelectedPage(state, activePage, sel);
+    const inner = overlay as unknown as { onEscape: (e: Event) => void };
+
+    // Track whether stopPropagation was called — it MUST NOT be called
+    // when _drag is null so ESC still reaches other handlers (close
+    // dialog, deselect, etc.).
+    let stopped = false;
+    const fakeEvent = {
+      stopPropagation: () => {
+        stopped = true;
+      },
+      preventDefault: () => undefined,
+    } as unknown as Event;
+    inner.onEscape(fakeEvent);
+    expect(stopped).toBe(false);
   });
 });

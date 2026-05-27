@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  HostListener,
+  inject,
+  signal,
+} from '@angular/core';
 import {
   CommandBus,
   getPageName,
@@ -13,6 +21,7 @@ import { SelectionService } from '../selection/selection.service';
 import { PAGE_TOOL_ID } from '../tool/builtin-tools';
 import { ToolHostService } from '../tool/tool-host.service';
 import { ActivePageService } from './active-page.service';
+import { PageDragService } from './page-drag.service';
 
 /**
  * Bracket arm length in CSS pixels — the visible "L" extends this far
@@ -343,6 +352,14 @@ export class SvgePageSelectionOverlay {
   // shapes (the brackets/label/handles render nothing). Matches the
   // Illustrator "Artboard Tool" pattern.
   private readonly toolHost = inject(ToolHostService);
+  /**
+   * **PAGES-REFACTOR follow-up #4** — shared drag-preview store. Pushed
+   * into via an effect that mirrors the local `_drag` state so the
+   * sibling `PageOverlay` (which renders the paper rect) tracks the
+   * same previewed geometry the brackets are tracking — the page
+   * "follows" the cursor in real time instead of waiting for pointerup.
+   */
+  private readonly pageDrag = inject(PageDragService);
 
   /**
    * In-progress drag state. `null` when no drag is active. Set on
@@ -350,6 +367,57 @@ export class SvgePageSelectionOverlay {
    * cleared on pointerup. Drives the preview rendering in {@link overlay}.
    */
   private readonly _drag = signal<DragState | null>(null);
+
+  constructor() {
+    // **PAGES-REFACTOR follow-up #4** — keep the shared
+    // `PageDragService` preview in sync with the local drag state.
+    // PageOverlay reads from the service, so this effect is what
+    // makes the paper rect track the cursor (not just the brackets).
+    // Runs on every `_drag` mutation: each pointermove updates
+    // `currentPoint` → effect re-fires → service preview re-computed
+    // → PageOverlay's pageBounds() re-evaluates → paper rect renders
+    // at the new geometry. Cleared to null on pointerup (commit) and
+    // on ESC (cancel).
+    effect(() => {
+      const ds = this._drag();
+      if (ds === null) {
+        this.pageDrag.clearPreview();
+        return;
+      }
+      this.pageDrag.setPreview(ds.pageId, this.computeFinalViewBox(ds));
+    });
+  }
+
+  /**
+   * **PAGES-REFACTOR follow-up #4** — ESC cancels an in-flight drag.
+   * Clears the local drag state (which the effect above mirrors into
+   * `pageDrag.clearPreview()`) WITHOUT dispatching the move/resize
+   * command. PageOverlay then falls back to the stored viewBox →
+   * the page snaps back to its original origin/size instantly. The
+   * user sees their gesture undone with no entry on the undo stack.
+   *
+   * Listener is on `document:keydown.escape` (not the host element)
+   * because the SVG group host doesn't receive keyboard events
+   * directly. Gated on `_drag() !== null` so ESC outside a drag
+   * passes through to other handlers (deselect, close dialog, etc.).
+   *
+   * Note on pointer-capture: we don't release the captured pointer
+   * here — that would require keeping a reference to the original
+   * element. The capture self-releases on the next pointerup, and
+   * intermediate pointermove/pointerup events are no-ops because
+   * `_drag` is null.
+   */
+  @HostListener('document:keydown.escape', ['$event'])
+  protected onEscape(event: Event): void {
+    // Param typed as Event (not KeyboardEvent) to match Angular's
+    // HostListener signature in strict mode. We don't read any
+    // KeyboardEvent-specific fields — just stopPropagation +
+    // preventDefault which live on the base Event.
+    if (this._drag() === null) return;
+    event.stopPropagation();
+    event.preventDefault();
+    this._drag.set(null);
+  }
 
   /**
    * Visual sizes are doc-unit values derived from CSS-pixel constants

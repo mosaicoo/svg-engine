@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { getPageOptions, getPageViewBox, type NodeId } from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
 import { ActivePageService } from '../pages/active-page.service';
+import { PageDragService } from '../pages/page-drag.service';
 import { PAGE_TOOL_ID } from '../tool/builtin-tools';
 import { ToolHostService } from '../tool/tool-host.service';
 import { pageBoundsIn, WorkspaceService } from './workspace.service';
@@ -163,6 +164,14 @@ export class PageOverlay {
    * about ("eu clico e a página vira retângulo selecionado").
    */
   private readonly toolHost = inject(ToolHostService, { optional: true });
+  /**
+   * **PAGES-REFACTOR follow-up #4** — drag preview source. When a
+   * drag is in flight on the active page, the paper rect renders at
+   * the previewed geometry instead of the stored one — so the user
+   * sees the page itself follow the cursor, not just the brackets.
+   * Optional: headless / non-edit consumers don't pay the dep cost.
+   */
+  private readonly pageDrag = inject(PageDragService, { optional: true });
 
   /**
    * Page rectangle in document coordinates — top-left anchored at
@@ -186,6 +195,20 @@ export class PageOverlay {
   } | null>(() => {
     const active = this.activePage?.activePage() ?? null;
     if (active !== null) {
+      // **PAGES-REFACTOR follow-up #4** — when a Page-tool drag is
+      // in flight on THIS page, render at the previewed geometry so
+      // the paper rect tracks the cursor in real time (matches the
+      // brackets/label). Falls back to the stored viewBox when no
+      // drag is active OR the drag targets a different page.
+      const preview = this.pageDrag?.previewFor(active.id) ?? null;
+      if (preview !== null && preview.width > 0 && preview.height > 0) {
+        return {
+          x: preview.x,
+          y: preview.y,
+          width: preview.width,
+          height: preview.height,
+        };
+      }
       const vb = getPageViewBox(active);
       if (vb !== null && vb.width > 0 && vb.height > 0) {
         return { x: vb.x, y: vb.y, width: vb.width, height: vb.height };
