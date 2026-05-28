@@ -100,14 +100,31 @@ import { SvgeShellPro } from 'svg-engine/ui';
   `,
   styles: `
     :host {
-      display: block;
-      height: 100%;
+      /* **Responsive grow-to-fill** — parent (App) is a flex column
+         with height: 100vh. We claim flex: 1 1 auto so we expand to
+         take all remaining space (router-outlet, the only flex sibling,
+         takes 0 height). min-* defaults to auto in flex which can
+         prevent shrinking below content size — overriding to 0 lets
+         the editor fit any viewport (small windows, half-screen on
+         multi-monitor, etc.). overflow: hidden + min: 0 is the
+         canonical "scrollbars on inner panels, not the page" recipe. */
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
       min-height: 0;
+      min-width: 0;
       overflow: hidden;
     }
     svge-shell-pro {
-      display: block;
-      height: 100%;
+      /* Same growth contract one level down — the shell expands to
+         fill our entire box. Without flex: 1, the shell would size to
+         its intrinsic content (which is usually less than 100vh on
+         large displays, leaving the gap shown in the screenshot). */
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+      min-width: 0;
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
