@@ -9,6 +9,8 @@ import {
   ExcludeCommand,
   findNodeById,
   findParent,
+  type FlipAxis,
+  FlipNodeCommand,
   GroupSelectionCommand,
   HistoryService,
   AUTO_PARENT,
@@ -19,6 +21,7 @@ import {
   MakeLayerCommand,
   MakeSmartObjectCommand,
   type NodeId,
+  type Point,
   RemoveNodeCommand,
   ReorderNodeCommand,
   type ReorderDirection,
@@ -43,6 +46,7 @@ import {
 import { ClipboardService } from '../../clipboard/clipboard.service';
 import { SelectSameService } from '../../find-replace/select-same.service';
 import { getRenderedNodeBBox } from '../../geometry/node-bbox';
+import { LayersService } from '../../layers/layers.service';
 import { ActiveDefsService } from '../../library/active-defs.service';
 import { ActivePageService } from '../../pages/active-page.service';
 import { type EditorPlugin } from '../../plugin/plugin';
@@ -992,6 +996,91 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         disabled: noSelectionFactory,
         run(runCtx) {
           reorder('toBack', runCtx);
+        },
+      }),
+    );
+
+    // ── D-078 — Object › Flip submenu (parity with Inspector) ───────
+    //
+    // The Transform tab in the Inspector exposes Flip H / Flip V
+    // buttons but the menu bar had no surface for the same gesture —
+    // users browsing the menu chrome had no way to discover it.
+    // Mirrors the Inspector logic exactly: one FlipNodeCommand per
+    // selected unlocked node, pivoting around each shape's OWN bbox
+    // centre so every node mirrors in place (Photoshop "Flip
+    // Horizontal" / Illustrator "Reflect" convention). Multi-selection
+    // produces N undo entries — same trade-off the Inspector accepts
+    // for a low-frequency operation.
+    //
+    // Placed at order 45 — between "Send to Back" (40) and the Align
+    // submenu (50). Sits with the per-node spatial transforms (flip
+    // is a single-node operation, unlike Align/Distribute/Pathfinder
+    // which need ≥ 2 nodes), so the menu reads
+    // reorder → flip → align → distribute → pathfinder top-to-bottom.
+    //
+    // **Why we need an SVG ref (not just the document model)**: bbox
+    // depends on the rendered geometry post-transform, which is the
+    // browser's job to compute. We query the live `<svge-renderer>`
+    // mount the same way collectSelectedBBoxes does below (proven
+    // pattern from D-065 align/distribute). If no SVG is mounted
+    // (headless / SSR), the handler no-ops gracefully.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.flip',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Flip',
+        icon: 'flip',
+        order: 45,
+        disabled: noSelectionFactory,
+        run() {
+          /* submenu parent — children drive the actual flip */
+        },
+      }),
+    );
+    const dispatchFlip = (runCtx: MenuContributionContext | undefined, axis: FlipAxis): void => {
+      const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+      if (svg === null) return;
+      const sel = fromCtx(SelectionService, runCtx);
+      const layers = fromCtx(LayersService, runCtx);
+      const bus = fromCtx(CommandBus, runCtx);
+      for (const id of sel.selectedIds()) {
+        if (layers.isLocked(id)) continue;
+        const bbox = getRenderedNodeBBox(svg, id);
+        if (bbox === null) continue;
+        const pivot: Point = {
+          x: bbox.x + bbox.width / 2,
+          y: bbox.y + bbox.height / 2,
+        };
+        bus.dispatch(new FlipNodeCommand(id, axis, pivot));
+      }
+    };
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.flip.horizontal',
+        parentId: 'svge.builtin.object.flip',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Flip Horizontal',
+        icon: 'flip',
+        tooltip: 'Mirror left ↔ right around each shape’s centre',
+        order: 10,
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          dispatchFlip(runCtx, 'horizontal');
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.flip.vertical',
+        parentId: 'svge.builtin.object.flip',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Flip Vertical',
+        icon: 'flip',
+        tooltip: 'Mirror top ↕ bottom around each shape’s centre',
+        order: 20,
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          dispatchFlip(runCtx, 'vertical');
         },
       }),
     );
