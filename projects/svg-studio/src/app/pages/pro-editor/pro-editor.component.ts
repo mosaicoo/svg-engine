@@ -66,48 +66,61 @@ import { SvgeShellPro } from 'svg-engine/ui';
   // D-042: route-scoped editor state — independent document per visit.
   providers: [provideSvgEngineEditorScope()],
   template: `
-    <svge-shell-pro [title]="'SVG Studio'">
-      <!--
-        Overlays projected into the svge-renderer slot. Order = z-order
-        (later = more in front). Same set the playground's pro-editor
-        uses — without these, Pen/Pencil/Shape/Text show no feedback
-        during interaction and the tools feel broken.
-      -->
-      <svg:g svgeSelectionOverlay></svg:g>
-      <svg:g svgeRotationPivot></svg:g>
-      <svg:g svgeAnchorOverlay></svg:g>
-      <svg:g svgeMarquee></svg:g>
-      <svg:g svgeSnapGuides></svg:g>
-      <!-- Pen tool: rubber band, in-progress anchors + handles, curve
-           preview during press-drag (D-046 Pen review 2026-05-22). -->
-      <svg:g svgePenOverlay></svg:g>
-      <!-- Pencil tool: real-time freehand stroke during draw
-           (D-046 Pencil review 2026-05-22). -->
-      <svg:g svgePencilOverlay></svg:g>
-      <!-- Shape tools (Rectangle / Ellipse / Polygon): dashed preview
-           of bounding box / polygon during press-drag. -->
-      <svg:g svgeShapeOverlay></svg:g>
-      <!-- D-063c — Symbol Sprayer live preview: ghosted instances
-           appear in real time while the user drags; cleared on
-           pointer-up when the batch command commits to the doc. -->
-      <svg:g svgeSymbolSprayerOverlay></svg:g>
-      <!-- Inline text editor: foreignObject + contentEditable that opens
-           when InlineTextEditorService.editingId is non-null. Renders
-           nothing otherwise. MUST come last so the edit surface paints
-           above every other overlay. -->
-      <svg:g svgeInlineTextEditor></svg:g>
-    </svge-shell-pro>
+    <!--
+      **Wrapper .editor-area** — same pattern the playground's
+      /pro-editor uses (without the visual chrome of border/radius).
+      Why wrap instead of putting flex: 1 directly on <svge-shell-pro>:
+      the shell's own :host declares "display: grid" with rows
+      "auto auto auto 1fr auto" and "height: 100%" — .main (the
+      canvas row) gets the 1fr track. If we set display: flex on
+      <svge-shell-pro> from outside, our rule wins (component-scoped
+      selectors beat :host on specificity) — that kills the grid,
+      .main loses its 1fr track height, and the canvas collapses to
+      its intrinsic content size (the gap shown in the bug
+      screenshot). Wrapping in a plain block div lets the shell's
+      grid stand untouched while .editor-area's flex: 1 gives it a
+      definite height for height: 100% to resolve.
+    -->
+    <div class="editor-area">
+      <svge-shell-pro [title]="'SVG Studio'">
+        <!--
+          Overlays projected into the svge-renderer slot. Order = z-order
+          (later = more in front). Same set the playground's pro-editor
+          uses — without these, Pen/Pencil/Shape/Text show no feedback
+          during interaction and the tools feel broken.
+        -->
+        <svg:g svgeSelectionOverlay></svg:g>
+        <svg:g svgeRotationPivot></svg:g>
+        <svg:g svgeAnchorOverlay></svg:g>
+        <svg:g svgeMarquee></svg:g>
+        <svg:g svgeSnapGuides></svg:g>
+        <!-- Pen tool: rubber band, in-progress anchors + handles, curve
+             preview during press-drag (D-046 Pen review 2026-05-22). -->
+        <svg:g svgePenOverlay></svg:g>
+        <!-- Pencil tool: real-time freehand stroke during draw
+             (D-046 Pencil review 2026-05-22). -->
+        <svg:g svgePencilOverlay></svg:g>
+        <!-- Shape tools (Rectangle / Ellipse / Polygon): dashed preview
+             of bounding box / polygon during press-drag. -->
+        <svg:g svgeShapeOverlay></svg:g>
+        <!-- D-063c — Symbol Sprayer live preview: ghosted instances
+             appear in real time while the user drags; cleared on
+             pointer-up when the batch command commits to the doc. -->
+        <svg:g svgeSymbolSprayerOverlay></svg:g>
+        <!-- Inline text editor: foreignObject + contentEditable that opens
+             when InlineTextEditorService.editingId is non-null. Renders
+             nothing otherwise. MUST come last so the edit surface paints
+             above every other overlay. -->
+        <svg:g svgeInlineTextEditor></svg:g>
+      </svge-shell-pro>
+    </div>
   `,
   styles: `
     :host {
-      /* **Responsive grow-to-fill** — parent (App) is a flex column
-         with height: 100vh. We claim flex: 1 1 auto so we expand to
-         take all remaining space (router-outlet, the only flex sibling,
-         takes 0 height). min-* defaults to auto in flex which can
-         prevent shrinking below content size — overriding to 0 lets
-         the editor fit any viewport (small windows, half-screen on
-         multi-monitor, etc.). overflow: hidden + min: 0 is the
-         canonical "scrollbars on inner panels, not the page" recipe. */
+      /* Flex column inside studio-root (also flex column) — we grow
+         to fill the viewport with flex: 1 1 auto. min-* overrides
+         flex's default "auto" so inner panels can scroll without
+         pushing us wider/taller than the viewport. */
       display: flex;
       flex-direction: column;
       flex: 1 1 auto;
@@ -115,16 +128,21 @@ import { SvgeShellPro } from 'svg-engine/ui';
       min-width: 0;
       overflow: hidden;
     }
-    svge-shell-pro {
-      /* Same growth contract one level down — the shell expands to
-         fill our entire box. Without flex: 1, the shell would size to
-         its intrinsic content (which is usually less than 100vh on
-         large displays, leaving the gap shown in the screenshot). */
-      display: flex;
-      flex-direction: column;
+    .editor-area {
+      /* Definite-size box for the shell. Two jobs:
+         1. flex: 1 1 auto + min: 0 → grows to fill our :host
+         2. block display + sized → propagates a real height down to
+            <svge-shell-pro>, whose :host { height: 100% } needs a
+            non-flex parent to resolve correctly. Putting flex: 1
+            directly on <svge-shell-pro> caused two issues: (a) our
+            display: flex declaration overrode shell-pro's display:
+            grid, killing its row tracking; (b) percentage heights
+            inside grid children of a flex item can fail to resolve
+            in some layout passes. */
       flex: 1 1 auto;
       min-height: 0;
       min-width: 0;
+      overflow: hidden;
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
