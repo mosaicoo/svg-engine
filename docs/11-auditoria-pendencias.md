@@ -34,7 +34,12 @@ Durante uma rodada de auditoria, **5 de 6 itens** que apareceram como
 
 ## Pendências REAIS confirmadas (2026-05-28)
 
-### 1. Asset export persistence — `MÉDIA`
+> **Atualização 2026-05-28 round 2** — autonomia: 4 dos 5 itens
+> entregues. Item #2 (NLU tiebreaker) ficou intencionalmente diferido
+> por risco vs benefício (workaround documentado, change quebraria
+> spec-trava de scoring constants).
+
+### 1. Asset export persistence — `MÉDIA` → ✅ **IMPLEMENTADO** (commit autonomous round 2)
 
 **Evidência**:
 
@@ -61,7 +66,30 @@ grep -rn '\.setAll(' projects/svg-engine/edit/src/lib/asset-export/
 
 ---
 
-### 2. NLU intent ranking — `BAIXA` (workaround documentado)
+**Entrega**: criado `AssetExportPersistenceService` espelhando `SnapshotsPersistenceService` (D-073).
+Auto-hydrate no constructor + auto-save com debounce 500ms, schema v1, key configurável
+via `ASSET_EXPORT_STORAGE_KEY` token (per-editor via D-042 scope). 9 specs novos cobrindo
+round-trip / schema gate / payload corruption / cross-editor isolation.
+
+### 2. NLU intent ranking — `BAIXA` (workaround documentado) — ⏭️ **INTENCIONALMENTE DIFERIDO**
+
+**Por que não entreguei na round 2**: a "correção" proposta no FUTURE-FIX (bumpar
+`SLOT_BONUS_REQUIRED` de 0.10 → 0.15) **quebra a invariant test** em
+`scoring-constants.spec.ts:40` (constante congelada) E **quebra os cenários
+calibrados** em `expectedScore` (`// 0.5 + 0.25 + 0.10 + 0.10 = 0.95`). O comment
+do scoring-constants.ts é categórico: _"REGRA DE OURO: qualquer mudança numérica
+aqui DEVE rodar scoring-constants.spec.ts que tem fixtures cobrindo casos limite"_.
+
+Mudar o constante exigiria **re-calibração de ~50 user commands** (a base
+empírica original), o que escapa do escopo de "autonomous round" — risco vs
+benefício péssimo para um edge case com workaround documentado
+("selecionar tipo retangulo" em vez de "selecionar todos retangulos").
+
+**Caminho alternativo se quiser fechar**: implementar tiebreaker de "filled slots"
+no scorer (não na constante) — preserva os scores ao mesmo tempo que muda o
+desempate. Não fiz porque é uma re-arquitetura, não um bump de constante.
+
+### 2-OLD. NLU intent ranking — original info abaixo
 
 **Evidência**:
 
@@ -87,7 +115,12 @@ grep -rn 'it\.skip\|FUTURE-FIX' projects/svg-engine/ai/nlu/
 
 ---
 
-### 3. Header "(stub)" desatualizado em extra-tools.ts — `BAIXA` (cosmético)
+### 3. Header "(stub)" desatualizado em extra-tools.ts — `BAIXA` (cosmético) — ✅ **CORRIGIDO** (autonomous round 2)
+
+Header reescrito explicando o estado real: Width + Symbol Sprayer são reais (D-062a/D-062b),
+Mesh foi removido (D-062-fix). Tag "(stub)" eliminada do título.
+
+### 3-OLD. Header "(stub)" — original info abaixo
 
 **Evidência**:
 
@@ -115,7 +148,14 @@ sed -n '453,470p' projects/svg-engine/edit/src/lib/tool/extra-tools.ts
 
 ---
 
-### 4. Doc 06 sobre dialog-shell — `MÉDIA` (DX de plugin)
+### 4. Doc 06 sobre dialog-shell — `MÉDIA` (DX de plugin) — ✅ **DOCUMENTADO** (autonomous round 2)
+
+Adicionada seção "Dialog design system — `<svge-dialog-shell>` + `svgeDialogConfig` (D-044 follow-up)"
+em `docs/06-componentes-editor-svg.md` com: quando usar, tabela de 4 buckets, tabela de
+4 content-projection slots, exemplo end-to-end (component + service + menu wire-up),
+nota sobre D-017 boundary.
+
+### 4-OLD. Doc 06 — original info abaixo
 
 **Evidência**:
 
@@ -142,7 +182,16 @@ grep -c 'dialog-shell\|svgeDialogConfig' docs/06-componentes-editor-svg.md
 
 ---
 
-### 5. About SVGEngine Material-styled — `BAIXA` (cosmético)
+### 5. About SVGEngine Material-styled — `BAIXA` (cosmético) — ✅ **IMPLEMENTADO** (autonomous round 2)
+
+Criado `<svge-about-dialog>` + `SvgeAboutDialogService` em
+`projects/svg-engine/ui/src/lib/about-dialog/`. Item de menu **migrado** do
+edit-side plugin (que só podia chamar `alert()`) para o UI-side plugin
+(`builtinUiMenuContributionsPlugin`), respeitando D-017. Bucket `'sm'` (440px)
+do `svgeDialogConfig`. Mesmo ID do item antigo (`svge.builtin.help.about`)
+preservando back-compat.
+
+### 5-OLD. About SVGEngine — original info abaixo
 
 **Evidência**:
 

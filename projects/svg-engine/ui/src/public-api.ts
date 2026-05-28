@@ -120,6 +120,12 @@ export * from './lib/menu-extras';
 // for the API and dialog-config.ts for the size buckets.
 export * from './lib/dialog-shell';
 
+// D-044 follow-up — About SVGEngine Material dialog. Replaces the
+// alert()-based About previously registered by the edit-side
+// builtinMenuContributionsPlugin. The menu entry now lives in
+// builtinUiMenuContributionsPlugin which can import MatDialog.
+export * from './lib/about-dialog';
+
 // D-077 — Asset Export panel (batch export UI). Pairs with the
 // edit-side AssetExportRegistry + AssetExportRunner. Mount inside
 // any panel-group tab to expose batch-export workflows.

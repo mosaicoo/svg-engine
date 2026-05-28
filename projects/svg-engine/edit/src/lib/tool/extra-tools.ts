@@ -450,24 +450,22 @@ class GradientTool implements Tool {
   }
 }
 
-// ── 5/6/7. Width / Mesh / Symbol Sprayer (stub) ──────────────────────
+// ── 5 + 6. Width / Symbol Sprayer (real, D-062 sprint) ──────────────
+//
+// Both tools are fully implemented since D-062. Width applies a
+// variable-width ribbon to selected paths via Sutherland expand (same
+// algorithm as D-060 brushes); Symbol Sprayer drops randomized
+// instances of library symbols on drag (D-062a + D-063 with live
+// preview overlay). Each has a dedicated `*Service` for per-editor
+// preferences (preset/density/jitter) and a TOOL-OPT options
+// component (TOOL-OPT-A2/A3).
+//
+// **Mesh tool was REMOVED** in D-062-fix — the radial 4-stop
+// approximation produced misleading results and a true mesh gradient
+// requires `<meshpatch>` (SVG 2, browser-specific). Production users
+// should use the inline gradient editor (D-058) which covers the
+// realistic use cases without the rendering ambiguity.
 
-/**
- * Stub tool — registers a toolbar entry but its pointerdown only logs.
- * Used for tools where the data model + UI for full implementation is
- * substantial enough that a dedicated D-revision is more appropriate
- * (Width = variable stroke width along a path; Mesh = mesh gradient
- * with bilinear color interpolation; Symbol Sprayer = randomized
- * placement of symbol-library instances on the canvas).
- *
- * Keeping the stub in the registry serves two purposes:
- * 1. **Roadmap visibility**: the toolbar icon advertises the planned
- *    feature so users (and contributors) know it's coming.
- * 2. **Plugin contract validation**: third-party tools follow the same
- *    Tool API; shipping our own stubs keeps the API honest (any
- *    surface we haven't exercised gets called out by the lint /
- *    typecheck pass when these stubs compile).
- */
 // ── 5. Width tool (D-062b) ───────────────────────────────────────────
 
 /**

@@ -1625,20 +1625,17 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     // standalone (no DI coupling, no dialog requirement).
 
     // ── Help menu ──────────────────────────────────────────────────
-    ctx.track(
-      reg.register({
-        id: 'svge.builtin.help.about',
-        slot: MENU_SLOT.HELP,
-        label: 'About SVGEngine',
-        icon: 'info',
-        order: 10,
-        run() {
-          alert(
-            'SVGEngine — headless-first SVG editor for Angular.\nhttps://github.com/mosaicoo/svg-engine',
-          );
-        },
-      }),
-    );
+    //
+    // **`svge.builtin.help.about` MOVED** to `builtinUiMenuContributionsPlugin`
+    // in svg-engine/ui — D-044 follow-up. The edit-side plugin could
+    // only call `alert()` because @angular/material/dialog can't be
+    // imported here (D-017 headless boundary). Moving the Help ▸ About
+    // entry to the UI plugin unlocks `<svge-about-dialog>` with proper
+    // Material chrome (dialog-shell + drag/resize + focus trap + ARIA).
+    // Consumers wiring builtinUiMenuContributionsPlugin get the
+    // Material About automatically; consumers omitting it (rare —
+    // basically headless-only consumers) won't see Help ▸ About at all,
+    // which is the correct behavior for a headless build.
 
     // ── Toolbar.main ───────────────────────────────────────────────
     ctx.track(

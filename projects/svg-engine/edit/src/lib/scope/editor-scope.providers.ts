@@ -10,6 +10,7 @@ import { ViewportService } from 'svg-engine/render';
 
 import { AlignmentService } from '../alignment/alignment.service';
 import { AnchorSelectionService } from '../anchor-editor/anchor-selection.service';
+import { AssetExportPersistenceService } from '../asset-export/asset-export-persistence.service';
 import { AssetExportRegistry } from '../asset-export/asset-export-registry.service';
 import { AssetExportRunner } from '../asset-export/asset-export-runner.service';
 import { AUTOSAVE_STORAGE_KEY } from '../autosave/autosave.config';
@@ -305,6 +306,13 @@ export function provideSvgEngineEditorScope(options?: SvgEngineEditorScopeOption
     // "Export All" doesn't accidentally write the sibling's document.
     AssetExportRegistry,
     AssetExportRunner,
+    // **D-077 follow-up** — opt-in localStorage persistence for the
+    // slot list. Constructor wires an `effect()` that auto-saves on
+    // every change (500ms debounce) and exposes `hydrate()` for
+    // bootstrap-time restore. Same per-editor scoping as
+    // SnapshotsPersistenceService (D-073) — disjoint storage slots
+    // per editor instance via ASSET_EXPORT_STORAGE_KEY.
+    AssetExportPersistenceService,
     // ── edit / tools (active tool host + tool state machines) ───
     ToolHostService,
     AnchorSelectionService,

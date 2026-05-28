@@ -199,6 +199,112 @@ Plugin wrapper (`builtinOptimizersPlugin`) fica em `svg-engine/edit`.
 | `<svge-tools-palette>`              | **D-038 Phase 4 (2026-05-20)** Strip vertical de tool icon buttons; le `ToolRegistry.tools()`. Active highlight, tooltip label+shortcut, `aria-orientation="vertical"`. Standalone                                                                                                                                                                                                                                                                                                                                                                                                                                           | 6    |
 | `<svge-shell-pro>`                  | **D-038 Phase 4 (2026-05-20)** Composição profissional grid: menu bar (top) + toolbar + tool options + [tools palette \| canvas \| layers + inspector] + status bar. Right-click context menu sempre ativo. Coexiste com `<svge-editor>` (não substitui — é "drop-in Illustrator-grade"). Inputs `[tree]`/`[viewBox]`/`[title]`/`[ariaLabel]`/`[contextMenuSlot]`                                                                                                                                                                                                                                                            | 6    |
 
+### Dialog design system — `<svge-dialog-shell>` + `svgeDialogConfig` (D-044 follow-up)
+
+Todo dialog Material que o editor abre deve passar pelo shell padrão.
+Sem isso cada dialog re-inventa header/footer/sizing → ruptura de consistência
+visual + bug-fix nascido em um dialog (drag/resize, close button, ARIA)
+não propaga pra outros. **Regra**: novos consumers do `MatDialog` **devem**
+usar essas duas primitivas em conjunto.
+
+**Anatomia**:
+
+| Primitiva                         | Função                                                                               |
+| --------------------------------- | ------------------------------------------------------------------------------------ |
+| `svgeDialogConfig(size, extras?)` | Factory de `MatDialogConfig` com sizing canônico + `autoFocus: false` + `panelClass` |
+| `<svge-dialog-shell>`             | Wrapper Angular com header (icon + title + subtitle + Close) + body + footer         |
+
+**Sizing buckets** (use o menor que comporte o conteúdo sem cortar):
+
+| `size` | width | Caso típico                                       |
+| ------ | ----- | ------------------------------------------------- |
+| `'sm'` | 440px | Confirmações, About, mini-formulários (≤3 fields) |
+| `'md'` | 600px | Settings, find/replace, dialogs principais        |
+| `'lg'` | 720px | Source viewers, editors com `<pre>` ou textarea   |
+| `'xl'` | 960px | Asset managers, batch operations, previews        |
+
+Altura sempre `maxHeight: '85vh'`. Usuário pode **arrastar** o dialog pela
+header zone (cdkDrag) e **redimensionar** pelo handle no canto inferior
+direito — herdado automaticamente do shell, sem código no consumer.
+
+**Content-projection slots** (4):
+
+| Slot                        | Default        | Quando usar                                               |
+| --------------------------- | -------------- | --------------------------------------------------------- |
+| `default`                   | body do dialog | sempre — coloca o conteúdo principal aqui                 |
+| `[svgeDialogHeaderActions]` | (vazio)        | botões no header (Copy, Reset, etc.) — apareça ANTES do X |
+| `[svgeDialogFooterActions]` | (vazio)        | botões primários/secundários (OK/Cancel/Apply)            |
+| `[svgeDialogFooterStatus]`  | (vazio)        | texto de status no footer (contagem, dirty flag, hint)    |
+
+**Pattern centralized opener service**: cada dialog tem um service `Svge*DialogService`
+com método `open(parentInjector?)` que encapsula `MatDialog.open(Component, svgeDialogConfig(size, { injector }))`.
+Razão: sem essa centralização, cada call site da rota redescobre que `MatDialog.open()` direto pega
+o injector da overlay root (D-042 bug multi-editor — mutaria editor errado).
+Plugin de menu chama o service via `fromCtx`, nunca instancia `MatDialog` diretamente.
+
+**Exemplo end-to-end** (criar um dialog "Hello World"):
+
+```ts
+// 1. Component — projects/svg-engine/ui/src/lib/hello-dialog/hello-dialog.component.ts
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { MatButton } from '@angular/material/button';
+import { MatDialogRef } from '@angular/material/dialog';
+import { SvgeDialogShell } from '../dialog-shell';
+
+@Component({
+  selector: 'svge-hello-dialog',
+  standalone: true,
+  imports: [SvgeDialogShell, MatButton],
+  template: `
+    <svge-dialog-shell icon="waving_hand" title="Hello" subtitle="A demo dialog">
+      <p>Welcome to SVGEngine.</p>
+      <ng-container svgeDialogFooterActions>
+        <button mat-button (click)="ref.close()">Close</button>
+      </ng-container>
+    </svge-dialog-shell>
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class SvgeHelloDialog {
+  constructor(readonly ref: MatDialogRef<SvgeHelloDialog>) {}
+}
+
+// 2. Service — projects/svg-engine/ui/src/lib/hello-dialog/hello-dialog.service.ts
+import { inject, Injectable, Injector } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
+import { svgeDialogConfig } from '../dialog-shell';
+import { SvgeHelloDialog } from './hello-dialog.component';
+
+@Injectable({ providedIn: 'root' })
+export class SvgeHelloDialogService {
+  private readonly dialog = inject(MatDialog);
+  open(parentInjector?: Injector): void {
+    this.dialog.open(SvgeHelloDialog, svgeDialogConfig('sm', { injector: parentInjector }));
+  }
+}
+
+// 3. Menu wiring — em builtinUiMenuContributionsPlugin
+ctx.track(
+  reg.register({
+    id: 'svge.builtin.help.hello',
+    slot: MENU_SLOT.HELP,
+    label: 'Hello…',
+    icon: 'waving_hand',
+    order: 5,
+    run(runCtx) {
+      fromCtx(SvgeHelloDialogService, runCtx).open(runCtx?.injector);
+    },
+  }),
+);
+```
+
+**Headless boundary (D-017)**: dialog-shell vive em `svg-engine/ui` (importa
+`@angular/material/dialog` + `@angular/cdk/drag-drop`). Plugins que usam dialogs
+**precisam** ser registrados em `builtinUiMenuContributionsPlugin` (não no
+edit-side `builtinMenuContributionsPlugin`) — caso contrário a build do
+edit quebra com import inválido. Mesmo motivo do D-066 ter movido o
+Trace Image menu entry para o plugin UI.
+
 ## Comandos
 
 | Comando                                                                              | Mutação                                                                                                                               |

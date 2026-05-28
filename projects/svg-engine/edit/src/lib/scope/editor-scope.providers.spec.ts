@@ -20,6 +20,7 @@ import { AUTOSAVE_STORAGE_KEY } from '../autosave/autosave.config';
 import { AutoSaveService } from '../autosave/autosave.service';
 import { ClipboardService } from '../clipboard/clipboard.service';
 import { ChainFilterRegistry } from '../effect/chain-filter';
+import { AssetExportPersistenceService } from '../asset-export/asset-export-persistence.service';
 import { AssetExportRegistry } from '../asset-export/asset-export-registry.service';
 import { AssetExportRunner } from '../asset-export/asset-export-runner.service';
 import { SelectSameService } from '../find-replace/select-same.service';
@@ -242,6 +243,8 @@ const STATEFUL_SCOPED_TOKENS: readonly ProviderToken<unknown>[] = [
   // D-077 — Asset Export (batch export). Registry + Runner per-editor.
   AssetExportRegistry,
   AssetExportRunner,
+  // D-077 follow-up — opt-in localStorage persistence for the slot list.
+  AssetExportPersistenceService,
 ];
 
 describe('provideSvgEngineEditorScope — stateful services exhaustiveness trap', () => {

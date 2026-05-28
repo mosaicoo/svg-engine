@@ -84,9 +84,16 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(ids).toContain('svge.builtin.object.send-to-back');
   });
 
-  it('populates Help, Toolbar, Context Canvas, Context Node slots', () => {
+  it('populates Toolbar, Context Canvas, Context Node slots', () => {
     const { reg } = setupRoot();
-    expect(reg.bySlot(MENU_SLOT.HELP)().length).toBeGreaterThan(0);
+    // **Help slot intentionally empty on the edit-side plugin.**
+    // The only item that used to live here was "About SVGEngine"
+    // which fired an alert(). The Material-styled About dialog
+    // requires @angular/material (D-017 blocks that here), so the
+    // item migrated to `builtinUiMenuContributionsPlugin` in
+    // svg-engine/ui. Consumers wanting About should install BOTH
+    // plugins (the playground / svg-studio defaults do).
+    expect(reg.bySlot(MENU_SLOT.HELP)().length).toBe(0);
     expect(reg.bySlot(TOOLBAR_SLOT.MAIN)().length).toBeGreaterThan(0);
     expect(reg.bySlot(CONTEXT_MENU_SLOT.CANVAS)().length).toBeGreaterThan(0);
     expect(reg.bySlot(CONTEXT_MENU_SLOT.NODE)().length).toBeGreaterThan(0);

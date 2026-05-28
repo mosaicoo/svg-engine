@@ -22,6 +22,7 @@ import {
   TraceProgressService,
 } from 'svg-engine/edit';
 
+import { SvgeAboutDialogService } from '../about-dialog';
 import { SvgeFindReplaceDialogService } from '../find-replace-dialog';
 import { SvgeSmartObjectEditorDialogService } from '../smart-object-dialog';
 import { SvgeSvgSourceDialogService } from '../svg-source-dialog';
@@ -67,9 +68,15 @@ import { SvgeWorkspaceSettingsDialogService } from '../workspace-settings';
  * `SvgeContextMenuService` before its parent-injector fix.
  *
  * **Future items** for this plugin (registered as deferred):
- * - Export With Options… (dialog with format chooser + dimensions)
- * - About SVGEngine (Material-styled About box vs the alert in the
- *   edit-side plugin's Help item)
+ * - Export With Options… (dialog with format chooser + dimensions —
+ *   *probably superseded by the D-077 AssetExportPanel*, which covers
+ *   format + scale + batch persistence as a UI panel)
+ *
+ * **Items moved here from the edit-side plugin**:
+ * - **Help ▸ About SVGEngine** — was an `alert()` in the edit-side
+ *   plugin (D-017 blocks Material there). Now opens the
+ *   `<svge-about-dialog>` Material dialog through
+ *   `SvgeAboutDialogService` (D-044 follow-up, autonomous round).
  *
  * **Opt-in**: like other built-in plugins, consumers explicitly
  * provision via `provideSvgEnginePlugin(builtinUiMenuContributionsPlugin)`.
@@ -126,6 +133,33 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
           // scope-aware injector wiring live in one place so every
           // call site stays aligned automatically.
           const service = fromCtx(SvgeWorkspaceSettingsDialogService, runCtx);
+          service.open(runCtx?.injector ?? ctx.injector);
+        },
+      }),
+    );
+
+    // ── Help ▸ About SVGEngine ───────────────────────────────────
+    //
+    // **Moved here from the edit-side plugin** — that one could only
+    // call `alert()` because D-017 blocks Material in edit. Now opens
+    // <svge-about-dialog> via SvgeAboutDialogService — same Material
+    // chrome (dialog-shell + drag/resize + focus trap + Close X) as
+    // every other dialog in the editor. Uses the 'sm' bucket because
+    // the content is tiny (version + tagline + GitHub link).
+    //
+    // **Same id as the deprecated edit-side entry** (`svge.builtin.help.about`)
+    // so consumers that wired their own About via id override still
+    // match — they just need to install this plugin AFTER the
+    // edit-side one (default order in playground/svg-studio app.config).
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.help.about',
+        slot: MENU_SLOT.HELP,
+        label: 'About SVGEngine',
+        icon: 'info',
+        order: 10,
+        run(runCtx) {
+          const service = fromCtx(SvgeAboutDialogService, runCtx);
           service.open(runCtx?.injector ?? ctx.injector);
         },
       }),

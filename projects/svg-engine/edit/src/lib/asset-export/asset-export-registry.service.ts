@@ -19,10 +19,14 @@ import type { ExportSlot, ExportSlotInput } from './asset-export.types';
  * with batch-export state and makes the registry trivially mockable
  * in specs.
  *
- * **Persistence**: out of scope for v1. The host app (Mosaicoo /
- * playground) can read `slots()` at shutdown and re-seed via
- * `setAll()` at startup if it wants localStorage persistence —
- * the API surface is enough to support that without coupling.
+ * **Persistence**: provided by {@link AssetExportPersistenceService}
+ * (D-077 follow-up). The persistence service round-trips
+ * {@link slots} through `localStorage` so the user's batch recipes
+ * survive page reloads — same pattern as `SnapshotsPersistenceService`
+ * (D-073). The registry itself stays pure / in-memory; the
+ * persistence layer is wired in `provideSvgEngineEditorScope()` and
+ * registers an `effect()` that auto-saves on every signal change.
+ * Key configurable via {@link ASSET_EXPORT_STORAGE_KEY}.
  */
 @Injectable({ providedIn: 'root' })
 export class AssetExportRegistry {
