@@ -273,7 +273,13 @@ import { SvgeToolsPalette } from '../tools-palette';
         Painéis internos intactos — só remontados num único contêiner.
       -->
       <aside class="right-side" aria-label="Layers, properties and appearance panels">
-        <svge-panel-group class="rs-group">
+        <!--
+          **D-081** — right-rail panel-group now defaults to tabSide=right
+          (icons docked against the right edge of the screen). Users can
+          flip to top/bottom/left via the picker chip in the header;
+          their choice persists in localStorage under the groupId key.
+        -->
+        <svge-panel-group class="rs-group" tabSide="right" groupId="shell-pro-right-rail">
           <ng-template svgePanelGroupTab svgePanelGroupTabId="layers" label="Layers" icon="layers">
             <!--
               PAGES-FIX-4: when a page is active, pass its GroupNode

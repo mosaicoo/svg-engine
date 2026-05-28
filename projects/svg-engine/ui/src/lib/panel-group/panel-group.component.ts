@@ -13,6 +13,37 @@ import {
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { MatIcon } from '@angular/material/icon';
+import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
+import { MatTooltip } from '@angular/material/tooltip';
+
+/**
+ * **D-081 — TabSide refactor.** Position of the tab strip relative
+ * to the panel body. Replaces the legacy `'horizontal' | 'vertical'`
+ * orientation input with a 4-way choice the user can change at
+ * runtime via the picker in the header.
+ *
+ * - `'top'` — strip across the top, body below (Illustrator default).
+ * - `'bottom'` — strip across the bottom, body above (browser-tabs-like).
+ * - `'left'` — thin column on the left, body right of it
+ *   (Photoshop / Affinity / our libraries-panel convention).
+ * - `'right'` — thin column on the right, body left of it (mirror of
+ *   left — preferred when the panel-group docks against the right
+ *   edge of the screen so the tabs face the canvas, not the wall).
+ *
+ * **Icon-only invariant**: when the side is `'left'` or `'right'`,
+ * the strip ALWAYS renders icon-only regardless of the `compact`
+ * input (per user spec: lateral tabs match the libraries-panel
+ * style). Top/bottom respect the `compact` input.
+ */
+export type SvgePanelGroupTabSide = 'top' | 'right' | 'bottom' | 'left';
+
+/**
+ * **D-081 — persistence key prefix.** Each panel-group with a
+ * `groupId` input writes its user-chosen tab side here under
+ * `<prefix>-<groupId>`. Reads on construction so a reload restores
+ * the layout the user picked.
+ */
+const TAB_SIDE_STORAGE_PREFIX = 'svge-panel-group-tabside';
 
 /**
  * `[svgePanelGroupTab]` — projection slot for **one tab** inside a
@@ -115,111 +146,145 @@ export class SvgePanelGroupTab {
 @Component({
   selector: 'svge-panel-group',
   standalone: true,
-  imports: [NgTemplateOutlet, MatIcon],
+  imports: [NgTemplateOutlet, MatIcon, MatMenu, MatMenuItem, MatMenuTrigger, MatTooltip],
   template: `
     @if (tabs().length > 0) {
-      @if (orientation() === 'vertical' && tabs().length > 1) {
-        <!--
-          Vertical layout (Photoshop/Affinity-style side rail): tab
-          strip is a thin column to the LEFT of the body. Used when a
-          panel has many tabs and the rail is too narrow for them to
-          fit horizontally. Title (when present) sits above the body
-          and aligns with the active tab.
-        -->
-        <div class="pg-vertical">
+      <!--
+        **D-081** — Single layout for all 4 sides. CSS Grid + named
+        areas swap the relative position of the tab strip and the
+        body based on \`effectiveSide()\`. The picker (when a
+        \`groupId\` is set or the user hasn't overridden tabSide
+        explicitly) sits in the body header next to the title; if
+        there's no body header (no title), it sits as a floating
+        chip in the corner closest to the tabs.
+      -->
+      <div
+        class="pg-container"
+        [class.pg-container--top]="effectiveSide() === 'top'"
+        [class.pg-container--right]="effectiveSide() === 'right'"
+        [class.pg-container--bottom]="effectiveSide() === 'bottom'"
+        [class.pg-container--left]="effectiveSide() === 'left'"
+        [class.pg-container--icon-only]="iconOnly()"
+      >
+        @if (tabs().length > 1) {
           <div
-            class="pg-tabs pg-tabs--vertical"
+            class="pg-tabs"
+            [class.pg-tabs--horizontal]="isHorizontal()"
+            [class.pg-tabs--vertical]="!isHorizontal()"
             role="tablist"
-            [attr.aria-orientation]="'vertical'"
+            [attr.aria-orientation]="isHorizontal() ? 'horizontal' : 'vertical'"
             [attr.aria-label]="title() ?? 'Panels'"
           >
             @for (tab of tabs(); track tab.id()) {
               <button
                 type="button"
-                class="pg-tab pg-tab--vertical"
-                [class.pg-tab--compact]="compact() && tab.icon()"
+                class="pg-tab"
+                [class.pg-tab--horizontal]="isHorizontal()"
+                [class.pg-tab--vertical]="!isHorizontal()"
+                [class.pg-tab--compact]="iconOnly() && tab.icon()"
                 role="tab"
                 [class.pg-tab--active]="tab.id() === resolvedActiveId()"
                 [attr.aria-selected]="tab.id() === resolvedActiveId()"
                 [attr.aria-controls]="bodyId()"
                 [id]="tabButtonId(tab.id())"
+                [matTooltip]="tab.tooltip() ?? tab.label() ?? tab.id()"
+                [matTooltipPosition]="tooltipPosition()"
                 [title]="tab.tooltip() ?? tab.label() ?? tab.id()"
                 (click)="selectTab(tab.id())"
               >
                 @if (tab.icon()) {
                   <mat-icon class="pg-tab-icon">{{ tab.icon() }}</mat-icon>
                 }
-                @if (!compact() || !tab.icon()) {
+                @if (!iconOnly() || !tab.icon()) {
                   <span class="pg-tab-label">{{ tab.label() ?? tab.id() }}</span>
                 }
               </button>
             }
           </div>
-          <div class="pg-vertical-content">
-            @if (title()) {
-              <header class="pg-header pg-header--titled pg-header--vertical">
-                <h3 class="pg-title">{{ activeTabLabel() ?? title() }}</h3>
-              </header>
-            }
-            <div
-              class="pg-body"
-              role="tabpanel"
-              [id]="bodyId()"
-              [attr.aria-labelledby]="tabButtonId(resolvedActiveId())"
-            >
-              @if (activeTemplate(); as tpl) {
-                <ng-container [ngTemplateOutlet]="tpl" />
+        }
+        <div class="pg-body-wrapper">
+          @if (title() || showSidePicker()) {
+            <!--
+              Header strip sitting above the body — shows the title
+              (or active-tab label when on a lateral side) on the
+              left and the side picker on the right. Always present
+              when EITHER is needed; the picker alone shows when
+              there's no title (chip-style header).
+            -->
+            <header class="pg-header" [class.pg-header--titled]="!!title()">
+              @if (title()) {
+                <h3 class="pg-title">
+                  {{ !isHorizontal() ? (activeTabLabel() ?? title()) : title() }}
+                </h3>
               }
-            </div>
-          </div>
-        </div>
-      } @else {
-        <!--
-          Horizontal layout (Illustrator-style): tab strip across the
-          top, body below. Also used when there's exactly 1 tab —
-          the strip is hidden and only the title shows.
-        -->
-        <header class="pg-header" [class.pg-header--titled]="!!title()">
-          @if (title()) {
-            <h3 class="pg-title">{{ title() }}</h3>
-          }
-          @if (tabs().length > 1) {
-            <div class="pg-tabs" role="tablist" [attr.aria-label]="title() ?? 'Panels'">
-              @for (tab of tabs(); track tab.id()) {
+              @if (showSidePicker()) {
                 <button
                   type="button"
-                  class="pg-tab"
-                  [class.pg-tab--compact]="compact() && tab.icon()"
-                  role="tab"
-                  [class.pg-tab--active]="tab.id() === resolvedActiveId()"
-                  [attr.aria-selected]="tab.id() === resolvedActiveId()"
-                  [attr.aria-controls]="bodyId()"
-                  [id]="tabButtonId(tab.id())"
-                  [title]="tab.tooltip() ?? tab.label() ?? tab.id()"
-                  (click)="selectTab(tab.id())"
+                  class="pg-side-picker-btn"
+                  [matMenuTriggerFor]="sideMenu"
+                  [matTooltip]="'Move tabs (currently: ' + effectiveSide() + ')'"
+                  aria-label="Move panel tabs"
+                  [attr.aria-haspopup]="'menu'"
                 >
-                  @if (tab.icon()) {
-                    <mat-icon class="pg-tab-icon">{{ tab.icon() }}</mat-icon>
-                  }
-                  @if (!compact() || !tab.icon()) {
-                    <span class="pg-tab-label">{{ tab.label() ?? tab.id() }}</span>
-                  }
+                  <mat-icon>{{ sideIcon() }}</mat-icon>
                 </button>
+                <mat-menu #sideMenu="matMenu" xPosition="before">
+                  <button
+                    mat-menu-item
+                    type="button"
+                    (click)="setUserTabSide('top')"
+                    [attr.aria-checked]="effectiveSide() === 'top'"
+                  >
+                    <mat-icon>{{ effectiveSide() === 'top' ? 'check' : 'border_top' }}</mat-icon>
+                    <span>Tabs on top</span>
+                  </button>
+                  <button
+                    mat-menu-item
+                    type="button"
+                    (click)="setUserTabSide('right')"
+                    [attr.aria-checked]="effectiveSide() === 'right'"
+                  >
+                    <mat-icon>{{
+                      effectiveSide() === 'right' ? 'check' : 'border_right'
+                    }}</mat-icon>
+                    <span>Tabs on right</span>
+                  </button>
+                  <button
+                    mat-menu-item
+                    type="button"
+                    (click)="setUserTabSide('bottom')"
+                    [attr.aria-checked]="effectiveSide() === 'bottom'"
+                  >
+                    <mat-icon>{{
+                      effectiveSide() === 'bottom' ? 'check' : 'border_bottom'
+                    }}</mat-icon>
+                    <span>Tabs on bottom</span>
+                  </button>
+                  <button
+                    mat-menu-item
+                    type="button"
+                    (click)="setUserTabSide('left')"
+                    [attr.aria-checked]="effectiveSide() === 'left'"
+                  >
+                    <mat-icon>{{ effectiveSide() === 'left' ? 'check' : 'border_left' }}</mat-icon>
+                    <span>Tabs on left</span>
+                  </button>
+                </mat-menu>
               }
-            </div>
+            </header>
           }
-        </header>
-        <div
-          class="pg-body"
-          role="tabpanel"
-          [id]="bodyId()"
-          [attr.aria-labelledby]="tabButtonId(resolvedActiveId())"
-        >
-          @if (activeTemplate(); as tpl) {
-            <ng-container [ngTemplateOutlet]="tpl" />
-          }
+          <div
+            class="pg-body"
+            role="tabpanel"
+            [id]="bodyId()"
+            [attr.aria-labelledby]="tabButtonId(resolvedActiveId())"
+          >
+            @if (activeTemplate(); as tpl) {
+              <ng-container [ngTemplateOutlet]="tpl" />
+            }
+          </div>
         </div>
-      }
+      </div>
     }
   `,
   styles: `
@@ -236,6 +301,74 @@ export class SvgePanelGroupTab {
       user-select: none;
       -webkit-user-select: none;
     }
+    /* D-081 — single grid container. Named areas swap based on
+       effectiveSide() so the SAME template tree renders all 4
+       positions without per-side branches. */
+    .pg-container {
+      flex: 1 1 auto;
+      display: grid;
+      min-height: 0;
+      min-width: 0;
+    }
+    .pg-container--top {
+      grid-template-rows: auto 1fr;
+      grid-template-areas: 'tabs' 'body';
+    }
+    .pg-container--bottom {
+      grid-template-rows: 1fr auto;
+      grid-template-areas: 'body' 'tabs';
+    }
+    .pg-container--left {
+      grid-template-columns: auto 1fr;
+      grid-template-areas: 'tabs body';
+    }
+    .pg-container--right {
+      grid-template-columns: 1fr auto;
+      grid-template-areas: 'body tabs';
+    }
+    .pg-tabs {
+      grid-area: tabs;
+      display: flex;
+      background: var(--mat-sys-surface-container-low, transparent);
+    }
+    .pg-tabs--horizontal {
+      flex-direction: row;
+      align-items: stretch;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
+    }
+    .pg-tabs--vertical {
+      flex-direction: column;
+      align-items: stretch;
+      overflow-x: hidden;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      /* ~36px wide chip column — wide enough for a 16px icon + comfy
+         click target without eating into the body. Matches the
+         libraries-panel side rail. */
+      min-width: 36px;
+    }
+    .pg-container--top .pg-tabs {
+      border-bottom: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+    }
+    .pg-container--bottom .pg-tabs {
+      border-top: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+    }
+    .pg-container--left .pg-tabs {
+      border-right: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+    }
+    .pg-container--right .pg-tabs {
+      border-left: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+    }
+    .pg-body-wrapper {
+      grid-area: body;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
     .pg-header {
       display: flex;
       align-items: stretch;
@@ -245,7 +378,7 @@ export class SvgePanelGroupTab {
       min-height: 28px;
     }
     .pg-header--titled .pg-title {
-      flex: 0 0 auto;
+      flex: 1 1 auto;
       align-self: center;
       margin: 0;
       padding: 0 10px;
@@ -255,19 +388,50 @@ export class SvgePanelGroupTab {
       letter-spacing: 0.06em;
       opacity: 0.65;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .pg-tabs {
-      flex: 1 1 auto;
-      display: flex;
-      align-items: stretch;
-      overflow-x: auto;
-      scrollbar-width: thin;
+    /* D-081 — side picker chip in the header. Small icon button
+       opening the 4-way mat-menu. Stays visible even when there's
+       no title (header still renders just to host this chip). */
+    .pg-side-picker-btn {
+      flex: 0 0 auto;
+      align-self: center;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      margin: 0 4px 0 auto;
+      padding: 0;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      opacity: 0.45;
+      transition:
+        opacity 120ms ease,
+        background 120ms ease;
+    }
+    .pg-side-picker-btn:hover {
+      opacity: 0.95;
+      background: var(--mat-sys-surface-container-high, rgba(0, 0, 0, 0.06));
+    }
+    .pg-side-picker-btn:focus-visible {
+      outline: 2px solid var(--mat-sys-primary, #1976d2);
+      outline-offset: -2px;
+      opacity: 1;
+    }
+    .pg-side-picker-btn mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
     }
     .pg-tab {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 0 10px;
       border: 0;
       background: transparent;
       color: inherit;
@@ -277,7 +441,6 @@ export class SvgePanelGroupTab {
       letter-spacing: 0.04em;
       cursor: pointer;
       opacity: 0.6;
-      border-bottom: 2px solid transparent;
       transition:
         opacity 120ms ease,
         border-color 120ms ease,
@@ -294,7 +457,6 @@ export class SvgePanelGroupTab {
     }
     .pg-tab--active {
       opacity: 1;
-      border-bottom-color: var(--mat-sys-primary, #1976d2);
       color: var(--mat-sys-primary, #1976d2);
     }
     .pg-tab-icon {
@@ -303,65 +465,44 @@ export class SvgePanelGroupTab {
       height: 16px;
     }
     .pg-tab--compact {
-      /* When parent enables compact mode AND the tab has an icon, the
-         label is hidden in the strip (tooltip still shows the label on
-         hover). Keep enough padding for a comfortable click target. */
-      padding: 0 8px;
+      /* Icon-only tab (tooltip shows label on hover). Forced on
+         lateral sides (left/right); opt-in for horizontal sides via
+         the compact input. */
+      padding: 6px 8px;
     }
-    /* Vertical orientation (Photoshop/Affinity-style side rail).
-       Strip becomes a thin column to the left of the body. Active
-       indicator moves from bottom border to LEFT border. */
-    .pg-vertical {
-      flex: 1 1 auto;
-      display: flex;
-      flex-direction: row;
-      min-height: 0;
-      min-width: 0;
+    /* HORIZONTAL tab (top or bottom side). Active indicator is a
+       short coloured edge on the side ADJACENT to the body. */
+    .pg-tab--horizontal {
+      padding: 0 10px;
+      border-bottom: 2px solid transparent;
+      border-top: 2px solid transparent;
     }
-    .pg-tabs--vertical {
-      flex: 0 0 auto;
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      overflow-x: hidden;
-      overflow-y: auto;
-      background: var(--mat-sys-surface-container-low, transparent);
-      border-right: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
-      /* ~36px wide chip column — wide enough for a 16px icon + comfy
-         click target without eating into the body. */
-      min-width: 36px;
+    .pg-container--top .pg-tab--horizontal.pg-tab--active {
+      border-bottom-color: var(--mat-sys-primary, #1976d2);
     }
+    .pg-container--bottom .pg-tab--horizontal.pg-tab--active {
+      border-top-color: var(--mat-sys-primary, #1976d2);
+    }
+    /* VERTICAL tab (left or right side). Active indicator slides to
+       the edge adjacent to the body (left side → right border; right
+       side → left border) — same convention Photoshop / Affinity use. */
     .pg-tab--vertical {
       justify-content: center;
       padding: 8px 6px;
-      border-bottom: 0;
-      /* Active indicator slides to the LEFT edge (matches Photoshop /
-         Affinity convention for vertical side rails). */
       border-left: 2px solid transparent;
+      border-right: 2px solid transparent;
     }
-    .pg-tab--vertical.pg-tab--active {
-      border-bottom-color: transparent;
+    .pg-container--left .pg-tab--vertical.pg-tab--active {
+      border-right-color: var(--mat-sys-primary, #1976d2);
+    }
+    .pg-container--right .pg-tab--vertical.pg-tab--active {
       border-left-color: var(--mat-sys-primary, #1976d2);
     }
     .pg-tab--vertical .pg-tab-label {
-      /* When labels DO show in vertical mode (non-compact or no icon),
-         allow them to wrap so long names don't break the layout. */
+      /* When labels DO show in vertical mode (only when icon is missing
+         — compact is forced on lateral sides), allow wrap. */
       white-space: normal;
       text-align: center;
-    }
-    .pg-vertical-content {
-      flex: 1 1 auto;
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-      min-height: 0;
-    }
-    .pg-header--vertical {
-      /* In vertical mode the title is INFORMATIONAL — it shows the
-         active tab's label (or panel-group title as fallback). Saves
-         the user from having to hover the tab icon to know what's
-         on screen. */
-      min-height: 28px;
     }
     .pg-body {
       flex: 1 1 auto;
@@ -399,27 +540,76 @@ export class SvgePanelGroup {
   readonly compact = input<boolean>(false);
 
   /**
-   * Tab strip orientation:
-   * - `'horizontal'` (default): strip across the top, body below.
-   *   Illustrator/Inkscape convention; best for 2-4 tabs in a wide
-   *   dock.
-   * - `'vertical'`: thin strip on the LEFT, body to the right.
-   *   Photoshop/Affinity convention; best for many tabs in a narrow
-   *   rail (e.g. 8 library categories in a 220px sidebar). When
-   *   `vertical`, the body header (if `title` is set) automatically
-   *   reflects the active tab's label so the user always knows what
-   *   they're looking at without hovering icons.
+   * **DEPRECATED — kept for back-compat.** Use {@link tabSide}
+   * instead (4 values: top/right/bottom/left). When set to
+   * `'vertical'`, this input still wins over the `tabSide` default
+   * of `'top'` and renders as left-side tabs (matches the pre-D-081
+   * behavior). When set to `'horizontal'`, `tabSide` takes over.
+   *
+   * Migrated callers should drop this input and pass `tabSide`
+   * directly. Removal scheduled when no in-repo consumers reference
+   * it (currently still used by inspector + libraries-panel).
    */
   readonly orientation = input<'horizontal' | 'vertical'>('horizontal');
 
+  /**
+   * **D-081** — Side of the panel-group where the tab strip docks.
+   * Replaces {@link orientation} with a 4-way choice the user can
+   * also flip at runtime via the picker chip in the header.
+   *
+   * Defaults to `'top'`. Lateral values (`'left'` / `'right'`)
+   * force icon-only rendering regardless of {@link compact} — per
+   * the user-facing requirement that lateral tabs match the
+   * `<svge-libraries-panel>` icon-rail style.
+   */
+  readonly tabSide = input<SvgePanelGroupTabSide>('top');
+
+  /**
+   * **D-081** — Stable identifier for persistence. When set, the
+   * user's chosen side (via the header picker) is saved to
+   * `localStorage` under `svge-panel-group-tabside-<groupId>` and
+   * restored on construction. Without a `groupId`, the picker still
+   * works but the choice is lost on reload.
+   *
+   * Recommended: pass a unique-per-instance string like
+   * `'shell-pro-right-rail'`. Two panel-groups with the SAME id will
+   * share their saved side — useful for "all panels in this app
+   * follow the global preference", less useful when each has its
+   * own meaning.
+   */
+  readonly groupId = input<string | null>(null);
+
+  /**
+   * **D-081** — When `true`, the side picker chip is hidden. Useful
+   * for embedded panel-groups where the layout is fixed by design
+   * (e.g., a single-tab group). Defaults to `false`.
+   */
+  readonly hideSidePicker = input<boolean>(false);
+
   /** Emitted when the user clicks a tab. */
   readonly activeTabChange = output<string>();
+
+  /**
+   * **D-081** — Emitted when the user picks a different tab side
+   * via the header chip. Consumers can react if they want to e.g.
+   * propagate the choice to a sibling group. Not required: the
+   * component handles its own persistence already.
+   */
+  readonly tabSideChange = output<SvgePanelGroupTabSide>();
 
   /** All tabs declared by the host via `<ng-template svgePanelGroupTab>`. */
   protected readonly tabs = contentChildren(SvgePanelGroupTab);
 
   /** Internal active-tab id (used when no controlled input is given). */
   private readonly internalActiveId = signal<string | null>(null);
+
+  /**
+   * **D-081** — user-overridden tab side. `null` until the user clicks
+   * one of the 4 picker entries; once set, it wins over the `tabSide`
+   * input AND the legacy `orientation` mapping. Persisted to
+   * localStorage when `groupId` is set.
+   */
+  private readonly userTabSide = signal<SvgePanelGroupTabSide | null>(null);
 
   // Auto-select the first tab when none has been chosen yet — runs
   // whenever the tab set changes (e.g. tabs added/removed dynamically).
@@ -434,6 +624,27 @@ export class SvgePanelGroup {
       const stillExists = current !== null && list.some((t) => t.id() === current);
       if (!stillExists) {
         this.internalActiveId.set(list[0]!.id());
+      }
+    });
+
+    // **D-081** — restore the user's saved tab side from localStorage
+    // when a `groupId` is provided. Runs once per groupId change so
+    // dynamic re-keying works (rare; mostly groupId is set once at
+    // template time). Defensive against SSR (no `window`) and
+    // localStorage being unavailable (private-mode / disabled).
+    effect(() => {
+      const id = this.groupId();
+      if (id === null) return;
+      if (typeof localStorage === 'undefined') return;
+      try {
+        const stored = localStorage.getItem(`${TAB_SIDE_STORAGE_PREFIX}-${id}`);
+        if (stored === null) return;
+        if (stored === 'top' || stored === 'right' || stored === 'bottom' || stored === 'left') {
+          this.userTabSide.set(stored);
+        }
+      } catch {
+        // Corrupted entry or storage quota error — ignore, fall back
+        // to the tabSide input's default. Don't crash the component.
       }
     });
   }
@@ -482,5 +693,107 @@ export class SvgePanelGroup {
   protected selectTab(id: string): void {
     this.internalActiveId.set(id);
     this.activeTabChange.emit(id);
+  }
+
+  /**
+   * **D-081** — resolved tab side. Priority order:
+   *   1. User override (via the header picker) — highest.
+   *   2. Legacy `orientation === 'vertical'` → `'left'` (back-compat).
+   *   3. `tabSide` input — default `'top'`.
+   */
+  protected readonly effectiveSide = computed<SvgePanelGroupTabSide>(() => {
+    const user = this.userTabSide();
+    if (user !== null) return user;
+    if (this.orientation() === 'vertical') return 'left';
+    return this.tabSide();
+  });
+
+  /** `true` when the strip runs across the top or bottom. */
+  protected readonly isHorizontal = computed(
+    () => this.effectiveSide() === 'top' || this.effectiveSide() === 'bottom',
+  );
+
+  /**
+   * `true` when tabs should render icon-only (no labels in the
+   * strip; tooltips still show the label). Forced on lateral sides
+   * (left/right); follows the `compact` input on horizontal sides.
+   */
+  protected readonly iconOnly = computed(() => {
+    if (!this.isHorizontal()) return true;
+    return this.compact();
+  });
+
+  /**
+   * `true` when the side picker chip should render. Hidden when the
+   * consumer opts out via `[hideSidePicker]="true"` (e.g., a single-
+   * tab embedded group where layout is fixed by design).
+   */
+  protected readonly showSidePicker = computed(() => {
+    if (this.hideSidePicker()) return false;
+    // Don't show the picker when there's only one tab — there's no
+    // meaningful "rearrangement" to do.
+    return this.tabs().length > 1;
+  });
+
+  /**
+   * Tooltip placement that points AWAY from the body, so the tooltip
+   * doesn't cover the panel content. e.g., on right-side tabs the
+   * tooltip floats to the left (toward the body), but we want it on
+   * the OUTER side so it stays visible. So pick the opposite cardinal.
+   *
+   * Material's TooltipPosition strings are 'above' | 'below' |
+   * 'before' | 'after' | 'left' | 'right'. Using before/after to be
+   * LTR/RTL-agnostic.
+   */
+  protected readonly tooltipPosition = computed<'above' | 'below' | 'before' | 'after'>(() => {
+    switch (this.effectiveSide()) {
+      case 'top':
+        return 'below';
+      case 'bottom':
+        return 'above';
+      case 'left':
+        return 'after';
+      case 'right':
+        return 'before';
+    }
+  });
+
+  /**
+   * Icon shown on the picker chip — mirrors the current side so the
+   * affordance is self-describing (the chip itself shows where the
+   * tabs are now; clicking opens the 4-way menu).
+   */
+  protected readonly sideIcon = computed<string>(() => {
+    switch (this.effectiveSide()) {
+      case 'top':
+        return 'border_top';
+      case 'right':
+        return 'border_right';
+      case 'bottom':
+        return 'border_bottom';
+      case 'left':
+        return 'border_left';
+    }
+  });
+
+  /**
+   * **D-081** — user picks a tab side via the header menu. Updates
+   * the internal signal and persists to localStorage when `groupId`
+   * is set so the choice survives a reload. Emits
+   * `tabSideChange` for consumers that want to react.
+   */
+  protected setUserTabSide(side: SvgePanelGroupTabSide): void {
+    this.userTabSide.set(side);
+    const id = this.groupId();
+    if (id !== null && typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(`${TAB_SIDE_STORAGE_PREFIX}-${id}`, side);
+      } catch {
+        // Quota exceeded or storage disabled — fail silently. The
+        // signal still updated, so the user sees the change for
+        // this session; only persistence is lost.
+      }
+    }
+    this.tabSideChange.emit(side);
   }
 }
