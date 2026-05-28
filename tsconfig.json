@@ -45,6 +45,12 @@
     },
     {
       "path": "./projects/playground/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/svg-studio/tsconfig.app.json"
+    },
+    {
+      "path": "./projects/svg-studio/tsconfig.spec.json"
     }
   ]
 }

@@ -113,6 +113,80 @@
           }
         }
       }
+    },
+    "svg-studio": {
+      "projectType": "application",
+      "schematics": {
+        "@schematics/angular:component": {
+          "style": "scss"
+        }
+      },
+      "root": "projects/svg-studio",
+      "sourceRoot": "projects/svg-studio/src",
+      "prefix": "studio",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "browser": "projects/svg-studio/src/main.ts",
+            "tsConfig": "projects/svg-studio/tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "projects/svg-studio/public"
+              }
+            ],
+            "styles": ["projects/svg-studio/src/styles.scss"],
+            "allowedCommonJsDependencies": ["polygon-clipping"]
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "2MB",
+                  "maximumError": "3MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "8kB",
+                  "maximumError": "16kB"
+                }
+              ],
+              "outputHashing": "all"
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "configurations": {
+            "production": {
+              "buildTarget": "svg-studio:build:production"
+            },
+            "development": {
+              "buildTarget": "svg-studio:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        },
+        "test": {
+          "builder": "@angular/build:unit-test"
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": ["projects/svg-studio/**/*.ts", "projects/svg-studio/**/*.html"],
+            "eslintConfig": "projects/svg-studio/eslint.config.js"
+          }
+        }
+      }
     }
   }
 }
