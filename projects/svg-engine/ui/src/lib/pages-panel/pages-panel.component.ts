@@ -160,25 +160,40 @@ import { ActivePageService, PagesService } from 'svg-engine/edit';
          the browser's Selection Action Menu (Translate / Copy popup). */
       user-select: none;
       -webkit-user-select: none;
+      /* **AUDIT FIX U3 (v2 — click bug)** — Stacking context guard.
+         When the consumer mounts this as an absolute-positioned
+         overlay (shell-pro's .pages-overlay), the host needs its own
+         stacking context so the inner .pages-bar's effective
+         pointer-events / z-index handling doesn't get clobbered by
+         sibling overlays (e.g., the renderer's <svg> inside
+         workspace-background). position: relative + isolation: isolate
+         is the canonical recipe — costs nothing when the host isn't
+         absolute-positioned (CSS no-op for default static flow). */
+      position: relative;
+      isolation: isolate;
     }
     /* Background + border live on .pages-bar (not :host) so the
        component renders nothing visible when its inner template is
        gated out (legacy docs with zero pages). Saves a stray
        horizontal line across the shell for users who never opt
        into pages. */
-    /* **AUDIT FIX U3** — was display: flex (full-width strip);
-       switched to display: inline-flex so the bar only occupies the
-       width of its content. Used to be its own grid row so full-width
-       was fine; after PAGES-REFACTOR follow-up #8 moved it into the
-       canvas as a bottom overlay, full-width blocked clicks across
-       the entire bottom 30 px of the canvas. Inline-flex + max-width
-       caps the bar to its content, so shapes to the left/right of
-       the visible tabs are clickable through the transparent area
-       around the bar. The host (display: block) is positioned by the
-       consumer; the inline-flex child sits at its natural inline
-       position (text-align: start = left, matching Illustrator). */
+    /* **AUDIT FIX U3 (v2 — click bug)** — was display: flex
+       (full-width strip); then briefly inline-flex (which made the
+       Add button unresponsive in shell-pro overlay mount — the
+       inline outer-display interacted badly with the absolute-
+       positioned host and pointer-events: none / auto cascade).
+       Now uses display: flex + width: fit-content to achieve the
+       same content-width sizing while staying block-level — no
+       inline weirdness, hit-testing on the inner buttons works
+       reliably regardless of how the consumer positions the host.
+       max-width: 100% caps the bar so 40+ tabs don't blow past the
+       canvas edge. Explicit pointer-events: auto on the bar AND on
+       the buttons inside guarantees clicks land even if the
+       consumer's .pages-overlay > * cascade rule is overridden by
+       a later sibling rule. */
     .pages-bar {
-      display: inline-flex;
+      display: flex;
+      width: fit-content;
       align-items: stretch;
       gap: 2px;
       padding: 2px 0.5rem;
@@ -190,6 +205,13 @@ import { ActivePageService, PagesService } from 'svg-engine/edit';
       background: var(--mat-sys-surface-container-low, transparent);
       border-bottom: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
       border-radius: 4px 4px 0 0;
+      pointer-events: auto;
+    }
+    .pages-bar .page-tab,
+    .pages-bar .add-btn,
+    .pages-bar .close-btn,
+    .pages-bar .rename-input {
+      pointer-events: auto;
     }
     .page-tab {
       display: inline-flex;
