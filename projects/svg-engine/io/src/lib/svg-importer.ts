@@ -179,6 +179,37 @@ function parseChildren(
  * passes that straight to the factory which uses the standard empty
  * metadata default.
  */
+/**
+ * **D-053/D-069 follow-up — Multi-line tspan import.** Mirror of the
+ * exporter's tspan emission: when a `<text>` element has direct
+ * `<tspan>` children, each tspan represents one rendered line and the
+ * lines join with `\n` to reconstruct {@link TextNode.content}.
+ *
+ * - **Tspan path** (round-trip from our own exporter, or from
+ *   Inkscape/Illustrator/Figma which all emit multi-line text the
+ *   same way): concatenate `tspan.textContent` separated by `\n`.
+ *   `<title>` / `<desc>` direct children are skipped — those carry
+ *   metadata (authored name via D-072), not user-visible text.
+ * - **Plain text path** (legacy / 3rd-party files / files exported by
+ *   this editor before this fix): fall back to `el.textContent`
+ *   verbatim. Matches the pre-existing single-string semantics so we
+ *   don't regress simple `<text>foo</text>` imports.
+ *
+ * **Why a dedicated helper** (vs inlining in `case 'text'`): the
+ * tspan-aware logic needs DOM-aware filtering (skip `<title>` /
+ * `<desc>` / non-tspan elements) which is non-trivial inline. Keeping
+ * it factored out also opens the door to future enhancements like
+ * preserving per-line `x` overrides or `dy` deltas without growing
+ * the createNode switch.
+ */
+function parseTextContent(el: Element): string {
+  const tspans = Array.from(el.children).filter((c) => c.tagName.toLowerCase() === 'tspan');
+  if (tspans.length > 0) {
+    return tspans.map((t) => t.textContent ?? '').join('\n');
+  }
+  return el.textContent ?? '';
+}
+
 function parseAuthoredName(el: Element): string | undefined {
   // 1. Direct <title> child — preferred.
   for (const child of Array.from(el.children)) {
@@ -372,7 +403,7 @@ function parseElement(
         {
           x: numberAttr(el, 'x', 0),
           y: numberAttr(el, 'y', 0),
-          content: el.textContent ?? '',
+          content: parseTextContent(el),
           fontSize: optionalNumberAttr(el, 'font-size'),
         },
         baseFactoryOpts(el),

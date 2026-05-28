@@ -297,3 +297,120 @@ describe('svgExporter — D-069 typography basics', () => {
     expect(out).toContain('text-decoration="underline"');
   });
 });
+
+// ── D-053 / D-069 follow-up — Multi-line tspan emission ───────────
+//
+// Pre-fix the exporter emitted text content as a single plain run
+// with literal `\n`s (collapsed to a space by most SVG viewers).
+// Post-fix it splits on `\n` and emits one `<tspan x dy>` per line,
+// matching the canvas renderer so WYSIWYG holds when the file is
+// opened elsewhere. Single-line text stays in the legacy plain-CDATA
+// shape (back-compat with snapshots / 3rd-party tools).
+describe('svgExporter — D-053/D-069 multi-line tspan emission', () => {
+  it('keeps single-line text as plain character data (back-compat)', () => {
+    const t = createText({ x: 0, y: 10, content: 'single' });
+    const out = exportNode([t]);
+    // Inline form: <text ...>single</text> — no tspan, no newlines
+    // inside <text>.
+    expect(out).toMatch(/<text[^>]*>single<\/text>/);
+    expect(out).not.toContain('<tspan');
+  });
+
+  it('splits multi-line content into one <tspan> per line', () => {
+    const t = createText({ x: 5, y: 12, content: 'one\ntwo\nthree' });
+    const out = exportNode([t]);
+    // Each line becomes its own tspan with x reset and dy.
+    expect(out).toContain('<tspan x="5" dy="0">one</tspan>');
+    expect(out).toContain('<tspan x="5" dy="1.2em">two</tspan>');
+    expect(out).toContain('<tspan x="5" dy="1.2em">three</tspan>');
+  });
+
+  it('uses node.lineHeight when set (overrides default 1.2em)', () => {
+    const t = { ...createText({ x: 0, y: 10, content: 'a\nb' }), lineHeight: 1.5 };
+    const out = exportNode([t]);
+    expect(out).toContain('<tspan x="0" dy="0">a</tspan>');
+    expect(out).toContain('<tspan x="0" dy="1.5em">b</tspan>');
+  });
+
+  it('falls back to 1.2em when lineHeight is non-finite or <= 0 (defensive)', () => {
+    const bad = { ...createText({ x: 0, y: 10, content: 'a\nb' }), lineHeight: 0 };
+    const out = exportNode([bad]);
+    // dy on the second line uses the default, not "0em".
+    expect(out).toContain('<tspan x="0" dy="1.2em">b</tspan>');
+  });
+
+  it('escapes XML special chars per-line (no double-escape, no leak)', () => {
+    const t = createText({ x: 0, y: 10, content: '<a&b>\n"c"' });
+    const out = exportNode([t]);
+    expect(out).toContain('<tspan x="0" dy="0">&lt;a&amp;b&gt;</tspan>');
+    // " inside CDATA stays literal (escapeXml only handles & < >);
+    // attribute values use escapeAttr — they're not at risk here.
+    expect(out).toContain('<tspan x="0" dy="1.2em">"c"</tspan>');
+  });
+
+  it('keeps <title> child BEFORE the tspans when authored name is set', () => {
+    const t = {
+      ...createText({ x: 0, y: 10, content: 'line1\nline2' }),
+      metadata: { name: 'Greeting' },
+    };
+    const out = exportNode([t]);
+    // <title> appears before the first tspan in the output.
+    const titleIdx = out.indexOf('<title>Greeting</title>');
+    const firstTspanIdx = out.indexOf('<tspan');
+    expect(titleIdx).toBeGreaterThanOrEqual(0);
+    expect(firstTspanIdx).toBeGreaterThan(titleIdx);
+  });
+
+  it('textPath still flattens \\n to space (textPath does not honour line breaks)', () => {
+    const t = {
+      ...createText({ x: 0, y: 10, content: 'curve\nbreak' }),
+      textPathRef: 'mypath' as never,
+    };
+    const out = exportNode([t]);
+    // No tspans in textPath case; the runtime flattens whitespace.
+    expect(out).toContain('<textPath href="#mypath">curve break</textPath>');
+    expect(out).not.toContain('<tspan');
+  });
+
+  it('round-trips multi-line content through import (full export → import)', async () => {
+    // Pure round-trip — export emits tspans, importer reads them back
+    // into the original `\n`-separated content string.
+    if (typeof DOMParser === 'undefined') return;
+    const { svgImporter } = await import('./svg-importer');
+    const original = createText({ x: 4, y: 20, content: 'alpha\nbeta\ngamma' });
+    const doc: SvgDocument = {
+      id: 'd' as never,
+      viewBox: { x: 0, y: 0, width: 100, height: 100 },
+      root: createGroup([original], { id: 'r' as never }),
+    };
+    const xml = svgExporter.export(doc);
+    if (typeof xml !== 'string') throw new Error('exporter returned non-string');
+    const reimported = svgImporter.import(xml);
+    expect(reimported.ok).toBe(true);
+    if (!reimported.ok) return;
+    const text = reimported.document.root.children.find((c: SvgNode) => c.type === 'text');
+    expect(text).toBeDefined();
+    if (text === undefined || text.type !== 'text') return;
+    expect(text.content).toBe('alpha\nbeta\ngamma');
+  });
+
+  it('round-trips single-line content unchanged (back-compat path)', async () => {
+    if (typeof DOMParser === 'undefined') return;
+    const { svgImporter } = await import('./svg-importer');
+    const original = createText({ x: 0, y: 10, content: 'just one line' });
+    const doc: SvgDocument = {
+      id: 'd' as never,
+      viewBox: { x: 0, y: 0, width: 100, height: 100 },
+      root: createGroup([original], { id: 'r' as never }),
+    };
+    const xml = svgExporter.export(doc);
+    if (typeof xml !== 'string') throw new Error('exporter returned non-string');
+    const reimported = svgImporter.import(xml);
+    expect(reimported.ok).toBe(true);
+    if (!reimported.ok) return;
+    const text = reimported.document.root.children.find((c: SvgNode) => c.type === 'text');
+    expect(text).toBeDefined();
+    if (text === undefined || text.type !== 'text') return;
+    expect(text.content).toBe('just one line');
+  });
+});

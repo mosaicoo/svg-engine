@@ -393,12 +393,8 @@ function renderText(node: TextNode, depth: number, ctx: ExportContext): string {
   if (node.fontWeight !== undefined) attrs.push(['font-weight', String(node.fontWeight)]);
   if (node.textAnchor !== undefined) attrs.push(['text-anchor', node.textAnchor]);
   // D-069 — typography basics. `font-style` + `text-decoration` are
-  // standard SVG attributes. `line-height` is NOT applied here because
-  // the exporter emits text content as a single plain run with embedded
-  // `\n` (a pre-D-069 limitation: the canvas splits into <tspan>s but
-  // the exporter does not). Once a future change adds multi-line tspan
-  // emission, the per-tspan `dy` should read `node.lineHeight ?? 1.2`
-  // (same default as the renderer) to keep canvas/export in lockstep.
+  // standard SVG attributes emitted directly. `lineHeight` drives the
+  // multi-line `<tspan dy>` emission below (D-053/D-069 follow-up).
   if (node.fontStyle !== undefined) attrs.push(['font-style', node.fontStyle]);
   if (node.textDecoration !== undefined) attrs.push(['text-decoration', node.textDecoration]);
   // D-053 — Variable Fonts + OpenType + letter spacing. These are CSS
@@ -439,15 +435,61 @@ function renderText(node: TextNode, depth: number, ctx: ExportContext): string {
     return `${indent}<text${attrsStr([...attrs, ...baseAttrs(node)])}>\n${titleLine}${'  '.repeat(depth + 1)}<textPath href="#${escapeAttr(refStr)}"${offsetAttr}>${escapeXml(flat)}</textPath>\n${indent}</text>`;
   }
 
-  // **D-072 follow-up** — When the text has an authored name AND no
-  // textPath wrapping, emit the `<title>` child before the text
-  // content so screen readers announce the name first. Tspans /
-  // mixed-content forks aren't relevant here (renderer emits text as
-  // a single character data node, so we keep that shape).
-  if (shouldEmitTitle(node, ctx)) {
-    return `${indent}<text${attrsStr([...attrs, ...baseAttrs(node)])}>\n${titleChildLine(node, depth + 1, ctx)}\n${'  '.repeat(depth + 1)}${escapeXml(node.content)}\n${indent}</text>`;
+  // **D-053/D-069 follow-up — Multi-line tspan emission**. The
+  // editor's canvas renderer splits `node.content` on `\n` and emits
+  // one `<tspan dy>` per line so what the user sees is laid out as
+  // real text lines (not a single run with literal newlines, which
+  // most SVG viewers collapse to a single space). Mirror that in the
+  // exporter so a saved file opens elsewhere with the same line
+  // layout — otherwise WYSIWYG breaks the moment the file leaves the
+  // editor. Single-line text (no `\n`) keeps the plain-character-data
+  // shape for back-compat with snapshots / specs / other tools that
+  // expected the legacy form.
+  const lines = node.content.includes('\n') ? node.content.split('\n') : null;
+  const titleLine = shouldEmitTitle(node, ctx) ? titleChildLine(node, depth + 1, ctx) : null;
+
+  if (lines !== null) {
+    // Multi-line — emit a `<tspan>` per line. Every tspan resets `x`
+    // to the parent text's `x` (without it, tspans flow continuously
+    // from the previous run's end-x, which is NOT a line break). `dy`
+    // shifts each line down by `lineHeight em`s relative to the
+    // previous baseline; first line uses `0` so we don't push the
+    // text below `node.y` (single-line equivalent stays at y exactly).
+    const lineDy = resolveLineHeightEm(node);
+    const innerIndent = '  '.repeat(depth + 1);
+    const xAttr = fmt(node.x);
+    const tspans = lines
+      .map((line, i) => {
+        const dy = i === 0 ? '0' : lineDy;
+        return `${innerIndent}<tspan x="${xAttr}" dy="${dy}">${escapeXml(line)}</tspan>`;
+      })
+      .join('\n');
+    const titlePrefix = titleLine !== null ? `${titleLine}\n` : '';
+    return `${indent}<text${attrsStr([...attrs, ...baseAttrs(node)])}>\n${titlePrefix}${tspans}\n${indent}</text>`;
+  }
+
+  // **D-072 follow-up** — Single-line text with an authored name:
+  // emit `<title>` child before the text content so screen readers
+  // announce the name first.
+  if (titleLine !== null) {
+    return `${indent}<text${attrsStr([...attrs, ...baseAttrs(node)])}>\n${titleLine}\n${'  '.repeat(depth + 1)}${escapeXml(node.content)}\n${indent}</text>`;
   }
   return `${indent}<text${attrsStr([...attrs, ...baseAttrs(node)])}>${escapeXml(node.content)}</text>`;
+}
+
+/**
+ * **D-053/D-069 follow-up** — resolve `node.lineHeight` to a CSS-style
+ * `em` string for `<tspan dy>` emission. Mirrors the renderer's
+ * `textLineDy()` defaults (node-renderer.component.ts): when
+ * `lineHeight` is undefined / non-finite / `<= 0`, falls back to the
+ * canonical `1.2` (the pre-D-069 hardcoded leading). Keeping both
+ * sides in lockstep guarantees the in-editor preview and the exported
+ * file render with identical line spacing.
+ */
+function resolveLineHeightEm(node: TextNode): string {
+  const lh = node.lineHeight;
+  const factor = typeof lh === 'number' && Number.isFinite(lh) && lh > 0 ? lh : 1.2;
+  return `${factor}em`;
 }
 
 function renderImage(node: ImageNode, depth: number, ctx: ExportContext): string {
