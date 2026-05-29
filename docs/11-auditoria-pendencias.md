@@ -227,6 +227,58 @@ grep -rn 'About SVGEngine\|svge-about\|AboutDialog' projects/svg-engine/ui
 
 ---
 
+### 6. Sistema de unidades na régua (mm/cm/in/pt) — `MÉDIA` (deferred — future feature)
+
+**Contexto** (registrado em 2026-05-28 a pedido do usuário, após auditoria do selection-band shipped no commit `72ddc34`): a régua hoje mostra apenas **unidades abstratas de documento** (mesmo espaço do `viewBox`). Não há unidade física associada nem sufixo no label. Quando o `viewBox` está em pixels, os valores coincidem numericamente com pixels CSS, mas a régua não afirma isso em lugar nenhum — é convenção, não contrato.
+
+**Evidência**:
+
+- `projects/svg-engine/edit/src/lib/workspace/workspace.service.ts:35-37`:
+  ```
+  Units are abstract document units — same as `viewBox`. We don't bake
+  in mm/in/px here because conversion is the consumer's job (depends
+  on output device DPI). A future `units` extension can layer on top.
+  ```
+- `projects/svg-engine/ui/src/lib/rulers/rulers.component.ts:731-735` — `formatLabel(value)` retorna número puro sem sufixo de unidade:
+  ```ts
+  function formatLabel(value: number): string {
+    if (Math.abs(value) >= 1000) return `${Math.round(value)}`;
+    if (Math.abs(value) >= 1 || value === 0) return `${Math.round(value * 100) / 100}`;
+    return value.toFixed(2);
+  }
+  ```
+- Não existe nenhum signal `currentUnit` no `WorkspaceService` nem token `EDITOR_UNIT_SYSTEM`. Grep `'mm\\|cm\\|in\\b\\|pt\\b'` no diretório `rulers/` retorna zero hits relevantes pra unidade.
+
+**Verificação**:
+
+```bash
+grep -rn 'currentUnit\|unitSystem\|EDITOR_UNIT' projects/svg-engine/
+# Zero hits
+grep -n 'formatLabel\|niceTickSpacing' projects/svg-engine/ui/src/lib/rulers/rulers.component.ts
+# formatLabel: 731 (sem sufixo); niceTickSpacing: usa "px" implícito
+```
+
+**O que falta** (escopo de uma decision nova, provável D-080 quando priorizado):
+
+1. **Modelo de unidades** em `WorkspaceService`: signal `currentUnit: 'px' | 'mm' | 'cm' | 'in' | 'pt'` + signal `dpi: number` (default 96) configuráveis per-editor (via D-042 scope).
+2. **Conversão doc → unit display**: helper puro `convertDocToUnit(value, unit, dpi): number` (px = 1:1 com doc unit; mm = `value / dpi * 25.4`; in = `value / dpi`; pt = `value / dpi * 72`; cm = `mm / 10`).
+3. **Sufixo no label** quando `unit ≠ 'px'`: `formatLabel(value, unit)` retorna `"50mm"` em vez de `"50"`. Atalho: se `currentUnit() === 'px'`, manter o comportamento atual (sem sufixo) pra evitar regressão visual.
+4. **`niceTickSpacing` ajustado por unit**: hoje o algoritmo escolhe 1/2/5/10 × 10^N que faz sentido em pixels; em mm/cm precisamos da mesma família mas em escala diferente (1mm, 5mm, 10mm, 50mm…). Provavelmente o mesmo nice-spacing funciona, mas precisa rodar zoom-out extremo pra validar que os labels não colidem.
+5. **UI em Workspace Settings**: dropdown `<mat-select>` "Display unit" no `<svge-workspace-settings-dialog>` ligando ao signal. Persistir via `WorkspaceConfig` (round-trip pelo file format ou localStorage, mesmo pattern do D-073/D-077).
+6. **Inspector + Page sizes alinhados**: a unit configurada deve refletir no Inspector (campos `x`, `y`, `width`, `height` mostrarem `50mm` quando unit=mm) e no Page sizes preset list (A4 = 210×297mm já em mm-native em vez de 794×1123px).
+7. **Round-trip no SVG export**: emitir `<svg width="50mm" height="50mm" viewBox="0 0 189 189">` quando unit=mm, preservando a unidade declarada quando o SVG é re-aberto.
+
+**Impacto**:
+
+- Sem isso, a régua é "honest about being abstract" mas users vindos de Illustrator/Figma esperam ver "mm" / "in" quando trabalham em layouts pra print.
+- Bloqueia features de print/export físico (PDF com tamanho real, export de assets pra mídia impressa em DPI específico).
+
+**Por que está deferred**: o usuário sinalizou explicitamente "será algo que teremos que avançar em algum momento". É feature transversal (toca rulers + workspace + inspector + page sizes + export) e merece um D-080 dedicado em vez de squeeze em outra task.
+
+**Workaround atual**: usuário pode mentalmente assumir que `1 doc unit ≈ 1px CSS` quando o viewBox usa dimensões em pixels. Para print, exportar SVG e abrir em ferramenta externa que aplique a unidade real.
+
+---
+
 ## Itens INICIALMENTE listados como pendentes mas CONFIRMADOS já resolvidos
 
 ### Page selection overlay specs — `JÁ COBERTO`
