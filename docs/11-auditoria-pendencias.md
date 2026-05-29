@@ -481,7 +481,17 @@ Constant removido após verificação protocolo-correta de zero consumers. O gre
 
 ---
 
-#### 13. `extra-tools.ts` sem spec dedicado — `ALTA` (risco de regressão)
+#### 13. `extra-tools.ts` sem spec dedicado — `ALTA` → ✅ **ENTREGUE** (commit `249b468`, 2026-05-29)
+
+**28 specs novos** em `extra-tools.spec.ts` cobrindo contract surface dos 6 tools + 6 services:
+
+- **Plugin contract** (4): metadata shape, 6 tools registered, IDs canonical, uninstall removes all
+- **Per-tool registration** (8): id/label/icon/cursor/shortcut por tool + getByShortcut + unique-shortcuts check
+- **Per-service defaults + clamping** (16): defaults + setter clamps + non-finite rejection para Eyedropper/Knife/Smooth/Gradient/Width/SymbolSprayer
+
+Suite saiu de 1828 para **1856 passing**. **Protocolo aplicado mid-flight**: 2 assertions falharam no primeiro run porque presumi valores sem ler source — após reverificação (icon real é `auto_awesome` não `auto_awesome_motion`; tapered profile usa `sin(π·t)` que retorna ε no extremo, não 0), spec usa `toBeCloseTo` para floating-point. Erros caught pelo próprio spec antes do commit — confirma o valor de prevenção de regressão da contract spec.
+
+#### 13-OLD. extra-tools spec — info original abaixo
 
 **Evidência** (verificado por mim via `Grep extra-tools.spec` retornou `No files found`):
 
