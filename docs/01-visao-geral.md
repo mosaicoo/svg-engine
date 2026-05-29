@@ -80,12 +80,12 @@ Cada rota tem **nome que descreve a atividade**, não a categoria arquitetural:
 A library é desenhada para que terceiros consumam de **quatro** formas
 distintas. Todas precisam funcionar sem quebrar as outras:
 
-| Modo                  | O que o consumer importa                                                   | Componentes UI envolvidos              |
-| --------------------- | -------------------------------------------------------------------------- | -------------------------------------- |
-| **1. Headless puro**  | `svg-engine/{core,render,io,optimize,edit}` — sem `ui`                     | Nenhum — consumer constrói UI própria  |
-| **2. Shell completo** | `svg-engine/ui` (`<svge-shell-pro>` ou `<svge-editor [shell]="true">`)     | Editor profissional pronto             |
-| **3. Shell parcial**  | `svg-engine/ui` (escolhendo componentes individuais)                       | Toolbar + canvas + inspector (por ex.) |
-| **4. Canvas-only**    | `svg-engine/render` (`<svge-canvas>`) + opcionalmente `edit` para gestures | Só o canvas + pan/zoom                 |
+| Modo                  | O que o consumer importa                                                                                   | Componentes UI envolvidos              |
+| --------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| **1. Headless puro**  | `svg-engine/{core,render,io,optimize,edit}` — sem `ui`                                                     | Nenhum — consumer constrói UI própria  |
+| **2. Shell completo** | `svg-engine/ui` (`<svge-shell-pro>` ou `<svge-editor [shell]="true">`)                                     | Editor profissional pronto             |
+| **3. Shell parcial**  | `svg-engine/ui` (escolhendo componentes individuais)                                                       | Toolbar + canvas + inspector (por ex.) |
+| **4. Canvas-only**    | `svg-engine/render` (`<svge-renderer>`) + opcionalmente `edit` para gestures via `[svgeShellInteractions]` | Só o canvas + pan/zoom                 |
 
 **Consequência arquitetural**: nenhum entry point headless pode
 importar Material/CDK (D-017). `svg-engine/ui` é o único que pode.
@@ -101,13 +101,23 @@ A `playground` demonstra os 4 modos em rotas separadas.
 - Owner: `mosaicoo`
 - Branch padrão: `main`
 
-## Estado atual (2026-05-14)
+## Estado atual (2026-05-29)
 
-- Restrições do agente configuradas em `.claude/settings.local.json`.
-- `.gitignore` inicial criado.
-- Pasta `docs/` em estruturação (01–08).
-- **Nenhum** scaffold Angular gerado ainda — só após validação do
-  roadmap e dos documentos 02 e 05.
+- **Library publicável** (`projects/svg-engine/`) versão **0.1.0** com **8 secondary entry points** (`core`, `render`, `io`, `optimize`, `edit`, `ui`, `ai/nlu`, `ai/nlu-ui`) + 1 umbrella não-funcional. Headless boundary D-017 íntegra (Material/CDK só em `ui` e `ai/nlu-ui`).
+- **2 apps consumers**: `playground` (showcase com 8 rotas) e `svg-studio` (deliverable de produto, full-bleed pro-editor).
+- **Cobertura de testes**: **1825 specs passando** em 132 arquivos (1 skip intencional: FUTURE-FIX NLU tiebreaker). Build clean nos 3 projetos. Lint clean.
+- **Features shipadas** (resumido — ver `docs/05-roadmap.md`):
+  - **Core engine** (Fase 2+3): 10 tipos de nó, 38 comandos, scope per-editor (D-042), CommandBus com auto-snapshot interceptor
+  - **Render** (Fase 2 Bloco 2): `<svge-renderer>` + 9 directives per-tipo + ViewportService + NodeRendererRegistry
+  - **IO + Optimize** (Fase 5): SVG importer/exporter determinístico + PNG exporter + 4 optimizers built-in
+  - **Edit + UI completos**: 15 tools, 6 capability registries + 9 library catalogs, 27 plugins built-in, 43 componentes UI (todos `standalone`+`OnPush`), 6 dialogs com service opener centralizado (D-044)
+  - **Performance** (Fase 6): meta 60fps@1k+ atingida (1k=161 FPS), viewport culling opt-in, perf harness
+  - **Path Editor + Pathfinder**: AnchorOverlay + 4 anchor commands + 5 boolean ops via `polygon-clipping`
+  - **NLU** (Fase 8.1): `NaturalLanguageService` rule-based, ~33 intents customizados (5 builtin + 28 professional), voice via Web Speech
+  - **Pages / Artboards** (D-079 + D-080): multi-page com `<svge-page-selection-overlay>`, brackets em L + mid-edge brackets, page tool (Illustrator Artboard Tool pattern), persistência localStorage
+  - **History Snapshots** (D-073), **Smart Objects** (D-074), **Asset Export** (D-077), **Find & Replace** (D-070), **Logical Layers** (D-072), **Effects ecosystem** (D-047), **Libraries ecosystem** (D-048)
+- **Auditoria persistente**: `docs/11-auditoria-pendencias.md` cataloga **22 pendências reais** (8 código + 8 doc drift + 6 originais) com `file:line` por item. Protocolo "auditar antes de agir" estabelecido como regra absoluta.
+- **Próximo grande passo**: doc 04 (decisões técnicas) — ~35 seções D-XXX faltando entre D-046 e D-079; e completar mermaid diagrams do doc 02.
 
 ## Stack alvo
 

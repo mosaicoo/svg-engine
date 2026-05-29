@@ -194,26 +194,32 @@ flowchart TD
     direction LR
     PG["playground<br/>(desenvolvimento)"]
     MOS["Mosaicoo<br/>(produto interno)"]
+    STD["svg-studio<br/>(deliverable produto)"]
     EXT["3rd party<br/>(npm consumer)"]
   end
 
-  subgraph Library["svg-engine (library, 6 secondary entry points)"]
+  subgraph Library["svg-engine (library, 8 secondary entry points + 1 umbrella)"]
     direction TB
 
-    subgraph UIBox["svg-engine/ui &nbsp; - &nbsp; UNICA camada com Material/CDK"]
-      UI["svge-editor / svge-shell-pro / svge-toolbar /<br/>svge-menu-bar / svge-context-menu /<br/>svge-tools-palette / svge-tool-options /<br/>svge-inspector / svge-layers-panel / svge-status-bar /<br/>svge-isolation-breadcrumb / svge-color-picker /<br/>svge-effects-panel / svge-svg-source-dialog /<br/>svge-workspace-settings / svge-theme-toggle"]
+    subgraph AIBox["AI / NLU layer (opt-in, separada)"]
+      AINLU["svg-engine/ai/nlu (headless)<br/>NaturalLanguageService + parsers PT/EN<br/>dictionaries (actions/colors/shapes/stopwords)<br/>builtinNluPlugin + 33 intents (5 builtin + 28 pro)<br/>menu auto-discovery (one-shot)"]
+      AINLUUI["svg-engine/ai/nlu-ui<br/>&lt;svge-nlu-input&gt; + VoiceRecognitionService<br/>(Web Speech API, default pt-BR)<br/>UNICA dep Material fora de svg-engine/ui"]
+    end
+
+    subgraph UIBox["svg-engine/ui &nbsp; - &nbsp; ~42 componentes Material/CDK"]
+      UI["Shells: svge-editor / svge-shell-pro<br/>Bars: svge-menu-bar / svge-toolbar / svge-status-bar /<br/>svge-context-menu / svge-tool-options / svge-tools-palette<br/>Panels: svge-inspector (2314 linhas) / svge-layers-panel /<br/>svge-color-palette / svge-color-picker /<br/>svge-effects-panel / svge-libraries-panel /<br/>svge-pages-panel / svge-snapshots-panel /<br/>svge-asset-export-panel / svge-panel-group<br/>Dialogs (padrão D-044): svge-dialog-shell +<br/>SvgSourceDialog / WorkspaceSettings / FindReplace /<br/>SmartObject / TraceImage / About<br/>Misc: svge-rulers / svge-isolation-breadcrumb /<br/>svge-theme-toggle / svge-gradient-editor<br/>+ 14 tool-options components<br/>+ ToolOptionsRegistry (D-066)<br/>+ builtinUiMenuContributionsPlugin (D-044)"]
     end
 
     subgraph HeadlessBox["HEADLESS BOUNDARY (D-017) - Material/CDK PROIBIDOS abaixo"]
-      EDIT["svg-engine/edit<br/>Services: SelectionService, IsolationService,<br/>WorkspaceService, LayersService, SnapService,<br/>TransformService, ToolHostService, AutosaveService,<br/>AnchorSelectionService, AlignmentService,<br/>ShapeToolService, PenToolService, ViewportCullingService<br/>Registries: ToolRegistry, MenuContributionRegistry,<br/>ShortcutRegistry, PaletteRegistry, EffectRegistry<br/>Plugin scaffolding: EditorPlugin, provideSvgEnginePlugin,<br/>provideBuiltinPlugins<br/>Diretivas: svgeShellInteractions, SvgeCanvasGestures,<br/>PageOverlay, WorkspaceBackground, IsolationFilter<br/>Built-in plugins: shape-tools, pen-tool, text-tool,<br/>selection-nudge, builtin-editor-shortcuts,<br/>builtin-optimizers"]
+      EDIT["svg-engine/edit (49 services, 27 plugins, 6 registries + 9 library catalogs)<br/>Core services: SelectionService, IsolationService,<br/>WorkspaceService, LayersService, SnapService,<br/>TransformService, ToolHostService, AutoSaveService,<br/>AnchorSelectionService, AlignmentService, MarqueeService,<br/>ShapeToolService, PenToolService, ViewportCullingService<br/><br/>PAGES (D-079 + D-080): PagesService, ActivePageService<br/>(implements InsertParentResolver), PageDragService<br/><br/>Snapshots/persistence (D-073/D-077): SnapshotsPersistence,<br/>AssetExportRegistry + Runner + Persistence, ClipboardService<br/><br/>Library catalogs (D-048, root): Shape/Template/GraphicStyle/<br/>Pattern/Mask/ClipPath/Gradient/Brush/Symbol +<br/>5 active-defs scoped + ActiveDefsService composer<br/><br/>Capability registries: ToolRegistry,<br/>MenuContributionRegistry, ShortcutRegistry,<br/>PaletteRegistry, EffectRegistry, AssetExportRegistry<br/><br/>Plugin scaffolding: EditorPlugin, PluginRegistry,<br/>provideSvgEnginePlugin, provideSvgEngineEditorScope (D-042)<br/><br/>Directives: svgeShellInteractions (D-039),<br/>SvgeCanvasGestures, PageOverlay, PageSelectionOverlay,<br/>WorkspaceBackground, IsolationFilter, AnchorOverlay,<br/>SelectionOverlay, RotationPivot, Marquee, SnapGuides<br/><br/>Pointer: capturePointer/releasePointer/isEditableTarget (D-036)<br/>Hit-testing: findOwningNodeId, resolveSelectableNodeId<br/><br/>Built-in plugins (27): shape-tools, pen-tool, text-tool,<br/>extra-tools (6 tools), page-tool, selection-nudge,<br/>builtin-editor-shortcuts, builtin-menu-contributions,<br/>builtin-insert-menu, builtin-advanced-edit-menu,<br/>builtin-palettes, builtin-effects, builtin-io,<br/>png-exporter, builtin-optimizers, 9 library plugins"]
 
-      OPT["svg-engine/optimize<br/>OptimizerRegistry / OptimizeCommand<br/>Passes built-in (cleanupAttrs, removeEmptyGroups,<br/>collapseTransforms, ...)"]
+      OPT["svg-engine/optimize<br/>OptimizerRegistry / OptimizeCommand<br/>4 builtin passes (D-072g):<br/>precision / dropDefaults /<br/>stripAuthoredTitles (opt-in) / pruneEmptyGroups"]
 
-      IO["svg-engine/io<br/>ImporterRegistry / ExporterRegistry<br/>svgImporter / svgExporter / pngExporter"]
+      IO["svg-engine/io<br/>ImporterRegistry / ExporterRegistry<br/>svgImporter (sanitiza script/on*/javascript:)<br/>svgExporter (determinístico 6 decimais)<br/>pngExporter + renderPng (helper público)"]
 
-      RENDER["svg-engine/render<br/>SvgeRenderer / NodeRenderer / NodeRendererRegistry<br/>ViewportService / screenToDoc<br/>13 directives de render (rect/ellipse/path/text/...)"]
+      RENDER["svg-engine/render<br/>SvgeRenderer + NodeRendererRegistry<br/>ViewportService / screenToDoc (D-036)<br/>9 per-type directives (rect/ellipse/line/<br/>polygon/polyline/path/text/image/symbol-use)<br/>+ Dispatcher SvgeNodeRenderer"]
 
-      CORE["svg-engine/core (base, sem deps internas)<br/>Tipos: SvgNode, SvgDocument, NodeId, Point,<br/>BoundingBox, Transform, AnchorPoint<br/>Document: createEmptyDocument, findNodeById, walk<br/>Commands: 20+ (Move/Resize/Rotate/Insert/Remove/<br/>Group/Ungroup/SetProperty/Pathfinder/Anchor/...)<br/>CommandBus / EditorStateService<br/>Geometry: bbox, path-anchors, transform-math<br/>Registries-core: PluginInfoRegistry"]
+      CORE["svg-engine/core (base, sem deps internas)<br/>10 tipos no union SvgNode (rect/ellipse/line/<br/>polygon/polyline/path/text/image/group/symbol-use)<br/>3 kinds via metadata: Layer/SmartObject/Page<br/>SvgDocument + tree ops imutáveis (findNodeById, walk, etc)<br/><br/>38 Commands (Insert/Remove/Move/Resize/Rotate/Flip/<br/>Group/Ungroup/SetProperty×3/Anchor×4/<br/>Compound×2/LiveBoolean×3/Pathfinder×5/<br/>Layer×3/Page×6+EnsureDefault/SmartObject×4/<br/>Snapshot×1/Duplicate/KnifeCut/BatchConvertToPath)<br/>4 marcam isDestructive: Pathfinder base, DeletePage,<br/>BatchConvertToPath, RestoreSnapshot=false explícito<br/><br/>CommandBus (auto-snapshot gate via isDestructive)<br/>EditorStateService / HistoryService<br/>SnapshotsService (D-073, scope-only)<br/>Geometry: bbox, anchors, scale-bake, path-d-scaler,<br/>transform-decompose, round-corners (D-055), flatten<br/>AUTO_PARENT (D-080) + INSERT_PARENT_RESOLVER token"]
     end
   end
 
@@ -222,14 +228,16 @@ flowchart TD
     NG["@angular/core,common,forms,animations,platform-browser ^21.2"]
     CDK["@angular/cdk ^21.2 &nbsp;(optional)"]
     MAT["@angular/material ^21.2 &nbsp;(optional)"]
-    POLY["polygon-clipping ^0.15 &nbsp;(bundled)"]
+    POLY["polygon-clipping ^0.15 &nbsp;(bundled — pathfinder engine)"]
   end
 
-  PG ==>|"Modo 2/3:<br/>shell ou parcial"| UI
+  PG ==>|"Modos 1-4:<br/>showcase de todos"| UI
+  STD ==>|"Modo 2 puro:<br/>shell-pro full-bleed"| UI
   MOS ==>|"Mosaicoo escolhe<br/>por painel<br/>(D-037)"| UI
   EXT -.->|"Modo 2"| UI
   EXT -.->|"Modo 1<br/>(headless puro)"| EDIT
   EXT -.->|"Modo 1"| RENDER
+  EXT -.->|"opt-in NLU"| AINLU
 
   UI --> EDIT
   UI --> IO
@@ -237,6 +245,11 @@ flowchart TD
   UI --> CORE
   UI -.->|optional| CDK
   UI -.->|optional| MAT
+
+  AINLUUI --> AINLU
+  AINLU --> EDIT
+  AINLU --> CORE
+  AINLUUI -.->|optional| MAT
 
   EDIT --> OPT
   EDIT --> IO
@@ -252,14 +265,16 @@ flowchart TD
 
   classDef boundary fill:#fff3cd,stroke:#b88600,stroke-width:2px
   classDef ui fill:#d1e7ff,stroke:#0d6efd,stroke-width:2px
+  classDef ai fill:#e7d4ff,stroke:#7c3aed,stroke-width:2px
   classDef core fill:#d4edda,stroke:#198754,stroke-width:2px
   classDef consumer fill:#f8d7da,stroke:#dc3545,stroke-width:1px
   classDef peer fill:#e2e3e5,stroke:#6c757d,stroke-width:1px
 
   class HeadlessBox boundary
   class UIBox ui
+  class AIBox,AINLU,AINLUUI ai
   class CORE,RENDER,IO,OPT,EDIT core
-  class PG,MOS,EXT consumer
+  class PG,MOS,STD,EXT consumer
   class NG,CDK,MAT,POLY peer
 ```
 
@@ -282,17 +297,33 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-  subgraph EditServices["svg-engine/edit - Registries (DI singletons, providedIn root)"]
+  subgraph EditServicesRoot["svg-engine/edit - Capability Registries (root, providedIn)"]
     MR[MenuContributionRegistry<br/>slots menu.* + context.*]
-    TR[ToolRegistry +<br/>ToolHostService]
-    SR[ShortcutRegistry +<br/>ShortcutService]
+    TR[ToolRegistry + ToolHostService]
+    SR[ShortcutRegistry + ShortcutService]
     PAL[PaletteRegistry]
     EFR[EffectRegistry]
-    WS[WorkspaceService]
+    AER[AssetExportRegistry D-077]
+  end
+
+  subgraph EditServicesScoped["svg-engine/edit - Per-editor scope (D-042)"]
     SEL[SelectionService]
     ISO[IsolationService]
     LAY[LayersService]
     SNAP[SnapService]
+    WS[WorkspaceService]
+    APS[ActivePageService D-079/D-080<br/>implements InsertParentResolver]
+    PGS[PagesService]
+    SSV[SnapshotsService D-073<br/>+ SnapshotsPersistence]
+    SMOA[SmartObjectActions D-074]
+  end
+
+  subgraph LibCatalogs["svg-engine/edit/library - 9 catálogos (root) + 5 active-defs (scoped)"]
+    SHL[ShapeLibrary]
+    GRL[GradientLibrary]
+    SYL[SymbolLibrary]
+    BRL[BrushLibrary]
+    OTHER[+ 5 catalogs:<br/>Template/GraphicStyle/Pattern/<br/>Mask/ClipPath]
   end
 
   subgraph UIComponents["svg-engine/ui - Componentes leem signals dos registries"]
@@ -301,7 +332,8 @@ flowchart LR
     CM[svge-context-menu] --> MR
     TP[svge-tools-palette] --> TR
     TO[svge-tool-options] --> TR
-    INSP[svge-inspector] --> SEL
+    INSP[svge-inspector<br/>2314 linhas]
+    INSP --> SEL
     INSP --> LAY
     INSP --> PAL
     LP[svge-layers-panel] --> LAY
@@ -311,30 +343,41 @@ flowchart LR
     SB[svge-status-bar] --> SEL
     SB --> SNAP
     SB --> WS
+    SB --> APS
     EP[svge-effects-panel] --> EFR
     EP --> SEL
+    PP[svge-pages-panel D-079] --> PGS
+    PP --> APS
+    SNP[svge-snapshots-panel D-073] --> SSV
+    AEP[svge-asset-export-panel D-077] --> AER
+    LBP[svge-libraries-panel D-048] --> SHL
+    LBP --> GRL
+    LBP --> SYL
     WSC[svge-workspace-settings] --> WS
   end
 
-  subgraph PluginsLayer["Plugins (built-in + custom) populam os registries"]
-    BP1[shape-tools.plugin] -.registra.-> TR
-    BP2[pen-tool.plugin] -.registra.-> TR
-    BP3[text-tool.plugin] -.registra.-> TR
-    BP4[builtinEditorShortcutsPlugin] -.registra.-> SR
-    BP5[selectionNudgePlugin] -.registra.-> SR
-    BP6[demoMenuBarPlugin] -.registra.-> MR
+  subgraph PluginsLayer["27 plugins built-in populam os registries"]
+    BP1[shape-tools / pen-tool / text-tool /<br/>extra-tools / page-tool / pencil-tool] -.registra.-> TR
+    BP2[builtinEditorShortcuts /<br/>selectionNudge] -.registra.-> SR
+    BP3[builtinMenuContributions D-043 /<br/>builtinInsertMenu /<br/>builtinAdvancedEditMenu /<br/>builtinUiMenuContributions D-044] -.registra.-> MR
+    BP4[builtinPalettes /<br/>extraPalettes] -.registra.-> PAL
+    BP5[builtinEffects D-047] -.registra.-> EFR
+    BP6[9 library plugins<br/>shapes/symbols/brushes/templates/<br/>gradients/patterns/styles/<br/>clipPaths/masks] -.registra.-> SHL
+    BPN[builtinNlu D-046] -.registra intents.-> AINLUR["NaturalLanguageService<br/>(em ai/nlu)"]
     BPX[seu plugin custom] -.registra em qq registry.-> TR
-    BPX -.-> MR
-    BPX -.-> SR
   end
 
   classDef reg fill:#ffe5b4,stroke:#cc7700,stroke-width:1px
+  classDef scoped fill:#fde2c8,stroke:#b25a00,stroke-width:1px
+  classDef cat fill:#cce5ff,stroke:#0066cc,stroke-width:1px
   classDef comp fill:#d1e7ff,stroke:#0d6efd,stroke-width:1px
   classDef plug fill:#e7d4ff,stroke:#7c3aed,stroke-width:1px
 
-  class MR,TR,SR,PAL,EFR,WS,SEL,ISO,LAY,SNAP reg
-  class TB,MB,CM,TP,TO,INSP,LP,IB,SB,EP,WSC comp
-  class BP1,BP2,BP3,BP4,BP5,BP6,BPX plug
+  class MR,TR,SR,PAL,EFR,AER reg
+  class SEL,ISO,LAY,SNAP,WS,APS,PGS,SSV,SMOA scoped
+  class SHL,GRL,SYL,BRL,OTHER cat
+  class TB,MB,CM,TP,TO,INSP,LP,IB,SB,EP,PP,SNP,AEP,LBP,WSC comp
+  class BP1,BP2,BP3,BP4,BP5,BP6,BPN,BPX,AINLUR plug
 ```
 
 **Padrão arquitetural**: registries em `edit` são a **fonte de verdade**; componentes em `ui` apenas **lêem**. Plugins (built-in ou de terceiros) **populam** os registries via `EditorPlugin.install(ctx)`. Nenhum componente UI tem lista hardcoded de tools/menus/shortcuts — toda funcionalidade aparece via registro dinâmico.
@@ -356,13 +399,13 @@ flowchart TB
   end
 
   subgraph Mode4["Modo 4 - Canvas only"]
-    M4["svge-canvas sozinho<br/>Embed minimo: so render +<br/>pan/zoom. Sem tools, sem paineis."]
+    M4["svge-renderer + [svgeShellInteractions] opcional<br/>Embed minimo: so render +<br/>pan/zoom. Sem tools, sem paineis."]
   end
 
-  M1 -.->|usa apenas| L1["core / render / edit"]
-  M2 -.->|usa| L2["TODOS os 6 entry points<br/>+ Material + CDK"]
+  M1 -.->|usa apenas| L1["core / render / edit (services)"]
+  M2 -.->|usa| L2["TODOS os 8 entry points<br/>+ Material + CDK (+ opcional ai/nlu)"]
   M3 -.->|usa| L3["core / render / edit / ui (parte)<br/>+ Material + CDK"]
-  M4 -.->|usa| L4["core / render / ui (svge-canvas)"]
+  M4 -.->|usa| L4["core / render / edit (gestures)"]
 
   classDef m1 fill:#d4edda,stroke:#198754
   classDef m2 fill:#d1e7ff,stroke:#0d6efd
@@ -377,14 +420,17 @@ flowchart TB
 
 ### 4.4 Tabela de referência rápida — o que cada entry point possui
 
-| Entry point | Owns                                                                                                                                                                                                 | Material? | Imports de svg-engine/\*           |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------: | ---------------------------------- |
-| `core`      | tipos, document, commands, CommandBus, EditorStateService, geometry                                                                                                                                  |    Não    | — (base)                           |
-| `render`    | SvgeRenderer, ViewportService, 13 directives de render, screenToDoc                                                                                                                                  |    Não    | `core`                             |
-| `io`        | ImporterRegistry, ExporterRegistry, svgImporter, svgExporter, pngExporter                                                                                                                            |    Não    | `core`                             |
-| `optimize`  | OptimizerRegistry, OptimizeCommand, builtin optimizers                                                                                                                                               |    Não    | `core`                             |
-| `edit`      | services (Selection/Isolation/Layers/Snap/Workspace/Transform/...), registries (Tool/Menu/Shortcut/Palette/Effect), plugin scaffolding, shell-interactions directive, built-in tool/shortcut plugins |    Não    | `core`, `render`, `io`, `optimize` |
-| `ui`        | TODOS os 16 componentes Angular Material (toolbar, menu-bar, inspector, layers-panel, status-bar, shell-pro, editor, ...)                                                                            |    Sim    | `core`, `render`, `io`, `edit`     |
+| Entry point  | Owns                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Material? | Imports de svg-engine/\*             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------: | ------------------------------------ |
+| `core`       | 10 tipos no union `SvgNode` (incl. `SymbolUseNode` D-059); 3 kinds via metadata (`Layer`/`SmartObject`/`Page`); 38 commands; `CommandBus` com auto-snapshot gate; `EditorStateService`; `HistoryService`; `SnapshotsService` (D-073, scope-only); geometry (bbox/anchors/scale-bake/path-d-scaler/decompose/round-corners/flatten); `AUTO_PARENT` + `INSERT_PARENT_RESOLVER` (D-080)                                                                                      |    Não    | — (base, importa só `@angular/core`) |
+| `render`     | `SvgeRenderer` + `NodeRendererRegistry`; `ViewportService`; **9 per-type directives** (rect/ellipse/line/polygon/polyline/path/text/image/`symbol-use`) + Dispatcher; `screenToDoc` util (D-036)                                                                                                                                                                                                                                                                          |    Não    | `core`                               |
+| `io`         | `ImporterRegistry`, `ExporterRegistry`, `svgImporter` (sanitiza `<script>`/`on*`/`javascript:`), `svgExporter` (determinístico 6 decimais, atributos alfabéticos), `pngExporter` + `renderPng` helper                                                                                                                                                                                                                                                                     |    Não    | `core`                               |
+| `optimize`   | `OptimizerRegistry`, `OptimizeCommand`, **4 builtin passes** (`precision`, `dropDefaults`, `stripAuthoredTitles` D-072g opt-in, `pruneEmptyGroups`)                                                                                                                                                                                                                                                                                                                       |    Não    | `core`                               |
+| `edit`       | **49 services**: Selection/Isolation/Layers/Snap/Workspace/Transform/Marquee/Alignment/Tool×N/AutoSave/Clipboard/Pages×3 (D-079/D-080)/Snapshots/AssetExport×3 (D-077)/SmartObjectActions/FindReplace/SelectSame/TraceProgress + 9 library catalogs + 5 active-defs scoped. **6 capability registries** (Tool/Menu/Shortcut/Palette/Effect/AssetExport). **27 plugins built-in**. **Scope provider** `provideSvgEngineEditorScope()` (D-042). Pointer + hit-testing utils |    Não    | `core`, `render`, `io`, `optimize`   |
+| `ui`         | **~42 componentes Material** divididos em Shells (2) / Bars (6) / Panels (10) / Dialogs (7 com padrão D-044) / Misc (4) / Tool-options (14). `ToolOptionsRegistry` (D-066) + `provideSvgeBuiltinToolOptions()`. `builtinUiMenuContributionsPlugin` (D-044) e `ThemeService`. Inspector mega-componente (2314 linhas) com tabs (D-078)                                                                                                                                     |    Sim    | `core`, `render`, `io`, `edit`       |
+| `ai/nlu`     | `NaturalLanguageService` (rule-based, D-046 Fase 1). Parsers PT/EN (tokenize/Levenshtein/fuzzy/slot-extractor). Dicionários (actions/colors/shapes/stopwords merged PT+EN). `discoverMenuIntents` (one-shot, audit item #12). `builtinNluPlugin` registra ~33 intents (5 customizados + 28 professional)                                                                                                                                                                  |    Não    | `core`, `edit`                       |
+| `ai/nlu-ui`  | `<svge-nlu-input>` (Material, único componente). `VoiceRecognitionService` (Web Speech API wrapper, default `pt-BR`)                                                                                                                                                                                                                                                                                                                                                      |    Sim    | `ai/nlu`                             |
+| `svg-engine` | **Umbrella** (não funcional). Apenas exporta `SVG_ENGINE_VERSION = '0.1.0'`. Política D-018: consumers devem importar dos secondary entry points específicos                                                                                                                                                                                                                                                                                                              |    Não    | — (não importa nada)                 |
 
 ### 4.5 Como manter esses diagramas em dia
 
