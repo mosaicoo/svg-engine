@@ -11,10 +11,34 @@
 
 ---
 
-## Metodologia (lições aprendidas em 2026-05-28)
+## 🔴 Protocolo obrigatório: AUDITAR antes de AGIR
 
-Durante uma rodada de auditoria, **5 de 6 itens** que apareceram como
-"pendentes" estavam na verdade implementados ou obsoletos. Padrão recorrente:
+> **Estabelecido em 2026-05-29 pelo proprietário do projeto, como regra absoluta.**
+>
+> _"A auditoria é sempre necessário antes de qualquer ação para termos a
+> certeza das mudanças, seja para documentação ou código."_
+
+Esta regra **não admite exceções**. Vale para:
+
+- ✋ **Antes de mudar código**: ler os arquivos afetados + procurar
+  cross-references via grep. Nunca alterar baseado em memória de sessão
+  anterior, label de task, ou inferência a partir de filename.
+- ✋ **Antes de atualizar doc**: confirmar cada claim do doc velho contra
+  o código atual (não copiar texto antigo sem reverificar).
+- ✋ **Antes de registrar pendência**: rodar grep/read e provar que o
+  item realmente está em estado "X" via `file:line`.
+- ✋ **Antes de afirmar "X existe / Y falta"**: pedir evidência (sua
+  própria via Read/Grep, ou de subagente com instrução anti-alucinação
+  explícita) — _nunca_ confiar em sumário de agente prévio sem
+  cross-check, _nunca_ confiar em comentário de doc antigo.
+- ✋ **Antes de pedir ao usuário para revisar**: garantir que o que está
+  sendo apresentado tem evidência rastreável, não só prosa.
+
+### Por que isso virou regra dura
+
+Em 2026-05-28, durante uma rodada de auditoria, **5 de 6 itens** que
+apareceram como "pendentes" estavam na verdade implementados ou
+obsoletos. Padrão recorrente das 5 alucinações:
 
 1. **Confiar em label de task list** sem ler o código → PAGES-FIX-2 (já feito)
 2. **Confiar em entrada deferred antiga** sem checar features novas que superaram → Export with Options (superseded por D-077)
@@ -22,13 +46,31 @@ Durante uma rodada de auditoria, **5 de 6 itens** que apareceram como
 4. **Confiar em sumário de agente** sem cross-check no código → D-072g
 5. **Confundir "5 services centralizados existem"** com "5 follow-ups pendentes" → D-044
 
-**Protocolo agora aplicado**:
+### Checklist operacional
 
 - ❌ Não anotar item como pendente sem evidência `file:line` no código
 - ❌ Não confiar em sumário de agente, label ou comentário de doc antigo
+  sem reverificar
+- ❌ Não alterar código baseado em "lembrança" de sessão anterior
+- ❌ Não atualizar doc copiando texto velho — reverificar cada claim
 - ✅ Para cada item suspeito: rodar grep/read no código atual
 - ✅ Verificar se feature mais recente superou o item antigo (supersedure check)
 - ✅ Registrar evidência aqui (file:line + comando que provou)
+- ✅ Quando usar subagentes: briefing explícito anti-alucinação +
+  exigir `file:line` em cada claim + cap de palavras pra forçar foco
+  em evidência
+- ✅ Quando 2+ agentes concordam com `file:line` independentes → alta
+  confiança; quando só 1 → marcar como single-source na consolidação
+
+### Ferramentas que ajudam
+
+- `Grep` com `output_mode: "content"` + `-n true` retorna `file:line` direto
+- `Read` com `limit`/`offset` para inspecionar trecho exato
+- `git log --oneline -N` para confirmar quando uma feature shipou
+- `git log --grep="<termo>"` para encontrar o commit que entregou X
+- Subagentes paralelos quando o escopo é grande (5-6 dimensões em paralelo
+  reduzem tempo e expõem contradições — se 2 agentes discordam, sinal de
+  ponto onde verificação extra é necessária)
 
 ---
 
