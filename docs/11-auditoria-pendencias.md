@@ -343,7 +343,27 @@ grep -n 'formatLabel\|niceTickSpacing' projects/svg-engine/ui/src/lib/rulers/rul
 
 ### Bloco A — Pendências de CÓDIGO confirmadas
 
-#### 7. `isDestructive` faltando em 6 comandos candidatos — `MÉDIA`
+#### 7. `isDestructive` faltando em commands candidatos — `MÉDIA` → ✅ **PARCIALMENTE ENTREGUE** (commit `9de3743`, 2026-05-29)
+
+**Resultado da análise protocolo-correta**: dos 6 candidatos originalmente listados (Ungroup, Knife, MakeLiveBoolean, MakeCompoundPath, MakeSmartObject, RasterizeSmartObject), **apenas 2 foram marcados** após leitura source-by-source:
+
+**MARCADOS** como `isDestructive = true`:
+
+- **`KnifeCutPathCommand`** (`knife-cut.command.ts:51`) — substitui o nó original por pedaços; para non-path sources embute Convert-to-Path que perde tipo semântico
+- **`MakeCompoundPathCommand`** (`compound-path.commands.ts:62`) — REMOVE inputs (linhas 119-121) após baking de transforms; lossy em 2 dimensões
+
+**REJEITADOS** após leitura (não qualificam por design):
+
+- **`UngroupCommand`**: operação rotineira (Cmd+Shift+G), undo limpo restaura grupo com mesmo id. Marcar criaria snapshot spam.
+- **`MakeLiveBooleanCommand`**: D-056 **non-destructive by design** — inputs SOBREVIVEM como children hidden (verificado em `live-boolean.commands.ts:159-169`). É o whole point do "Live Boolean" vs "Pathfinder".
+- **`MakeSmartObjectCommand`**: wrap estrutural com undo limpo via `previousRootSnapshot`. Mesma categoria que operações de grupo.
+- **`RasterizeSmartObjectCommand`**: apesar do nome Photoshop-sounding, docstring em `smart-object.commands.ts:160` confirma: "structurally equivalent to UngroupCommand PLUS clearing the smart-object flag". É unwrap, NÃO vector→raster.
+
+**Este item ilustra exatamente o valor do protocolo "auditar antes de agir"**: a claim original do agente teria levado a over-marking de 4 commands rotineiros, criando snapshot spam. A leitura source-by-source identificou que apenas 2 dos 6 candidatos realmente qualificam.
+
+**Specs adicionados**: 3 novos testes em `knife-cut.command.spec.ts` + `compound-path.spec.ts` (incluindo assertion explícita que `ReleaseCompoundPathCommand` NÃO é destrutivo — mirror do pattern `page.commands.spec.ts:191-193`). Suite saiu de 1825 para **1828 passing**.
+
+#### 7-OLD. Análise original (rejeitada parcialmente) abaixo
 
 **Evidência** (verificado por mim via `grep isDestructive projects/svg-engine/core/src/lib/commands/`):
 
@@ -369,7 +389,11 @@ grep -n 'formatLabel\|niceTickSpacing' projects/svg-engine/ui/src/lib/rulers/rul
 
 ---
 
-#### 8. Discrepância no barrel `svg-engine/edit/lib/optimize` — `BAIXA` (1 linha)
+#### 8. Discrepância no barrel `svg-engine/edit/lib/optimize` — `BAIXA` → ✅ **ENTREGUE** (commit `9de3743`, 2026-05-29)
+
+1 linha adicionada ao barrel `edit/src/lib/optimize/index.ts`: `stripAuthoredTitlesOptimizer` agora re-exportado de `svg-engine/optimize`. Consumers usando o caminho back-compat `svg-engine/edit` agora pegam o D-072g pass. Lint clean, suite 1828 passing.
+
+#### 8-OLD. Discrepância — info original abaixo
 
 **Evidência** (verificado por Read de `edit/src/lib/optimize/index.ts` inteiro):
 
