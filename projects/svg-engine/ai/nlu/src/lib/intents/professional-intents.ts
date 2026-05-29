@@ -5,18 +5,29 @@
  * editor SVG completo deve suportar via linguagem natural. Registrados
  * pelo `builtinNluPlugin` sob demanda.
  *
- * **Cobertura** (por categoria):
+ * **Cobertura REAL** (verificado via grep `id: 'svge.builtin.nlu.` em
+ * 2026-05-29 — 28 intents registrados neste arquivo):
  *
- * - **Transformação**: rotate, flip-horizontal, flip-vertical
+ * - **Transformação**: rotate-selected, flip-horizontal, flip-vertical
  * - **Estilo**: set-stroke, set-stroke-width, set-opacity, remove-fill,
  *   remove-stroke
  * - **Seleção**: select-all, deselect, select-by-type
  * - **Visibilidade**: show-selected, hide-selected
- * - **Alinhamento**: align-{left,right,center-x,top,middle,bottom}
- * - **Distribuição**: distribute-{horizontal,vertical}
  * - **Z-order**: bring-to-front, send-to-back, bring-forward, send-backward
- * - **Pathfinder**: union, intersect, subtract, exclude, divide
+ * - **Pathfinder**: pathfinder-union, pathfinder-intersect, pathfinder-subtract,
+ *   pathfinder-exclude, pathfinder-divide
  * - **Conversão**: convert-to-path
+ * - **Movimento absoluto**: move-to-position, move-to-x, move-to-y
+ * - **Destrutivo (com confirmGate)**: delete-selected
+ *
+ * **NÃO COBERTOS** (gap documentado em
+ * `docs/11-auditoria-pendencias.md` item #22, headers desta classe
+ * historicamente prometeram mas implementação ficou para depois):
+ *
+ * - `align-*` / `distribute-*` — requerem **bbox renderizado** que o
+ *   handler NÃO tem acesso (D-017 headless). UI consumer pode injetar
+ *   intents próprios via `nlu.registerIntent(...)` chamando
+ *   `AlignmentService.align(bboxes, axis)` com bboxes do DOM.
  *
  * **Multi-idioma**: cada intent declara keywords PT + EN. As actions
  * referenciam canonicals do `ACTION_DICTIONARY` (PT + EN merged).
@@ -24,14 +35,10 @@
  * **Multi-editor (D-042/D-043)**: handlers respeitam `runCtx.injector`
  * pra resolver services do scope ativo (per-editor).
  *
- * **Limitações documentadas** (best-effort rule-based, Fase 1):
- * - `align-*` / `distribute-*` requerem **bbox renderizado** que o
- *   handler NÃO tem acesso (D-017 headless). Por isso devolvem um
- *   warning explicando que UI consumer deve interceptar e injetar
- *   bboxes via `AlignmentService.align(bboxes, axis)`. Plugin-puro
- *   sem acesso ao DOM não consegue executar fisicamente.
- * - `flip-horizontal/vertical` usam `ResizeNodeCommand` com sx/sy=-1
- *   (não há `FlipCommand` dedicado no core).
+ * **Comandos referenciados**:
+ *
+ * - `flip-horizontal/vertical` agora usam `FlipNodeCommand` (D-078, X/Y axes)
+ *   — substituiu o workaround antigo de `ResizeNodeCommand` com sx/sy=-1.
  */
 import {
   CommandBus,

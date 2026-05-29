@@ -1,7 +1,7 @@
 {
   "name": "svg-engine",
   "version": "0.1.0",
-  "description": "Headless-first, plugin-extensible SVG editor library for Angular v21+. Render, manipulate and optimize SVG inside any Angular app — 6 secondary entry points (core/render/io/optimize/edit/ui), Material UI is opt-in.",
+  "description": "Headless-first, plugin-extensible SVG editor library for Angular v21+. Render, manipulate and optimize SVG inside any Angular app — 8 secondary entry points (core/render/io/optimize/edit/ui + ai/nlu + ai/nlu-ui), Material UI is opt-in.",
   "keywords": [
     "svg",
     "svg-editor",

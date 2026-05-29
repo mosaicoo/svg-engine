@@ -33,6 +33,12 @@ Esta regra **não admite exceções**. Vale para:
   cross-check, _nunca_ confiar em comentário de doc antigo.
 - ✋ **Antes de pedir ao usuário para revisar**: garantir que o que está
   sendo apresentado tem evidência rastreável, não só prosa.
+- ✋ **Ao iniciar uma sessão nova / após queda de conexão / após retomar
+  trabalho de outra rodada**: re-verificar código E documentação ANTES de
+  agir. Não confiar em memória de sessão anterior nem em sumários de
+  contexto comprimido. A premissa-default é "está desatualizado até prova
+  em contrário". Esta cláusula garante que rupturas de continuidade não
+  introduzam regressões silenciosas em código nem drifts em docs.
 
 ### Por que isso virou regra dura
 

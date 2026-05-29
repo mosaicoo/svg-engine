@@ -25,10 +25,11 @@
 // Top-level renderer
 export * from './lib/renderer';
 
-// Dispatcher component + 8 per-type directives (exported for advanced reuse
-// — e.g., consumers that want to apply a single directive on their own
-// `<svg:rect>` outside the dispatch flow, or mount renderers in custom
-// layouts).
+// Dispatcher component + 9 per-type directives (Rect/Ellipse/Line/Polygon/
+// Polyline/Path/Text/Image/SymbolUse — last one added in D-059). Exported
+// for advanced reuse — e.g., consumers that want to apply a single directive
+// on their own `<svg:rect>` outside the dispatch flow, or mount renderers
+// in custom layouts.
 export * from './lib/renderers';
 
 // Viewport (pan/zoom)

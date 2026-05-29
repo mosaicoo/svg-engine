@@ -12,22 +12,28 @@
 
 ## Status
 
-- **Versão**: `0.0.0` (pré-release; APIs hardening durante Fase 6 — `1.0.0`
-  alvo após conclusão de 6c/6d).
+- **Versão**: `0.1.0` (pré-release; APIs hardening durante Fase 6/7 — `1.0.0`
+  alvo após estabilização de superfície pública).
 - **SemVer estável**: a partir de `1.0.0`.
 - **Política até `1.0.0`**: minor pode ter breaking se devidamente documentado.
 - **Política após `1.0.0`**: breaking = major.
-- **Cobertura atual**: 884 specs passando em 65 arquivos (`npx ng test svg-engine`).
-- **Status por fase** (Fase 5 + 6 — ver `docs/05-roadmap.md` para histórico completo):
+- **Cobertura atual**: **1825 specs** passando em 132 arquivos (`npm run test:lib` —
+  validado 2026-05-29 no commit `42f8334`).
+- **Status por fase** (ver `docs/05-roadmap.md` para histórico completo):
   - Fase 5 (IO + Optimize) ✅
   - Fase 6a (perf baseline) ✅
   - Fase 6b (viewport culling) ✅
   - **Bloco 6-PathEditor** (Path/Anchor editor + Pathfinder 5 boolean ops) ✅
-  - **Fase 6c-1** (defs/clipPath no importer) ✅
-  - **Fase 6c-2** (selectionNudgePlugin + ARIA inicial) ✅
-  - **Fase 6c-final** (ARIA + keyboard nav completo em todos overlays/panels) ✅
-  - Fase 6d (EffectRegistry) ⏳ próximo
-  - Fase 6e (ScriptRuntimePlugin) — decisão A/B/C pendente
+  - **Fase 6c** (defs/clipPath no importer + ARIA + keyboard nav) ✅
+  - **Fase 6d** (`EffectRegistry` + 19 builtin effects + chain editor) ✅ (D-047)
+  - **Fase 7** (sprint pós-D-046 até D-080) — Libraries (D-048), composição/recorte
+    (D-049), tools faltantes (D-050/D-062), Inspector polish (D-068/D-069/D-076/D-078),
+    Find & Replace (D-070), Batch ops (D-071), Logical Layers (D-072), History
+    Snapshots (D-073), Smart Objects (D-074), Asset Export panel (D-077), Pages /
+    Artboards (D-079), PAGES-REFACTOR (D-080). ✅ — _detalhamento por sprint
+    pendente em doc 04/05_
+  - Fase 6e (`ScriptRuntimePlugin`, D-024) — decisão A/B/C pendente
+  - Fase 8.1 (NLU rule-based, D-046 Fase 1) ✅ — 8.2/8.3 não iniciadas
 
 ---
 
@@ -519,10 +525,10 @@ seção 2026-05-18.
 
 #### Isolation mode
 
-| Símbolo                                      | Descrição                                                                                                 |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `IsolationService` (`@Injectable({ root })`) | Signal `isolationRootId` + breadcrumb computed. APIs `enterIsolation(id)`, `exitIsolation()`, `drillUp()` |
-| `IsolationFilter` (`[svgeIsolationFilter]`)  | Directive opt-in: dimming + pointer-events:none em nós fora do isolation root (DOM walk reativo)          |
+| Símbolo                                     | Descrição                                                                                                                                                                                                                                                   |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IsolationService` (scope-only via D-042)   | Signal `isolationRootId` + readonly `isActive` + `breadcrumbPath` computed. APIs `enter(nodeId)` (apenas em `GroupNode`), `exit()`, `exitOne()` (drill-up Affinity/Illustrator Esc), `setRoot(nodeId \| null)` (usado pelo breadcrumb), `isInScope(nodeId)` |
+| `IsolationFilter` (`[svgeIsolationFilter]`) | Directive opt-in: dimming + pointer-events:none em nós fora do isolation root (DOM walk reativo)                                                                                                                                                            |
 
 #### Auto-save
 

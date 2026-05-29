@@ -406,11 +406,16 @@ A library exemplifica todos os padrões — verifique:
 - [D-023 — Categorias de plugin (roadmap)](04-decisoes-tecnicas.md#d-023--categorias-de-plugin-roadmap)
 - [D-024 — ScriptRuntimePlugin (deferido)](04-decisoes-tecnicas.md#d-024--scriptruntimeplugin-deferido-para-fase-6)
 - [API pública](09-api-publica.md)
-- Exemplos no código:
-  - `projects/svg-engine/edit/src/lib/tool/select-tool.plugin.ts`
-  - `projects/svg-engine/edit/src/lib/tool/pencil-tool.plugin.ts`
+- Exemplos no código (caminhos confirmados em 2026-05-29):
+  - `projects/svg-engine/edit/src/lib/tool/builtin-tools.ts` — `selectToolPlugin`, `pageToolPlugin`, `pencilToolPlugin` (vivem todos neste arquivo, não em arquivos separados)
+  - `projects/svg-engine/edit/src/lib/tool/extra-tools.ts` — `extraToolsPlugin` (Eyedropper/Knife/Smooth/Gradient/Width/SymbolSprayer)
+  - `projects/svg-engine/edit/src/lib/tool/pen-tool.plugin.ts`, `shape-tools.plugin.ts`, `text-tool.plugin.ts`
   - `projects/svg-engine/edit/src/lib/io/builtin-io.plugin.ts`
   - `projects/svg-engine/edit/src/lib/io/png-exporter.plugin.ts`
   - `projects/svg-engine/edit/src/lib/optimize/builtin-optimizers.plugin.ts`
   - `projects/svg-engine/edit/src/lib/palette/builtin-palettes.plugin.ts`
   - `projects/svg-engine/edit/src/lib/selection/selection-nudge.plugin.ts`
+  - **Plugin de menu**: `projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts` (D-043)
+  - **Plugin de menu UI-side** (depende de MatDialog, vive em `svg-engine/ui`): `projects/svg-engine/ui/src/lib/menu-extras/builtin-ui-menu-contributions.plugin.ts` (D-044)
+  - **Plugin de NLU** (10ª categoria, novo desde D-046): `projects/svg-engine/ai/nlu/src/lib/builtin-nlu.plugin.ts` — registra intents customizados via `NaturalLanguageService.registerIntent()` (auto-discovery do `MenuContributionRegistry` também roda no install do plugin)
+  - **Plugin de Effects** (categoria 7, D-047): `projects/svg-engine/edit/src/lib/effect/builtin-effects.plugin.ts` — 19 builtin effects (single-filter + chained)
