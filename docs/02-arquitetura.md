@@ -4,10 +4,12 @@
 
 O **SVGEngine** é um **workspace Angular v21** contendo:
 
-- Uma **library** publicável: `svg-engine` (núcleo + UI do editor).
-- Uma **aplicação demo** consumidora: `playground` (Angular Material).
+- Uma **library** publicável: `svg-engine` (núcleo + UI do editor) com **8 secondary entry points + 1 umbrella** (versão atual 0.1.0).
+- **Duas** aplicações consumers (D-041 follow-up de 2026-05-28):
+  - `playground` — showcase/sandbox para devs integrando (8 rotas, plugins demo)
+  - `svg-studio` — deliverable de produto (full-bleed `<svge-shell-pro>` puro, 1 rota)
 
-## 2. Estrutura real após Fase 1 (2026-05-14)
+## 2. Estrutura real (atualizada 2026-05-29)
 
 ```
 SVGEngine/
@@ -118,41 +120,41 @@ projects/svg-engine/
 │       └── lib/
 │           ├── passes/             # PathOptimizer, Deduper, Minifier, ...
 │           └── pipeline/           # composição de passes configurável
-├── edit/
-│   ├── ng-package.json
-│   └── src/
-│       ├── public-api.ts
-│       └── lib/
-│           ├── selection/          # SelectionService + handles
-│           ├── transform/          # drag/resize/rotate/scale + snap/align
-│           ├── canvas/             # <svge-canvas> (renderer + interações)
-│           └── plugins/            # API de plugins
-└── ui/
-    ├── ng-package.json
-    └── src/
-        ├── public-api.ts
-        └── lib/
-            ├── toolbar/            # <svge-toolbar>
-            ├── layers-panel/       # <svge-layers-panel>
-            ├── inspector/          # <svge-inspector>
-            ├── palette/            # <svge-color-palette>
-            └── theme/              # tokens, light/dark toggle (D-012)
+├── edit/                            # SelectionService, TransformService, registries (D-023),
+│   ├── ng-package.json              # plugin scaffolding, scope provider D-042,
+│   └── src/                         # diretivas (incl. svgeShellInteractions),
+│       ├── public-api.ts            # built-in plugins (shape/pen/text/extra/page/pencil),
+│       └── lib/                     # library catalogs (D-048), snapshots (D-073),
+│           └── ...                  # asset-export (D-077), pages (D-079/D-080), etc.
+├── ui/                              # ~42 componentes Material (shells + bars + panels +
+│   ├── ng-package.json              # dialogs com padrão D-044 + tool-options components +
+│   └── src/                         # ToolOptionsRegistry + ThemeService +
+│       ├── public-api.ts            # builtinUiMenuContributionsPlugin (D-044)
+│       └── lib/...
+└── ai/                              # AI layer (D-046, opt-in)
+    ├── nlu/                         # NaturalLanguageService (rule-based, Fase 8.1)
+    │   ├── ng-package.json          # parsers PT/EN, dicionários, 33 intents,
+    │   └── src/...                  # builtinNluPlugin (auto-discovery one-shot)
+    └── nlu-ui/                      # <svge-nlu-input> + VoiceRecognitionService
+        ├── ng-package.json          # (Web Speech API wrapper, default pt-BR)
+        └── src/...
 ```
 
 ### Dependências entre entry points (regra inviolável — D-017)
 
 ```
-ui      → edit, render, io, optimize, core   (+ @angular/material)
-edit    → render, core
-render  → core
-io      → core
-optimize→ core, io
-core    → (nenhum entry interno; apenas @angular/core)
+ai/nlu-ui → ai/nlu  (+ @angular/material — único caso de Material fora de ui/)
+ai/nlu    → edit, core
+ui        → edit, io, render, core  (+ @angular/material + @angular/cdk)
+edit      → optimize, io, render, core
+render    → core
+io        → core
+optimize  → core
+core      → (nenhum entry interno; apenas @angular/core + polygon-clipping bundled)
 ```
 
-`core/`, `render/`, `io/`, `optimize/`, `edit/` **não importam** de
-`@angular/material` nem de `@angular/cdk`. Apenas `ui/` e a
-`playground` podem.
+`core/`, `render/`, `io/`, `optimize/`, `edit/`, `ai/nlu/` **não importam** de
+`@angular/material` nem de `@angular/cdk`. Apenas `ui/` e `ai/nlu-ui/` podem.
 
 ### Consumo por terceiros — exemplos
 
