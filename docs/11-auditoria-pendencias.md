@@ -488,7 +488,11 @@ grep -n 'formatLabel\|niceTickSpacing' projects/svg-engine/ui/src/lib/rulers/rul
 
 ### Bloco B — Drift de DOCUMENTAÇÃO confirmado
 
-#### 15. Doc 05 (roadmap) — `CRÍTICO` (corrige trilha de auditoria)
+#### 15. Doc 05 (roadmap) — `CRÍTICO` → ✅ **ENTREGUE** (commit `1aa127b`, 2026-05-29)
+
+Roadmap recebeu nova seção "Sprint pós-D-046 — Produto profissional" entre Fase 6 e Fase 7, com 7 blocos (Pro-A a Pro-G) cobrindo ~35 decisões D-XXX em formato conciso (1-3 linhas + commit hash + entrada doc 08 por item). Fase 6c marcada completa, Fase 6d marcada entregue via D-047. Fase 7 (Backend .NET) e Fase 8 (NLU) preservadas como tracks condicionais paralelos.
+
+#### 15-OLD. Doc 05 — info original abaixo
 
 **Evidência**:
 
@@ -518,7 +522,11 @@ grep -n 'formatLabel\|niceTickSpacing' projects/svg-engine/ui/src/lib/rulers/rul
 
 ---
 
-#### 17. Doc 09 (API pública) — `CRÍTICO` (corrige nomes da API publicada)
+#### 17. Doc 09 (API pública) — `CRÍTICO` → ✅ **ENTREGUE** (commit `8cd8408`, 2026-05-29)
+
+Corrigidos: versão `0.0.0` → `0.1.0`; specs count `884` → `1825`; API IsolationService renomeada (`enter/exit/exitOne/setRoot` — antes documentava `enterIsolation/exitIsolation/drillUp` que não existem); Fase 6d marcada entregue; Fase 7 acknowledged. Adicionado também `provideSvgeBuiltinToolOptions()` D-066 nas referências. _Pendente: completar a seção "Commands" + "Services" com os ~30 commands + ~20 services novos da Sprint pós-D-046 — registrado como sub-tarefa nesta entrada para Phase 3._
+
+#### 17-OLD. Doc 09 — info original abaixo
 
 **Evidência** (verificado por mim via `Grep enterIsolation|exitIsolation|drillUp docs/`):
 
@@ -542,7 +550,11 @@ grep -n 'formatLabel\|niceTickSpacing' projects/svg-engine/ui/src/lib/rulers/rul
 
 ---
 
-#### 18. Doc 02 (arquitetura) — `MÉDIO` (confunde plugin authors)
+#### 18. Doc 02 (arquitetura) — `MÉDIO` → ✅ **ENTREGUE** (commits `4d199c4` + `e6bd373`, 2026-05-29)
+
+Reescrito em 2 commits: (1) Mermaid 4.1 (macro) com 8 entry points + svg-studio + ai/nlu/nlu-ui + ~42 components em ui; Mermaid 4.2 (ui↔edit) com 3 subgraphs separados (root registries / scoped services / library catalogs); Mermaid 4.3 (Modos) com counts atualizados; Tabela 4.4 (9 linhas em vez de 6, com counts reais verificados). (2) Final cleanup: seção 1 visão macro (2 consumers), seção 2 título sem 2026-05-14, seção 3 estrutura-alvo com ai/\* + remoção do `canvas/` inexistente, dependency chain incluindo ai/nlu-ui.
+
+#### 18-OLD. Doc 02 — info original abaixo
 
 **Evidência** (verificado em parte por mim via Glob de entry points):
 
@@ -557,7 +569,11 @@ grep -n 'formatLabel\|niceTickSpacing' projects/svg-engine/ui/src/lib/rulers/rul
 
 ---
 
-#### 19. Doc 06 (componentes editor) — `MÉDIO`
+#### 19. Doc 06 (componentes editor) — `MÉDIO` → ✅ **PARCIALMENTE ENTREGUE** (commit `8cd8408`, 2026-05-29)
+
+Entregue: `<svge-canvas>` removido (não existe); `<svge-rotation-pivot>`/`<svge-marquee>` marcados como attribute directives com selectors corretos (`g[svgeRotationPivot]` / `g[svgeMarquee]`). _Pendente: adicionar ~25 componentes faltando na listagem (SvgeAssetExportPanel, SvgeAboutDialog, SvgeColorPicker, SvgeFindReplaceDialog, SvgeGradientEditor, SvgeIsolationBreadcrumb, SvgeLibrariesPanel, SvgeEffectsPanel, SvgePanelGroup + SvgePanelGroupTab, SvgePagesPanel, SvgeSnapshotsPanel, SvgeSmartObjectEditorDialog, SvgeTraceImageDialog, SvgeDialogShell, 14 tool-options) — registrado como sub-tarefa para Phase 3._
+
+#### 19-OLD. Doc 06 — info original abaixo
 
 **Evidência** (verificado por mim via `Grep svge-canvas docs/06-componentes-editor-svg.md`):
 
@@ -572,7 +588,11 @@ grep -n 'formatLabel\|niceTickSpacing' projects/svg-engine/ui/src/lib/rulers/rul
 
 ---
 
-#### 20. Doc 10 (guia plugin) — `MÉDIO`
+#### 20. Doc 10 (guia plugin) — `MÉDIO` → ✅ **ENTREGUE** (commit `8cd8408`, 2026-05-29)
+
+File paths inválidos corrigidos (selectToolPlugin/pencilToolPlugin vivem em builtin-tools.ts, não em arquivos próprios). Adicionados 4 plugins novos como exemplos: D-043 (builtinMenuContributions), D-044 (builtinUiMenuContributions), D-046 (NLU — 10ª categoria), D-047 (Effects, era marcada "planejada" mas está entregue).
+
+#### 20-OLD. Doc 10 — info original abaixo
 
 **Evidência** (verificado por mim via `Grep select-tool.plugin.ts docs/10-guia-plugin.md`):
 
@@ -588,7 +608,11 @@ grep -n 'formatLabel\|niceTickSpacing' projects/svg-engine/ui/src/lib/rulers/rul
 
 ---
 
-#### 21. svg-studio app standalone — `MÉDIO` (deliverable de produto não documentado)
+#### 21. svg-studio app standalone — `MÉDIO` → ✅ **ENTREGUE** (commit `1aa127b` + `e6bd373`, 2026-05-29)
+
+svg-studio agora documentado em: doc 01 (vocabulário canônico ganhou linha distinguindo do playground); doc 02 (árvore de diretórios + seção "Por que 2 apps consumidores" + mermaid 4.1 com nó STD); doc 05 (Bloco Pro-G da Sprint pós-D-046); doc 08 (entrada narrativa completa de 2026-05-28 cobrindo estrutura, plugins, layout, posicionamento vs playground).
+
+#### 21-OLD. svg-studio — info original abaixo
 
 **Evidência** (verificado por mim via `Grep svg-studio docs/` retornou `No files found`):
 
@@ -603,7 +627,11 @@ grep -n 'formatLabel\|niceTickSpacing' projects/svg-engine/ui/src/lib/rulers/rul
 
 ---
 
-#### 22. Mismatches numéricos menores — `BAIXA` (cosmético)
+#### 22. Mismatches numéricos menores — `BAIXA` → ✅ **ENTREGUE** (commit `8cd8408`, 2026-05-29)
+
+`render/src/public-api.ts:28` corrigido para "9 per-type directives" (era 8, esqueceu SymbolUse D-059). `professional-intents.ts:8-32` header reescrito — separa REAL coverage (28 intents listados) de NÃO COBERTOS (align-_/distribute-_, com rationale técnico). Flip atualizado para citar `FlipNodeCommand` (D-078) em vez do workaround antigo `ResizeNodeCommand(sx=-1)`.
+
+#### 22-OLD. Mismatches — info original abaixo
 
 **Evidência**:
 
