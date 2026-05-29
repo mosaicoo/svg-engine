@@ -163,6 +163,138 @@ describe('PAGES-C — Delete button', () => {
   });
 });
 
+describe('Audit #10 — Drag-drop reorder', () => {
+  function getTabs(fixture: { nativeElement: HTMLElement }): HTMLElement[] {
+    return Array.from(fixture.nativeElement.querySelectorAll('.page-tab')) as HTMLElement[];
+  }
+
+  function fireDrag(source: HTMLElement, target: HTMLElement, position: 'before' | 'after'): void {
+    // jsdom (v28) doesn't expose the `DragEvent` global. Since
+    // DragEvent extends MouseEvent and Angular's `(dragstart)` /
+    // `(drop)` etc. bindings dispatch by event type string (not
+    // constructor identity), a `MouseEvent` whose type is 'dragstart'
+    // is enough to trigger the handlers. We force-set
+    // `dataTransfer = null` so the component's `!== null` guard
+    // short-circuits cleanly (without it, the property is
+    // `undefined`, the guard fails, and the handler crashes
+    // trying to assign `effectAllowed` on undefined).
+    // getBoundingClientRect() returns zeros in jsdom, so the
+    // component sees midX = 0. clientX -10 → 'before', +10 → 'after'.
+    function fire(el: HTMLElement, type: string, clientX: number): void {
+      const e = new MouseEvent(type, { bubbles: true, cancelable: true, clientX });
+      Object.defineProperty(e, 'dataTransfer', { value: null, writable: false });
+      el.dispatchEvent(e);
+    }
+    fire(source, 'dragstart', 0);
+    const clientX = position === 'after' ? 10 : -10;
+    fire(target, 'dragover', clientX);
+    fire(target, 'drop', clientX);
+    fire(source, 'dragend', 0);
+  }
+
+  it('dragging tab "before" another reorders pages via MoveNodeInTreeCommand', () => {
+    const { fixture, bus, pages } = setup();
+    const a = new CreatePageCommand(VB, 'A');
+    bus.dispatch(a);
+    const b = new CreatePageCommand(VB, 'B');
+    bus.dispatch(b);
+    const c = new CreatePageCommand(VB, 'C');
+    bus.dispatch(c);
+    TestBed.flushEffects();
+    fixture.detectChanges();
+    expect(pages.pages().map((p) => p.id)).toEqual([
+      a.getCreatedPageId(),
+      b.getCreatedPageId(),
+      c.getCreatedPageId(),
+    ]);
+
+    // Drag C to "before A" → [C, A, B]
+    const tabs = getTabs(fixture);
+    fireDrag(tabs[2]!, tabs[0]!, 'before');
+    TestBed.flushEffects();
+    fixture.detectChanges();
+
+    expect(pages.pages().map((p) => p.id)).toEqual([
+      c.getCreatedPageId(),
+      a.getCreatedPageId(),
+      b.getCreatedPageId(),
+    ]);
+  });
+
+  it('dragging tab "after" the same tab is a no-op (no command dispatched)', () => {
+    const { fixture, bus, pages, state } = setup();
+    bus.dispatch(new CreatePageCommand(VB, 'A'));
+    bus.dispatch(new CreatePageCommand(VB, 'B'));
+    TestBed.flushEffects();
+    fixture.detectChanges();
+    const docBefore = state.document();
+
+    const tabs = getTabs(fixture);
+    // Drop on itself — same target as source.
+    fireDrag(tabs[0]!, tabs[0]!, 'after');
+    TestBed.flushEffects();
+    fixture.detectChanges();
+
+    // Document root identity unchanged → no mutation happened.
+    expect(state.document().root).toBe(docBefore.root);
+    expect(pages.count()).toBe(2);
+  });
+
+  it('tab being renamed is not draggable (canDrag returns "false")', () => {
+    const { fixture, bus } = setup();
+    bus.dispatch(new CreatePageCommand(VB, 'A'));
+    bus.dispatch(new CreatePageCommand(VB, 'B'));
+    TestBed.flushEffects();
+    fixture.detectChanges();
+
+    const tabs = getTabs(fixture);
+    // Begin rename on the first tab.
+    tabs[0]!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    fixture.detectChanges();
+
+    // Re-query — the renaming tab should now report draggable=false;
+    // the other tab stays draggable=true.
+    const tabsAfter = getTabs(fixture);
+    expect(tabsAfter[0]!.getAttribute('draggable')).toBe('false');
+    expect(tabsAfter[1]!.getAttribute('draggable')).toBe('true');
+  });
+
+  it('single-page documents do not show draggable tabs (no reorder possible)', () => {
+    const { fixture, bus } = setup();
+    bus.dispatch(new CreatePageCommand(VB, 'Solo'));
+    TestBed.flushEffects();
+    fixture.detectChanges();
+
+    const tabs = getTabs(fixture);
+    expect(tabs.length).toBe(1);
+    expect(tabs[0]!.getAttribute('draggable')).toBe('false');
+  });
+
+  it('undo restores original page order after a drag-drop reorder', () => {
+    const { fixture, bus, pages } = setup();
+    const a = new CreatePageCommand(VB, 'A');
+    bus.dispatch(a);
+    const b = new CreatePageCommand(VB, 'B');
+    bus.dispatch(b);
+    TestBed.flushEffects();
+    fixture.detectChanges();
+    const originalOrder = pages.pages().map((p) => p.id);
+
+    // Drag A "after" B → [B, A]
+    const tabs = getTabs(fixture);
+    fireDrag(tabs[0]!, tabs[1]!, 'after');
+    TestBed.flushEffects();
+    fixture.detectChanges();
+    expect(pages.pages().map((p) => p.id)).toEqual([b.getCreatedPageId(), a.getCreatedPageId()]);
+
+    // Undo → back to [A, B]
+    bus.undo();
+    TestBed.flushEffects();
+    fixture.detectChanges();
+    expect(pages.pages().map((p) => p.id)).toEqual(originalOrder);
+  });
+});
+
 describe('PAGES-C — Inline rename (dblclick → input → Enter)', () => {
   it('dblclick swaps the .page-name span for an input', () => {
     const { fixture, bus } = setup();

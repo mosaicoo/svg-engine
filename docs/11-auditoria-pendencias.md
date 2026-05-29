@@ -442,16 +442,20 @@ Constant removido após verificação protocolo-correta de zero consumers. O gre
 
 ---
 
-#### 10. Reorder de páginas via drag-drop — `MÉDIA` (UX feature, model pronto)
+#### 10. Reorder de páginas via drag-drop — `MÉDIA` → ✅ **ENTREGUE** (2026-05-29)
 
-**Evidência** (verificado por mim via `grep "Reorder|drag-drop|deferred" pages-panel.component.ts`):
+**Implementação**: HTML5 drag-and-drop nativo (sem CDK) no `<svge-pages-panel>`, mesmo padrão do Layers Panel (Bloco 4b-DnD). Cada `.page-tab` é `draggable`; `dragover` projeta o cursor X no bbox da tab para decidir drop-side (`before` / `after`); `drop` dispatcha **uma** chamada de `MoveNodeInTreeCommand(pageId, doc.root.id, newIndex)`.
 
-- `projects/svg-engine/ui/src/lib/pages-panel/pages-panel.component.ts:49` (docstring):
-  > _"**Reorder (drag-drop)**: deferred to a follow-up. The model [...]"_
+- `projects/svg-engine/ui/src/lib/pages-panel/pages-panel.component.ts:99-118` (template handlers + classes drag-state)
+- `projects/svg-engine/ui/src/lib/pages-panel/pages-panel.component.ts:259-272` (CSS `.dragging` + `.drop-before` / `.drop-after`)
+- `projects/svg-engine/ui/src/lib/pages-panel/pages-panel.component.ts:467-578` (handlers + cálculo de `newIndex` com ajuste de shift)
+- `projects/svg-engine/ui/src/lib/pages-panel/pages-panel.spec.ts` (5 specs novos: reorder via drag, no-op same-tab, gate durante rename, single-page sem drag, undo restaura ordem)
 
-**O que falta**: implementar drag-drop no `<svge-pages-panel>` (model já suporta via `MovePageCommand`).
+**Gating**: drag desabilitado na tab sendo renomeada (rename detém o gesto) e em docs single-page (sem reorder possível). Botão `+` (Add) e `×` (Close) não são `draggable`.
 
-**Impacto**: usuário precisa Delete + Create + Re-bootstrap para reordenar pages, quebrando contexto.
+**Correção de premissa do audit anterior**: o resumo de contexto antigo afirmava _"modelo já pronto via `MovePageCommand`"_ — incorreto. `MovePageCommand` reposiciona o artboard (x/y origin) no canvas (PAGES-REFACTOR Fase 6); para reordenar pages na lista de tabs usamos `MoveNodeInTreeCommand` (core/src/lib/commands/move-node-in-tree.command.ts:36), que já é o motor do drag-drop do Layers Panel — atomic undo, validações, cycle detection.
+
+**Tradução de índice**: `pages()` é uma view `filter(isPage)` de `doc.root.children`; índices visuais ≠ índices em children quando há siblings não-page (ex.: `<defs>` group). Implementação resolve via `children.findIndex(c => c.id === id)` antes de passar `newIndex` ao command.
 
 ---
 
