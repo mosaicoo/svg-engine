@@ -387,7 +387,7 @@
 - [x] **D-059 — Symbol Library master/instance** (commit `b699105`): `SymbolUseNode` no union `SvgNode` + render + exporter + `ActiveSymbolsService`
 - [x] **D-060 — Brush Library** (commit `b699105`): Pencil tool consumption + path expansion algorithm + `builtinBrushesPlugin`
 - [x] **D-061 — Panel-group base** (commit `70d61b1`): `<svge-panel-group>` reutilizável (4-side tab placement com user picker + persistence, atualizado em `392c362`)
-- [x] **D-062 (a-d) + D-062-fix — Tools reais** (commits `e9cec42`, `1d84897`, `9924c19`): Symbol Sprayer (a), Width Tool (b), Mesh aproximada (c — depois REMOVIDA em fix), Auto-trace (d). Mesh tool **removida** após validação UX — `MESH_TOOL_ID` permanece como constant no-op (audit item #9)
+- [x] **D-062 (a-d) + D-062-fix — Tools reais** (commits `e9cec42`, `1d84897`, `9924c19`): Symbol Sprayer (a), Width Tool (b), Mesh aproximada (c — depois REMOVIDA em fix), Auto-trace (d). Mesh tool **removida** após validação UX. Vestígio `MESH_TOOL_ID` removido em 2026-05-29 (commit `d450689`, audit item #9 closed)
 - [x] **D-063 — Symbol Sprayer live preview** (commit `9924c19`): `SymbolSprayerPreviewService` + `SymbolSprayerOverlay` projetado em todos os shells
 - [x] **D-064 — Centralizar Undo/Redo/Zoom** (commit `e1efd52`): Zoom no `toolbar.main` slot, botões hardcoded removidos de `<svge-editor>` e `custom-editor`
 - [x] **D-065 — Align/Distribute/Pathfinder submenus** (commits `3a6ff89`, `3178b0a`): 6 align axes + 2 distribute + 5 pathfinder ops, todas no Menu Object

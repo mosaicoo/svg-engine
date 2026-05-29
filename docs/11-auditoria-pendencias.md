@@ -418,7 +418,11 @@ grep -n 'formatLabel\|niceTickSpacing' projects/svg-engine/ui/src/lib/rulers/rul
 
 ---
 
-#### 9. Vestígio `MESH_TOOL_ID` constant no-op — `BAIXA` (cleanup cosmético)
+#### 9. Vestígio `MESH_TOOL_ID` constant no-op — `BAIXA` → ✅ **ENTREGUE** (commit `d450689`, 2026-05-29)
+
+Constant removido após verificação protocolo-correta de zero consumers. O grep retornou apenas a declaração própria + 2 comments explicativos (zero `import { MESH_TOOL_ID }` em qualquer arquivo). O "back-compat" original (D-062-fix) era hipotético; pré-1.0 com política explícita de breaking change tolerável (doc 09) justificou a remoção. Comments explicativos atualizados para registrar a decisão histórica. 1828 tests passing pós-remoção (zero referencia de teste, confirmando que zero usage finding).
+
+#### 9-OLD. Vestígio — info original abaixo
 
 **Evidência** (verificado por mim via `grep MESH_TOOL_ID`):
 
