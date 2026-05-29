@@ -142,3 +142,21 @@ describe('KNIFE-FIX — KnifeCutPathCommand', () => {
     expect(restoredRoot.children[2]!.id).toBe(b.id);
   });
 });
+
+describe('D-073 isDestructive marker — KnifeCutPathCommand', () => {
+  /**
+   * Audit Round 3 item #7 (2026-05-29): the knife cut REPLACES the
+   * original node with its pieces. For path sources, the original
+   * `d` is split into 2+ paths; for non-path sources (rect/ellipse/etc),
+   * the operation embeds a Convert-to-Path transform that loses the
+   * original semantic shape type. Both effects are invasive enough
+   * to warrant auto-snapshot before execute when the consumer
+   * enables `SnapshotsLimits.autoOnDestructive`.
+   */
+  it('KnifeCutPathCommand is flagged isDestructive=true', () => {
+    // Constructor signature: (nodeId, docPoint, tolerance, snapToNodes).
+    // Values don't matter for the flag check (we never call execute()).
+    const cmd = new KnifeCutPathCommand('any' as NodeId, { x: 0, y: 0 }, 1, false);
+    expect(cmd.isDestructive).toBe(true);
+  });
+});

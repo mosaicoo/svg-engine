@@ -59,6 +59,18 @@ import { nodeToPathD } from './convert-to-path.command';
 export class MakeCompoundPathCommand implements Command {
   readonly id: string = generateNodeId();
   readonly label = 'Make Compound Path';
+  /**
+   * Marked destructive (D-073 marker). Unlike `MakeLiveBooleanCommand`
+   * (D-056) which preserves inputs as hidden children, this command
+   * **removes** the operand inputs (linhas 119-121) after baking
+   * their transforms into a single combined `d`. Lossy in two ways:
+   * (a) the input nodes' ids/metadata disappear from the tree,
+   * (b) for non-path inputs, the auto-convert-to-path step loses
+   * the original semantic shape type. Justifies an auto-snapshot
+   * before execute when the consumer enables
+   * `SnapshotsLimits.autoOnDestructive`.
+   */
+  readonly isDestructive = true;
 
   private previousRootSnapshot: SvgNode | null = null;
 

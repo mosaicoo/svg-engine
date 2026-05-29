@@ -48,6 +48,17 @@ import { nodeToPathD } from './convert-to-path.command';
 export class KnifeCutPathCommand implements Command {
   readonly id: string = generateNodeId();
   readonly label = 'Cut path';
+  /**
+   * Marked destructive (D-073 marker). The operation REPLACES the
+   * original node with its cut pieces — for path sources, the
+   * original `d` is gone (split into 2+ paths); for non-path
+   * sources (rect/ellipse/etc), the operation EMBEDS a
+   * Convert-to-Path transform that loses the original semantic
+   * shape type. Both effects are structurally invasive enough to
+   * justify an auto-snapshot before execute (when
+   * `SnapshotsLimits.autoOnDestructive` is enabled by the consumer).
+   */
+  readonly isDestructive = true;
 
   /** Captured for undo — the node we replaced + its position. */
   private previousNode: SvgNode | null = null;

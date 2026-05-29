@@ -146,3 +146,30 @@ describe('ReleaseCompoundPathCommand', () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe('D-073 isDestructive marker — compound path commands', () => {
+  /**
+   * Audit Round 3 item #7 (2026-05-29): `MakeCompoundPathCommand`
+   * REMOVES the operand inputs after baking transforms (linhas 119-121
+   * de `compound-path.commands.ts`). This is structurally invasive
+   * enough to warrant auto-snapshot before execute when the consumer
+   * enables `SnapshotsLimits.autoOnDestructive`. Verified by reading
+   * the source per the protocol "auditar antes de agir".
+   *
+   * `ReleaseCompoundPathCommand` is NOT marked because it only splits
+   * an existing combined `d` back into separate paths — the original
+   * combined path is recoverable via undo without external state.
+   */
+  it('MakeCompoundPathCommand is flagged isDestructive=true', () => {
+    const cmd = new MakeCompoundPathCommand([]);
+    expect(cmd.isDestructive).toBe(true);
+  });
+
+  it('ReleaseCompoundPathCommand is NOT flagged destructive (no input loss)', () => {
+    const cmd = new ReleaseCompoundPathCommand('any' as never);
+    // Cast to Command because the concrete class doesn't declare the
+    // optional field — assertion that it stays falsy mirrors the
+    // pattern used in page.commands.spec.ts:191-193.
+    expect((cmd as { isDestructive?: boolean }).isDestructive).toBeFalsy();
+  });
+});

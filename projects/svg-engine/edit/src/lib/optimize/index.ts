@@ -14,6 +14,7 @@ export {
   dropDefaultsOptimizer,
   precisionOptimizer,
   pruneEmptyGroupsOptimizer,
+  stripAuthoredTitlesOptimizer,
   OptimizeCommand,
 } from 'svg-engine/optimize';
 export { builtinOptimizersPlugin } from './builtin-optimizers.plugin';
