@@ -46,14 +46,16 @@ Detalhes completos em D-041 (`docs/04-decisoes-tecnicas.md`).
 
 Para alinhamento entre time, doc e marketing, usamos este vocabulário:
 
-| Termo conceitual            | Implementação real                                                                                                 |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| **SVG Engine** (produto)    | npm package `svg-engine`                                                                                           |
-| **Canvas Engine / Core**    | conjunto: `svg-engine/{core,render,io,optimize,edit}` — 5 entry points headless                                    |
-| **Canvas físico**           | `<svge-renderer>` (read-only) ou `<svge-canvas>` (com gestures via diretivas de `edit`)                            |
-| **SVG Engine Professional** | entry point `svg-engine/ui` — em particular `<svge-shell-pro>` (drop-in completo) e `<svge-editor>` (configurável) |
-| **Shell parcial**           | Modo 3 (D-037) — composição manual de componentes de `svg-engine/ui`                                               |
-| **Playground**              | app `projects/playground/` — sandbox + showcase + benchmark, **não** produto                                       |
+| Termo conceitual            | Implementação real                                                                                                                                                                                                            |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **SVG Engine** (produto)    | npm package `svg-engine` — versão atual `0.1.0`                                                                                                                                                                               |
+| **Canvas Engine / Core**    | conjunto headless: `svg-engine/{core,render,io,optimize,edit}` — 5 entry points sem dependência de Material                                                                                                                   |
+| **Canvas físico**           | `<svge-renderer>` (read-only, em `render`) — gestures vêm via diretivas de `edit` aplicadas em projeção. **Não existe `<svge-canvas>`** — esse selector era da fase de planejamento, a composição real é renderer+diretivas.  |
+| **SVG Engine Professional** | entry point `svg-engine/ui` — em particular `<svge-shell-pro>` (drop-in completo) e `<svge-editor>` (configurável)                                                                                                            |
+| **Shell parcial**           | Modo 3 (D-037) — composição manual de componentes de `svg-engine/ui`                                                                                                                                                          |
+| **NLU layer** (D-046)       | Entry points `svg-engine/ai/{nlu,nlu-ui}` — comandos por linguagem natural (Fase 8.1 rule-based ✅; 8.2/8.3 não iniciadas). Opt-in, separado do core                                                                          |
+| **Playground**              | app `projects/playground/` — sandbox + showcase + benchmark com **8 rotas + stampToolPlugin demo**. Não é produto, é referência para consumers entenderem cada modo                                                           |
+| **SVG Studio**              | app `projects/svg-studio/` — **deliverable de produto** standalone (1 rota full-bleed, `<svge-shell-pro>` puro). Set de plugins espelhado do playground **menos demos pedagógicos**. Single-page, deep-links sempre no editor |
 
 ### Rotas do playground (slugs EN / labels PT — D-041)
 

@@ -6,6 +6,62 @@
 
 ---
 
+## 2026-05-29 — Auditoria Round 3 + Doc-Catchup Phase 1
+
+**Contexto.** Auditoria sistemática profunda com 6 subagentes paralelos cobrindo dimensões diferentes (entry points, core, edit, ui+svg-studio, io+optimize+ai+playground, doc drift). Cada agente com briefing explícito anti-alucinação exigindo `file:line` por claim. Após retorno dos 6, todas as claims foram re-verificadas via Read/Grep direto antes de virar registro persistente (protocolo "auditar antes de agir" — estabelecido como regra absoluta pelo proprietário no mesmo dia).
+
+**O quê.**
+
+1. **Protocolo "auditar antes de agir"** codificado em `docs/11-auditoria-pendencias.md` como regra dura sem exceções. Vale para mudança de código, atualização de doc, registro de pendência, afirmação de estado, e re-entrada em sessão após queda de conexão. Premissa-default: "está desatualizado até prova em contrário".
+2. **Audit log Round 3**: 16 itens novos catalogados em `docs/11`:
+   - **Bloco A — Código** (#7-#14): 6 commands sem `isDestructive` (Ungroup/Knife/MakeLiveBoolean/MakeCompoundPath/MakeSmartObject/RasterizeSmartObject), discrepância de barrel `stripAuthoredTitlesOptimizer`, vestígio `MESH_TOOL_ID`, reorder pages deferred, Inspector editors faltantes, NLU one-shot, `extra-tools.ts` sem spec (894 linhas), coverage UI ~40%
+   - **Bloco B — Documentação** (#15-#22): drift do doc 05 (roadmap, ~35 D-XXX sem refletir), doc 04 (decisões, ausentes), doc 09 (API errada — `IsolationService.enterIsolation` etc. não existem), doc 02 (counts errados), doc 06 (`<svge-canvas>` listado mas não existe), doc 10 (file paths inválidos), svg-studio sem menção em docs, header mismatches
+3. **Doc-Catchup Phase 1** — fixes triviais críticos (commit `8cd8408`):
+   - Doc 09: versão `0.0.0` → `0.1.0`; specs `884` → `1825`; **API IsolationService corrigida** (`enter/exit/exitOne/setRoot` — antes documentava nomes que não compilam)
+   - Doc 06: `<svge-canvas>` removido (não existe), rotation-pivot/marquee marcados como attribute directives
+   - Doc 10: file paths inválidos corrigidos; 4 plugins adicionados (D-043/D-044/D-046/D-047); 10ª categoria NLU documentada
+   - `render/public-api.ts` header: "8 directives" → "9 directives + dispatcher" (SymbolUse D-059 esquecido)
+   - `professional-intents.ts` header: reescrito (28 intents reais, align/distribute movidos para "NÃO COBERTOS", flip atualizado para `FlipNodeCommand` D-078)
+   - `package.json` description: "6 secondary entry points" → "8 secondary entry points"
+4. **Doc-Catchup Phase 2 step 1 — Roadmap (Doc 05)**: Fase 6c marcada completa, Fase 6d marcada entregue via D-047, nova "Sprint pós-D-046 — Produto profissional (2026-05-21 a 2026-05-29)" inserida entre Fase 6 e Fase 7. Sprint cobre 7 blocos (Pro-A a Pro-G) com ~35 decisões D-XXX em formato conciso (1-3 linhas + commit hash por item).
+5. **Doc-Catchup Phase 2 step 2 — svg-studio nos docs estruturais**: doc 01 (vocabulário canônico) ganha linha pra `SVG Studio` distinguindo do playground; doc 08 (esta entrada); doc 05 (entrada no Bloco Pro-G).
+
+**Métricas validadas no commit `42f8334`**: 1825 specs passing / 1 skipped (FUTURE-FIX NLU). 9 entry points buildando. Lint clean em svg-engine + playground + svg-studio.
+
+**Diferimento intencional**: Phase 2 step 3 (doc 02 arquitetura — mermaid diagrams) e step 4 (doc 04 decisões — ~35 seções D-XXX) ainda não entregues. Phase 1 já garantiu que nenhum consumer atual quebra por documentação errada; Phase 2 steps 3-4 são restauração da trilha de auditoria (importante mas não-bloqueante).
+
+---
+
+## 2026-05-28 — svg-studio app standalone (deliverable de produto)
+
+**Contexto.** Até então, todo runtime de editor profissional vinha do `playground` — mas playground é showcase com 8 rotas + plugins demo (incluindo `stampToolPlugin`). Para evoluir um app "produto" em paralelo, faltava um runtime dedicado sem ruído pedagógico.
+
+**O quê.** Novo app Angular em `projects/svg-studio/` (commits `2b1496d`, `1fd6a10`, `27e93d1`):
+
+- **Estrutura mínima** (11 arquivos): `main.ts`, `app.ts` (selector `studio-root`), `app.routes.ts` (1 rota só + catch-all redirect), `app.config.ts`, `pro-editor.component.ts`.
+- **Rota única**: `/` → `ProEditor`. Catch-all `**` redireciona pra raiz. Deep-links externos sempre caem no editor (sem 404).
+- **Layout full-bleed**: `<router-outlet />` direto no `<body>` com `display: flex; height: 100vh`. Sem header, sem nav, sem chrome do playground. O editor profissional ocupa 100% da viewport.
+- **Set de plugins espelhado do playground MENOS demos pedagógicos**: zero `stampToolPlugin`. 30 plugins built-in: tools (7), keyboard (2), menu (4), palettes (2), libraries (9), effects (1), io (2), optimize (1), nlu (1), extra-tools (1). Mesma ordem do playground (NLU vem APÓS menu plugins pra auto-discovery funcionar). + `provideSvgeBuiltinToolOptions()`.
+- **Per-route scope (D-042)**: `pro-editor.component.ts` declara `providers: [provideSvgEngineEditorScope()]`. Cada visita à rota vira novo scope isolado.
+- **Bootstrap idêntico ao pro-editor playground**: rect azul + circle laranja semeados em `queueMicrotask` se root group está vazio.
+- **Imports**: apenas `svg-engine/{core, edit, ui, ai/nlu}` — não consome `render` direto (vai via `ui`) nem `ai/nlu-ui` (não usa NLU input por enquanto).
+
+**Validação**: lint clean em `svg-studio` config; sem specs próprios ainda (registrado como débito no audit log Round 3 item #14).
+
+**Posicionamento canônico** (registrado em `docs/01-visao-geral.md`):
+
+|              | Playground                     | SVG Studio             |
+| ------------ | ------------------------------ | ---------------------- |
+| Propósito    | sandbox + showcase + benchmark | deliverable de produto |
+| Rotas        | 8 + 6 redirects + catch-all    | 1 + catch-all redirect |
+| Header/nav   | tem                            | full-bleed             |
+| Plugins demo | `stampToolPlugin`              | nenhum                 |
+| Audiência    | dev integrating, plugin author | end-user do produto    |
+
+**Diferimento intencional**: adicionar svg-studio ao diagrama mermaid de `docs/02-arquitetura.md` ficou para Phase 2 step 3 do Doc-Catchup.
+
+---
+
 ## 2026-05-27 — PAGES-REFACTOR Fase 9: doc-catchup + D-080 + wrap-up final
 
 **Contexto.** Fechamento do sprint PAGES-REFACTOR (Fases 1-9). Não há novo código de feature — esta fase consolida documentação e valida o conjunto end-to-end.

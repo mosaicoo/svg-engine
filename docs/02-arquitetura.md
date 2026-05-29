@@ -33,28 +33,48 @@ SVGEngine/
 │   │   ├── tsconfig.lib.json
 │   │   ├── tsconfig.lib.prod.json
 │   │   └── tsconfig.spec.json
-│   └── playground/                # app demo (--prefix=app, --routing, --style=scss)
-│       ├── public/                # assets estáticos (favicon, etc.)
+│   ├── playground/                # app demo (--prefix=app, --routing, --style=scss)
+│   │   ├── public/                # assets estáticos (favicon, etc.)
+│   │   ├── src/
+│   │   │   ├── app/
+│   │   │   │   ├── app.config.ts        # provedores raiz (30+ plugins, incl. stampToolPlugin demo)
+│   │   │   │   ├── app.routes.ts        # 8 rotas + 6 redirects legados + catch-all
+│   │   │   │   ├── app.ts
+│   │   │   │   ├── app.html             # header banner + <router-outlet>
+│   │   │   │   ├── app.scss
+│   │   │   │   └── app.spec.ts
+│   │   │   ├── index.html               # links Roboto + Material Icons
+│   │   │   ├── main.ts                  # bootstrapApplication
+│   │   │   └── styles.scss              # tema M3 azure-blue + light dark
+│   │   ├── tsconfig.app.json
+│   │   └── tsconfig.spec.json
+│   └── svg-studio/                # app produto (--prefix=studio) — adicionado 2026-05-28
+│       ├── public/                # favicon
 │       ├── src/
 │       │   ├── app/
-│       │   │   ├── app.config.ts        # provedores raiz
-│       │   │   ├── app.routes.ts
-│       │   │   ├── app.ts
-│       │   │   ├── app.html
-│       │   │   ├── app.scss
-│       │   │   └── app.spec.ts
-│       │   ├── index.html               # links Roboto + Material Icons
-│       │   ├── main.ts                  # bootstrapApplication
-│       │   └── styles.scss              # tema M3 azure-blue + light dark
+│       │   │   ├── app.config.ts        # set de plugins espelhado do playground MENOS demos
+│       │   │   ├── app.routes.ts        # 1 rota só ('/') + catch-all redirect (deep-links ⇒ editor)
+│       │   │   ├── app.ts               # full-bleed sem header
+│       │   │   └── pages/pro-editor/    # único componente, providers: [provideSvgEngineEditorScope()]
+│       │   ├── index.html
+│       │   ├── main.ts
+│       │   └── styles.scss
 │       ├── tsconfig.app.json
 │       └── tsconfig.spec.json
 ├── .editorconfig
 ├── .gitignore
 ├── .prettierrc
-├── angular.json                   # 2 projetos: svg-engine, playground
+├── angular.json                   # 3 projetos: svg-engine, playground, svg-studio
 ├── package.json                   # @angular/* @21.2.0, @angular/material @21.x
 └── tsconfig.json                  # strict + strictTemplates + flags fortes
 ```
+
+**Por que 2 apps consumidores** (D-041 follow-up de 2026-05-28):
+
+- **`playground`**: sandbox+showcase para devs integrando a library — mostra todos os modos D-037, inclui plugins demo (`stampToolPlugin`), tem 8 rotas explicando cada Modo, redirects legados de URLs antigas. Audiência: plugin author, dev integrando.
+- **`svg-studio`**: deliverable de produto — full-bleed `<svge-shell-pro>` puro, 1 rota só, set de plugins espelhado do playground **menos** demos pedagógicos, deep-links sempre caem no editor. Audiência: end-user.
+
+A coexistência prova um princípio importante do D-041: a library serve dois consumers reais (showcase + produto) sem precisar de fork — só configurações diferentes de `provideSvgEnginePlugin(...)` no bootstrap.
 
 ## 3. Estrutura-alvo: multi-entry-point (D-018)
 

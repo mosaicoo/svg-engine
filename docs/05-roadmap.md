@@ -321,13 +321,16 @@
   - **Polish (b825454 + bugfixes)**: 4 melhorias UX (cycle kind, Alt+insert, Delete prioriza anchors, Divide style per region); 3 bugfixes encadeados (parser classifyKind, synthesizeHandles assimétrico, enforceKind cusp colapsa, AnchorOverlay ancestor matrix)
   - **Limitação documentada**: o `d` string não persiste `kind` como metadata; sempre será inferido da geometria. Cycle preso em symmetric requer arrastar handle para escapar — entrada nova em [04 — Decisões técnicas]
   - **Total**: +30 specs novos → **884 passing** em 65 arquivos
-- [ ] **Bloco 6c — Acessibilidade + Docs** (em andamento)
+- [x] **Bloco 6c — Acessibilidade + Docs** ✅
   - [x] **6c-1**: Suporte a `<defs>` e `<clipPath>` no svgImporter — `SvgDocument.defs?: string` opaque fragment + sanitização (script/on\*/javascript:); exporter round-trip verbatim; renderer injeta via `insertAdjacentHTML`. Resolve warnings vistos em Paranagua/Gransol
-  - [ ] Audit ARIA + navegação por teclado nos overlays e panels
-  - [ ] README + `docs/09-api-publica.md` preenchidos
-  - [ ] Guia "como escrever um plugin" referenciando D-020/D-023
-- [ ] **Bloco 6d — EffectRegistry** (D-023 cat 7)
-- [ ] **Bloco 6e — ScriptRuntimePlugin** (D-024)
+  - [x] **6c-2**: Audit ARIA + navegação por teclado nos overlays e panels (Layers/Inspector/Color Picker)
+  - [x] **6c-3**: README + `docs/09-api-publica.md` preenchidos (cobrindo core/render/io/optimize/edit/ui APIs)
+  - [x] **6c-4**: Guia "como escrever um plugin" (`docs/10-guia-plugin.md`) referenciando D-020/D-023 — atualizado em 2026-05-29 para refletir 10 categorias (incluindo NLU intents, D-046)
+- [x] **Bloco 6d — EffectRegistry** ✅ (D-047 — entregue em 2026-05-23)
+  - 15 builtin effects single-filter (drop-shadow, blur, glow, inner-shadow, brightness, contrast, saturate, hue-rotate, grayscale, sepia, invert, opacity, blend-overlay, blend-multiply, color-matrix) + 4 chained presets
+  - `EffectRegistry` em `edit/effect/effect-registry.service.ts` + `builtinEffectsPlugin` + `ChainFilterRegistry` (scoped via D-042)
+  - UI `<svge-effects-panel>` com pipeline editor (drag-drop reorder, enable toggle, parameter inputs)
+- [ ] **Bloco 6e — ScriptRuntimePlugin** (D-024) — não iniciado
 - [ ] **Débitos reconhecidos**:
   - LayersPanel virtualization (CDK virtual-scroll requer ResizeObserver — jsdom mock pendente; refactor de specs para component-instance testing)
   - Margem de stroke-width na bbox de culling (caso ainda não-observado)
@@ -337,6 +340,110 @@
   - Combobox / `<select>` nativo: background em dark mode (cor padrão do browser não harmoniza com a paleta Material)
   - Outros controles que vamos descobrir ao usar a app em ambos os temas
   - Idealmente migrar `<select>` da toolbar para Material `<mat-select>`
+
+## Sprint pós-D-046 — Produto profissional (2026-05-21 a 2026-05-29) ✅
+
+> **Contexto**: depois da Fase 6c/6d e da Fase 8.1 (NLU rule-based), o
+> projeto entrou num sprint intensivo de ~9 dias para atingir paridade
+> de feature com Illustrator/Affinity em superfícies profissionais.
+> Resultado: ~35 decisões D-XXX (D-047 até D-080) implementadas, ~700
+> specs novas (1138 → 1825), 2 entry points novos (`ai/nlu` e `ai/nlu-ui`,
+> totalizando 8 secondary). **Roadmap original (Fases 7-8) preservado
+> abaixo como tracks paralelos opcionais**.
+>
+> Sprint registrado retroativamente em 2026-05-29 após auditoria Round 3
+> (`docs/11-auditoria-pendencias.md`). Cada D-XXX abaixo tem detalhamento
+> em `docs/08-historico-de-alteracoes.md` e (pendente) em
+> `docs/04-decisoes-tecnicas.md`.
+
+### Bloco Pro-A — Libraries & Composição
+
+- [x] **D-047 — Effects ecosystem** (commit `d3900d9`): documentado no Bloco 6d acima
+- [x] **D-048 — Libraries ecosystem** (commit `6609b65`): foundation `LibraryItem`/`LibraryRegistry` genérico + 8 libraries concretas:
+  - Shape Library (12 builtin shapes) + panel
+  - Palette Library (5 builtin paletas, integrada com `PaletteRegistry` D-023)
+  - Graphic Styles Library (6 presets, apply-1-click)
+  - Gradient Library (`GradientRegistry` + builtin + render + editor)
+  - Pattern Library (5 builtin patterns + defs injection)
+  - Template Library (4 builtin documents)
+  - Asset Manager (scoped) + Symbol (stubs) + Brush (stubs)
+  - UI `<svge-libraries-panel>` em 6 tabs + scope provider + `builtinLibrariesPlugin`
+- [x] **D-049 — Composição/Recorte** (commit `3a20768`): `clipPath`/`mask`/`blend modes` no modelo + render + export
+- [x] **D-050 — Tools faltantes** (commit `3a20768`): Eyedropper / Knife / Smooth / Gradient / Width — registrados em `extraToolsPlugin`
+- [x] **D-051 — Tema/UX polish** (commit `3a20768`): migração de `<select>` nativo → Material `<mat-select>`
+- [x] **D-052 — Menu Insert/Inserir** (commit `4e61583`): submenu de shapes padrão Figma/PowerPoint
+
+### Bloco Pro-B — Edição avançada (D-053 a D-058)
+
+- [x] **D-053 — Variable Fonts + OpenType + Text on Path** (commit `9f312a1`): TextNode estendido com 3 campos novos (fontVariationSettings, fontFeatureSettings, textPathRef/Offset)
+- [x] **D-054 — Compound Paths explícitos** (commit `9f312a1`): `MakeCompoundPathCommand` + `ReleaseCompoundPathCommand` em core
+- [x] **D-055 — Live Corners** (commit `9f312a1`): `cornerRadius` opcional em `PathNode` + `roundPathCorners` helper em geometry
+- [x] **D-056 — Boolean Live (non-destructive)** (commit `9f312a1`): 3 commands `Make/Refresh/Release LiveBooleanCommand` — foundation
+- [x] **D-057 — Auto-trace** (commit `9f312a1`): documentado como deferido (depois implementado em D-062d via marching squares)
+- [x] **D-058 — Gradient inline editor** (commit `b4fdfee`): panel no Inspector + overlay no canvas com handles arrastáveis
+
+### Bloco Pro-C — Symbol + Brush + Panels (D-059 a D-066)
+
+- [x] **D-059 — Symbol Library master/instance** (commit `b699105`): `SymbolUseNode` no union `SvgNode` + render + exporter + `ActiveSymbolsService`
+- [x] **D-060 — Brush Library** (commit `b699105`): Pencil tool consumption + path expansion algorithm + `builtinBrushesPlugin`
+- [x] **D-061 — Panel-group base** (commit `70d61b1`): `<svge-panel-group>` reutilizável (4-side tab placement com user picker + persistence, atualizado em `392c362`)
+- [x] **D-062 (a-d) + D-062-fix — Tools reais** (commits `e9cec42`, `1d84897`, `9924c19`): Symbol Sprayer (a), Width Tool (b), Mesh aproximada (c — depois REMOVIDA em fix), Auto-trace (d). Mesh tool **removida** após validação UX — `MESH_TOOL_ID` permanece como constant no-op (audit item #9)
+- [x] **D-063 — Symbol Sprayer live preview** (commit `9924c19`): `SymbolSprayerPreviewService` + `SymbolSprayerOverlay` projetado em todos os shells
+- [x] **D-064 — Centralizar Undo/Redo/Zoom** (commit `e1efd52`): Zoom no `toolbar.main` slot, botões hardcoded removidos de `<svge-editor>` e `custom-editor`
+- [x] **D-065 — Align/Distribute/Pathfinder submenus** (commits `3a6ff89`, `3178b0a`): 6 align axes + 2 distribute + 5 pathfinder ops, todas no Menu Object
+- [x] **D-066 — Auto-trace polish** (commit `185babf`): `TraceProgressService` scoped + `<svge-trace-image-dialog>` + menu+shortcut UI plugin + Status bar Tracing pill
+
+### Bloco Pro-D — Inspector polish (D-068 a D-074)
+
+- [x] **D-068 — Inspector Type section** (commit `84e9e9d`): seção Type completa no Inspector + fix renderer/exporter para emitir `id` em paths referenciados por `<textPath>`
+- [x] **D-069 — Typography controls** (commit `52e42db`): 7 controles novos (fontStyle, textDecoration, lineHeight, letterSpacing, ...) + 3 campos novos em `TextNode`
+- [x] **D-070 — Find & Replace** (commits `a3e3f8f`, `1b73cc3`): `FindReplaceService` (edit) + `SetPropertyOnManyCommand` + `<svge-find-replace-dialog>` + menu Edit + Ctrl+H
+- [x] **D-071 — Batch operations + Select Same** (commits `9177797`, `68b57db`): `SelectSameService` + comando + menu; batch Convert to Path no Inspector; batch Lock/Hide no Layers Panel
+- [x] **D-072 — Logical Layers** (commits `5953521`, `ecb469b`): `isLayer` helper + `MakeLayerCommand`/`UnmakeLayerCommand`/`CreateLayerCommand` em core + UI distinction + drag/drop validation (layers só top-level) + persistence híbrida via `<title>` em IO (D-072g-v2)
+- [x] **D-073 — History Snapshots** (commits `a46a0e0`, `e7dc789`): `SnapshotsService` (core, scope-only) + `RestoreSnapshotCommand` undoable + marker `Command.isDestructive` + auto-snapshot no `CommandBus` + scope provider + `<svge-snapshots-panel>` + menu/shortcuts (Ctrl+Shift+S Take, Ctrl+Alt+Z Restore Last) + `SnapshotsPersistenceService`
+- [x] **D-074 — Smart Objects** (commit `072ff22`): helpers + 4 commands (`Make/Edit/Replace/Rasterize SmartObjectContents`) + IO round-trip via `data-svge-kind=smart-object` + Object ▸ Smart Object submenu + ícone distinto no Layers Panel + `<svge-smart-object-editor-dialog>`
+
+### Bloco Pro-E — Export + Panels finais + Tool Options (D-076 a D-078, TOOL-OPT)
+
+- [x] **D-076 — Inspector Smart Object section** (commit `a47d28c`): icon + name + child count + actions (Edit Contents, Rasterize)
+- [x] **D-077 — Asset Export panel** (commit `a47d28c`): `ExportSlot` interface + `AssetExportRegistry` + `<svge-asset-export-panel>` (list + add + export-all) + scope provider; persistência adicionada em 2026-05-29 (round 2 autonomous: `AssetExportPersistenceService` espelhando D-073 — audit item #1 fechado)
+- [x] **D-078 — Properties Panel em tabs** (commit `8cba0b4`): refactor Inspector pra `<svge-panel-group>` com tabs + `FlipNodeCommand` no core + Tab Transform (Flip H/V) + Tab Align (6 align + 2 distribute) + Tab Arrange (z-index, group/ungroup, lock/visibility)
+- [x] **TOOL-OPT Fases A/B/C/D** (commits `c0866e8`, `aa0cbf7`, `95a08e0`, `2153e06`): `ToolOptionsRegistry` em UI + 14 components especializados por tool + `provideSvgeBuiltinToolOptions()` helper wireado no playground
+- [x] **KNIFE-FIX** (sem D-XXX): Knife tool de stub para real — auto-convert source → path + split + feedback + tolerance wired
+
+### Bloco Pro-F — Pages / Artboards (D-079 e D-080)
+
+- [x] **D-079 — Pages / Artboards** (5 commits PAGES-A→E):
+  - PAGES-A: core helpers (`isPage`, `getPageViewBox`, `getPageName`, `withPageFlag`) + 4 commands (`Create/Delete/Rename/Resize PageCommand`)
+  - PAGES-B: `ActivePageService` + `PagesService` + renderer page-filter
+  - PAGES-C: `<svge-pages-panel>` UI (tabs + add/delete/rename/reorder) + wire shell-pro
+  - PAGES-D: IO (export per-page + import multi-page) + Inspector page section
+  - PAGES-E: doc-catchup + D-079 decisão técnica
+  - Follow-ups: PAGES-FIX (UI sempre visível pra criar primeira page) + PAGES-FIX-2 (auto-bootstrap Page 1 + tools desenham na página ativa + default Select tool)
+- [x] **D-080 — PAGES-REFACTOR (Fases 1-9)** (9 commits):
+  - Fase 1: CommandBus interceptor + `AUTO_PARENT` constant + `InsertParentResolver` interface
+  - Fase 2: `<svge-page-selection-overlay>` com brackets em L
+  - Fase 3: fusão `WorkspaceService` → `ActivePage` (single source of truth para PageOptions)
+  - Fase 4: hit-target persistente no `PageOverlay` (fim do flicker)
+  - Fase 5: paridade `<svge-editor>` ↔ `<svge-shell-pro>`
+  - Fase 6: resize visual via brackets + move via handle (`MovePageCommand` novo) + `PageDragService`
+  - Fase 7: persistência `activePageId` via localStorage + auto-snapshot pré-Delete + selection clear no page switch
+  - Fase 8: Inspector Page tab estendido (background / margins / format / orientation — `SetPageOptionsCommand`)
+  - Fase 9: cleanup + doc-catchup (D-080 + atualização de 04/06/08/09)
+- [x] **PAGES Follow-ups** (commits posteriores):
+  - Page tool (Illustrator Artboard Tool pattern) — page chrome só ativa quando Page tool selecionada (`pageToolPlugin`)
+  - Page tool drag preview — paper rect segue cursor + ESC cancela
+  - Mid-edge brackets nos 4 lados (top/bottom/left/right) com cursor `ns-resize`/`ew-resize` (commit `3b5dc33`, sessão 2026-05-29)
+
+### Bloco Pro-G — Consumer apps & polish final
+
+- [x] **svg-studio app standalone** (commits `2b1496d`, `1fd6a10`, `27e93d1`): novo Angular app em `projects/svg-studio/`, full-bleed `<svge-shell-pro>`, set de plugins espelhado do playground **menos demos pedagógicos** (sem `stampToolPlugin`). É o **deliverable de produto** vs playground (showcase/sandbox). Provê `provideSvgEngineEditorScope()` por rota (D-042).
+- [x] **Régua — selection-band feedback** (commit `72ddc34`): faixa translúcida nos rulers X/Y projetando bbox da seleção. Acompanha drag/resize/zoom/pan em tempo real
+- [x] **Audit rounds 1+2+3** (commits `622b96a`, `b152f49`, `2687588`, `42f8334`, `7b254b5`, `8cd8408`): metodologia de auditoria persistente (`docs/11-auditoria-pendencias.md`) — 22 itens catalogados com evidência `file:line`. Protocolo "auditar antes de agir" estabelecido como regra absoluta pelo proprietário em 2026-05-29
+
+**Validação final do sprint**: 1825 specs passando / 1 skipped (FUTURE-FIX NLU intencional, documentado). 9 entry points buildando clean. Lint clean nos 3 projetos (svg-engine, playground, svg-studio).
+
+---
 
 ## Fase 7 — Backend .NET (condicional)
 
