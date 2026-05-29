@@ -38,15 +38,15 @@ export { SvgeShellInteractions } from './shell-interactions.directive';
 // D-050 (Item 5 — Tools faltantes): Eyedropper / Knife / Smooth /
 // Gradient + D-062 real implementations for Width / Symbol Sprayer.
 //
-// MESH_TOOL_ID stays exported as a no-op constant for back-compat
-// (see D-062c removal note in extra-tools.ts).
+// Mesh tool was removed in D-062-fix; the residual `MESH_TOOL_ID`
+// constant was dropped in Audit Round 3 (#9, 2026-05-29) after
+// confirming zero consumers.
 export {
   EYEDROPPER_TOOL_ID,
   KNIFE_TOOL_ID,
   SMOOTH_TOOL_ID,
   GRADIENT_TOOL_ID,
   WIDTH_TOOL_ID,
-  MESH_TOOL_ID,
   SYMBOL_SPRAYER_TOOL_ID,
   GradientToolService,
   // D-062b

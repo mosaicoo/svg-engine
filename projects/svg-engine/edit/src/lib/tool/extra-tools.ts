@@ -69,7 +69,11 @@ export const KNIFE_TOOL_ID = 'com.svge.tool.knife';
 export const SMOOTH_TOOL_ID = 'com.svge.tool.smooth';
 export const GRADIENT_TOOL_ID = 'com.svge.tool.gradient';
 export const WIDTH_TOOL_ID = 'com.svge.tool.width';
-export const MESH_TOOL_ID = 'com.svge.tool.mesh';
+// Mesh tool was removed in D-062-fix (rationale below, lines ~600+).
+// Audit Round 3 item #9 (2026-05-29) closed the vestigial `MESH_TOOL_ID`
+// constant after confirming zero internal/external consumers — the
+// constant never registered a Tool, so dropping it cleans the public API
+// without removing any actual functionality.
 export const SYMBOL_SPRAYER_TOOL_ID = 'com.svge.tool.symbol-sprayer';
 
 // ── Shared hit-test utilities ────────────────────────────────────────
@@ -607,13 +611,13 @@ class WidthTool implements Tool {
 // testing showed the radial fallback produced no visible value over
 // just applying a built-in radial gradient from the Libraries panel.
 //
-// **Decision**: tool removed. The MESH_TOOL_ID constant is kept as a
-// no-op export so external consumers that imported it don't break at
-// build time, but it no longer registers a Tool in the registry. A
-// real mesh implementation would require canvas rasterization + image
-// fill (heavy, browser-specific, breaks SVG round-trip) — deferred
-// indefinitely until there's concrete demand and a maintainable
-// vector primitive.
+// **Decision**: tool removed. Initially the `MESH_TOOL_ID` constant
+// was kept as a no-op export "for back-compat", but Audit Round 3
+// (2026-05-29) found zero consumers — internal or external — so the
+// constant was dropped along with the tool. A real mesh implementation
+// would require canvas rasterization + image fill (heavy, browser-
+// specific, breaks SVG round-trip) — deferred indefinitely until
+// there's concrete demand and a maintainable vector primitive.
 //
 // **Users wanting mesh-like shading**: rasterize externally
 // (Illustrator / Inkscape / Photoshop) and import as `<image>`. The
@@ -809,7 +813,7 @@ export const extraToolsPlugin: EditorPlugin = {
     // (1.1 lacks it, 2.0's <meshgradient> has zero browser support).
     // The radial-gradient approximation added no visible value over
     // just applying a built-in radial from the Libraries panel.
-    // MESH_TOOL_ID stays exported as a no-op constant for back-compat.
+    // `MESH_TOOL_ID` constant also dropped in Audit Round 3 (#9, 2026-05-29).
   },
 };
 
