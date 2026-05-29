@@ -507,7 +507,17 @@ Roadmap recebeu nova seção "Sprint pós-D-046 — Produto profissional" entre 
 
 ---
 
-#### 16. Doc 04 (decisões técnicas) — `CRÍTICO` (corrige trilha de auditoria)
+#### 16. Doc 04 (decisões técnicas) — `CRÍTICO` → ✅ **PARCIALMENTE ENTREGUE** (commit `7245c50`, 2026-05-29)
+
+**Estratégia híbrida aplicada** (escolhida como "mais coerente" dado o volume de 35 entradas e o risco de hallucination em rationale retroativo):
+
+1. **Tabela-índice** cobrindo TODAS as 35 decisões (D-044, D-047 a D-078) com: status, commit hash, doc 08 cross-ref, flag indicando se tem seção completa. Toda linha é evidência rastreável — fechando a "trilha de decisões" imediatamente.
+2. **6 seções completas** (~80-100 linhas cada) para decisões de maior peso arquitetural: **D-047** (EffectRegistry pattern), **D-048** (LibraryRegistry&lt;T&gt; genérico), **D-072** (kind flag pattern, 3 iterações de persistência), **D-073** (isDestructive marker + auto-snapshot interceptor), **D-074** (kind flag reaplicado + IO via data-svge-kind), **D-077** (ExportSlot interface + scoped registry pattern).
+3. **Pendência sub-tarefa #16-enrich** explicitamente registrada para enriquecer as 29 entradas restantes (D-044, D-049-D-066, D-068-D-071, D-076, D-078). Não foram escritas retroativamente para evitar risco de hallucination — narrativa completa de cada uma já vive em `docs/08-historico-de-alteracoes.md` (escrita junto com o commit, melhor evidência possível).
+
+**Quando enriquecer #16-enrich**: oportunisticamente quando alguma das 29 decisões for revisitada (refactor / supersedure / bug estrutural). O turno de revisão é o melhor momento, porque o autor já está lendo o código com o protocolo "auditar antes de agir".
+
+#### 16-OLD. Doc 04 — info original abaixo
 
 **Evidência**:
 
