@@ -86,9 +86,11 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
  *   covers fields that differ across the selection). Falls back to a
  *   simple "Multiple selection" placeholder when nothing is shareable.
  * - **Single selection** → header (type + id slice) + sections:
- *   - **Geometry** (per `node.type`): rect/ellipse/line numeric inputs.
- *     Polygon/polyline/path/text/image deferred (need richer editors).
- *     Group has no inherent geometry — section is omitted.
+ *   - **Geometry** (per `node.type`): rect/ellipse/line numeric inputs;
+ *     polygon/polyline points textarea (SVG `x,y x,y` syntax);
+ *     path `d` textarea; text x/y + content textarea; image x/y/w/h
+ *     + href (Audit #11). Group has no inherent geometry — section
+ *     is omitted.
  *   - **Style**: fill, stroke (color inputs), strokeWidth (number),
  *     opacity (number 0-1).
  *
@@ -310,6 +312,159 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
                     />
                   </mat-form-field>
                 </div>
+              </section>
+            }
+            @case ('polygon') {
+              <section class="section">
+                <h3 class="section-title">Geometry</h3>
+                <mat-form-field appearance="outline" class="full-width-field">
+                  <mat-label>points (x,y x,y ...)</mat-label>
+                  <textarea
+                    matInput
+                    rows="3"
+                    [disabled]="isLocked()"
+                    [value]="formatPoints(node)"
+                    (change)="setPoints($any($event.target).value)"
+                  ></textarea>
+                </mat-form-field>
+                <p class="placeholder small">
+                  Tip: edit individual anchors visually with Direct Select (A).
+                </p>
+              </section>
+            }
+            @case ('polyline') {
+              <section class="section">
+                <h3 class="section-title">Geometry</h3>
+                <mat-form-field appearance="outline" class="full-width-field">
+                  <mat-label>points (x,y x,y ...)</mat-label>
+                  <textarea
+                    matInput
+                    rows="3"
+                    [disabled]="isLocked()"
+                    [value]="formatPoints(node)"
+                    (change)="setPoints($any($event.target).value)"
+                  ></textarea>
+                </mat-form-field>
+                <p class="placeholder small">
+                  Tip: edit individual anchors visually with Direct Select (A).
+                </p>
+              </section>
+            }
+            @case ('path') {
+              <section class="section">
+                <h3 class="section-title">Geometry</h3>
+                <mat-form-field appearance="outline" class="full-width-field">
+                  <mat-label>d (path data)</mat-label>
+                  <textarea
+                    matInput
+                    rows="4"
+                    [disabled]="isLocked()"
+                    [value]="strField(node, 'd')"
+                    (change)="setString('d', $any($event.target).value)"
+                  ></textarea>
+                </mat-form-field>
+                <p class="placeholder small">
+                  Tip: edit anchors visually with Direct Select (A) or run Pathfinder ops.
+                </p>
+              </section>
+            }
+            @case ('text') {
+              <section class="section">
+                <h3 class="section-title">Geometry</h3>
+                <div class="grid">
+                  <mat-form-field appearance="outline">
+                    <mat-label>x</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [disabled]="isLocked()"
+                      [value]="numField(node, 'x')"
+                      (change)="setNumber('x', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>y</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [disabled]="isLocked()"
+                      [value]="numField(node, 'y')"
+                      (change)="setNumber('y', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                </div>
+                <mat-form-field appearance="outline" class="full-width-field">
+                  <mat-label>content</mat-label>
+                  <textarea
+                    matInput
+                    rows="3"
+                    [disabled]="isLocked()"
+                    [value]="strField(node, 'content')"
+                    (change)="setString('content', $any($event.target).value)"
+                  ></textarea>
+                </mat-form-field>
+                <p class="placeholder small">
+                  Typography (font, weight, style, etc.) lives in the Type tab.
+                </p>
+              </section>
+            }
+            @case ('image') {
+              <section class="section">
+                <h3 class="section-title">Geometry</h3>
+                <div class="grid">
+                  <mat-form-field appearance="outline">
+                    <mat-label>x</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [disabled]="isLocked()"
+                      [value]="numField(node, 'x')"
+                      (change)="setNumber('x', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>y</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      [disabled]="isLocked()"
+                      [value]="numField(node, 'y')"
+                      (change)="setNumber('y', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>w</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      min="0"
+                      [disabled]="isLocked()"
+                      [value]="numField(node, 'width')"
+                      (change)="setNumber('width', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>h</mat-label>
+                    <input
+                      matInput
+                      type="number"
+                      min="0"
+                      [disabled]="isLocked()"
+                      [value]="numField(node, 'height')"
+                      (change)="setNumber('height', $any($event.target).value)"
+                    />
+                  </mat-form-field>
+                </div>
+                <mat-form-field appearance="outline" class="full-width-field">
+                  <mat-label>href (URL or data:)</mat-label>
+                  <input
+                    matInput
+                    type="text"
+                    [disabled]="isLocked()"
+                    [value]="strField(node, 'href')"
+                    (change)="setString('href', $any($event.target).value)"
+                  />
+                </mat-form-field>
               </section>
             }
             @default {
@@ -3355,6 +3510,115 @@ export class SvgeInspector {
     const current = this.commonStyleValue(field);
     if (current !== MIXED && current === value) return;
     this.bus.dispatch(new SetStylePropertyOnManyCommand(ids, field, value));
+  }
+
+  // ── Audit #11 — Inspector editors for polygon/polyline/path/text/image ──
+
+  /**
+   * Set a top-level string property on the focused node. Mirrors
+   * {@link setNumber} but for `string`-typed fields (e.g., `d` on
+   * paths, `content` on text, `href` on images). The raw input is
+   * passed through verbatim (no trim) so users can intentionally
+   * commit a trailing space if they need to — the renderer / exporter
+   * handle whitespace; the Inspector shouldn't pre-process.
+   *
+   * Dedup: skipped when the new value equals the current value
+   * (avoids an empty undo entry on focus-and-blur).
+   */
+  protected setString(field: string, raw: string): void {
+    const node = this.focusNode();
+    if (node === null) return;
+    if (this.layers.isLocked(node.id)) return;
+    if ((node as unknown as Record<string, string>)[field] === raw) return;
+    this.bus.dispatch(
+      new SetPropertyCommand<SvgNode, never>(node.id, field as never, raw as never),
+    );
+  }
+
+  /**
+   * Parse a `points` string (SVG `<polygon points>` syntax) and
+   * dispatch as a new `Point[]` on the focused polygon/polyline.
+   *
+   * **Accepted input** (we follow the SVG spec — permissive):
+   * - Comma OR whitespace between x and y of a pair: `10,20` or `10 20`
+   * - Comma OR whitespace between pairs: `10,20 30,40` or `10 20 30 40`
+   * - Newlines treated as whitespace (so users can paste from text)
+   *
+   * **Rejection (silent)**: empty string, odd number of numbers, any
+   * NaN/non-finite. The Inspector preserves the current value when
+   * input is malformed — typing mid-edit shouldn't blow away the
+   * shape.
+   */
+  protected setPoints(raw: string): void {
+    const node = this.focusNode();
+    if (node === null) return;
+    if (this.layers.isLocked(node.id)) return;
+    if (node.type !== 'polygon' && node.type !== 'polyline') return;
+    const numbers = raw
+      .split(/[\s,]+/)
+      .filter((tok) => tok.length > 0)
+      .map((tok) => Number(tok));
+    if (numbers.length === 0 || numbers.length % 2 !== 0) return;
+    if (numbers.some((n) => !Number.isFinite(n))) return;
+    const points: Point[] = [];
+    for (let i = 0; i < numbers.length; i += 2) {
+      points.push({ x: numbers[i]!, y: numbers[i + 1]! });
+    }
+    // Dedup by structural equality — same coords in same order → no-op.
+    const current = (node as { points: readonly Point[] }).points;
+    if (current.length === points.length) {
+      let same = true;
+      for (let i = 0; i < points.length; i++) {
+        if (current[i]!.x !== points[i]!.x || current[i]!.y !== points[i]!.y) {
+          same = false;
+          break;
+        }
+      }
+      if (same) return;
+    }
+    this.bus.dispatch(
+      new SetPropertyCommand<SvgNode, never>(node.id, 'points' as never, points as never),
+    );
+  }
+
+  /**
+   * Format a node's `points` array as the SVG `<polygon points>`
+   * syntax string used for display: `"x1,y1 x2,y2 x3,y3"`. Returns
+   * empty string when the node has no points / isn't a points-bearing
+   * type. Display rounding via {@link roundForDisplay} so sub-pixel
+   * noise from arithmetic doesn't pollute the textarea.
+   */
+  protected formatPoints(node: SvgNode | null): string {
+    if (node === null) return '';
+    if (node.type !== 'polygon' && node.type !== 'polyline') return '';
+    const pts = (node as { points: readonly Point[] }).points;
+    return pts.map((p) => `${roundForDisplay(p.x)},${roundForDisplay(p.y)}`).join(' ');
+  }
+
+  /**
+   * Generic numeric field accessor for non-rect/ellipse/line types
+   * (path has no numeric primitives, but text/image do — x, y on text
+   * and x/y/width/height on image). Inlined cast to avoid creating 2
+   * more single-purpose pipes for fields that already share semantics
+   * (whole-pixel display rounding) with the rect/ellipse/line pipes.
+   * Returns `undefined` for missing fields so the template binds to
+   * empty input instead of `NaN`.
+   */
+  protected numField(node: SvgNode | null, field: string): number | undefined {
+    if (node === null) return undefined;
+    const raw = (node as unknown as Record<string, unknown>)[field];
+    return typeof raw === 'number' ? roundForDisplay(raw) : undefined;
+  }
+
+  /**
+   * Generic string field accessor — same role as {@link numField} but
+   * for `d` (path), `content` (text), `href` (image). Returns empty
+   * string for missing fields so the input binds cleanly.
+   */
+  protected strField(node: SvgNode | null, field: string): string {
+    if (node === null) return '';
+    const raw = (node as unknown as Record<string, unknown>)[field];
+    return typeof raw === 'string' ? raw : '';
   }
 
   // ── D-049 (Item 4 — Composição / Recorte) ───────────────────────

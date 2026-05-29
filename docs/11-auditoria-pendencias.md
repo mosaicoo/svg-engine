@@ -459,17 +459,25 @@ Constant removido após verificação protocolo-correta de zero consumers. O gre
 
 ---
 
-#### 11. Inspector editors faltantes para polygon/polyline/path/text/image — `MÉDIA`
+#### 11. Inspector editors faltantes para polygon/polyline/path/text/image — `MÉDIA` → ✅ **ENTREGUE** (2026-05-29)
 
-**Evidência** (do agente UI, ainda não cross-checked por mim na linha exata — single-source):
+**Implementação**: 5 novos `@case` no `@switch (node.type)` da Geometry section do Inspector, cobrindo todos os tipos antes "deferred":
 
-- `projects/svg-engine/ui/src/lib/inspector/inspector.component.ts:90` (docstring): _"Polygon/polyline/path/text/image deferred (need richer editors)."_
+- **polygon / polyline**: `<textarea>` com pontos no formato SVG `<polygon points>` (`"x,y x,y ..."`). Parser permissivo (vírgula OU espaço entre números; aceita newlines). Rejeita silenciosamente input malformado (número ímpar de valores, NaN) — preserva o valor atual durante edição parcial.
+- **path**: `<textarea>` para o atributo `d` (path data string). Tip embutido: "edit anchors visually with Direct Select (A) or run Pathfinder ops".
+- **text**: inputs `x` / `y` + `<textarea>` para `content` (multi-line). Tip: "Typography lives in the Type tab" (D-068/D-069).
+- **image**: inputs `x` / `y` / `width` / `height` + input texto para `href` (URL ou `data:`).
 
-**O que falta**: editores dedicados no Inspector para os 5 tipos. Atualmente apenas rect / ellipse / line têm geometry editor; os outros mostram placeholder "edit via canvas tools".
+**Reference**:
 
-**Impacto**: usuário não consegue editar precisão de pontos/conteúdo via Inspector — só via canvas tools (AnchorOverlay para path; canvas drag para text). Para image, hoje não há edição de geometria via Inspector.
+- `projects/svg-engine/ui/src/lib/inspector/inspector.component.ts:90` (docstring atualizado removendo "deferred")
+- `projects/svg-engine/ui/src/lib/inspector/inspector.component.ts:315-462` (5 novos @case blocks)
+- `projects/svg-engine/ui/src/lib/inspector/inspector.component.ts:3361-3475` (helpers: `setString`, `setPoints`, `formatPoints`, `numField`, `strField`)
+- `projects/svg-engine/ui/src/lib/inspector/inspector.component.spec.ts` (10 novos specs cobrindo: read display + dispatch on edit + malformed rejection)
 
-**Workaround atual**: para path, existe AnchorOverlay (Direct Select tool). Para text, o InlineTextEditor cobre conteúdo (não tipografia avançada — essa Inspector já tem Type tab via D-068+D-069).
+**Comando reutilizado**: `SetPropertyCommand` (já existente — sem novos commands no core).
+
+**Workarounds preservados**: AnchorOverlay (Direct Select) continua sendo a forma visual de editar pontos/anchors; InlineTextEditor continua para edição contextual de texto no canvas. O Inspector agora é o **caminho de precisão** (números exatos / strings literais).
 
 ---
 

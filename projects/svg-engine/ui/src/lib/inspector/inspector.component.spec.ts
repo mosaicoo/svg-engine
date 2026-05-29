@@ -5,9 +5,13 @@ import {
   createEllipse,
   createEmptyDocument,
   createGroup,
+  createImage,
   createLine,
   createPath,
+  createPolygon,
+  createPolyline,
   createRect,
+  createText,
   EditorStateService,
   findNodeById,
   getPageOptions,
@@ -178,11 +182,155 @@ describe('SvgeInspector — geometry per type', () => {
     expect(inputs.slice(0, 4).map((i) => Number(i.value))).toEqual([1, 2, 30, 40]);
   });
 
-  it('path shows the "not yet supported" placeholder for geometry', () => {
+  // Audit #11 — Inspector editors for polygon/polyline/path/text/image.
+
+  it('path shows a textarea bound to the d string (Audit #11)', () => {
     const p = createPath('M0 0 L10 10');
     const { fixture } = setupWith(p);
-    const small = fixture.nativeElement.querySelector('.placeholder.small');
-    expect(small?.textContent).toContain('not yet supported');
+    const textarea = fixture.nativeElement.querySelector(
+      'mat-form-field textarea',
+    ) as HTMLTextAreaElement | null;
+    expect(textarea).not.toBeNull();
+    expect(textarea?.value).toBe('M0 0 L10 10');
+  });
+
+  it('editing the path d textarea dispatches SetPropertyCommand (Audit #11)', () => {
+    const p = createPath('M0 0 L10 10');
+    const { fixture, state, node } = setupWith(p);
+    const textarea = fixture.nativeElement.querySelector(
+      'mat-form-field textarea',
+    ) as HTMLTextAreaElement;
+    textarea.value = 'M5 5 L20 20 Z';
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    const after = findNodeById(state.document().root, node.id);
+    expect(after !== null && after.type === 'path' ? after.d : null).toBe('M5 5 L20 20 Z');
+  });
+
+  it('polygon shows a textarea with formatted points (Audit #11)', () => {
+    const p = createPolygon([
+      { x: 0, y: 0 },
+      { x: 10, y: 20 },
+      { x: 30, y: 40 },
+    ]);
+    const { fixture } = setupWith(p);
+    const textarea = fixture.nativeElement.querySelector(
+      'mat-form-field textarea',
+    ) as HTMLTextAreaElement | null;
+    expect(textarea?.value).toBe('0,0 10,20 30,40');
+  });
+
+  it('editing the polygon points textarea parses and dispatches (Audit #11)', () => {
+    const p = createPolygon([
+      { x: 0, y: 0 },
+      { x: 10, y: 10 },
+    ]);
+    const { fixture, state, node } = setupWith(p);
+    const textarea = fixture.nativeElement.querySelector(
+      'mat-form-field textarea',
+    ) as HTMLTextAreaElement;
+    // Permissive SVG syntax: comma OR space between numbers.
+    textarea.value = '1,2 3 4 5,6';
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    const after = findNodeById(state.document().root, node.id);
+    expect(after !== null && after.type === 'polygon' ? after.points : null).toEqual([
+      { x: 1, y: 2 },
+      { x: 3, y: 4 },
+      { x: 5, y: 6 },
+    ]);
+  });
+
+  it('polygon textarea silently rejects malformed input (odd number count) (Audit #11)', () => {
+    const original = [
+      { x: 0, y: 0 },
+      { x: 10, y: 10 },
+    ];
+    const p = createPolygon(original);
+    const { fixture, state, node } = setupWith(p);
+    const textarea = fixture.nativeElement.querySelector(
+      'mat-form-field textarea',
+    ) as HTMLTextAreaElement;
+    // Odd number of values → reject silently, preserve original
+    textarea.value = '1 2 3';
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    const after = findNodeById(state.document().root, node.id);
+    expect(after !== null && after.type === 'polygon' ? after.points : null).toEqual(original);
+  });
+
+  it('polyline shows the same points editor as polygon (Audit #11)', () => {
+    const pl = createPolyline([
+      { x: 5, y: 5 },
+      { x: 15, y: 25 },
+    ]);
+    const { fixture } = setupWith(pl);
+    const textarea = fixture.nativeElement.querySelector(
+      'mat-form-field textarea',
+    ) as HTMLTextAreaElement | null;
+    expect(textarea?.value).toBe('5,5 15,25');
+  });
+
+  it('text shows x/y inputs + content textarea bound to current values (Audit #11)', () => {
+    const t = createText({ x: 50, y: 60, content: 'Hello\nWorld' });
+    const { fixture } = setupWith(t);
+    const inputs = Array.from(
+      fixture.nativeElement.querySelectorAll('mat-form-field input[type="number"]'),
+    ) as HTMLInputElement[];
+    expect(inputs.slice(0, 2).map((i) => Number(i.value))).toEqual([50, 60]);
+    const textarea = fixture.nativeElement.querySelector(
+      'mat-form-field textarea',
+    ) as HTMLTextAreaElement | null;
+    expect(textarea?.value).toBe('Hello\nWorld');
+  });
+
+  it('editing text content dispatches SetPropertyCommand with the new string (Audit #11)', () => {
+    const t = createText({ x: 0, y: 0, content: 'Old' });
+    const { fixture, state, node } = setupWith(t);
+    const textarea = fixture.nativeElement.querySelector(
+      'mat-form-field textarea',
+    ) as HTMLTextAreaElement;
+    textarea.value = 'New text';
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    const after = findNodeById(state.document().root, node.id);
+    expect(after !== null && after.type === 'text' ? after.content : null).toBe('New text');
+  });
+
+  it('image shows x/y/w/h inputs + href text input bound to current values (Audit #11)', () => {
+    const img = createImage({
+      x: 1,
+      y: 2,
+      width: 3,
+      height: 4,
+      href: 'https://example.com/p.png',
+    });
+    const { fixture } = setupWith(img);
+    const numInputs = Array.from(
+      fixture.nativeElement.querySelectorAll('mat-form-field input[type="number"]'),
+    ) as HTMLInputElement[];
+    expect(numInputs.slice(0, 4).map((i) => Number(i.value))).toEqual([1, 2, 3, 4]);
+    const textInputs = Array.from(
+      fixture.nativeElement.querySelectorAll('mat-form-field input[type="text"]'),
+    ) as HTMLInputElement[];
+    // `href` is the first (and only) text input in the geometry section.
+    const hrefField = textInputs.find((i) => i.value === 'https://example.com/p.png');
+    expect(hrefField).not.toBeUndefined();
+  });
+
+  it('editing image href dispatches SetPropertyCommand with the new URL (Audit #11)', () => {
+    const img = createImage({ x: 0, y: 0, width: 10, height: 10, href: 'a.png' });
+    const { fixture, state, node } = setupWith(img);
+    const textInputs = Array.from(
+      fixture.nativeElement.querySelectorAll('mat-form-field input[type="text"]'),
+    ) as HTMLInputElement[];
+    const hrefField = textInputs.find((i) => i.value === 'a.png');
+    expect(hrefField).not.toBeUndefined();
+    hrefField!.value = 'b.png';
+    hrefField!.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    const after = findNodeById(state.document().root, node.id);
+    expect(after !== null && after.type === 'image' ? after.href : null).toBe('b.png');
   });
 
   it('group has no geometry section', () => {
@@ -1066,7 +1214,7 @@ describe('SvgeInspector — multi-edit (Item 1, débito 4c)', () => {
 // 7. Pure helpers (parseFontFeatures + stringifyFontFeatures) handle
 //    the spec's tolerated quote styles + on/off/0/1 toggles.
 
-import { createText, type TextNode } from 'svg-engine/core';
+import { type TextNode } from 'svg-engine/core';
 import { parseFontFeatures, stringifyFontFeatures } from './inspector.component';
 
 describe('SvgeInspector — D-068 Type section visibility', () => {
