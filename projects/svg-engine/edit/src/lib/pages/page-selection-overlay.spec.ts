@@ -50,6 +50,13 @@ describe('PAGES-REFACTOR Fase 2 + Fase 6 — SvgePageSelectionOverlay', () => {
     // positions are obsolete — the bracket-path geometry specs already
     // cover the corner positions, and the drag-preview specs cover the
     // resize math via the `_drag` signal.
+    // **Mid-edge brackets follow-up** — 4 new straight-line bracket
+    // paths centered on the midpoint of each edge. Same projection
+    // contract as the corner L's (zoom-stable via `midBracketLenDoc`).
+    bracketT: (o: { x: number; y: number; width: number }) => string;
+    bracketB: (o: { x: number; y: number; width: number; height: number }) => string;
+    bracketL: (o: { x: number; y: number; height: number }) => string;
+    bracketR: (o: { x: number; y: number; width: number; height: number }) => string;
     onMoveHandlePointerDown: (e: unknown) => void;
     onResizeHandlePointerDown: (e: unknown, anchor: string) => void;
     onHandlePointerMove: (e: unknown) => void;
@@ -178,6 +185,47 @@ describe('PAGES-REFACTOR Fase 2 + Fase 6 — SvgePageSelectionOverlay', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────
+  // Mid-edge brackets follow-up — geometry of the 4 new edge marks
+  // ─────────────────────────────────────────────────────────────────
+  //
+  // Mid-edge length is `BRACKET_ARM_PX * 2 = 32` CSS px, half on each
+  // side of the edge midpoint. At zoom=1, midDoc=32 (zoom-stable doc
+  // unit). The marks are aligned with the edge (collinear with it),
+  // so the constant axis equals the edge coordinate exactly.
+
+  it('bracketT emits a horizontal segment centered on the top edge', () => {
+    const { viewport, overlay } = setup();
+    viewport.reset();
+    const halfDoc = 32 / viewport.zoom() / 2;
+    const d = overlay.bracketT({ x: 0, y: 0, width: 800 });
+    expect(d).toBe(`M${400 - halfDoc},0 L${400 + halfDoc},0`);
+  });
+
+  it('bracketB emits a horizontal segment centered on the bottom edge', () => {
+    const { viewport, overlay } = setup();
+    viewport.reset();
+    const halfDoc = 32 / viewport.zoom() / 2;
+    const d = overlay.bracketB({ x: 0, y: 0, width: 800, height: 600 });
+    expect(d).toBe(`M${400 - halfDoc},600 L${400 + halfDoc},600`);
+  });
+
+  it('bracketL emits a vertical segment centered on the left edge', () => {
+    const { viewport, overlay } = setup();
+    viewport.reset();
+    const halfDoc = 32 / viewport.zoom() / 2;
+    const d = overlay.bracketL({ x: 0, y: 0, height: 600 });
+    expect(d).toBe(`M0,${300 - halfDoc} L0,${300 + halfDoc}`);
+  });
+
+  it('bracketR emits a vertical segment centered on the right edge', () => {
+    const { viewport, overlay } = setup();
+    viewport.reset();
+    const halfDoc = 32 / viewport.zoom() / 2;
+    const d = overlay.bracketR({ x: 0, y: 0, width: 800, height: 600 });
+    expect(d).toBe(`M800,${300 - halfDoc} L800,${300 + halfDoc}`);
+  });
+
+  // ─────────────────────────────────────────────────────────────────
   // Fase 6 specs — drag-→-dispatch via the 4 corner brackets
   // ─────────────────────────────────────────────────────────────────
   //
@@ -246,6 +294,107 @@ describe('PAGES-REFACTOR Fase 2 + Fase 6 — SvgePageSelectionOverlay', () => {
     expect(o!.y).toBe(-50);
     expect(o!.width).toBe(900);
     expect(o!.height).toBe(650);
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+  // Mid-edge brackets follow-up — single-axis resize math
+  // ─────────────────────────────────────────────────────────────────
+
+  it('drag preview: resize T (top edge) shifts y up and grows height, x/width pinned', () => {
+    const { state, sel, activePage, overlay } = setup();
+    seedActiveSelectedPage(state, activePage, sel);
+    const inner = overlay as unknown as { _drag: { set: (v: unknown) => void } };
+    inner._drag.set({
+      kind: 'resize',
+      anchor: 't',
+      pageId: state.document().root.children[0]!.id,
+      startViewBox: { x: 0, y: 0, width: 800, height: 600 },
+      startPoint: { x: 400, y: 0 },
+      currentPoint: { x: 700, y: -40 }, // dy = -40 → top moves UP 40; dx ignored
+    });
+    const o = overlay.overlay();
+    // Top anchor: y shifts to -40, height grows by 40, x/width unchanged.
+    expect(o!.x).toBe(0);
+    expect(o!.y).toBe(-40);
+    expect(o!.width).toBe(800);
+    expect(o!.height).toBe(640);
+  });
+
+  it('drag preview: resize B (bottom edge) grows height only, top edge pinned', () => {
+    const { state, sel, activePage, overlay } = setup();
+    seedActiveSelectedPage(state, activePage, sel);
+    const inner = overlay as unknown as { _drag: { set: (v: unknown) => void } };
+    inner._drag.set({
+      kind: 'resize',
+      anchor: 'b',
+      pageId: state.document().root.children[0]!.id,
+      startViewBox: { x: 0, y: 0, width: 800, height: 600 },
+      startPoint: { x: 400, y: 600 },
+      currentPoint: { x: 500, y: 750 }, // dy = 150; dx ignored
+    });
+    const o = overlay.overlay();
+    expect(o!.x).toBe(0);
+    expect(o!.y).toBe(0);
+    expect(o!.width).toBe(800);
+    expect(o!.height).toBe(750);
+  });
+
+  it('drag preview: resize L (left edge) shifts x right and shrinks width, right edge pinned', () => {
+    const { state, sel, activePage, overlay } = setup();
+    seedActiveSelectedPage(state, activePage, sel);
+    const inner = overlay as unknown as { _drag: { set: (v: unknown) => void } };
+    inner._drag.set({
+      kind: 'resize',
+      anchor: 'l',
+      pageId: state.document().root.children[0]!.id,
+      startViewBox: { x: 0, y: 0, width: 800, height: 600 },
+      startPoint: { x: 0, y: 300 },
+      currentPoint: { x: 120, y: 600 }, // dx = 120; dy ignored
+    });
+    const o = overlay.overlay();
+    // Left anchor: x moves to 120, width shrinks to 680 (right pinned at 800).
+    expect(o!.x).toBe(120);
+    expect(o!.y).toBe(0);
+    expect(o!.width).toBe(680);
+    expect(o!.height).toBe(600);
+  });
+
+  it('drag preview: resize R (right edge) grows width only, left edge pinned', () => {
+    const { state, sel, activePage, overlay } = setup();
+    seedActiveSelectedPage(state, activePage, sel);
+    const inner = overlay as unknown as { _drag: { set: (v: unknown) => void } };
+    inner._drag.set({
+      kind: 'resize',
+      anchor: 'r',
+      pageId: state.document().root.children[0]!.id,
+      startViewBox: { x: 0, y: 0, width: 800, height: 600 },
+      startPoint: { x: 800, y: 300 },
+      currentPoint: { x: 950, y: 100 }, // dx = 150; dy ignored
+    });
+    const o = overlay.overlay();
+    expect(o!.x).toBe(0);
+    expect(o!.y).toBe(0);
+    expect(o!.width).toBe(950);
+    expect(o!.height).toBe(600);
+  });
+
+  it('drag preview: resize R clamps to MIN_PAGE_DIM when over-dragged left', () => {
+    const { state, sel, activePage, overlay } = setup();
+    seedActiveSelectedPage(state, activePage, sel);
+    const inner = overlay as unknown as { _drag: { set: (v: unknown) => void } };
+    // Drag right edge way past the left edge — width would go negative. Clamp.
+    inner._drag.set({
+      kind: 'resize',
+      anchor: 'r',
+      pageId: state.document().root.children[0]!.id,
+      startViewBox: { x: 0, y: 0, width: 800, height: 600 },
+      startPoint: { x: 800, y: 300 },
+      currentPoint: { x: -200, y: 300 }, // dx = -1000 → would make w = -200
+    });
+    const o = overlay.overlay();
+    // MIN_PAGE_DIM is 10, so width clamps to 10. x stays 0 (left pinned).
+    expect(o!.x).toBe(0);
+    expect(o!.width).toBe(10);
   });
 
   it('drag preview: resize BL clamps to MIN_PAGE_DIM when over-dragged', () => {
@@ -321,6 +470,27 @@ describe('PAGES-REFACTOR Fase 2 + Fase 6 — SvgePageSelectionOverlay', () => {
     inner.onHandlePointerUp({ target: null, pointerId: 1 });
     const after = findNodeById(state.document().root, page.id);
     expect(getPageViewBox(after!)).toEqual({ x: 0, y: 0, width: 1000, height: 800 });
+  });
+
+  it('pointerup with a mid-edge (R) resize drag dispatches ResizePageCommand with single-axis delta', () => {
+    const { state, sel, activePage, overlay } = setup();
+    const page = seedActiveSelectedPage(state, activePage, sel);
+    const inner = overlay as unknown as {
+      _drag: { set: (v: unknown) => void };
+      onHandlePointerUp: (e: unknown) => void;
+    };
+    inner._drag.set({
+      kind: 'resize',
+      anchor: 'r',
+      pageId: page.id,
+      startViewBox: { x: 0, y: 0, width: 800, height: 600 },
+      startPoint: { x: 800, y: 300 },
+      currentPoint: { x: 1100, y: 500 }, // dx = 300, dy = 200 (must be ignored)
+    });
+    inner.onHandlePointerUp({ target: null, pointerId: 1 });
+    const after = findNodeById(state.document().root, page.id);
+    // Mid-edge R: width grows by 300; height + origin must stay untouched.
+    expect(getPageViewBox(after!)).toEqual({ x: 0, y: 0, width: 1100, height: 600 });
   });
 
   // ─────────────────────────────────────────────────────────────────

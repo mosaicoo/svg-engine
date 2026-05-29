@@ -32,6 +32,17 @@ import { PageDragService } from './page-drag.service';
  */
 const BRACKET_ARM_PX = 16;
 
+/**
+ * Mid-edge bracket length in CSS pixels — the visible "—" / "|" mark
+ * spans this distance centered on the midpoint of each page edge.
+ * Set to `2 × BRACKET_ARM_PX` (32px) so the mid-edge mark reads as an
+ * "edge segment" rather than a "point", visually distinguishing it
+ * from the corner L's (which use two 16px arms forming an L). Same
+ * stroke style + color + non-scaling-stroke as the corner brackets,
+ * so zoom-stability is automatic.
+ */
+const MID_BRACKET_LEN_PX = BRACKET_ARM_PX * 2;
+
 // **PAGES-REFACTOR follow-up #3** — bracket-hit invisible stroke is
 // `stroke-width: 14` in the .bracket-hit CSS rule (see styles block).
 // We don't keep a JS-side constant because the rule is purely static
@@ -60,18 +71,26 @@ const LABEL_FONT_SIZE_PX = 11;
 const MIN_PAGE_DIM = 10;
 
 /**
- * Resize anchor identifier. **PAGES-REFACTOR follow-up #3** — narrowed
- * from 8 anchors (4 corners + 4 edges) to **4 corners only** when the
- * 8 square resize handles + the move-handle square were dropped in
- * favor of "L-brackets only" visual. Each L-bracket is anchored at
- * a corner of the page, so only corner resize is wired up. Edge
- * resize was dropped (lower-frequency operation; Inspector Page tab
- * still exposes precise W/H input as the keyboard path).
+ * Resize anchor identifier — 8 anchors total: 4 corners + 4 mid-edges.
+ *
+ * **History**: started as 8 (corners + edges) → narrowed to 4 corners
+ * during PAGES-REFACTOR follow-up #3 (when the 8 square handles +
+ * move-handle square were dropped in favor of "L-brackets only" visual)
+ * → re-expanded to 8 in the **mid-edge brackets follow-up** below, by
+ * reusing the same `.page-bracket` + `.bracket-hit` painted style but
+ * with a single straight line aligned with the edge (not an L). The
+ * mid-edge marks read as "edge segments" rather than "points" so the
+ * user can grab a single-axis resize without going to the Inspector
+ * Page tab for precision input.
+ *
+ * Corner anchors (`tl` / `tr` / `bl` / `br`) drive 2-axis resize from
+ * the opposite corner; mid-edge anchors (`t` / `b` / `l` / `r`) drive
+ * single-axis resize keeping the opposite edge fixed.
  *
  * The drag-state union keeps `ResizeAnchor | null` so move-drag
  * (`anchor: null`) stays type-safe.
  */
-type ResizeAnchor = 'tl' | 'tr' | 'bl' | 'br';
+type ResizeAnchor = 'tl' | 'tr' | 'bl' | 'br' | 't' | 'b' | 'l' | 'r';
 
 /**
  * In-progress drag state. `null` when no drag is active. The overlay's
@@ -97,13 +116,17 @@ interface DragState {
  *
  * **Visual elements** (rendered when the active page is selected):
  *
- * - 4 corner brackets (draw.io / diagrams.net style "L" marks) —
- *   decorative, pointer-events: none.
  * - 1 floating page label above the top edge ("Name — W×H").
- * - 1 top-center MOVE handle — drag to reposition the page origin
- *   (dispatches `MovePageCommand` on pointerup).
- * - 8 RESIZE handles (4 corners + 4 edge midpoints) — drag to resize
- *   the page (dispatches `ResizePageCommand` on pointerup).
+ * - 1 invisible MOVE area covering the page interior — drag anywhere
+ *   on the page to reposition it (dispatches `MovePageCommand` on
+ *   pointerup). Cursor: `move` on hover (Illustrator/Affinity parity).
+ * - 4 corner L-brackets — each doubles as a 2-axis RESIZE handle
+ *   (`tl` / `tr` / `bl` / `br`). Cursor: `nwse-resize` / `nesw-resize`.
+ * - 4 mid-edge brackets (single straight line aligned with the edge) —
+ *   each doubles as a 1-axis RESIZE handle (`t` / `b` / `l` / `r`).
+ *   Cursor: `ns-resize` / `ew-resize`.
+ *
+ * All resize handles dispatch `ResizePageCommand` on pointerup.
  *
  * **Drag model** (Fase 6):
  *
@@ -209,6 +232,64 @@ interface DragState {
       ></svg:rect>
 
       <!--
+        Mid-edge brackets follow-up — 4 single-line brackets centered
+        on the midpoint of each edge, each wrapping an svg:g that
+        owns a single-axis resize gesture. Visual style is identical
+        to the corner Ls (same .page-bracket + .bracket-hit pair) —
+        only the shape differs (straight line aligned with the edge,
+        not an L).
+
+        Rendered BEFORE the corner brackets so that when their hit
+        areas overlap near a corner, SVG hit-testing picks the corner
+        bracket (rendered later, on top) → 2-axis resize wins over
+        1-axis at the actual corner pixels.
+      -->
+      <svg:g
+        class="bracket-group bracket-t"
+        aria-label="Page resize handle, top edge"
+        role="button"
+        (pointerdown)="onResizeHandlePointerDown($event, 't')"
+        (pointermove)="onHandlePointerMove($event)"
+        (pointerup)="onHandlePointerUp($event)"
+      >
+        <svg:path class="bracket-hit" [attr.d]="bracketT(o)"></svg:path>
+        <svg:path class="page-bracket" [attr.d]="bracketT(o)"></svg:path>
+      </svg:g>
+      <svg:g
+        class="bracket-group bracket-b"
+        aria-label="Page resize handle, bottom edge"
+        role="button"
+        (pointerdown)="onResizeHandlePointerDown($event, 'b')"
+        (pointermove)="onHandlePointerMove($event)"
+        (pointerup)="onHandlePointerUp($event)"
+      >
+        <svg:path class="bracket-hit" [attr.d]="bracketB(o)"></svg:path>
+        <svg:path class="page-bracket" [attr.d]="bracketB(o)"></svg:path>
+      </svg:g>
+      <svg:g
+        class="bracket-group bracket-l"
+        aria-label="Page resize handle, left edge"
+        role="button"
+        (pointerdown)="onResizeHandlePointerDown($event, 'l')"
+        (pointermove)="onHandlePointerMove($event)"
+        (pointerup)="onHandlePointerUp($event)"
+      >
+        <svg:path class="bracket-hit" [attr.d]="bracketL(o)"></svg:path>
+        <svg:path class="page-bracket" [attr.d]="bracketL(o)"></svg:path>
+      </svg:g>
+      <svg:g
+        class="bracket-group bracket-r"
+        aria-label="Page resize handle, right edge"
+        role="button"
+        (pointerdown)="onResizeHandlePointerDown($event, 'r')"
+        (pointermove)="onHandlePointerMove($event)"
+        (pointerup)="onHandlePointerUp($event)"
+      >
+        <svg:path class="bracket-hit" [attr.d]="bracketR(o)"></svg:path>
+        <svg:path class="page-bracket" [attr.d]="bracketR(o)"></svg:path>
+      </svg:g>
+
+      <!--
         **PAGES-REFACTOR follow-up #3** — 4 corner L-brackets, each
         wrapped in an svg:g that owns the resize drag gesture. The
         bracket-hit path under each visible bracket gives a wider
@@ -217,9 +298,11 @@ interface DragState {
         specific (nwse-resize for tl/br diagonal, nesw-resize for
         tr/bl anti-diagonal — Illustrator/Figma convention).
 
-        Rendered AFTER the move-area so SVG hit-testing picks the
-        bracket first when the pointer is near a corner → resize
-        drag fires; everywhere else in the page interior → move drag.
+        Rendered AFTER the move-area AND the mid-edge brackets so SVG
+        hit-testing picks the corner bracket first when the pointer
+        is near a corner → 2-axis resize fires; mid-edge drag fires
+        on the rest of each edge; everywhere else in the page interior
+        → move drag.
       -->
       <svg:g
         class="bracket-group bracket-tl"
@@ -326,6 +409,20 @@ interface DragState {
       cursor: nesw-resize;
     }
     /*
+     * **Mid-edge brackets follow-up** — single-axis resize cursors.
+     * Top/bottom edges = vertical drag (north-south); left/right
+     * edges = horizontal drag (east-west). Matches Illustrator /
+     * Figma / Affinity convention so the affordance reads immediately.
+     */
+    .bracket-group.bracket-t,
+    .bracket-group.bracket-b {
+      cursor: ns-resize;
+    }
+    .bracket-group.bracket-l,
+    .bracket-group.bracket-r {
+      cursor: ew-resize;
+    }
+    /*
      * **PAGES-REFACTOR follow-up #3** — invisible move area covering
      * the page interior. fill: transparent + pointer-events: all
      * keeps the rect visually absent while making the entire interior
@@ -428,14 +525,21 @@ export class SvgePageSelectionOverlay {
    *
    * **PAGES-REFACTOR follow-up #3** — the `handleSizeDoc` / `handleHalfDoc`
    * / `handleOffsetDoc` computeds were dropped when the 8 square resize
-   * handles + move-handle square were removed from the template. All
-   * that remains is the bracket / label scale: brackets are paths (use
-   * `bracketArmDoc`) and the label is a `<text>` element (uses
-   * `labelOffsetDoc` + `labelFontSizeDoc`).
+   * handles + move-handle square were removed from the template. The
+   * **mid-edge brackets follow-up** re-introduced a single new computed
+   * `midBracketLenDoc` for the 4 mid-edge straight-line marks; the
+   * corner L's still use `bracketArmDoc`, and the label uses
+   * `labelOffsetDoc` + `labelFontSizeDoc`.
    */
   protected readonly labelOffsetDoc = computed(() => LABEL_OFFSET_PX / this.viewport.zoom());
   protected readonly labelFontSizeDoc = computed(() => LABEL_FONT_SIZE_PX / this.viewport.zoom());
   protected readonly bracketArmDoc = computed(() => BRACKET_ARM_PX / this.viewport.zoom());
+  /**
+   * Mid-edge bracket length in DOC units (zoom-stable like the corner
+   * arms). Used by `bracketT` / `bracketB` / `bracketL` / `bracketR`
+   * to compute the half-length offset from each edge midpoint.
+   */
+  protected readonly midBracketLenDoc = computed(() => MID_BRACKET_LEN_PX / this.viewport.zoom());
 
   /**
    * Source of truth for the overlay. `null` when:
@@ -515,6 +619,40 @@ export class SvgePageSelectionOverlay {
     const x2 = o.x + o.width;
     const y2 = o.y + o.height;
     return `M${x2 - L},${y2} L${x2},${y2} L${x2},${y2 - L}`;
+  }
+
+  /**
+   * Top mid-edge bracket: horizontal line of `MID_BRACKET_LEN_PX`
+   * centered on the midpoint of the top edge. Aligned with the edge
+   * so the mark sits exactly on the page border line.
+   */
+  protected bracketT(o: { x: number; y: number; width: number }): string {
+    const half = this.midBracketLenDoc() / 2;
+    const cx = o.x + o.width / 2;
+    return `M${cx - half},${o.y} L${cx + half},${o.y}`;
+  }
+
+  /** Bottom mid-edge bracket: horizontal line centered on the bottom edge. */
+  protected bracketB(o: { x: number; y: number; width: number; height: number }): string {
+    const half = this.midBracketLenDoc() / 2;
+    const cx = o.x + o.width / 2;
+    const y2 = o.y + o.height;
+    return `M${cx - half},${y2} L${cx + half},${y2}`;
+  }
+
+  /** Left mid-edge bracket: vertical line centered on the left edge. */
+  protected bracketL(o: { x: number; y: number; height: number }): string {
+    const half = this.midBracketLenDoc() / 2;
+    const cy = o.y + o.height / 2;
+    return `M${o.x},${cy - half} L${o.x},${cy + half}`;
+  }
+
+  /** Right mid-edge bracket: vertical line centered on the right edge. */
+  protected bracketR(o: { x: number; y: number; width: number; height: number }): string {
+    const half = this.midBracketLenDoc() / 2;
+    const cy = o.y + o.height / 2;
+    const x2 = o.x + o.width;
+    return `M${x2},${cy - half} L${x2},${cy + half}`;
   }
 
   // ── Pointer handlers ─────────────────────────────────────────────
@@ -657,11 +795,12 @@ export class SvgePageSelectionOverlay {
     let h = sv.height;
     const x2 = sv.x + sv.width;
     const y2 = sv.y + sv.height;
-    // **PAGES-REFACTOR follow-up #3** — only the 4 corner anchors
-    // remain after the bracket-as-handle refactor. Edge resize was
-    // dropped because there's no L-bracket on the edges to grab; the
-    // Inspector Page tab is the keyboard/precision path for one-axis
-    // resize when needed.
+    // **Mid-edge brackets follow-up** — 8 anchors: 4 corners (2-axis
+    // resize) + 4 mid-edges (1-axis resize). Corner anchors move both
+    // x/y origins + both dimensions; mid-edge anchors touch only the
+    // axis they're on and keep the opposite edge fixed. MIN_PAGE_DIM
+    // clamps each anchor independently so over-dragging an edge past
+    // its opposite never produces a negative dimension.
     switch (ds.anchor) {
       case 'tl': {
         x = Math.min(sv.x + dx, x2 - MIN_PAGE_DIM);
@@ -685,6 +824,27 @@ export class SvgePageSelectionOverlay {
         x = Math.min(sv.x + dx, x2 - MIN_PAGE_DIM);
         w = x2 - x;
         h = Math.max(sv.height + dy, MIN_PAGE_DIM);
+        break;
+      }
+      // Mid-edge anchors — single axis. The opposite edge stays
+      // pinned: dragging `t` keeps the bottom edge at y2; `b` keeps
+      // top at sv.y; `l` keeps right at x2; `r` keeps left at sv.x.
+      case 't': {
+        y = Math.min(sv.y + dy, y2 - MIN_PAGE_DIM);
+        h = y2 - y;
+        break;
+      }
+      case 'b': {
+        h = Math.max(sv.height + dy, MIN_PAGE_DIM);
+        break;
+      }
+      case 'l': {
+        x = Math.min(sv.x + dx, x2 - MIN_PAGE_DIM);
+        w = x2 - x;
+        break;
+      }
+      case 'r': {
+        w = Math.max(sv.width + dx, MIN_PAGE_DIM);
         break;
       }
       case null:
