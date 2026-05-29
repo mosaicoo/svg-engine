@@ -1603,6 +1603,410 @@ Sort secundário (tiebreaker quando |Δconfidence| ≤ 0.05): `matches.length` d
 
 ---
 
+## Sprint pós-D-046 — Catchup retroativo de decisões (D-044, D-047 a D-078)
+
+> **Status registral**: este bloco existia como **gap documental** até 2026-05-29
+> (auditoria Round 3, item #16). Durante o sprint intensivo de 9 dias entre
+> 2026-05-21 e 2026-05-29, ~35 decisões D-XXX foram implementadas e shipadas
+> sem que cada uma ganhasse seção dedicada neste doc. **O histórico narrativo
+> completo** (com contexto + commits + diffs por feature) já vivia em
+> `docs/08-historico-de-alteracoes.md` desde o momento de cada entrega — esta
+> seção é a **trilha de auditoria oficial** que cross-referencia cada decisão
+> ao seu commit e à entrada narrativa correspondente.
+>
+> **Formato**: tabela-índice cobrindo todas as 35 decisões + seções completas
+> para as 6 decisões de maior peso arquitetural (D-047, D-048, D-072, D-073,
+> D-074, D-077). As demais ganham linha na tabela apontando para `docs/08` —
+> conforme o protocolo "auditar antes de agir" (cada linha tem evidência
+> rastreável). Enriquecer as 29 entradas restantes com seção completa fica
+> como pendência catalogada (#16 sub-tarefa) para sessões futuras.
+>
+> **Por que não enriquecer tudo agora**: escrever 29 seções com rationale
+> retrocessivo carrega risco real de hallucinação (assumir motivações que não
+> foram declaradas no momento da decisão). A entrada narrativa em `docs/08`
+> tem a melhor evidência disponível porque foi escrita junto com o commit.
+
+### Índice — todas as decisões D-044 até D-078 (com cross-refs)
+
+| ID         | Título curto                                                                         | Status            | Commit    | Doc 08 entrada            | Seção completa abaixo? |
+| ---------- | ------------------------------------------------------------------------------------ | ----------------- | --------- | ------------------------- | :--------------------: |
+| **D-044**  | Built-in menu plugins (edit + ui) + Material dialogs com opener centralizado         | ✅ Aceito + impl  | `868dea7` | §2026-05-20               |           —            |
+| **D-047**  | Effects ecosystem — `EffectRegistry` + 19 builtin effects + chain editor             | ✅ Aceito + impl  | `d3900d9` | §2026-05-23               |        **sim**         |
+| **D-048**  | Libraries ecosystem — `LibraryRegistry<T>` genérico + 9 catálogos                    | ✅ Aceito + impl  | `6609b65` | §2026-05-23               |        **sim**         |
+| **D-049**  | Composição/Recorte — `clipPath` / `mask` / `blend modes`                             | ✅ Aceito + impl  | `3a20768` | §2026-05-23               |           —            |
+| **D-050**  | Tools faltantes — Eyedropper / Knife / Smooth / Gradient / Width                     | ✅ Aceito + impl  | `3a20768` | §2026-05-23               |           —            |
+| **D-051**  | Tema/UX polish — `<select>` nativo → Material `<mat-select>`                         | ✅ Aceito + impl  | `3a20768` | §2026-05-23               |           —            |
+| **D-052**  | Menu Insert/Inserir — submenu de shapes padrão Figma/PowerPoint                      | ✅ Aceito + impl  | `4e61583` | §2026-05-23               |           —            |
+| **D-053**  | Edição avançada (text) — Variable Fonts + OpenType + Text on Path                    | ✅ Aceito + impl  | `9f312a1` | §2026-05-23               |           —            |
+| **D-054**  | Compound Paths explícitos (commands `Make`/`Release`)                                | ✅ Aceito + impl  | `9f312a1` | §2026-05-23               |           —            |
+| **D-055**  | Live Corners — `cornerRadius` opcional + `roundPathCorners` geometry                 | ✅ Aceito + impl  | `9f312a1` | §2026-05-23               |           —            |
+| **D-056**  | Boolean Live (non-destructive) — `Make/Refresh/Release LiveBooleanCommand`           | ✅ Aceito + impl  | `9f312a1` | §2026-05-23               |           —            |
+| **D-057**  | Auto-trace — documentado como deferido (depois impl. D-062d)                         | ✅ Decisão tomada | `9f312a1` | §2026-05-23               |           —            |
+| **D-058**  | Gradient inline editor — panel no Inspector + overlay handles arrastáveis            | ✅ Aceito + impl  | `b4fdfee` | §2026-05-24               |           —            |
+| **D-059**  | Symbol Library master/instance — `SymbolUseNode` no union `SvgNode`                  | ✅ Aceito + impl  | `b699105` | §2026-05-24               |           —            |
+| **D-060**  | Brush Library — Pencil tool consumption + path expansion algorithm                   | ✅ Aceito + impl  | `b699105` | §2026-05-24               |           —            |
+| **D-061**  | `<svge-panel-group>` reutilizável (tabs com 4-side placement)                        | ✅ Aceito + impl  | `70d61b1` | §2026-05-24               |           —            |
+| **D-062a** | Symbol Sprayer real (substituindo stub)                                              | ✅ Aceito + impl  | `e9cec42` | §2026-05-24               |           —            |
+| **D-062b** | Width Tool real (stroke profile expansion)                                           | ✅ Aceito + impl  | `e9cec42` | §2026-05-24               |           —            |
+| **D-062c** | Mesh Tool aproximada (radial 4-stop) — depois REMOVIDA em D-062-fix                  | ⏪ Revertido      | `1d84897` | §2026-05-24 + §2026-05-25 |           —            |
+| **D-062d** | Auto-trace básico (marching squares)                                                 | ✅ Aceito + impl  | `1d84897` | §2026-05-24               |           —            |
+| **D-063**  | Symbol Sprayer live preview overlay + active-defs scoping                            | ✅ Aceito + impl  | `9924c19` | §2026-05-25               |           —            |
+| **D-064**  | Centralizar Undo/Redo/Zoom no slot `toolbar.main` (remover hardcoded)                | ✅ Aceito + impl  | `e1efd52` | §2026-05-25               |           —            |
+| **D-065**  | Align/Distribute/Pathfinder submenus completos no menu Object                        | ✅ Aceito + impl  | `3a6ff89` | §2026-05-25               |           —            |
+| **D-066**  | Auto-trace polish — dialog UI-side + `TraceProgressService` scoped                   | ✅ Aceito + impl  | `185babf` | §2026-05-25               |           —            |
+| **D-068**  | Inspector Type section + fix renderer/exporter emit `id` em paths                    | ✅ Aceito + impl  | `84e9e9d` | §2026-05-26               |           —            |
+| **D-069**  | Typography controls — 7 controles novos + 3 campos novos em `TextNode`               | ✅ Aceito + impl  | `52e42db` | §2026-05-26               |           —            |
+| **D-070**  | Find & Replace — `FindReplaceService` + `SetPropertyOnManyCommand` + dialog          | ✅ Aceito + impl  | `a3e3f8f` | §2026-05-26               |           —            |
+| **D-071**  | Batch operations + Select Same — `SelectSameService` + comandos batch                | ✅ Aceito + impl  | `9177797` | §2026-05-26               |           —            |
+| **D-072**  | Logical Layers — `isLayer` helper + commands + persistence híbrida via `<title>`     | ✅ Aceito + impl  | `5953521` | §2026-05-26               |        **sim**         |
+| **D-073**  | History Snapshots — `SnapshotsService` + `isDestructive` marker + auto-snapshot      | ✅ Aceito + impl  | `a46a0e0` | §2026-05-26               |        **sim**         |
+| **D-074**  | Smart Objects — `MakeSmartObject` + 3 commands + IO round-trip via metadata          | ✅ Aceito + impl  | `072ff22` | §2026-05-26               |        **sim**         |
+| **D-076**  | Inspector Smart Object section — icon + name + child count + actions                 | ✅ Aceito + impl  | `a47d28c` | §2026-05-26               |           —            |
+| **D-077**  | Asset Export panel — `ExportSlot` interface + `AssetExportRegistry` + panel          | ✅ Aceito + impl  | `a47d28c` | §2026-05-26               |        **sim**         |
+| **D-078**  | Properties Panel em tabs (Geometry/Type/Transform/Align/Arrange) + `FlipNodeCommand` | ✅ Aceito + impl  | `8cba0b4` | §2026-05-26               |           —            |
+
+**Convenção de cross-ref**: a coluna "Doc 08 entrada" referencia o cabeçalho
+`## YYYY-MM-DD —` da entrada narrativa correspondente. Exemplo: §2026-05-23
+significa "consultar a entrada de 2026-05-23 em `docs/08-historico-de-alteracoes.md`".
+
+**Por que algumas linhas têm seção completa abaixo e outras não**: prioridade
+arquitetural. As 6 com seção completa (D-047, D-048, D-072, D-073, D-074, D-077)
+estabelecem padrões reutilizáveis (registries, marker interface, IO round-trip
+via metadata, scope-only services persistentes) que afetam decisões futuras.
+As outras 29 são entregas em cima desses padrões — seu rationale fica natural
+nas entradas narrativas onde foi documentado no momento da decisão.
+
+---
+
+### D-047 — Effects ecosystem (`EffectRegistry` + 19 builtin + chain editor)
+
+- **Data**: 2026-05-23
+- **Commit**: `d3900d9` ("D-047 effects ecosystem")
+- **Status**: ✅ Aceito — implementado em 4 fases
+- **Sucessor de**: D-023 categoria 7 (Effects) — antes apenas reservada
+
+**Contexto.** O `<svge-effects-panel>` (D-048-pre) já tinha hooks pra aplicar
+filtros SVG no nó selecionado, mas faltava: (a) catálogo extensível de effects
+built-in via plugin system (D-020); (b) UI pra encadear múltiplos effects;
+(c) infraestrutura de active-effects scoped (cada editor mantém seu próprio
+filter chain sem vazamento entre instâncias D-042).
+
+**Decisão.**
+
+1. **`EffectRegistry`** em `svg-engine/edit/lib/effect/effect-registry.service.ts:41`
+   (`providedIn: 'root'`) seguindo o padrão signal-backed dos outros registries
+   (Tool/Menu/Shortcut/Palette). API: `register(effect): Disposable`, `get(id)`,
+   `effects()` signal.
+2. **15 builtin single-filter effects** + **4 chained presets** (totalizando 19)
+   no `builtinEffectsPlugin` — categorias: shadow (drop-shadow, inner-shadow, glow),
+   color (brightness, contrast, saturate, hue-rotate, grayscale, sepia, invert),
+   blur, blend (multiply, overlay), opacity, color-matrix custom.
+3. **Chain editor** dentro do `<svge-effects-panel>` — drag-drop reorder, enable
+   toggle por effect, parameter inputs por tipo (sliders / color pickers /
+   number inputs conforme schema do effect).
+4. **`ChainFilterRegistry` scoped** (exceção entre registries — está no scope
+   provider D-042 porque deriva do documento e cada editor tem o seu) para
+   manter o filter chain ativo por nó.
+
+**Consequências positivas.**
+
+- Effects viram extensíveis: plugin de terceiros pode `register()` filtros
+  custom seguindo o mesmo schema dos built-in
+- Chain editor entrega edição visual de filter pipelines complexos sem precisar
+  editar SVG `<filter>` markup à mão
+- `ChainFilterRegistry` scoped garante que um editor não "vê" effects ativos
+  em outro editor da mesma página
+
+**Consequências negativas.**
+
+- `<svge-effects-panel>` ficou complexo (~470 linhas) — débito de spec
+  dedicado registrado no audit log (item #14)
+- Built-in count cresceu: 19 effects é muito para um catálogo "minimal";
+  consumers que querem listas curtas precisam filtrar pelo `id`
+
+---
+
+### D-048 — Libraries ecosystem (`LibraryRegistry<T>` genérico + 9 catálogos)
+
+- **Data**: 2026-05-23
+- **Commit**: `6609b65` ("D-048 Libraries ecosystem")
+- **Status**: ✅ Aceito — fundação + 9 sub-libraries
+- **Padrão estabelecido**: registry genérico reutilizado por todos os catálogos
+
+**Contexto.** Até D-047, cada catálogo de assets (shapes, palettes, gradients,
+patterns, etc.) seria implementado ad-hoc. Para evitar 9 implementações
+divergentes de "registrar item + filtrar por categoria + signal-back", criamos
+**um pattern único** que serve para qualquer "biblioteca de items tipados".
+
+**Decisão.**
+
+1. **`LibraryRegistry<T extends LibraryItem>`** classe abstract base em
+   `library/library-registry.ts:36`. Generic em `T` para preservar type-narrowing
+   por catálogo. API uniforme: `register(item)`, `get(id)`, `update(id, patch)`,
+   `byCategory(cat)`, `categories()`, `items()` signal.
+2. **9 catálogos concretos** estendendo a base, cada um em diretório próprio
+   sob `edit/lib/library/`:
+   - `ShapeLibraryService` (12 builtin shapes)
+   - `PaletteRegistry` (já existia desde D-023, alinhado ao mesmo shape)
+   - `GraphicStyleLibraryService` (6 presets, apply-1-click)
+   - `GradientLibraryService` (com `ActiveGradientsService` scoped)
+   - `PatternLibraryService` (5 builtin + defs injection)
+   - `TemplateLibraryService` (4 builtin documents)
+   - `ClipPathLibraryService` + `MaskLibraryService` (D-049 follow-up)
+   - `BrushLibraryService` (D-060 follow-up)
+   - `SymbolLibraryService` (D-059 follow-up)
+3. **`ActiveDefsService` composer** que injeta os 5 active-defs services
+   (gradients/patterns/clip-paths/masks/symbols), permitindo o `<svge-renderer>`
+   consumir todos os defs ativos do documento numa chamada só.
+4. **`<svge-libraries-panel>`** com 6 tabs (D-061-pré) mostrando as bibliotecas
+   no editor.
+
+**Consequências positivas.**
+
+- Adicionar uma 10ª biblioteca é trivial — estender `LibraryRegistry<T>`,
+  registrar via plugin, criar tab no panel
+- Behavior consistente entre todos os catálogos (cli, signals, filtragem)
+- Catálogos root (singleton global) + active-defs scoped (per-editor) — separação
+  natural entre "catálogo da library" e "estado do documento atual"
+
+**Consequências negativas.**
+
+- 9 services concretos + 5 active-defs + composer = 15 classes só pra Libraries,
+  contribuindo para o crescimento de `edit/` (49 services total — audit Round 3)
+- Pattern abstrato exige internalização: consumer escrevendo a 10ª library
+  precisa entender `LibraryRegistry<T>` + a convenção de active-defs
+
+---
+
+### D-072 — Logical Layers via `GroupNode` metadata flag
+
+- **Data**: 2026-05-26
+- **Commits**: `5953521` (main) + `ecb469b` (D-072g follow-up: persistência via `<title>`)
+- **Status**: ✅ Aceito — implementado + persistência iterada 2 vezes (D-072g-v2)
+- **Padrão estabelecido**: GroupNode + flag de metadata para "tipo lógico"
+
+**Contexto.** Illustrator/Affinity têm "Layers" como conceito separado dos
+groups, com restrições (só top-level, drag-drop com regras, ícone distinto).
+Não queríamos um tipo de nó novo no union `SvgNode` (`LayerNode`) — isso
+quebraria invariantes do D-058 (compactação do modelo). Solução: layers são
+**GroupNodes flaggeados** via metadata.
+
+**Decisão.**
+
+1. **Flag `svgeKind = 'layer'`** em `core/model/layer.ts:38`. Slot único
+   `metadata.customData.svgeKind` — mesmo slot que SmartObject (D-074) e Page
+   (D-079) usarão depois, sempre mutuamente exclusivo.
+2. **Helpers em `core/model/layer.ts`**: `isLayer(node)`, `withLayerFlag(group)`,
+   `withoutLayerFlag(group)`.
+3. **3 commands**: `MakeLayerCommand`, `UnmakeLayerCommand`, `CreateLayerCommand`
+   (factory que cria um group já com a flag).
+4. **UI distinction** no `<svge-layers-panel>`: ícone diferente (folha vs
+   pasta para group regular), classe CSS `.is-layer`.
+5. **Drag/drop validation**: layers só podem ficar em top-level — qualquer
+   tentativa de dragar pra dentro de outro group falha em `MoveNodeInTreeCommand`.
+6. **Persistência IO**: 3 iterações
+   - **v1** (rejeitada): `data-svge-kind="layer"` no SVG → polui markup
+   - **v2** (rejeitada após pequeno tempo): id slug + `<inkscape:label>` → falha de
+     interop entre editores externos
+   - **v3 (final, D-072g-v2)**: persiste via `<title>` element dentro do group,
+     parseado pelo importer + serializado pelo exporter. Convenção mais
+     compatível com viewers SVG e Inkscape.
+
+**Consequências positivas.**
+
+- Zero modelo novo — union `SvgNode` continua com 9 tipos (D-059 depois
+  acrescenta o 10º, `SymbolUseNode`, num caso onde GroupNode-com-flag não
+  servia)
+- Round-trip SVG-→-modelo-→-SVG preserva o "tipo lógico" via `<title>`
+- Pattern reaproveitado por D-074 (SmartObject) e D-079 (Page) — 3 kinds
+  totalmente compatíveis no mesmo slot
+
+**Consequências negativas.**
+
+- Layer != GroupNode no comportamento (drag-drop restringido), mas é no shape
+  → consumer pode confundir; mitigado pelo helper `isLayer()` óbvio
+- 3 iterações de persistência custaram trabalho — lição: validar interop
+  contra Inkscape/Illustrator antes de commitar formato de persistência
+
+---
+
+### D-073 — History Snapshots + `Command.isDestructive` marker + auto-snapshot interceptor
+
+- **Data**: 2026-05-26
+- **Commits**: `a46a0e0` (main) + `e7dc789` (D-073-fix snap controls)
+- **Status**: ✅ Aceito — `SnapshotsService` + persistência + auto-snapshot wireado
+- **Padrão estabelecido**: marker interface boolean em command para gate de comportamento
+
+**Contexto.** O `HistoryService` (D-002) cobre undo/redo de mutações via
+commands, mas não cobre "recuperar de uma operação destrutiva que limpa o
+buffer de undo" (ex: deletar última página, rasterize smart object — após
+isso, undo não desfaz porque a operação envolve perda estrutural).
+Precisávamos de um buffer de **snapshots** (estado completo do documento)
+separado do undo stack, com auto-captura antes de operações destrutivas.
+
+**Decisão.**
+
+1. **`SnapshotsService` em core** (`core/snapshots/snapshots.service.ts:35`).
+   Per-editor scope (D-042) — `@Injectable()` simples, **não** `providedIn: 'root'`.
+   Mantém ring buffer de N snapshots (default 10).
+2. **`Snapshot` interface**: `{ id, label, source: 'manual' | 'auto-open' |
+'auto-destructive' | 'auto-restore', doc, thumbnail?, createdAt }`.
+3. **Marker `Command.isDestructive: boolean`**. Comandos que destroem
+   estrutura recuperável via undo declaram `readonly isDestructive = true`.
+4. **Auto-snapshot interceptor em `CommandBus`** (`command-bus.service.ts:82-91`):
+   antes de executar, lê `command.isDestructive === true` + `snaps.limits()
+.autoOnDestructive === true` (default `false` — **double opt-in**), e dispara
+   `snaps.take(source: 'auto-destructive')`.
+5. **`RestoreSnapshotCommand`** undoable (declara explicitamente
+   `isDestructive = false` para não disparar nova snapshot em loop).
+6. **`SnapshotsPersistenceService` em `edit`** (scope-only): localStorage
+   round-trip schema-versioned, token `SNAPSHOTS_STORAGE_KEY` para
+   multi-editor.
+7. **`<svge-snapshots-panel>`** em UI + menu entries + atalhos (Ctrl+Shift+S
+   Take, Ctrl+Alt+Z Restore Last).
+
+**Consequências positivas.**
+
+- Operações destrutivas (DeletePage, BatchConvertToPath, Pathfinder ops)
+  ganham "buffer de recuperação" automático sem wire-up por call-site
+- Double opt-in (`isDestructive` + `autoOnDestructive`) evita capturas em
+  excesso por consumers conservadores
+- Pattern do marker interface reaplica para outras dimensões futuras
+  (ex: `isExpensive` para batch ops que precisam de progress dialog)
+
+**Consequências negativas.**
+
+- **6 comandos candidatos a `isDestructive` ainda não marcados**: Ungroup,
+  Knife, MakeLiveBoolean, MakeCompoundPath, MakeSmartObject,
+  RasterizeSmartObject (registrado como audit item #7 — pendência)
+- snapshot do documento inteiro pode ser caro em docs grandes (~MB);
+  consumers conservadores podem manter `autoOnDestructive = false` (default)
+  e usar snapshots manuais apenas
+
+---
+
+### D-074 — Smart Objects via `GroupNode` metadata flag + IO round-trip
+
+- **Data**: 2026-05-26
+- **Commit**: `072ff22`
+- **Status**: ✅ Aceito — 4 commands + IO round-trip + edit-in-place dialog
+- **Reaplica padrão**: kind flag em metadata (mesmo slot que D-072 Layer)
+
+**Contexto.** Photoshop/Illustrator "Smart Objects" são instâncias editáveis
+de um sub-documento — você pode editar o conteúdo isoladamente sem afetar
+posição/escala do container. Decisão paralela ao D-072 (Layer): não criar
+tipo novo no union, usar GroupNode flagged.
+
+**Decisão.**
+
+1. **Flag `svgeKind = 'smart-object'`** em `core/model/smart-object.ts:57`.
+   Mesmo slot mutuamente exclusivo com Layer e Page.
+2. **4 commands**:
+   - `MakeSmartObjectCommand` — wrap a seleção em um GroupNode com a flag
+   - `EditSmartObjectContentsCommand` — abre dialog para edição isolada do
+     SVG interno (consumer-side rendering, edita string SVG)
+   - `ReplaceSmartObjectContentsCommand` — substitui o `d` markup interno
+     (estende Edit, usado pelo dialog)
+   - `RasterizeSmartObjectCommand` — converte para `<image>` PNG embedded
+     (destrutivo, perdesão editabilidade)
+3. **IO round-trip via `data-svge-kind="smart-object"` attribute** no SVG
+   exportado. **Diferente do D-072 que escolheu `<title>`** porque smart
+   object precisa preservar SVG markup interno verbatim (não cabe num `<title>`).
+4. **`<svge-smart-object-editor-dialog>`** em UI (D-074f) — textarea para SVG
+   markup interno, com preview.
+5. **Layers Panel ícone distinto + accent color** para distinguir visualmente.
+
+**Consequências positivas.**
+
+- Pattern do kind flag prova generalidade — D-079 (Page) reaplica logo depois
+- IO round-trip funciona em viewers terceiros (vê smart object como group
+  normal com metadata custom; abre editado preserva a marcação)
+- Edit-in-place via dialog mantém o consumer sem precisar mexer no modelo
+  diretamente
+
+**Consequências negativas.**
+
+- `RasterizeSmartObjectCommand` é destrutivo mas **não marca `isDestructive`**
+  (audit item #7 — pendência)
+- Edit via textarea SVG é low-fi — usuário precisa entender SVG markup
+  (debit: editor visual de smart object contents fica para futuro)
+- IO format `data-svge-kind` é proprietary — não-svgengine viewers ignoram
+  (aceitável: degradação graciosa)
+
+---
+
+### D-077 — Asset Export panel via `ExportSlot` interface + `AssetExportRegistry`
+
+- **Data**: 2026-05-26
+- **Commit**: `a47d28c`
+- **Status**: ✅ Aceito — registry + runner + panel + (depois) persistência
+- **Sucessor de**: D-023 follow-up "Export with Options dialog" (audit Round 1 #5,
+  considerado OBSOLETO porque este Asset Export Panel cobre o use-case completo)
+
+**Contexto.** Single export ad-hoc via menu File → Export é um modelo de
+"one-shot": cada export é uma escolha completa de formato/scale/target. Para
+fluxos profissionais (preparar assets para web/mobile/print simultâneo) o
+padrão de mercado (Sketch, Figma) é o "export presets" persistente: usuário
+declara `[{name: 'logo @2x', exporterId: 'png', scale: 2}, ...]` e dispara
+"export all" quando quer.
+
+**Decisão.**
+
+1. **`ExportSlot` interface** em core: `{ id, target: 'document' | nodeId,
+exporterId: string, scale?: number, filename: string, options?: any }`.
+   `target='document'` significa "exporta o documento inteiro"; um nodeId
+   exporta só a sub-árvore daquele nó.
+2. **`AssetExportRegistry`** (scoped via D-042) gerencia a lista de slots
+   per-editor: `add`, `update`, `remove`, `setAll`, `slots()` signal.
+3. **`AssetExportRunner`** (também scoped): coordena a execução `exportAll()`
+   — resolve cada slot ao `Exporter` correspondente via `ExporterRegistry`,
+   renderiza, e dispara download (ou callback configurável).
+4. **`<svge-asset-export-panel>`** em UI: lista de slots, add/edit/remove,
+   botão "Export all". Cada slot mostra preview com exporter resolvido.
+5. **Persistência (entregue retroativamente em 2026-05-29, autonomous round 2)**:
+   `AssetExportPersistenceService` espelhando o pattern do D-073 — token
+   `ASSET_EXPORT_STORAGE_KEY`, schema v1, debounce 500ms. Auto-hidrate no
+   constructor.
+
+**Consequências positivas.**
+
+- Workflow "preparar 10 assets pra web + mobile" não exige 10 cliques de File
+  → Export — slots ficam configurados e "export all" gera tudo
+- Persistência preserva slots entre sessões (audit Round 1 item #1 fechado)
+- Cada slot referencia `exporterId` — qualquer exporter customizado registrado
+  via plugin (cat 5 do D-023) automaticamente aparece como opção
+
+**Consequências negativas.**
+
+- 3 services scoped (Registry + Runner + Persistence) por editor — overhead
+  de DI inicial
+- "Export all" é síncrono — docs muito grandes (~16k nodes) podem travar UI
+  brevemente (mitigação: cada exporter pode ser async, mas Runner ainda
+  serializa)
+- UI do panel ainda não permite reorder de slots (débito UX)
+
+---
+
+### Pendência catalogada — enriquecer as 29 entradas restantes
+
+Itens **D-044, D-049-D-066, D-068-D-071, D-076, D-078** ficam com **linha
+de cross-ref na tabela** acima como trilha de auditoria mínima. Cada um tem
+narrativa completa em `docs/08-historico-de-alteracoes.md` (com contexto +
+diffs no momento da decisão, escrita junto com o commit).
+
+**Quando enriquecer** (registrado como sub-tarefa de audit item #16):
+
+- Quando alguma dessas decisões for revisitada (refactor, supersedure, bug
+  estrutural) — o turno de revisão é o melhor momento para escrever a entrada
+  completa porque o autor já está lendo o código com o protocolo "auditar
+  antes de agir".
+- Não escrever entradas completas retroativamente "só pra ter" — o risco de
+  hallucination é real (assumir motivações que não foram declaradas) e o
+  valor marginal pequeno (a narrativa em `docs/08` já cobre o "o quê" e
+  "por quê" minimamente).
+
+---
+
 ## D-079 — Pages / Artboards via GroupNode metadata flag
 
 **Status**: ✅ Aceito — implementado em PAGES-A→E (2026-05-26/27)
