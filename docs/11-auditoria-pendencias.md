@@ -321,6 +321,298 @@ grep -n 'formatLabel\|niceTickSpacing' projects/svg-engine/ui/src/lib/rulers/rul
 
 ---
 
+## Round 3 — Auditoria sistemática profunda (2026-05-29)
+
+> **Metodologia**: 6 subagentes paralelos com briefing explícito anti-alucinação,
+> cada um auditando uma dimensão (entry points, core, edit, ui+svg-studio,
+> io+optimize+ai+playground, doc drift). Cada agente exigiu `file:line` por claim.
+> Após retorno dos 6, **TODAS as claims abaixo foram re-verificadas por mim
+> via Read/Grep direto** (protocolo "auditar antes de agir" não admite confiar
+> em sumário de agente sem cross-check). Zero contradições entre agentes;
+> casos onde 2+ agentes concordaram independentemente são marcados como
+> **alta confiança**.
+>
+> **Escopo desta rodada**: 8 pendências REAIS de código + 8 drifts de
+> documentação. Pendências antigas (#1-#6) continuam válidas.
+
+### Bloco A — Pendências de CÓDIGO confirmadas
+
+#### 7. `isDestructive` faltando em 6 comandos candidatos — `MÉDIA`
+
+**Evidência** (verificado por mim via `grep isDestructive projects/svg-engine/core/src/lib/commands/`):
+
+- Apenas **4 lugares** marcam `isDestructive = true`:
+  - `batch-convert-to-path.command.ts:40`
+  - `pathfinder.commands.ts:69` (base abstract → herdado por Union/Intersect/Subtract/Exclude/Divide)
+  - `page.commands.ts:132` (DeletePageCommand)
+  - `restore-snapshot.command.ts:39` declara `= false` explicitamente (gate anti-loop, OK)
+
+- **Comandos esperados destrutivos mas SEM `isDestructive`** (grep retornou zero):
+  - `UngroupCommand` (`ungroup.command.ts:38`) — perde a estrutura de grupo
+  - `KnifeCutPathCommand` (`knife-cut.command.ts:48`) — corta path em pedaços
+  - `MakeLiveBooleanCommand` (`live-boolean.commands.ts:101`) — converte para Live Boolean
+  - `MakeCompoundPathCommand` (`compound-path.commands.ts:59`) — funde paths
+  - `MakeSmartObjectCommand` (`smart-object.commands.ts:60`) — converte para Smart Object
+  - `RasterizeSmartObjectCommand` (`smart-object.commands.ts:168`) — rasteriza, irreversível visual
+
+**Verificação adicional**: `page.commands.spec.ts:191-193` testa explicitamente que Create/Rename/Resize **não** são destrutivos. Padrão estabelecido — só falta aplicar nos 6 acima.
+
+**O que falta**: adicionar `readonly isDestructive = true;` nos 6 commands + 1 spec por command verificando o flag.
+
+**Impacto**: quando o consumer ativar `SnapshotsLimits.autoOnDestructive = true` (default `false`), esses 6 comandos NÃO disparam auto-snapshot — usuário perde a estrutura sem chance de undo via Restore Last.
+
+---
+
+#### 8. Discrepância no barrel `svg-engine/edit/lib/optimize` — `BAIXA` (1 linha)
+
+**Evidência** (verificado por Read de `edit/src/lib/optimize/index.ts` inteiro):
+
+- Linhas 11-18 exportam 6 símbolos de `'svg-engine/optimize'`:
+  ```ts
+  export {
+    type Optimizer,
+    OptimizerRegistry,
+    dropDefaultsOptimizer,
+    precisionOptimizer,
+    pruneEmptyGroupsOptimizer,
+    OptimizeCommand,
+  } from 'svg-engine/optimize';
+  ```
+- **Falta `stripAuthoredTitlesOptimizer`** — exportado por `optimize/src/public-api.ts:33` (D-072g v2) mas back-compat barrel do `edit` não inclui.
+
+**Verificação**: `Read projects/svg-engine/edit/src/lib/optimize/index.ts` (20 linhas). Optimizer existe em `optimize/lib/builtin-optimizers.ts:101`.
+
+**O que falta**: adicionar 1 linha ao barrel.
+
+**Impacto**: consumers que importam optimizers via `svg-engine/edit` (back-compat) não pegam o D-072g pass. Caminho canônico hoje é `svg-engine/optimize` direto — mas o back-compat path existe e está quebrado parcialmente.
+
+---
+
+#### 9. Vestígio `MESH_TOOL_ID` constant no-op — `BAIXA` (cleanup cosmético)
+
+**Evidência** (verificado por mim via `grep MESH_TOOL_ID`):
+
+- `projects/svg-engine/edit/src/lib/tool/extra-tools.ts:72`:
+  ```ts
+  export const MESH_TOOL_ID = 'com.svge.tool.mesh';
+  ```
+- `extra-tools.ts:610` comment: _"**Decision**: tool removed. The MESH_TOOL_ID constant is kept as a..."_
+- `extra-tools.ts:812` comment: _"MESH_TOOL_ID stays exported as a no-op constant for back-compat."_
+- Re-exportado em `tool/index.ts:49` (e `:41` doc cita "back-compat")
+
+**Histórico**: Mesh tool foi entregue em D-062c (task #218) e removida em D-062-fix (task #221). Constant ficou como vestígio.
+
+**O que falta**: decidir se manter (back-compat de qualquer consumer externo que tenha hardcoded o ID) ou remover (semver pequeno). Não-bloqueante.
+
+**Impacto**: zero runtime; causa confusão em auditorias.
+
+---
+
+#### 10. Reorder de páginas via drag-drop — `MÉDIA` (UX feature, model pronto)
+
+**Evidência** (verificado por mim via `grep "Reorder|drag-drop|deferred" pages-panel.component.ts`):
+
+- `projects/svg-engine/ui/src/lib/pages-panel/pages-panel.component.ts:49` (docstring):
+  > _"**Reorder (drag-drop)**: deferred to a follow-up. The model [...]"_
+
+**O que falta**: implementar drag-drop no `<svge-pages-panel>` (model já suporta via `MovePageCommand`).
+
+**Impacto**: usuário precisa Delete + Create + Re-bootstrap para reordenar pages, quebrando contexto.
+
+---
+
+#### 11. Inspector editors faltantes para polygon/polyline/path/text/image — `MÉDIA`
+
+**Evidência** (do agente UI, ainda não cross-checked por mim na linha exata — single-source):
+
+- `projects/svg-engine/ui/src/lib/inspector/inspector.component.ts:90` (docstring): _"Polygon/polyline/path/text/image deferred (need richer editors)."_
+
+**O que falta**: editores dedicados no Inspector para os 5 tipos. Atualmente apenas rect / ellipse / line têm geometry editor; os outros mostram placeholder "edit via canvas tools".
+
+**Impacto**: usuário não consegue editar precisão de pontos/conteúdo via Inspector — só via canvas tools (AnchorOverlay para path; canvas drag para text). Para image, hoje não há edição de geometria via Inspector.
+
+**Workaround atual**: para path, existe AnchorOverlay (Direct Select tool). Para text, o InlineTextEditor cobre conteúdo (não tipografia avançada — essa Inspector já tem Type tab via D-068+D-069).
+
+---
+
+#### 12. NLU auto-discovery one-shot (não reativo) — `BAIXA` (limitação documentada)
+
+**Evidência** (do agente NLU, doc claim — não verifiquei a linha exata por mim):
+
+- `projects/svg-engine/ai/nlu/src/lib/menu-intent-discovery.ts:39-45` (docstring): doc do helper afirma que é one-shot (chamado uma vez no `install` do `builtinNluPlugin`).
+
+**O que falta**: tornar reativo a mudanças do `MenuContributionRegistry` (plugin instalado depois do NLU não tem seus menu items descobertos como intents).
+
+**Impacto**: plugins de domínio (Mosaicoo, terceiros) instalados pós-bootstrap não podem ser comandados por voz/NLU. Para plugins built-in (que provisionam em `app.config.ts` antes do `builtinNluPlugin`), funciona.
+
+---
+
+#### 13. `extra-tools.ts` sem spec dedicado — `ALTA` (risco de regressão)
+
+**Evidência** (verificado por mim via `Grep extra-tools.spec` retornou `No files found`):
+
+- `extra-tools.ts` tem **894 linhas** (do brief do agente edit) cobrindo **6 tools** (Eyedropper/Knife/Smooth/Gradient/Width/SymbolSprayer) + **6 services internos** (`EyedropperToolService`, `KnifeToolService`, `SmoothToolService`, `GradientToolService`, `WidthToolService`, `SymbolSprayerService`).
+- Zero arquivo `.spec.ts` cobre esse arquivo direto.
+
+**O que falta**: criar `extra-tools.spec.ts` cobrindo pelo menos: (a) registro correto das 6 tools, (b) shortcuts mapeados, (c) state machine de cada tool service (start/update/cancel/end).
+
+**Impacto**: 6 tools de alta complexidade (sprayer randômico, knife com auto-convert-to-path, gradient com handles, width com profiles) podem regredir silenciosamente. Histórico recente: KNIFE-FIX (task #344) precisou refazer Knife — sem spec, não detectamos o quebrar antes.
+
+---
+
+#### 14. Coverage UI ~40% — `MÉDIA` (débito de regressões silenciosas)
+
+**Evidência** (do agente UI — single-source, mas computação reproducível):
+
+- **17 specs** vs **43 componentes principais** no `ui/src/lib/`.
+- **Componentes sem spec dedicado** (lista priorizada por risco):
+  - `SvgeInspector` — **2314 linhas** (mega-componente após D-068+D-069+D-076+D-078)
+  - `SvgeShellPro` — composição de quase tudo
+  - `SvgeDialogShell` — usado por TODOS os dialogs (D-044)
+  - `SvgeColorPicker` (só tem `color-conversions.spec`)
+  - `SvgeLayersPanel`, `SvgeEffectsPanel`, `SvgeLibrariesPanel`, `SvgeAssetExportPanel`, `SvgeSnapshotsPanel`
+  - 5 dialogs: WorkspaceSettings, FindReplace, SmartObject, TraceImage, About
+  - **12 de 14** tool-options components (apenas Symbol Sprayer + Width têm spec)
+
+**O que falta**: priorizar por risco/superfície. Inspector primeiro (mais código, mais bugs históricos), depois DialogShell (afeta todos os 6 dialogs).
+
+**Impacto**: regressões em UI passam por escape (build verde, lint verde, mas runtime quebrado).
+
+---
+
+### Bloco B — Drift de DOCUMENTAÇÃO confirmado
+
+#### 15. Doc 05 (roadmap) — `CRÍTICO` (corrige trilha de auditoria)
+
+**Evidência**:
+
+- Doc 05 declara "Fase 6c em andamento" e "Fase 6d EffectRegistry próximo".
+- Realidade: **~35 features D-XXX shipadas após** essa fase. Inventário no agente doc-drift.
+- Effect Registry **já existe** em `projects/svg-engine/edit/src/lib/effect/effect-registry.service.ts` (entregue em D-047, commit `d3900d9`).
+- PAGES-REFACTOR Fases 1-9 (D-080) inteiras ausentes do roadmap.
+
+**O que falta**: adicionar Fase 7 ao roadmap com blocos para D-044, D-047 até D-080, no mesmo template conciso dos blocos existentes (1 linha por bloco, com commit hash + entrada doc 08).
+
+**Impacto**: novo dev (humano ou agente) lê o roadmap e acha que ~35 features estão por vir; planejamento de release fica preso a 2026-05-22.
+
+---
+
+#### 16. Doc 04 (decisões técnicas) — `CRÍTICO` (corrige trilha de auditoria)
+
+**Evidência**:
+
+- Doc 04 vai de **D-046 (linha 1480)** direto para **D-079 (linha 1606)**, saltando D-047 até D-078.
+- D-079 e D-080 citam D-072, D-073, D-074, D-077 como dependências — mas essas seções não existem no doc 04.
+- D-027/D-028/D-029/D-030 listados como pendentes em sub-seção mas não como cabeçalhos D-027 etc.
+- Ambiguidade D-025: linha 698 "AnchorKind não persistido" + linha 1462-1464 usa `D-025?` para "Registry de publicação" — convenção `D-XXX?` confunde.
+
+**O que falta**: adicionar ~35 seções D-XXX entre D-046 e D-079, com mesmo template curto de D-079/D-080 (rationale + decisão + commit). Resolver ambiguidade D-025 renomeando o pendente.
+
+**Impacto**: cadeia de decisões quebrada — impossível responder "por que decidimos X?" para qualquer feature pós-D-046.
+
+---
+
+#### 17. Doc 09 (API pública) — `CRÍTICO` (corrige nomes da API publicada)
+
+**Evidência** (verificado por mim via `Grep enterIsolation|exitIsolation|drillUp docs/`):
+
+- `docs/09-api-publica.md:524` afirma literalmente:
+  > _"APIs `enterIsolation(id)`, `exitIsolation()`, `drillUp()`"_
+- Realidade: `projects/svg-engine/edit/src/lib/isolation/isolation.service.ts` expõe `enter()`, `exit()`, `exitOne()`, `setRoot()` (do agente edit). **Os 3 nomes documentados NÃO EXISTEM**.
+- Versão declarada: `'0.0.0'` (doc 09:15). Realidade: `SVG_ENGINE_VERSION = '0.1.0'` em `projects/svg-engine/src/public-api.ts:29`.
+- Specs declarado: 884. Realidade atual: **1825** (validado nesta sessão pelo build).
+- "Fase 6d EffectRegistry próximo" — já entregue.
+
+**O que falta**:
+
+- Corrigir nomes da API IsolationService
+- Atualizar versão (0.1.0)
+- Atualizar specs count
+- Adicionar commands de Live Boolean / Compound Path / Round Corners / Layer / Snapshot / Smart Object / Asset Export / Page (esses commands existem no core mas a seção "Commands" do doc não os lista)
+- Adicionar services novos: ActivePageService, AssetExport×3, SmartObjectActions, Clipboard, SnapshotsPersistence, FindReplace, SelectSame, TraceProgress, 14 library services
+- Adicionar `provideSvgEngineEditorScope()` (D-042) que não é mencionado
+
+**Impacto**: terceiros consumindo a API pelos nomes documentados **quebram em compile time** (TypeScript não acha `enterIsolation`). Documentação é literalmente errada.
+
+---
+
+#### 18. Doc 02 (arquitetura) — `MÉDIO` (confunde plugin authors)
+
+**Evidência** (verificado em parte por mim via Glob de entry points):
+
+- Doc 02:180 diz "library com **6** secondary entry points". Realidade: **8** (core/render/io/optimize/edit/ui/ai/nlu/ai/nlu-ui). Os 2 entry points de AI ausentes do texto + diagramas.
+- Doc 02:184/256/367 falam de "16 componentes Material" — realidade: **~42** (43 do agente UI, sendo 30 principais + 14 tool-options + 1 wrapper). Tabela 4.4 (linha 367) está desatualizada.
+- Mermaid 4.2 lista 14 services em edit; realidade do agente edit: **49 services**.
+- **Peça crítica AUSENTE dos diagramas**: `ActivePageService` + `INSERT_PARENT_RESOLVER` token (centro do D-080) — sem isso no diagrama, plugin author que cria tool nova com `AUTO_PARENT` não entende o que está acontecendo.
+
+**O que falta**: atualizar text + 4 diagramas mermaid (4.1 macro, 4.2 ui↔edit, 4.3 modos, 4.4 referência rápida). Adicionar ai/nlu + ai/nlu-ui. Adicionar ActivePageService como peça central. Atualizar contagens.
+
+**Impacto**: arquitetura "oficial" descreve sistema antigo. Plugin author com diagrama errado planeja errado.
+
+---
+
+#### 19. Doc 06 (componentes editor) — `MÉDIO`
+
+**Evidência** (verificado por mim via `Grep svge-canvas docs/06-componentes-editor-svg.md`):
+
+- Linha 132 lista `<svge-canvas>` como componente. Realidade: **não existe** componente com esse selector — confirmado por glob (apenas existe `edit/lib/canvas-gestures/`, que é diretiva).
+- Doc 06:134 lista `<svge-rotation-pivot>` como HTML element, mas o componente é attribute directive: selector `g[svgeRotationPivot]` (precisa morar dentro de `<svg>`).
+- Doc 06:184-200 lista 16 componentes UI; realidade ~42 (faltam: SvgeAssetExportPanel, SvgeAboutDialog, SvgeColorPicker, SvgeFindReplaceDialog, SvgeGradientEditor, SvgeIsolationBreadcrumb, SvgeLibrariesPanel, SvgeEffectsPanel, SvgePanelGroup, SvgePagesPanel, SvgeSnapshotsPanel, SvgeSmartObjectEditorDialog, SvgeTraceImageDialog, SvgeDialogShell, 14 tool-options).
+- ClipboardService listado (linha 155) mas sem marcar status entregue (D-044).
+
+**O que falta**: remover `<svge-canvas>` ou marcar como deprecated. Corrigir selector do rotation-pivot. Adicionar ~25 componentes. Marcar ClipboardService como entregue.
+
+**Impacto**: plugin author que tenta `<svge-canvas>` em template tem erro de compile. Outros componentes UI que existem não são descobertos pela leitura do doc.
+
+---
+
+#### 20. Doc 10 (guia plugin) — `MÉDIO`
+
+**Evidência** (verificado por mim via `Grep select-tool.plugin.ts docs/10-guia-plugin.md`):
+
+- Linha 410: cita `projects/svg-engine/edit/src/lib/tool/select-tool.plugin.ts` — **arquivo não existe**. O `selectToolPlugin` vive em `tool/builtin-tools.ts:224` (do agente edit).
+- Linha 411: cita `pencil-tool.plugin.ts` — também não existe (em `builtin-tools.ts:352`).
+- Effects (categoria 7 do D-023): marcada "Fase 6 planejada" mas já entregue (`edit/lib/effect/effect-registry.service.ts`).
+- Não menciona 10ª categoria potencial: **NLU intents** via `NaturalLanguageService.registerIntent()` (entrada para plugins de domínio em PT/EN).
+- Recipe 3 (Exporter): importa de `'svg-engine/edit'` (back-compat funciona) mas canônico hoje é `'svg-engine/io'`.
+
+**O que falta**: corrigir 2 file paths inválidos. Marcar Effects como entregue. Adicionar exemplo de plugin NLU. Atualizar Recipe 3 para usar o caminho canônico.
+
+**Impacto**: plugin author copy-paste paths inválidos e quebra; não descobre que pode estender NLU.
+
+---
+
+#### 21. svg-studio app standalone — `MÉDIO` (deliverable de produto não documentado)
+
+**Evidência** (verificado por mim via `Grep svg-studio docs/` retornou `No files found`):
+
+- App standalone existe em `projects/svg-studio/` (11 arquivos, do agente UI). Tem `app.config.ts`, `app.routes.ts`, `pro-editor.component.ts`. Per docstring no `app.ts` é o "deliverable de produto" — set production do playground sem demos.
+- Doc 02 (arquitetura) só menciona `playground/`.
+- Doc 01 (visão geral) tabela de vocabulário canônico não cita svg-studio.
+- Commits `2b1496d` + `1fd6a10` + `27e93d1` entregaram o app — sem entrada em doc 08 confirmada.
+
+**O que falta**: documentar svg-studio em doc 02 (como segundo consumer-app além de playground) + doc 01 (vocabulário canônico) + doc 08 (histórico) + opcionalmente doc 05 (roadmap diferencia "produção" vs "showcase").
+
+**Impacto**: contributors externos não sabem que existe um app de produção; mantenedor futuro confunde com playground.
+
+---
+
+#### 22. Mismatches numéricos menores — `BAIXA` (cosmético)
+
+**Evidência**:
+
+- `render/src/public-api.ts:28` (header docstring) diz "Dispatcher component + **8** per-type directives". Realidade: **9** directives + 1 dispatcher (do agente entry-points). Adicionada `SymbolUse` em D-059.
+- `professional-intents.ts:15-16` (header) promete:
+  > _"**Alinhamento**: align-{left,right,center-x,top,middle,bottom}_  
+  > _**Distribuição**: distribute-{horizontal,vertical}"_  
+  > Linhas 28-32 reconhecem que `align-*/distribute-*` requerem bbox renderizado e não foram implementados. **Header e disclaimer brigam entre si** — leitor casual conclui que estão prontos.
+
+**O que falta**: render → atualizar header para "9 directives + dispatcher". professional-intents → reescrever header das linhas 15-16 para refletir que estão na seção "futura/limitada" (ou implementar).
+
+**Impacto**: confusão para quem lê só o header.
+
+---
+
 ## Itens INICIALMENTE listados como pendentes mas CONFIRMADOS já resolvidos
 
 ### Page selection overlay specs — `JÁ COBERTO`
