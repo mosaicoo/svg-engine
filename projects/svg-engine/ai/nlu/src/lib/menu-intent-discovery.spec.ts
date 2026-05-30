@@ -2,7 +2,11 @@ import { Injector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MenuContributionRegistry } from 'svg-engine/edit';
 import { describe, expect, it } from 'vitest';
-import { discoverMenuIntents, menuContributionToIntent } from './menu-intent-discovery';
+import {
+  discoverMenuIntents,
+  discoverMenuIntentsReactive,
+  menuContributionToIntent,
+} from './menu-intent-discovery';
 import { NaturalLanguageService } from './natural-language.service';
 import type { NluContext } from './types';
 
@@ -214,6 +218,112 @@ describe('NLU › menu-intent-discovery', () => {
       const result = await nlu.execute('undo', ctx);
       expect(result.executed).toBe(true);
       expect(fired).toBe(true);
+    });
+  });
+
+  // Audit #12 — reactive companion. Covers: initial sync read,
+  // late register, late dispose, disposal cleanup, idempotency.
+  describe('discoverMenuIntentsReactive', () => {
+    it('synchronously registers intents for menus already present at call time', () => {
+      const { nlu, menus } = setup();
+      const injector = TestBed.inject(Injector);
+      menus.register({
+        id: 'svge.test.undo',
+        slot: 'menu.edit',
+        label: 'Undo',
+        run() {
+          /* no-op */
+        },
+      });
+      // No flushEffects — initial discovery is sync per contract.
+      const handle = discoverMenuIntentsReactive(menus, nlu, injector);
+      try {
+        expect(nlu.intents().some((i) => i.id === 'svge.nlu.menu.svge.test.undo')).toBe(true);
+      } finally {
+        handle.disposable.dispose();
+      }
+    });
+
+    it('reflects a late-registered menu contribution as a new intent', () => {
+      const { nlu, menus } = setup();
+      const injector = TestBed.inject(Injector);
+      const handle = discoverMenuIntentsReactive(menus, nlu, injector);
+      try {
+        expect(nlu.intents().length).toBe(0);
+        menus.register({
+          id: 'svge.test.late',
+          slot: 'menu.edit',
+          label: 'Redo',
+          run() {
+            /* no-op */
+          },
+        });
+        TestBed.flushEffects();
+        expect(nlu.intents().some((i) => i.id === 'svge.nlu.menu.svge.test.late')).toBe(true);
+      } finally {
+        handle.disposable.dispose();
+      }
+    });
+
+    it('removes the intent when its menu contribution is disposed at the registry', () => {
+      const { nlu, menus } = setup();
+      const injector = TestBed.inject(Injector);
+      const menuDisp = menus.register({
+        id: 'svge.test.toremove',
+        slot: 'menu.edit',
+        label: 'Cut',
+        run() {
+          /* no-op */
+        },
+      });
+      const handle = discoverMenuIntentsReactive(menus, nlu, injector);
+      try {
+        expect(nlu.intents().some((i) => i.id === 'svge.nlu.menu.svge.test.toremove')).toBe(true);
+        menuDisp.dispose();
+        TestBed.flushEffects();
+        expect(nlu.intents().some((i) => i.id === 'svge.nlu.menu.svge.test.toremove')).toBe(false);
+      } finally {
+        handle.disposable.dispose();
+      }
+    });
+
+    it('disposable.dispose() removes the current batch and stops the effect', () => {
+      const { nlu, menus } = setup();
+      const injector = TestBed.inject(Injector);
+      menus.register({
+        id: 'svge.test.alpha',
+        slot: 'menu.edit',
+        label: 'Undo',
+        run() {
+          /* no-op */
+        },
+      });
+      const handle = discoverMenuIntentsReactive(menus, nlu, injector);
+      expect(nlu.intents().some((i) => i.id === 'svge.nlu.menu.svge.test.alpha')).toBe(true);
+
+      handle.disposable.dispose();
+      expect(nlu.intents().some((i) => i.id === 'svge.nlu.menu.svge.test.alpha')).toBe(false);
+
+      // Effect should be stopped — registering a NEW menu after disposal
+      // must NOT auto-create a new intent.
+      menus.register({
+        id: 'svge.test.beta',
+        slot: 'menu.edit',
+        label: 'Redo',
+        run() {
+          /* no-op */
+        },
+      });
+      TestBed.flushEffects();
+      expect(nlu.intents().some((i) => i.id === 'svge.nlu.menu.svge.test.beta')).toBe(false);
+    });
+
+    it('disposable.dispose() is idempotent (calling twice does not throw)', () => {
+      const { nlu, menus } = setup();
+      const injector = TestBed.inject(Injector);
+      const handle = discoverMenuIntentsReactive(menus, nlu, injector);
+      handle.disposable.dispose();
+      expect(() => handle.disposable.dispose()).not.toThrow();
     });
   });
 });

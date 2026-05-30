@@ -24,7 +24,7 @@ import {
   regularStarPoints,
 } from './dictionaries/shapes-canonical';
 import { registerProfessionalIntents } from './intents/professional-intents';
-import { discoverMenuIntents } from './menu-intent-discovery';
+import { discoverMenuIntentsReactive } from './menu-intent-discovery';
 import { NaturalLanguageService } from './natural-language.service';
 
 /**
@@ -86,9 +86,15 @@ export const builtinNluPlugin: EditorPlugin = {
     const nlu = ctx.injector.get(NaturalLanguageService);
     const menus = ctx.injector.get(MenuContributionRegistry);
 
-    // ── 1) Auto-discovery dos menu items existentes ──────────────
-    const discovered = discoverMenuIntents(menus, nlu);
-    ctx.track(discovered.composedDispose);
+    // ── 1) Auto-discovery REATIVO (Audit #12) ────────────────────
+    // Initial sync discovery (covers menus já registrados antes do
+    // install — preserva o contrato observado pelo spec
+    // "auto-discovers existing menu contributions when installed
+    // AFTER them") + effect que atualiza a batch quando o registry
+    // muda — plugins instalados DEPOIS do builtinNluPlugin agora
+    // também viram intents automaticamente.
+    const discovered = discoverMenuIntentsReactive(menus, nlu, ctx.injector);
+    ctx.track(discovered.disposable);
 
     // ── 2) Intents customizados ──────────────────────────────────
 

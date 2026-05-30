@@ -481,15 +481,21 @@ Constant removido após verificação protocolo-correta de zero consumers. O gre
 
 ---
 
-#### 12. NLU auto-discovery one-shot (não reativo) — `BAIXA` (limitação documentada)
+#### 12. NLU auto-discovery one-shot (não reativo) — `BAIXA` → ✅ **ENTREGUE** (2026-05-29)
 
-**Evidência** (do agente NLU, doc claim — não verifiquei a linha exata por mim):
+**Implementação**: nova função `discoverMenuIntentsReactive(registry, service, injector)` ao lado da `discoverMenuIntents` one-shot original (preservada para callers que querem snapshot estático).
 
-- `projects/svg-engine/ai/nlu/src/lib/menu-intent-discovery.ts:39-45` (docstring): doc do helper afirma que é one-shot (chamado uma vez no `install` do `builtinNluPlugin`).
+- `projects/svg-engine/ai/nlu/src/lib/menu-intent-discovery.ts:244-352` — função reativa + interface `DiscoverMenuIntentsReactiveResult`.
+- `projects/svg-engine/ai/nlu/src/lib/builtin-nlu.plugin.ts:90-98` — plugin trocou pra versão reativa.
+- `projects/svg-engine/ai/nlu/src/lib/menu-intent-discovery.spec.ts` — 5 specs novos cobrindo: initial sync (preserva contrato com spec pré-existente `builtin-nlu.plugin.spec.ts:41`), late register, late dispose, disposal cleanup, idempotência.
 
-**O que falta**: tornar reativo a mudanças do `MenuContributionRegistry` (plugin instalado depois do NLU não tem seus menu items descobertos como intents).
+**Estratégia**: descoberta síncrona imediata (preserva o contrato em que `nlu.intents()` lido logo após `plugins.install()` já contém os intents auto-descobertos) + `effect()` registrado via `runInInjectionContext` que rebuilda a batch sempre que `registry.contributions()` muda. Implementação rebuild-completo (dispose old batch + re-discover) — coarse mas correta; sem bookkeeping de delta evitamos half-state em race conditions, ao custo de O(N) por mutação (N ≤ 50 na prática).
 
-**Impacto**: plugins de domínio (Mosaicoo, terceiros) instalados pós-bootstrap não podem ser comandados por voz/NLU. Para plugins built-in (que provisionam em `app.config.ts` antes do `builtinNluPlugin`), funciona.
+**Echo skipping**: capturamos a referência exata do array do registry que a sync discovery consumiu e curto-circuitamos qualquer firing do effect onde o signal ainda retorna essa mesma referência. Identidade referencial é robusta porque o `MenuContributionRegistry` cria array novo em `register`/`dispose` (atualização imutável). Resolve a corrida do timing assíncrono do effect Angular (1ª execução pode ocorrer antes OU depois de mudanças tardias — flag "skip first" seria não-confiável).
+
+**Impacto**: plugins de domínio (Mosaicoo, terceiros) instalados pós-bootstrap agora têm seus menu items auto-descobertos como intents — comandáveis por voz/NLU sem reinstalar o `builtinNluPlugin`. Built-in plugins instalados antes continuam funcionando exatamente como antes (mesmo caminho da sync discovery inicial).
+
+**Histórico da implementação**: tentativa inicial nesta mesma sessão usou flag `firstEffectRun` que falhou nos specs reativos (effect do Angular assíncrono → "first run" capturava mudanças tardias e ainda pulava). Revertida via opção A (commit reset), reimplementada com identidade referencial e validada em build + 2 specs focados (42/42 passing).
 
 ---
 

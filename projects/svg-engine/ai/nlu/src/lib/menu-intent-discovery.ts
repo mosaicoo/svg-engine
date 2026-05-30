@@ -1,3 +1,4 @@
+import { effect, type Injector, runInInjectionContext } from '@angular/core';
 import type { Disposable } from 'svg-engine/core';
 import {
   type MenuContribution,
@@ -37,12 +38,11 @@ import type { NluIntent } from './types';
  * contribution. Cadeia de scope ativo preservada end-to-end.
  *
  * **Reactivity**: este helper é one-shot — registra os intents que
- * EXISTEM no momento da chamada. Se o consumer registrar mais
- * contribuições depois e quiser auto-discovery deles, deve chamar
- * `discoverMenuIntents` de novo (em geral basta chamar no
- * `install()` do plugin, depois de todos os plugins co-instalados
- * terem registrado seus contribuições — vide
- * {@link builtinNluPlugin}).
+ * EXISTEM no momento da chamada. Para auto-discovery contínuo
+ * (plugins instalados depois também viram intents),
+ * use {@link discoverMenuIntentsReactive} — wrapper baseado em
+ * `effect()` que reflete mudanças do registry em tempo real
+ * (Audit #12).
  *
  * **Retorno**: array de `Disposable` (um por intent registrado) +
  * count. O `composedDispose` permite cleanup em massa via
@@ -238,5 +238,109 @@ export function discoverMenuIntents(
     disposables,
     count: disposables.length,
     composedDispose,
+  };
+}
+
+/**
+ * **`discoverMenuIntentsReactive`** — Audit #12. Reactive companion to
+ * {@link discoverMenuIntents}.
+ *
+ * Performs an **immediate synchronous discovery** of all current menu
+ * contributions (so callers reading `service.intents()` right after
+ * this returns see the auto-discovered intents — same observable
+ * behavior as the one-shot helper at install time), AND registers an
+ * Angular `effect()` that re-runs discovery whenever
+ * `registry.contributions()` emits — covering plugins installed AFTER
+ * the NLU plugin and contributions disposed at any later time.
+ *
+ * **Strategy on each change**: tear down the previous batch via its
+ * `composedDispose`, then rebuild a fresh batch from the new registry
+ * snapshot. Coarse-grained but correct: no diff/merge bookkeeping
+ * means no chance of half-state on race conditions, at the cost of
+ * O(N) work per registry mutation (N is small for menu items, usually
+ * ≤ 50). Custom intents the consumer registered out-of-band stay
+ * untouched because `discoverMenuIntents` skips ids already present.
+ *
+ * **Why an effect, not a manual subscription**: Angular signals don't
+ * expose a `subscribe()` — `effect()` IS the official subscription
+ * mechanism. It also gets disposed cleanly via `effectRef.destroy()`,
+ * letting the returned `Disposable` cover both the effect AND the
+ * current batch of intents.
+ *
+ * **Injection context requirement**: `effect()` may only be created
+ * inside an injection context. We accept an explicit `Injector` and
+ * use `runInInjectionContext` so the function works from anywhere —
+ * including plugin `install(ctx)` blocks that aren't injection
+ * contexts themselves.
+ *
+ * **Echo skipping via reference identity**: Angular schedules the
+ * effect's first run for a later microtask, NOT immediately at
+ * creation. That first run might happen BEFORE or AFTER unrelated
+ * signal mutations. Using a "skip first" flag is unreliable. Instead
+ * we capture the exact array reference that the initial sync
+ * discovery consumed and short-circuit any firing where the signal
+ * still returns that same reference — guaranteed safe because
+ * `MenuContributionRegistry.register` and the returned dispose both
+ * produce a NEW array (immutable update), so identity comparison
+ * cleanly distinguishes "no real change" from "actual mutation".
+ */
+export interface DiscoverMenuIntentsReactiveResult {
+  /**
+   * Composite disposable — stops the effect AND tears down the
+   * currently-tracked batch of intents. Idempotent: calling
+   * `dispose()` twice is a silent no-op.
+   */
+  readonly disposable: Disposable;
+}
+
+export function discoverMenuIntentsReactive(
+  registry: MenuContributionRegistry,
+  service: NaturalLanguageService,
+  injector: Injector,
+): DiscoverMenuIntentsReactiveResult {
+  // 1) Capture the registry array reference our initial sync
+  //    discovery is going to consume, then run the discovery. Reading
+  //    the signal here outside of the effect is fine — we only need
+  //    its identity for echo detection.
+  let currentBatchSource: readonly MenuContribution[] = registry.contributions();
+  let currentBatch: DiscoverMenuIntentsResult | null = discoverMenuIntents(registry, service);
+  let disposed = false;
+
+  // 2) Effect watches the signal; rebuild only when the array
+  //    reference actually differs from the snapshot the current
+  //    batch was built against.
+  const effectRef = runInInjectionContext(injector, () =>
+    effect(() => {
+      const current = registry.contributions();
+      if (disposed) return;
+      if (current === currentBatchSource) return; // echo / no real mutation
+      if (currentBatch !== null) {
+        currentBatch.composedDispose.dispose();
+      }
+      currentBatch = discoverMenuIntents(registry, service);
+      currentBatchSource = current;
+    }),
+  );
+
+  return {
+    disposable: {
+      dispose() {
+        if (disposed) return; // idempotent
+        disposed = true;
+        try {
+          effectRef.destroy();
+        } catch {
+          /* defensive: tolerate already-destroyed effect */
+        }
+        if (currentBatch !== null) {
+          try {
+            currentBatch.composedDispose.dispose();
+          } catch {
+            /* defensive */
+          }
+          currentBatch = null;
+        }
+      },
+    },
   };
 }
