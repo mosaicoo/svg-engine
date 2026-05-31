@@ -109,6 +109,98 @@ describe('TransformService — move gesture', () => {
   });
 });
 
+describe('TransformService — group move gesture (multi-selection)', () => {
+  /** Seed N rects as top-level children; return ctx + the created nodes. */
+  function setupRects(count: number) {
+    const ctx = setup();
+    const rects = Array.from({ length: count }, (_, i) =>
+      createRect({ x: i * 100, y: 0, width: 10, height: 10 }),
+    );
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup(rects, { id: ctx.state.document().root.id }),
+    });
+    return { ...ctx, rects };
+  }
+
+  it('startMoveMany moves EVERY node by the same delta in one undo entry', () => {
+    const { state, transform, history, rects } = setupRects(3);
+    const [a, b, c] = rects;
+    transform.startMoveMany([a!.id, b!.id, c!.id], { x: 0, y: 0 });
+    transform.updateMove({ x: 10, y: 20 });
+    transform.endMove();
+
+    const r = (id: string) => findNodeById(state.document().root, id as never);
+    expect(r(a!.id)?.transform).toEqual([1, 0, 0, 1, 10, 20]);
+    expect(r(b!.id)?.transform).toEqual([1, 0, 0, 1, 10, 20]);
+    expect(r(c!.id)?.transform).toEqual([1, 0, 0, 1, 10, 20]);
+    // Exactly ONE undo entry covers the whole group.
+    expect(history.undoStack()).toHaveLength(1);
+  });
+
+  it('undo restores ALL nodes in the group (single TranslateManyCommand)', () => {
+    const { state, transform, history, rects } = setupRects(2);
+    const [a, b] = rects;
+    transform.startMoveMany([a!.id, b!.id], { x: 0, y: 0 });
+    transform.updateMove({ x: 30, y: -15 });
+    transform.endMove();
+    history.undo();
+
+    const r = (id: string) => findNodeById(state.document().root, id as never);
+    expect(r(a!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(r(b!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(history.canUndo()).toBe(false);
+  });
+
+  it('a negligible group drag dispatches no command (click without drag)', () => {
+    const { state, transform, history, rects } = setupRects(2);
+    const [a, b] = rects;
+    const before = state.document();
+    transform.startMoveMany([a!.id, b!.id], { x: 0, y: 0 });
+    transform.endMove(); // no updateMove → zero delta
+    expect(history.canUndo()).toBe(false);
+    expect(state.document()).toBe(before);
+  });
+
+  it('startMoveMany filters out locked nodes (locked stays put)', () => {
+    const { state, transform, layers, rects } = setupRects(2);
+    const [a, b] = rects;
+    layers.setLocked(b!.id, true);
+    transform.startMoveMany([a!.id, b!.id], { x: 0, y: 0 });
+    transform.updateMove({ x: 10, y: 10 });
+    transform.endMove();
+
+    const r = (id: string) => findNodeById(state.document().root, id as never);
+    expect(r(a!.id)?.transform).toEqual([1, 0, 0, 1, 10, 10]); // moved
+    expect(r(b!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]); // locked → unchanged
+  });
+
+  it('startMoveMany with a single id delegates to the single-node path (no extraNodes)', () => {
+    const { transform, rects } = setupRects(2);
+    const [a] = rects;
+    transform.startMoveMany([a!.id], { x: 0, y: 0 });
+    const ds = transform.dragState();
+    expect(ds?.kind).toBe('move');
+    expect((ds as { nodeId: string }).nodeId).toBe(a!.id);
+    // Single-node path → no extraNodes (behaves exactly like startMove).
+    expect((ds as { extraNodes?: unknown }).extraNodes).toBeUndefined();
+    transform.cancelGesture();
+  });
+
+  it('cancelGesture reverts EVERY node in a group move (Esc mid-drag)', () => {
+    const { state, transform, history, rects } = setupRects(2);
+    const [a, b] = rects;
+    transform.startMoveMany([a!.id, b!.id], { x: 0, y: 0 });
+    transform.updateMove({ x: 40, y: 40 }); // preview both
+    transform.cancelGesture();
+
+    const r = (id: string) => findNodeById(state.document().root, id as never);
+    expect(r(a!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(r(b!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(history.canUndo()).toBe(false); // cancel never dispatches
+  });
+});
+
 describe('TransformService — rotate gesture', () => {
   it('endRotate commits via RotateNodeCommand and the angle equals atan2 difference', () => {
     const { transform, state, history } = setup();
