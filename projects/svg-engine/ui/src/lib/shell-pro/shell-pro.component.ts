@@ -437,14 +437,29 @@ import { SvgeToolsPalette } from '../tools-palette';
        Pinned to the top edge of the canvas-cell with z-index above the
        renderer so the bar paints on top of the topmost canvas pixels.
        Self-hides when isolation is inactive — the inner @if returns
-       no DOM, so the overlay claims zero visual / pointer footprint. */
+       no DOM, so the overlay claims zero visual / pointer footprint.
+
+       BREADCRUMB-CLICK-FIX: host stays pointer-events auto (parity
+       with custom-editor's .isolation-bar, which has no pointer-events
+       override so it inherits auto from the component :host). A prior
+       pointer-events: none here was meant to let clicks fall through to
+       the canvas, but it BROKE breadcrumb interaction: clicking a crumb
+       or the bar margins passed straight through to the
+       [svgeShellInteractions] directive on canvas-cell, which treated
+       it as a click on empty canvas and called isolation.exit() — so
+       the bar vanished on the first click and the crumbs did nothing.
+       The fall-through was never needed: the component's inner
+       at-if(visible()) removes ALL of its DOM when isolation is
+       inactive, so there's no overlay to block canvas clicks at the
+       default scope. When active, the 28px bar SHOULD capture its own
+       clicks (the nav's stopPropagation then contains them) — exactly
+       like Illustrator/Affinity. */
     .canvas-cell > .iso-breadcrumb-overlay {
       position: absolute;
       top: 0;
       left: 0;
       right: 0;
       z-index: 3;
-      pointer-events: none;
     }
     /* PAGES-REFACTOR follow-up #5 — when rulers are visible (View ▸
        Show Rulers), shift the breadcrumb to start AFTER the vertical
@@ -482,9 +497,11 @@ import { SvgeToolsPalette } from '../tools-palette';
     .canvas-cell.with-rulers > .pages-overlay {
       left: 24px;
     }
-    /* Re-enable pointer events on the visible bar only — the host
-       above is pointer-events: none so clicks pass through to the
-       canvas when isolation is inactive (defensive double-guard). */
+    /* BREADCRUMB-CLICK-FIX — the host above is now pointer-events auto
+       (was none, which leaked breadcrumb clicks to the canvas-cell and
+       triggered isolation.exit). This child rule is now redundant
+       (auto child of an auto host) but kept as a defensive guard in
+       case a future host-level override re-introduces none. */
     .canvas-cell > .iso-breadcrumb-overlay > * {
       pointer-events: auto;
     }
