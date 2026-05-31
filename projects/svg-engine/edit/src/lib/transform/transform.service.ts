@@ -114,6 +114,33 @@ export type DragState =
        * or-translate and the legacy anchor-adjust path is in use.
        */
       bakeLocalAnchor: Point | null;
+    }
+  | {
+      /**
+       * **Group resize** (multi-selection). A dedicated kind kept fully
+       * separate from the single-node `'resize'` so the well-tested
+       * geometry-bake path is never touched. Uses the pure matrix
+       * approach: the same anchored scale about the shared `anchor`
+       * applied to every entry's transform (see `ResizeNodesCommand`).
+       */
+      readonly kind: 'resize-many';
+      /**
+       * Each selected node: id + transform snapshot at gesture start +
+       * ancestor matrix (lets `composeAnchoredScale` project the shared
+       * doc-space anchor into each node's own parent frame).
+       */
+      readonly entries: readonly {
+        readonly id: NodeId;
+        readonly startTransform: Transform;
+        readonly parentMatrix: Transform | null;
+      }[];
+      /** Fixed scaling pivot = union-bbox anchor opposite the dragged handle (doc coords). */
+      readonly anchor: Point;
+      /** Dragged handle's union-bbox corner at gesture start (doc coords). */
+      readonly handleStart: Point;
+      /** Which axes scale (corner handle: both; edge handle: one). */
+      readonly scaleAxes: { readonly x: boolean; readonly y: boolean };
+      currentScale: { readonly sx: number; readonly sy: number };
     };
 
 /**
@@ -577,6 +604,95 @@ export class TransformService {
     );
   }
 
+  // ── Group resize gesture (multi-selection) ──────────────────────
+
+  /**
+   * Begin a GROUP resize gesture. `entries` = the selected nodes (id +
+   * ancestor matrix), captured by the caller (the selection overlay,
+   * which has the SVG element) so the anchored scale lands in each node's
+   * parent frame. `unionBBox` is the combined selection bbox in doc
+   * coords; `handle` is the grabbed corner/edge — the OPPOSITE union-bbox
+   * anchor becomes the fixed scaling pivot.
+   *
+   * Locked nodes are filtered out (parity with `startResize`/
+   * `startMoveMany`). Fewer than 2 remaining entries → no-op (the overlay
+   * only calls this for genuine multi-selections; single uses `startResize`).
+   */
+  startResizeMany(
+    entries: readonly ResizeNodesEntry[],
+    handle: Exclude<BBoxAnchor, 'mc'>,
+    unionBBox: { x: number; y: number; width: number; height: number },
+  ): void {
+    if (this._dragState() !== null) return;
+    const root = this.state.document().root;
+    const captured: {
+      id: NodeId;
+      startTransform: Transform;
+      parentMatrix: Transform | null;
+    }[] = [];
+    for (const e of entries) {
+      if (this.layers.isLocked(e.id)) continue;
+      const node = findNodeById(root, e.id);
+      if (node === null) continue;
+      captured.push({ id: e.id, startTransform: node.transform, parentMatrix: e.parentMatrix });
+    }
+    if (captured.length < 2) return; // not a group → let the single path handle it
+    const anchors = allAnchors(unionBBox);
+    this._dragState.set({
+      kind: 'resize-many',
+      entries: captured,
+      anchor: anchors[OPPOSITE_ANCHOR[handle]],
+      handleStart: anchors[handle],
+      scaleAxes: SCALE_AXES_FOR_HANDLE[handle],
+      currentScale: { sx: 1, sy: 1 },
+    });
+  }
+
+  /**
+   * Update an in-progress group resize. Computes `sx`/`sy` in DOC space
+   * from the union-bbox anchor + handle + current pointer (the selection's
+   * nodes have different parents, so there is no single local frame), then
+   * previews each node via `composeAnchoredScale` about the shared anchor —
+   * each node's own `parentMatrix` maps that doc-space pivot into its frame.
+   */
+  updateResizeMany(currentPoint: Point): void {
+    const ds = this._dragState();
+    if (ds === null || ds.kind !== 'resize-many') return;
+    const { anchor, handleStart, scaleAxes, entries } = ds;
+    const denomX = handleStart.x - anchor.x;
+    const denomY = handleStart.y - anchor.y;
+    const sx = scaleAxes.x && denomX !== 0 ? (currentPoint.x - anchor.x) / denomX : 1;
+    const sy = scaleAxes.y && denomY !== 0 ? (currentPoint.y - anchor.y) / denomY : 1;
+    if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
+    for (const e of entries) {
+      this.applyPreviewTransform(
+        e.id,
+        composeAnchoredScale(e.startTransform, sx, sy, anchor, e.parentMatrix),
+      );
+    }
+    ds.currentScale = { sx, sy };
+  }
+
+  /**
+   * Finish a group resize. Reverts every node's preview to its start
+   * transform, then dispatches ONE {@link ResizeNodesCommand} (single
+   * undo for the whole group). Negligible scale (~1×1) is a no-op
+   * (handle clicked without a drag).
+   */
+  endResizeMany(): void {
+    const ds = this._dragState();
+    if (ds === null || ds.kind !== 'resize-many') return;
+    const { entries, anchor, currentScale } = ds;
+    this._dragState.set(null);
+    for (const e of entries) this.applyPreviewTransform(e.id, e.startTransform);
+    if (Math.abs(currentScale.sx - 1) < 1e-4 && Math.abs(currentScale.sy - 1) < 1e-4) return;
+    const cmdEntries: ResizeNodesEntry[] = entries.map((e) => ({
+      id: e.id,
+      parentMatrix: e.parentMatrix,
+    }));
+    this.bus.dispatch(new ResizeNodesCommand(cmdEntries, anchor, currentScale.sx, currentScale.sy));
+  }
+
   // ── Cancel + helpers ─────────────────────────────────────────────
 
   /**
@@ -592,6 +708,9 @@ export class TransformService {
     if (ds === null) return;
     if (ds.kind === 'resize') {
       this.applyPreviewNode(ds.nodeId, ds.startNode);
+    } else if (ds.kind === 'resize-many') {
+      // Group resize: revert every node's matrix preview to its snapshot.
+      for (const e of ds.entries) this.applyPreviewTransform(e.id, e.startTransform);
     } else {
       this.applyPreviewTransform(ds.nodeId, ds.startTransform);
       // Group move (multi-selection): revert every extra node too, else

@@ -776,7 +776,15 @@ grep -c '^\s*it(' projects/svg-engine/edit/src/lib/pages/page-selection-overlay.
 
 **Premissa corrigida**: o outline-união (brackets) JÁ era exibido para multi via `getCombinedBBox` (`node-bbox.ts:59`). A percepção de "brackets ausentes" eram os **handles de resize** (só em single-selection) + o drag quebrado.
 
-**Deferido**: multi-seleção **RESIZE** (escalar o grupo em torno do anchor do bbox-união). Requer math por-nó + comando batch. Não-bloqueante.
+**Multi-seleção RESIZE — ✅ ENTREGUE (2026-05-31)**: handles de resize agora aparecem em volta do bbox combinado e escalam TODO o grupo em torno do anchor oposto ao handle. Implementação:
+
+- `core/commands/resize-nodes.command.ts` — **`ResizeNodesCommand`** (novo): aplica `composeAnchoredScale(transform, sx, sy, anchor, parentMatrix)` — a MESMA matriz de scale-ancorado — a cada nó. 1 undo pro grupo. 5 specs.
+- `transform.service.ts` — nova kind `'resize-many'` no `DragState` (**totalmente isolada** da kind `'resize'` single, que não foi tocada) + `startResizeMany`/`updateResizeMany`/`endResizeMany` + tratamento no `cancelGesture`. sx/sy calculados em doc-space; cada nó projeta o anchor via seu próprio `parentMatrix`. 7 specs.
+- `selection-overlay.component.ts` — `showsTransformHandles` libera multi; novo `showsRotationHandle` (rotação fica **single-only** — group-rotation é gesto separado, ainda não feito, então o handle de rotação é suprimido em multi pra não rotacionar só o focus); `onResizeHandlePointerDown`/`onHandlePointerMove`/`onHandlePointerUp`/`onResizeHandleKeyDown` roteiam pra `*ResizeMany` quando `count > 1`.
+
+**Garantia "não quebrar nada"**: kind `'resize'` single + move/rotate intocados; `'resize-many'` é caminho novo aditivo. Suite completa **1893 passed | 1 skipped** (era 1881) → zero regressão. Build verde (node v22.20.0).
+
+**Ainda deferido**: group-ROTATION (rotacionar multi em torno de pivot compartilhado). Mesmo padrão matricial (`composePivotRotation` por nó). Handle de rotação propositalmente oculto em multi até lá.
 
 **Lição de processo (registrada)**: nesta rodada (a) o `node` default oscilou para v20.11.1 (abaixo do floor v20.19 do Angular CLI) fazendo build/test silenciosamente não-rodar; (b) edits em batch paralelo falharam com "String not found" e foram reportados como aplicados; (c) um spec com API errada (`history.undo()` inexistente — undo é no `CommandBus`) foi commitado e pushado quebrando o main por ~1 commit. Os três pegos por `grep`/build/read do estado real. **Reforço**: 1 edit → 1 verificação no disco; nunca confiar em "success" de tool no meio de batch grande nem em memória de etapas.
 

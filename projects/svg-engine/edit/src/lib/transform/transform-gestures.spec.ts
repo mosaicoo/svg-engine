@@ -201,6 +201,131 @@ describe('TransformService — group move gesture (multi-selection)', () => {
   });
 });
 
+describe('TransformService — group resize gesture (multi-selection)', () => {
+  /** Seed N rects as top-level children; return ctx + the created nodes. */
+  function setupRects(count: number) {
+    const ctx = setup();
+    const rects = Array.from({ length: count }, (_, i) =>
+      createRect({ x: i * 100, y: 0, width: 10, height: 10 }),
+    );
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup(rects, { id: ctx.state.document().root.id }),
+    });
+    return { ...ctx, rects };
+  }
+
+  // Combined bbox covering rect[0] (x 0..10) .. rect[last] (x 100k..+10).
+  const UNION = { x: 0, y: 0, width: 110, height: 10 };
+
+  it('startResizeMany scales EVERY node by the shared anchored scale (one undo)', () => {
+    const { state, transform, history, rects } = setupRects(2);
+    const [a, b] = rects;
+    transform.startResizeMany(
+      [
+        { id: a!.id, parentMatrix: null },
+        { id: b!.id, parentMatrix: null },
+      ],
+      'br', // opposite anchor = tl = {0,0}
+      UNION,
+    );
+    transform.updateResizeMany({ x: 220, y: 20 }); // sx=220/110=2, sy=20/10=2
+    transform.endResizeMany();
+
+    const r = (id: string) => findNodeById(state.document().root, id as never);
+    expect(r(a!.id)?.transform).toEqual([2, 0, 0, 2, 0, 0]);
+    expect(r(b!.id)?.transform).toEqual([2, 0, 0, 2, 0, 0]);
+    expect(history.undoStack()).toHaveLength(1);
+  });
+
+  it('undo restores ALL nodes in the group', () => {
+    const { state, transform, bus, rects } = setupRects(2);
+    const [a, b] = rects;
+    transform.startResizeMany(
+      [
+        { id: a!.id, parentMatrix: null },
+        { id: b!.id, parentMatrix: null },
+      ],
+      'br',
+      UNION,
+    );
+    transform.updateResizeMany({ x: 220, y: 20 });
+    transform.endResizeMany();
+    bus.undo();
+
+    const r = (id: string) => findNodeById(state.document().root, id as never);
+    expect(r(a!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(r(b!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+  });
+
+  it('negligible scale (handle click, no drag) dispatches no command', () => {
+    const { state, transform, history, rects } = setupRects(2);
+    const [a, b] = rects;
+    const before = state.document();
+    transform.startResizeMany(
+      [
+        { id: a!.id, parentMatrix: null },
+        { id: b!.id, parentMatrix: null },
+      ],
+      'br',
+      UNION,
+    );
+    transform.updateResizeMany({ x: 110, y: 10 }); // == handleStart → sx=sy=1
+    transform.endResizeMany();
+    expect(history.canUndo()).toBe(false);
+    expect(state.document()).toBe(before);
+  });
+
+  it('filters out locked nodes (locked stays put; the rest scale)', () => {
+    const { state, transform, layers, rects } = setupRects(3);
+    const [a, b, c] = rects;
+    layers.setLocked(c!.id, true);
+    transform.startResizeMany(
+      [
+        { id: a!.id, parentMatrix: null },
+        { id: b!.id, parentMatrix: null },
+        { id: c!.id, parentMatrix: null },
+      ],
+      'br',
+      UNION,
+    );
+    transform.updateResizeMany({ x: 220, y: 20 });
+    transform.endResizeMany();
+
+    const r = (id: string) => findNodeById(state.document().root, id as never);
+    expect(r(a!.id)?.transform).toEqual([2, 0, 0, 2, 0, 0]);
+    expect(r(b!.id)?.transform).toEqual([2, 0, 0, 2, 0, 0]);
+    expect(r(c!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]); // locked → unchanged
+  });
+
+  it('fewer than 2 movable entries → no gesture starts (single path owns it)', () => {
+    const { transform, rects } = setupRects(2);
+    const [a] = rects;
+    transform.startResizeMany([{ id: a!.id, parentMatrix: null }], 'br', UNION);
+    expect(transform.dragState()).toBeNull();
+  });
+
+  it('cancelGesture reverts EVERY node in a group resize (Esc mid-drag)', () => {
+    const { state, transform, history, rects } = setupRects(2);
+    const [a, b] = rects;
+    transform.startResizeMany(
+      [
+        { id: a!.id, parentMatrix: null },
+        { id: b!.id, parentMatrix: null },
+      ],
+      'br',
+      UNION,
+    );
+    transform.updateResizeMany({ x: 300, y: 30 }); // preview both
+    transform.cancelGesture();
+
+    const r = (id: string) => findNodeById(state.document().root, id as never);
+    expect(r(a!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(r(b!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(history.canUndo()).toBe(false);
+  });
+});
+
 describe('TransformService — rotate gesture', () => {
   it('endRotate commits via RotateNodeCommand and the angle equals atan2 difference', () => {
     const { transform, state, history } = setup();

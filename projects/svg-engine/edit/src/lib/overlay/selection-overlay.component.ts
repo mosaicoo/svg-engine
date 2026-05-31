@@ -149,7 +149,7 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
           ></svg:rect>
         }
 
-        @if (rotationHandle(); as r) {
+        @if (showsRotationHandle() && rotationHandle(); as r) {
           <svg:line
             class="rotation-stem"
             aria-hidden="true"
@@ -332,7 +332,13 @@ export class SelectionOverlay {
    * can always see which node is focused.
    */
   protected readonly showsTransformHandles = computed(() => {
-    if (!this.singleSelection()) return false;
+    // Multi-selection → show the 8 resize handles around the COMBINED
+    // bbox (group resize). The Direct-Select/path exception below only
+    // concerns a single focused path (the anchor overlay never targets
+    // a multi-selection), so it doesn't apply here.
+    if (!this.singleSelection()) {
+      return this.selection.count() > 1;
+    }
     if (this.toolHost.activeId() !== DIRECT_SELECT_TOOL_ID) return true;
     // Direct Select active — hide handles only when the focused node
     // is a path (the only type the anchor overlay renders).
@@ -341,6 +347,17 @@ export class SelectionOverlay {
     const node = findFocusedType(this.state.document().root, focusId);
     return node !== 'path';
   });
+
+  /**
+   * Rotation handle visibility. Shown only for **single** selection:
+   * group rotation (rotating a multi-selection about a shared pivot) is
+   * a separate, not-yet-implemented gesture, so we suppress the rotation
+   * handle for multi rather than render one that would rotate only the
+   * focus node. Resize handles (above) DO support the group case.
+   */
+  protected readonly showsRotationHandle = computed(
+    () => this.showsTransformHandles() && this.singleSelection(),
+  );
 
   /** Handle size in document units (kept constant in screen pixels via 1/zoom). */
   protected readonly handleSize = computed(() => HANDLE_PX / this.viewport.zoom());
@@ -399,18 +416,31 @@ export class SelectionOverlay {
   // ── Resize handle interactions ───────────────────────────────────
 
   protected onResizeHandlePointerDown(event: PointerEvent, anchor: ResizeAnchor): void {
-    const focus = this.selection.focusId();
     const b = this._focusBBox();
-    if (focus === null || b === null) return;
-
-    // Capture the node's ancestor matrix so the resize math can adjust
-    // the doc-space anchor into the node's parent-local frame — without
-    // this, resizing a shape inside a translated/rotated group "drifts"
-    // (becomes a move). `null` means no ancestor transform / node is
-    // directly under the SVG root.
+    if (b === null) return;
     const svg = this.elRef.nativeElement.ownerSVGElement;
-    const parentMatrix = svg === null ? null : getRenderedParentMatrix(svg, focus);
 
+    // **Multi-selection → GROUP resize** about the combined bbox `b`.
+    // Capture each selected node's ancestor matrix so the shared
+    // doc-space anchor projects into each node's own parent frame.
+    if (this.selection.count() > 1) {
+      const entries = Array.from(this.selection.selectedIds()).map((id) => ({
+        id,
+        parentMatrix: svg === null ? null : getRenderedParentMatrix(svg, id),
+      }));
+      this.transform.startResizeMany(entries, anchor, b);
+      capturePointer(event);
+      event.stopPropagation();
+      return;
+    }
+
+    // Single selection — capture the node's ancestor matrix so the resize
+    // math can adjust the doc-space anchor into the node's parent-local
+    // frame; without this, resizing a shape inside a translated/rotated
+    // group "drifts". `null` = no ancestor transform / directly under SVG.
+    const focus = this.selection.focusId();
+    if (focus === null) return;
+    const parentMatrix = svg === null ? null : getRenderedParentMatrix(svg, focus);
     this.transform.startResize(focus, anchor, b, parentMatrix);
     capturePointer(event);
     event.stopPropagation();
@@ -467,11 +497,9 @@ export class SelectionOverlay {
     }
     event.preventDefault();
     event.stopPropagation();
-    const focus = this.selection.focusId();
     const bbox = this._focusBBox();
-    if (focus === null || bbox === null) return;
+    if (bbox === null) return;
     const svg = this.elRef.nativeElement.ownerSVGElement;
-    const parentMatrix = svg === null ? null : getRenderedParentMatrix(svg, focus);
     // Synthesize cursor positions: start at the handle's current
     // position, end one step further along (dx, dy). The gesture
     // service computes sx/sy from the delta and pivots on the
@@ -479,6 +507,23 @@ export class SelectionOverlay {
     const anchors = allAnchors(bbox);
     const start = anchors[anchor];
     const target = { x: start.x + dx, y: start.y + dy };
+
+    // **Multi-selection → keyboard GROUP resize** (same gesture API as
+    // the pointer path) so arrow-key resize stays consistent with drag.
+    if (this.selection.count() > 1) {
+      const entries = Array.from(this.selection.selectedIds()).map((id) => ({
+        id,
+        parentMatrix: svg === null ? null : getRenderedParentMatrix(svg, id),
+      }));
+      this.transform.startResizeMany(entries, anchor, bbox);
+      this.transform.updateResizeMany(target);
+      this.transform.endResizeMany();
+      return;
+    }
+
+    const focus = this.selection.focusId();
+    if (focus === null) return;
+    const parentMatrix = svg === null ? null : getRenderedParentMatrix(svg, focus);
     this.transform.startResize(focus, anchor, bbox, parentMatrix);
     this.transform.updateResize(target);
     this.transform.endResize();
@@ -541,6 +586,7 @@ export class SelectionOverlay {
     const point = this.screenToDoc(event.clientX, event.clientY);
     if (point === null) return;
     if (ds.kind === 'resize') this.transform.updateResize(point);
+    else if (ds.kind === 'resize-many') this.transform.updateResizeMany(point);
     else if (ds.kind === 'rotate') this.transform.updateRotate(point);
   }
 
@@ -548,6 +594,7 @@ export class SelectionOverlay {
     const ds = this.transform.dragState();
     if (ds === null) return;
     if (ds.kind === 'resize') this.transform.endResize();
+    else if (ds.kind === 'resize-many') this.transform.endResizeMany();
     else if (ds.kind === 'rotate') this.transform.endRotate();
     releasePointer(event);
   }
