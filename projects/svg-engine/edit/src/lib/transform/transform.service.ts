@@ -16,6 +16,8 @@ import {
   ResizeNodesCommand,
   type ResizeNodesEntry,
   RotateNodeCommand,
+  RotateNodesCommand,
+  type RotateNodesEntry,
   type SvgNode,
   type Transform,
   translate,
@@ -143,6 +145,32 @@ export type DragState =
       /** Which axes scale (corner handle: both; edge handle: one). */
       readonly scaleAxes: { readonly x: boolean; readonly y: boolean };
       currentScale: { readonly sx: number; readonly sy: number };
+    }
+  | {
+      /**
+       * **Group rotation** (multi-selection). Dedicated kind kept fully
+       * separate from the single-node `'rotate'` so that path is never
+       * touched. Pure matrix approach: the same pivot rotation about the
+       * shared `pivot` applied to every entry's transform (see
+       * `RotateNodesCommand`) — the visual result equals grouping +
+       * rotating + ungrouping.
+       */
+      readonly kind: 'rotate-many';
+      /**
+       * Each selected node: id + transform snapshot at gesture start +
+       * ancestor matrix (lets `composePivotRotation` project the shared
+       * doc-space pivot into each node's own parent frame).
+       */
+      readonly entries: readonly {
+        readonly id: NodeId;
+        readonly startTransform: Transform;
+        readonly parentMatrix: Transform | null;
+      }[];
+      /** Shared rotation pivot = centre of the combined bbox (doc coords). */
+      readonly pivot: Point;
+      /** Pointer position (doc coords) at gesture start — defines the 0° baseline. */
+      readonly startPoint: Point;
+      currentAngleRad: number;
     };
 
 /**
@@ -708,6 +736,100 @@ export class TransformService {
     this.bus.dispatch(new ResizeNodesCommand(cmdEntries, anchor, currentScale.sx, currentScale.sy));
   }
 
+  // ── Group rotation gesture (multi-selection) ────────────────────
+
+  /**
+   * Begin a GROUP rotation gesture. `entries` = the selected nodes (id +
+   * ancestor matrix), captured by the caller (the selection overlay,
+   * which has the SVG element). `pivot` is the shared rotation pivot in
+   * doc coords (centre of the combined bbox — same role the single-node
+   * rotation's pivot plays). `startPoint` is the pointer position at
+   * gesture start (defines the 0° baseline).
+   *
+   * Locked nodes are filtered out (parity with `startResizeMany`). Fewer
+   * than 2 remaining entries → no-op (the overlay only calls this for
+   * genuine multi-selections; single uses `startRotate`).
+   */
+  startRotateMany(entries: readonly RotateNodesEntry[], pivot: Point, startPoint: Point): void {
+    if (this._dragState() !== null) return;
+    const root = this.state.document().root;
+    const captured: {
+      id: NodeId;
+      startTransform: Transform;
+      parentMatrix: Transform | null;
+    }[] = [];
+    for (const e of entries) {
+      if (this.layers.isLocked(e.id)) continue;
+      const node = findNodeById(root, e.id);
+      if (node === null) continue;
+      captured.push({ id: e.id, startTransform: node.transform, parentMatrix: e.parentMatrix });
+    }
+    if (captured.length < 2) return; // not a group → let the single path handle it
+    this._dragState.set({
+      kind: 'rotate-many',
+      entries: captured,
+      pivot,
+      startPoint,
+      currentAngleRad: 0,
+    });
+  }
+
+  /**
+   * Update an in-progress group rotation. The angle is the difference
+   * between the pointer's current bearing and its start bearing, both
+   * measured from the shared pivot (identical to single-node
+   * `updateRotate`). Each node is previewed via the shared doc-space pivot
+   * rotation, conjugated by its own `parentMatrix` — the SAME math as
+   * `RotateNodesCommand`, so the live preview matches the committed result.
+   */
+  updateRotateMany(currentPoint: Point): void {
+    const ds = this._dragState();
+    if (ds === null || ds.kind !== 'rotate-many') return;
+    const { pivot, startPoint, entries } = ds;
+    const startAngle = Math.atan2(startPoint.y - pivot.y, startPoint.x - pivot.x);
+    const currentAngle = Math.atan2(currentPoint.y - pivot.y, currentPoint.x - pivot.x);
+    const angleRad = currentAngle - startAngle;
+    if (!Number.isFinite(angleRad)) return;
+    // Doc-space pivot rotation built once; each node conjugates by its own
+    // parentMatrix (identical math to RotateNodesCommand).
+    const m = composePivotRotation([1, 0, 0, 1, 0, 0], angleRad, pivot);
+    for (const e of entries) {
+      let next: Transform;
+      if (e.parentMatrix === null) {
+        next = multiply(m, e.startTransform);
+      } else {
+        try {
+          const inv = invert(e.parentMatrix);
+          next = multiply(inv, multiply(m, multiply(e.parentMatrix, e.startTransform)));
+        } catch {
+          next = multiply(m, e.startTransform);
+        }
+      }
+      this.applyPreviewTransform(e.id, next);
+    }
+    ds.currentAngleRad = angleRad;
+  }
+
+  /**
+   * Finish a group rotation. Reverts every node's preview to its start
+   * transform, then dispatches ONE {@link RotateNodesCommand} (single
+   * undo for the whole group). Negligible angle (~0) is a no-op (handle
+   * clicked without a drag).
+   */
+  endRotateMany(): void {
+    const ds = this._dragState();
+    if (ds === null || ds.kind !== 'rotate-many') return;
+    const { entries, pivot, currentAngleRad } = ds;
+    this._dragState.set(null);
+    for (const e of entries) this.applyPreviewTransform(e.id, e.startTransform);
+    if (Math.abs(currentAngleRad) < 1e-4) return;
+    const cmdEntries: RotateNodesEntry[] = entries.map((e) => ({
+      id: e.id,
+      parentMatrix: e.parentMatrix,
+    }));
+    this.bus.dispatch(new RotateNodesCommand(cmdEntries, pivot, currentAngleRad));
+  }
+
   // ── Cancel + helpers ─────────────────────────────────────────────
 
   /**
@@ -723,8 +845,10 @@ export class TransformService {
     if (ds === null) return;
     if (ds.kind === 'resize') {
       this.applyPreviewNode(ds.nodeId, ds.startNode);
-    } else if (ds.kind === 'resize-many') {
-      // Group resize: revert every node's matrix preview to its snapshot.
+    } else if (ds.kind === 'resize-many' || ds.kind === 'rotate-many') {
+      // Group resize / rotation: revert every node's matrix preview to its
+      // snapshot (both kinds carry `entries`, neither has a top-level
+      // `nodeId`/`startTransform`).
       for (const e of ds.entries) this.applyPreviewTransform(e.id, e.startTransform);
     } else {
       this.applyPreviewTransform(ds.nodeId, ds.startTransform);

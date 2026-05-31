@@ -53,6 +53,7 @@ export { type ReorderDirection, ReorderNodeCommand } from './reorder-node.comman
 export { composeAnchoredScale, ResizeNodeCommand } from './resize-node.command';
 export { type ResizeNodesEntry, ResizeNodesCommand } from './resize-nodes.command';
 export { composePivotRotation, RotateNodeCommand } from './rotate-node.command';
+export { type RotateNodesEntry, RotateNodesCommand } from './rotate-nodes.command';
 // D-078 — Flip horizontal/vertical (mirror across an axis through pivot).
 export { composePivotFlip, type FlipAxis, FlipNodeCommand } from './flip-node.command';
 // KNIFE-FIX — real path cut (auto-converts shapes, splits into 2 paths,

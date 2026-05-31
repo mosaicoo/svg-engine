@@ -332,6 +332,140 @@ describe('TransformService — group resize gesture (multi-selection)', () => {
   });
 });
 
+describe('TransformService — group rotate gesture (multi-selection)', () => {
+  /** Seed N rects as top-level children; return ctx + the created nodes. */
+  function setupRects(count: number) {
+    const ctx = setup();
+    const rects = Array.from({ length: count }, (_, i) =>
+      createRect({ x: i * 100, y: 0, width: 10, height: 10 }),
+    );
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup(rects, { id: ctx.state.document().root.id }),
+    });
+    return { ...ctx, rects };
+  }
+
+  /** Round each matrix slot to kill float noise (sin/cos). */
+  function round6(t: readonly number[]): number[] {
+    return t.map((n) => Math.round(n * 1e6) / 1e6);
+  }
+
+  const PIVOT = { x: 0, y: 0 };
+
+  it('rotates EVERY node about the shared pivot by the same angle (one undo)', () => {
+    const { state, transform, history, rects } = setupRects(2);
+    const [a, b] = rects;
+    transform.startRotateMany(
+      [
+        { id: a!.id, parentMatrix: null },
+        { id: b!.id, parentMatrix: null },
+      ],
+      PIVOT,
+      { x: 10, y: 0 }, // start bearing = 0°
+    );
+    transform.updateRotateMany({ x: 0, y: 10 }); // bearing = +90°
+    transform.endRotateMany();
+
+    const r = (id: string) => findNodeById(state.document().root, id as never);
+    // 90° about origin: doc point (10,0) → (0,10). Verify via each node's
+    // NEW transform applied to a doc-space probe point.
+    const pa = applyTransform(r(a!.id)!.transform, 10, 0);
+    expect(round6([pa.x, pa.y])).toEqual([0, 10]);
+    const pb = applyTransform(r(b!.id)!.transform, 100, 0);
+    expect(round6([pb.x, pb.y])).toEqual([0, 100]);
+    expect(history.undoStack()).toHaveLength(1);
+  });
+
+  it('undo restores ALL nodes in the group', () => {
+    const { state, transform, bus, rects } = setupRects(2);
+    const [a, b] = rects;
+    transform.startRotateMany(
+      [
+        { id: a!.id, parentMatrix: null },
+        { id: b!.id, parentMatrix: null },
+      ],
+      { x: 25, y: 25 },
+      { x: 50, y: 25 },
+    );
+    transform.updateRotateMany({ x: 25, y: 50 });
+    transform.endRotateMany();
+    bus.undo();
+
+    const r = (id: string) => findNodeById(state.document().root, id as never);
+    expect(r(a!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(r(b!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+  });
+
+  it('negligible angle (handle click, no drag) dispatches no command', () => {
+    const { state, transform, history, rects } = setupRects(2);
+    const [a, b] = rects;
+    transform.startRotateMany(
+      [
+        { id: a!.id, parentMatrix: null },
+        { id: b!.id, parentMatrix: null },
+      ],
+      PIVOT,
+      { x: 10, y: 0 },
+    );
+    transform.updateRotateMany({ x: 10, y: 0 }); // same bearing → 0°
+    transform.endRotateMany();
+    expect(history.canUndo()).toBe(false);
+    const r = (id: string) => findNodeById(state.document().root, id as never);
+    expect(r(a!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(r(b!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+  });
+
+  it('filters out locked nodes (locked stays put; the rest rotate)', () => {
+    const { state, transform, layers, rects } = setupRects(3);
+    const [a, b, c] = rects;
+    layers.setLocked(c!.id, true);
+    transform.startRotateMany(
+      [
+        { id: a!.id, parentMatrix: null },
+        { id: b!.id, parentMatrix: null },
+        { id: c!.id, parentMatrix: null },
+      ],
+      PIVOT,
+      { x: 10, y: 0 },
+    );
+    transform.updateRotateMany({ x: 0, y: 10 }); // +90°
+    transform.endRotateMany();
+
+    const r = (id: string) => findNodeById(state.document().root, id as never);
+    const pa = applyTransform(r(a!.id)!.transform, 10, 0);
+    expect(round6([pa.x, pa.y])).toEqual([0, 10]); // rotated
+    expect(r(c!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]); // locked → unchanged
+  });
+
+  it('fewer than 2 movable entries → no gesture starts (single path owns it)', () => {
+    const { transform, rects } = setupRects(2);
+    const [a] = rects;
+    transform.startRotateMany([{ id: a!.id, parentMatrix: null }], PIVOT, { x: 10, y: 0 });
+    expect(transform.dragState()).toBeNull();
+  });
+
+  it('cancelGesture reverts EVERY node in a group rotate (Esc mid-drag)', () => {
+    const { state, transform, history, rects } = setupRects(2);
+    const [a, b] = rects;
+    transform.startRotateMany(
+      [
+        { id: a!.id, parentMatrix: null },
+        { id: b!.id, parentMatrix: null },
+      ],
+      PIVOT,
+      { x: 10, y: 0 },
+    );
+    transform.updateRotateMany({ x: 0, y: 10 }); // preview both
+    transform.cancelGesture();
+
+    const r = (id: string) => findNodeById(state.document().root, id as never);
+    expect(r(a!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(r(b!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(history.canUndo()).toBe(false);
+  });
+});
+
 describe('TransformService — rotate gesture', () => {
   it('endRotate commits via RotateNodeCommand and the angle equals atan2 difference', () => {
     const { transform, state, history } = setup();

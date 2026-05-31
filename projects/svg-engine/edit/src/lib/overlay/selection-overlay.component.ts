@@ -17,6 +17,7 @@ import {
   isPage,
   type Point,
   RotateNodeCommand,
+  RotateNodesCommand,
   type TextNode,
 } from 'svg-engine/core';
 import { composeAncestorMatrix } from '../anchor-editor/compose-ancestor-matrix';
@@ -349,15 +350,14 @@ export class SelectionOverlay {
   });
 
   /**
-   * Rotation handle visibility. Shown only for **single** selection:
-   * group rotation (rotating a multi-selection about a shared pivot) is
-   * a separate, not-yet-implemented gesture, so we suppress the rotation
-   * handle for multi rather than render one that would rotate only the
-   * focus node. Resize handles (above) DO support the group case.
+   * Rotation handle visibility. Shown whenever the transform handles are
+   * shown — i.e. for single selection AND for multi-selection (group
+   * rotation about the combined-bbox centre, the same way a single group
+   * rotates about its own centre). The pointer/keyboard handlers route to
+   * the group gesture (`startRotateMany`) when `count > 1`, so the handle
+   * rotates the whole selection rigidly — never just the focus node.
    */
-  protected readonly showsRotationHandle = computed(
-    () => this.showsTransformHandles() && this.singleSelection(),
-  );
+  protected readonly showsRotationHandle = this.showsTransformHandles;
 
   /** Handle size in document units (kept constant in screen pixels via 1/zoom). */
   protected readonly handleSize = computed(() => HANDLE_PX / this.viewport.zoom());
@@ -449,13 +449,31 @@ export class SelectionOverlay {
   // ── Rotation handle interactions ─────────────────────────────────
 
   protected onRotationHandlePointerDown(event: PointerEvent): void {
-    const focus = this.selection.focusId();
     const b = this._focusBBox();
-    if (focus === null || b === null) return;
+    if (b === null) return;
     const start = this.screenToDoc(event.clientX, event.clientY);
     if (start === null) return;
-
+    // Pivot = combined-bbox centre (resolvePivot honours a custom multi
+    // pivot when one was set; defaults to bbox centre otherwise).
     const pivot = this.transform.resolvePivot(b);
+
+    // **Multi-selection → GROUP rotation** about the shared pivot. Capture
+    // each node's ancestor matrix so the shared doc-space pivot projects
+    // into each node's own parent frame.
+    if (this.selection.count() > 1) {
+      const svg = this.elRef.nativeElement.ownerSVGElement;
+      const entries = Array.from(this.selection.selectedIds()).map((id) => ({
+        id,
+        parentMatrix: svg === null ? null : getRenderedParentMatrix(svg, id),
+      }));
+      this.transform.startRotateMany(entries, pivot, start);
+      capturePointer(event);
+      event.stopPropagation();
+      return;
+    }
+
+    const focus = this.selection.focusId();
+    if (focus === null) return;
     this.transform.startRotate(focus, pivot, start);
     capturePointer(event);
     event.stopPropagation();
@@ -551,11 +569,25 @@ export class SelectionOverlay {
     }
     event.preventDefault();
     event.stopPropagation();
-    const focus = this.selection.focusId();
     const bbox = this._focusBBox();
-    if (focus === null || bbox === null) return;
+    if (bbox === null) return;
     const pivot = this.transform.resolvePivot(bbox);
     const angleRad = (deltaDeg * Math.PI) / 180;
+
+    // **Multi-selection → keyboard GROUP rotation** (one RotateNodesCommand
+    // = one undo entry), mirroring the pointer path.
+    if (this.selection.count() > 1) {
+      const svg = this.elRef.nativeElement.ownerSVGElement;
+      const entries = Array.from(this.selection.selectedIds()).map((id) => ({
+        id,
+        parentMatrix: svg === null ? null : getRenderedParentMatrix(svg, id),
+      }));
+      this.bus.dispatch(new RotateNodesCommand(entries, pivot, angleRad));
+      return;
+    }
+
+    const focus = this.selection.focusId();
+    if (focus === null) return;
     this.bus.dispatch(new RotateNodeCommand(focus, angleRad, pivot));
   }
 
@@ -588,6 +620,7 @@ export class SelectionOverlay {
     if (ds.kind === 'resize') this.transform.updateResize(point);
     else if (ds.kind === 'resize-many') this.transform.updateResizeMany(point);
     else if (ds.kind === 'rotate') this.transform.updateRotate(point);
+    else if (ds.kind === 'rotate-many') this.transform.updateRotateMany(point);
   }
 
   protected onHandlePointerUp(event: PointerEvent): void {
@@ -596,6 +629,7 @@ export class SelectionOverlay {
     if (ds.kind === 'resize') this.transform.endResize();
     else if (ds.kind === 'resize-many') this.transform.endResizeMany();
     else if (ds.kind === 'rotate') this.transform.endRotate();
+    else if (ds.kind === 'rotate-many') this.transform.endRotateMany();
     releasePointer(event);
   }
 
