@@ -155,11 +155,15 @@ describe('TransformService — group move gesture (multi-selection)', () => {
   it('a negligible group drag dispatches no command (click without drag)', () => {
     const { state, transform, history, rects } = setupRects(2);
     const [a, b] = rects;
-    const before = state.document();
     transform.startMoveMany([a!.id, b!.id], { x: 0, y: 0 });
     transform.endMove(); // no updateMove → zero delta
     expect(history.canUndo()).toBe(false);
-    expect(state.document()).toBe(before);
+    // No dispatch → transforms unchanged. (Assert VALUES, not document
+    // reference: the immutable revert can hand back a fresh doc object
+    // even when nothing changed.)
+    const r = (id: string) => findNodeById(state.document().root, id as never);
+    expect(r(a!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(r(b!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
   });
 
   it('startMoveMany filters out locked nodes (locked stays put)', () => {
@@ -261,7 +265,6 @@ describe('TransformService — group resize gesture (multi-selection)', () => {
   it('negligible scale (handle click, no drag) dispatches no command', () => {
     const { state, transform, history, rects } = setupRects(2);
     const [a, b] = rects;
-    const before = state.document();
     transform.startResizeMany(
       [
         { id: a!.id, parentMatrix: null },
@@ -273,7 +276,10 @@ describe('TransformService — group resize gesture (multi-selection)', () => {
     transform.updateResizeMany({ x: 110, y: 10 }); // == handleStart → sx=sy=1
     transform.endResizeMany();
     expect(history.canUndo()).toBe(false);
-    expect(state.document()).toBe(before);
+    // No dispatch → transforms unchanged (assert VALUES, not doc ref).
+    const r = (id: string) => findNodeById(state.document().root, id as never);
+    expect(r(a!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(r(b!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
   });
 
   it('filters out locked nodes (locked stays put; the rest scale)', () => {

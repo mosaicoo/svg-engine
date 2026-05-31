@@ -13,6 +13,8 @@ import {
   type NodeId,
   type Point,
   ResizeNodeCommand,
+  ResizeNodesCommand,
+  type ResizeNodesEntry,
   RotateNodeCommand,
   type SvgNode,
   type Transform,
@@ -664,11 +666,24 @@ export class TransformService {
     const sx = scaleAxes.x && denomX !== 0 ? (currentPoint.x - anchor.x) / denomX : 1;
     const sy = scaleAxes.y && denomY !== 0 ? (currentPoint.y - anchor.y) / denomY : 1;
     if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
+    // Doc-space anchored scale built once; each node conjugates by its
+    // own parentMatrix so the shared doc-space scale acts correctly in
+    // that node's parent frame (identical math to ResizeNodesCommand, so
+    // the live preview matches the committed result exactly).
+    const m = composeAnchoredScale([1, 0, 0, 1, 0, 0], sx, sy, anchor);
     for (const e of entries) {
-      this.applyPreviewTransform(
-        e.id,
-        composeAnchoredScale(e.startTransform, sx, sy, anchor, e.parentMatrix),
-      );
+      let next: Transform;
+      if (e.parentMatrix === null) {
+        next = multiply(m, e.startTransform);
+      } else {
+        try {
+          const inv = invert(e.parentMatrix);
+          next = multiply(inv, multiply(m, multiply(e.parentMatrix, e.startTransform)));
+        } catch {
+          next = multiply(m, e.startTransform);
+        }
+      }
+      this.applyPreviewTransform(e.id, next);
     }
     ds.currentScale = { sx, sy };
   }
