@@ -17,6 +17,7 @@ import {
   type SvgNode,
   type Transform,
   translate,
+  TranslateManyCommand,
   updateNode,
 } from 'svg-engine/core';
 
@@ -52,6 +53,20 @@ export type DragState =
       readonly startTransform: Transform;
       readonly startPoint: Point;
       currentDelta: Point;
+      /**
+       * Multi-selection group move (Illustrator/Figma/Affinity convention).
+       * When present, the same `(dx, dy)` delta is previewed on these extra
+       * nodes too, and the commit dispatches a `MoveNodesCommand` covering
+       * `[nodeId, ...extraNodes]` for a single group undo entry.
+       *
+       * **Additive + optional**: omitted for the 1-node case so every
+       * existing `kind === 'move'` consumer (snap-aware move in
+       * `[svgeShellInteractions]`) keeps working unchanged — the `kind`
+       * stays `'move'`; only the preview/commit fan out to the extras.
+       * Each entry carries its own `startTransform` so the per-node preview
+       * math is independent (nodes inside rotated groups, etc.).
+       */
+      readonly extraNodes?: readonly { readonly id: NodeId; readonly startTransform: Transform }[];
     }
   | {
       readonly kind: 'rotate';
@@ -256,6 +271,56 @@ export class TransformService {
   }
 
   /**
+   * Begin a **group** move gesture for multiple nodes (multi-selection
+   * drag — Illustrator/Figma/Affinity/Inkscape: dragging any selected
+   * shape moves the whole selection together, no modifier needed).
+   *
+   * Locked nodes are filtered out (parity with {@link startMove}'s lock
+   * guard). Degrades gracefully:
+   * - 0 movable nodes → no-op.
+   * - 1 movable node → delegates to {@link startMove} (single-node path,
+   *   smaller commit, no `extraNodes` overhead).
+   * - 2+ movable → seeds a `'move'` drag state with the focus node as the
+   *   primary (`nodeId`) and the rest as `extraNodes`. The commit
+   *   dispatches one `MoveNodesCommand`.
+   *
+   * **Primary selection**: the focus id when it's part of the movable set
+   * (so snap/preview anchor on the user's "active" node); otherwise the
+   * first movable id. The choice is cosmetic — the delta is identical for
+   * all nodes — but keeping the focus as primary matches the overlay's
+   * focus-driven chrome.
+   */
+  startMoveMany(nodeIds: readonly NodeId[], startPoint: Point): void {
+    if (this._dragState() !== null) return;
+    const movable = nodeIds.filter((id) => !this.layers.isLocked(id));
+    if (movable.length === 0) return;
+    if (movable.length === 1) {
+      this.startMove(movable[0]!, startPoint);
+      return;
+    }
+    const root = this.state.document().root;
+    const focus = this.selection.focusId();
+    const primaryId = focus !== null && movable.includes(focus) ? focus : movable[0]!;
+    const primaryNode = findNodeById(root, primaryId);
+    if (primaryNode === null) return;
+    const extraNodes: { id: NodeId; startTransform: Transform }[] = [];
+    for (const id of movable) {
+      if (id === primaryId) continue;
+      const node = findNodeById(root, id);
+      if (node === null) continue;
+      extraNodes.push({ id, startTransform: node.transform });
+    }
+    this._dragState.set({
+      kind: 'move',
+      nodeId: primaryId,
+      startTransform: primaryNode.transform,
+      startPoint,
+      currentDelta: { x: 0, y: 0 },
+      extraNodes,
+    });
+  }
+
+  /**
    * Update an in-progress move gesture. `currentPoint` is the current
    * pointer position in **document coords**. Mutates state directly
    * (preview); no command dispatched.
@@ -265,8 +330,15 @@ export class TransformService {
     if (ds === null || ds.kind !== 'move') return;
     const dx = currentPoint.x - ds.startPoint.x;
     const dy = currentPoint.y - ds.startPoint.y;
-    const newTransform = multiply(translate(dx, dy), ds.startTransform);
-    this.applyPreviewTransform(ds.nodeId, newTransform);
+    this.applyPreviewTransform(ds.nodeId, multiply(translate(dx, dy), ds.startTransform));
+    // Group move (multi-selection): apply the SAME delta to every extra
+    // node, each composed onto its own start transform so nodes inside
+    // rotated/translated groups preview correctly.
+    if (ds.extraNodes !== undefined) {
+      for (const extra of ds.extraNodes) {
+        this.applyPreviewTransform(extra.id, multiply(translate(dx, dy), extra.startTransform));
+      }
+    }
     ds.currentDelta = { x: dx, y: dy };
   }
 
@@ -279,16 +351,37 @@ export class TransformService {
   endMove(): void {
     const ds = this._dragState();
     if (ds === null || ds.kind !== 'move') return;
-    const { nodeId, startTransform, currentDelta } = ds;
+    const { nodeId, startTransform, currentDelta, extraNodes } = ds;
     this._dragState.set(null);
+    // Revert the preview for the primary AND every extra node before
+    // dispatching — the command re-applies the final delta from the
+    // clean pre-gesture baseline (revert-then-dispatch invariant so
+    // undo restores the pre-gesture state, not the previewed one).
     this.applyPreviewTransform(nodeId, startTransform);
+    if (extraNodes !== undefined) {
+      for (const extra of extraNodes) {
+        this.applyPreviewTransform(extra.id, extra.startTransform);
+      }
+    }
     if (
       Math.abs(currentDelta.x) < CLICK_THRESHOLD_DOC_UNITS &&
       Math.abs(currentDelta.y) < CLICK_THRESHOLD_DOC_UNITS
     ) {
       return;
     }
-    this.bus.dispatch(new MoveNodeCommand(nodeId, currentDelta.x, currentDelta.y));
+    // Single node → MoveNodeCommand (smaller label, no Map). Group move →
+    // TranslateManyCommand with the SAME delta for every node, one undo
+    // entry for the whole group (Illustrator/Figma/Affinity convention).
+    if (extraNodes !== undefined && extraNodes.length > 0) {
+      const deltas = new Map<NodeId, Point>();
+      deltas.set(nodeId, { x: currentDelta.x, y: currentDelta.y });
+      for (const extra of extraNodes) {
+        deltas.set(extra.id, { x: currentDelta.x, y: currentDelta.y });
+      }
+      this.bus.dispatch(new TranslateManyCommand(deltas, `Move ${deltas.size} nodes`));
+    } else {
+      this.bus.dispatch(new MoveNodeCommand(nodeId, currentDelta.x, currentDelta.y));
+    }
   }
 
   // ── Rotate gesture ───────────────────────────────────────────────
@@ -501,6 +594,14 @@ export class TransformService {
       this.applyPreviewNode(ds.nodeId, ds.startNode);
     } else {
       this.applyPreviewTransform(ds.nodeId, ds.startTransform);
+      // Group move (multi-selection): revert every extra node too, else
+      // an Esc mid-drag would leave the extras stranded at their preview
+      // position (only the primary would snap back).
+      if (ds.kind === 'move' && ds.extraNodes !== undefined) {
+        for (const extra of ds.extraNodes) {
+          this.applyPreviewTransform(extra.id, extra.startTransform);
+        }
+      }
     }
     this._dragState.set(null);
   }

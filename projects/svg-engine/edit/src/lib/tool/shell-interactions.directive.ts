@@ -11,7 +11,7 @@ import {
   RemoveNodeCommand,
 } from 'svg-engine/core';
 import { screenToDoc, ViewportService } from 'svg-engine/render';
-import { findRenderedNode, getRenderedNodeBBox } from '../geometry/node-bbox';
+import { findRenderedNode, getCombinedBBox, getRenderedNodeBBox } from '../geometry/node-bbox';
 import { resolveSelectableNodeId } from '../hit-testing/hit-testing';
 import { IsolationService } from '../isolation/isolation.service';
 import { type MarqueeCandidate, nodesInsideMarquee } from '../marquee/marquee-hit-testing';
@@ -135,11 +135,23 @@ export class SvgeShellInteractions implements OnDestroy {
   } | null = null;
 
   /**
-   * Bounding box of the dragged node captured when `startMove` fired,
-   * used to compute the proposed bbox at the current pointer position
+   * Bounding box captured when the move gesture fired. For a single-node
+   * drag it's that node's bbox; for a **group** drag (multi-selection)
+   * it's the COMBINED bbox of all moving nodes — so snap aligns the
+   * selection's envelope (Illustrator convention), not just the primary.
+   * Used to compute the proposed bbox at the current pointer position
    * without re-querying the (already-previewed) DOM.
    */
   private moveStartBBox: BoundingBox | null = null;
+
+  /**
+   * Ids participating in the current move gesture. `{ primary }` for a
+   * single drag; the whole selection for a group drag. Lets
+   * `applySnappedMove` exclude EVERY moving node from the snap-target
+   * set (a node must never snap to itself or to its co-moving peers —
+   * they all translate together by the same delta).
+   */
+  private movingIds: ReadonlySet<NodeId> | null = null;
 
   /** Last-click bookkeeping for manual double-click detection. */
   private lastClickTimeMs = 0;
@@ -303,11 +315,27 @@ export class SvgeShellInteractions implements OnDestroy {
         this.potentialDrag.startScreenY,
       );
       if (start === null) return;
-      // Capture starting bbox for snap math.
       const svg = this.findInnerSvg();
-      this.moveStartBBox =
-        svg === null ? null : getRenderedNodeBBox(svg, this.potentialDrag.nodeId);
-      this.transform.startMove(this.potentialDrag.nodeId, start);
+      // **Multi-selection group move** (Illustrator/Figma/Affinity): when
+      // 2+ nodes are selected AND the grabbed node is one of them, drag
+      // moves the WHOLE selection together. The pointer-down handler
+      // preserves a multi-selection when the user presses an
+      // already-selected member (it only `select()`s on a fresh hit), so
+      // by the time we promote to a move the selection still holds all
+      // the intended nodes.
+      const selectedIds = this.selection.selectedIds();
+      const isGroupMove = selectedIds.size > 1 && selectedIds.has(this.potentialDrag.nodeId);
+      if (isGroupMove) {
+        this.movingIds = new Set(selectedIds);
+        // Snap envelope = combined bbox of all moving nodes.
+        this.moveStartBBox = svg === null ? null : getCombinedBBox(svg, selectedIds);
+        this.transform.startMoveMany(Array.from(selectedIds), start);
+      } else {
+        this.movingIds = new Set([this.potentialDrag.nodeId]);
+        this.moveStartBBox =
+          svg === null ? null : getRenderedNodeBBox(svg, this.potentialDrag.nodeId);
+        this.transform.startMove(this.potentialDrag.nodeId, start);
+      }
       const point = this.toDocPoint(event);
       if (point !== null) {
         const newDs = this.transform.dragState();
@@ -335,6 +363,7 @@ export class SvgeShellInteractions implements OnDestroy {
       this.transform.endMove();
       this.snap.clearActiveGuides();
       this.moveStartBBox = null;
+      this.movingIds = null;
     }
 
     // End / cancel marquee.
@@ -366,6 +395,7 @@ export class SvgeShellInteractions implements OnDestroy {
       this.transform.cancelGesture();
       this.snap.clearActiveGuides();
       this.moveStartBBox = null;
+      this.movingIds = null;
     }
     if (this.marquee.isActive()) this.marquee.cancel();
     this.potentialDrag = null;
@@ -454,6 +484,7 @@ export class SvgeShellInteractions implements OnDestroy {
         this.transform.cancelGesture();
         this.snap.clearActiveGuides();
         this.moveStartBBox = null;
+        this.movingIds = null;
         this.potentialDrag = null;
         event.preventDefault();
         return;
@@ -494,7 +525,11 @@ export class SvgeShellInteractions implements OnDestroy {
       width: this.moveStartBBox.width,
       height: this.moveStartBBox.height,
     };
-    const others = this.collectStaticBBoxes(ds.nodeId);
+    // Exclude EVERY moving node (the whole group, not just the primary)
+    // from the snap-target set — co-moving peers translate by the same
+    // delta, so snapping to them would be meaningless / jittery.
+    const exclude = this.movingIds ?? new Set<NodeId>([ds.nodeId]);
+    const others = this.collectStaticBBoxes(exclude);
     // Pass current zoom so SnapService converts threshold (CSS px) →
     // doc-units against the same scale the user sees. Omitting it
     // defaults zoom=1 which under-snaps when zoomed in and over-snaps
@@ -506,15 +541,15 @@ export class SvgeShellInteractions implements OnDestroy {
     this.snap.setActiveGuides(result.guides);
   }
 
-  /** Collect bboxes of all top-level children except the moving node. */
+  /** Collect bboxes of all top-level children except the moving node(s). */
   private collectStaticBBoxes(
-    excludeId: NodeId,
+    excludeIds: ReadonlySet<NodeId>,
   ): readonly { readonly id: NodeId; readonly bbox: BoundingBox }[] {
     const svg = this.findInnerSvg();
     if (svg === null) return [];
     const out: { id: NodeId; bbox: BoundingBox }[] = [];
     for (const child of this.state.document().root.children) {
-      if (child.id === excludeId) continue;
+      if (excludeIds.has(child.id)) continue;
       const bb = getRenderedNodeBBox(svg, child.id);
       if (bb === null) continue;
       out.push({ id: child.id, bbox: bb });

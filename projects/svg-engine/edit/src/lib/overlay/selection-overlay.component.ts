@@ -52,11 +52,17 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
  * Visual selection overlay. Renders, **inside the same `<svg>`** as the
  * content (via the renderer's `<ng-content />` slot — D-022 architecture):
  *
- * - Bounding box outline of the focused node (or composite bbox of a
- *   multi-selection).
+ * - Bounding box outline of the focused node **or the composite (union)
+ *   bbox of a multi-selection** (`getCombinedBBox`). A multi-selection
+ *   shows the combined outline AND can be **dragged as a group** (the
+ *   `[svgeShellInteractions]` directive routes a multi-drag through
+ *   `TransformService.startMoveMany` → `TranslateManyCommand`,
+ *   Illustrator/Figma/Affinity convention).
  * - 8 resize handles (TL/TC/TR/ML/MR/BL/BC/BR) **only for single
- *   selection** in Bloco 2/3. Multi-selection resize is deferred to a
- *   future block that decides handle semantics for composites.
+ *   selection**. Multi-selection RESIZE (scaling the whole group around
+ *   the union-bbox anchor) is still deferred — it needs per-node scale
+ *   math around a shared external anchor + a batch resize command;
+ *   tracked as a follow-up. Multi-selection MOVE is supported.
  * - 1 rotation handle above the top-center anchor.
  * - Light outline of the currently hovered node (when not selected).
  *
