@@ -757,6 +757,31 @@ grep -c '^\s*it(' projects/svg-engine/edit/src/lib/pages/page-selection-overlay.
 
 ---
 
+### SELECT-MULTI-MOVE — Multi-seleção arrastava só 1 nó — `ALTA` → ✅ **ENTREGUE (move)** (commits `65468ca` + `60447a5` + fix, 2026-05-31)
+
+**Reportado pelo proprietário** em teste manual: selecionar várias formas (Shift/Ctrl+click ou marquee) e arrastar movia **apenas o nó focado**. Illustrator/Figma/Affinity/Inkscape movem TODOS os selecionados juntos, sem modificador.
+
+**Causa raiz** (verificada via leitura `file:line`):
+
+- `shell-interactions.directive.ts` (promoção de drag): `transform.startMove(nodeId)` com **um único** id.
+- `transform.service.ts`: `startMove`/`updateMove`/`endMove` single-node; `endMove` → `MoveNodeCommand` (1 nó).
+
+**Correção** (multi-MOVE):
+
+- `transform.service.ts` — `DragState` `'move'` ganhou campo **opcional aditivo** `extraNodes` (não quebra nenhum consumidor de `kind === 'move'`); novo `startMoveMany(ids, start)` (filtra locked; 0→no-op; 1→delega; 2+→focus primary + extras); `updateMove`/`endMove`/`cancelGesture` fazem fan-out do delta.
+- `endMove` dispatcha **`TranslateManyCommand`** (já existente no core — reusado, **sem comando novo**) → 1 undo entry pro grupo.
+- `shell-interactions.directive.ts` — detecção de group-move na promoção; snap usa bbox combinado (`getCombinedBBox`) + exclui todos os nós movendo.
+
+**Specs**: `transform-gestures.spec.ts` +6 (move-all, undo-restore-all, no-op, locked filter, single-id delega, cancel reverte). Suite completa **1875+ passed** (node v22.20.0) → zero regressão.
+
+**Premissa corrigida**: o outline-união (brackets) JÁ era exibido para multi via `getCombinedBBox` (`node-bbox.ts:59`). A percepção de "brackets ausentes" eram os **handles de resize** (só em single-selection) + o drag quebrado.
+
+**Deferido**: multi-seleção **RESIZE** (escalar o grupo em torno do anchor do bbox-união). Requer math por-nó + comando batch. Não-bloqueante.
+
+**Lição de processo (registrada)**: nesta rodada (a) o `node` default oscilou para v20.11.1 (abaixo do floor v20.19 do Angular CLI) fazendo build/test silenciosamente não-rodar; (b) edits em batch paralelo falharam com "String not found" e foram reportados como aplicados; (c) um spec com API errada (`history.undo()` inexistente — undo é no `CommandBus`) foi commitado e pushado quebrando o main por ~1 commit. Os três pegos por `grep`/build/read do estado real. **Reforço**: 1 edit → 1 verificação no disco; nunca confiar em "success" de tool no meio de batch grande nem em memória de etapas.
+
+---
+
 ## Como atualizar este documento
 
 1. **Ao auditar um item novo**: rodar a verificação com comando exato (grep/read/wc) e colar o output. Anotar `file:line` específico.

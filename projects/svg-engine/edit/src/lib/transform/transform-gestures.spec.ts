@@ -139,12 +139,12 @@ describe('TransformService — group move gesture (multi-selection)', () => {
   });
 
   it('undo restores ALL nodes in the group (single TranslateManyCommand)', () => {
-    const { state, transform, history, rects } = setupRects(2);
+    const { state, transform, history, bus, rects } = setupRects(2);
     const [a, b] = rects;
     transform.startMoveMany([a!.id, b!.id], { x: 0, y: 0 });
     transform.updateMove({ x: 30, y: -15 });
     transform.endMove();
-    history.undo();
+    bus.undo(); // undo lives on CommandBus, not HistoryService
 
     const r = (id: string) => findNodeById(state.document().root, id as never);
     expect(r(a!.id)?.transform).toEqual([1, 0, 0, 1, 0, 0]);
