@@ -2903,6 +2903,74 @@ export class SvgeInspector {
   }
 
   /**
+   * **GROUP-STYLE-FIX (B)** — INHERITED paint fields that, when edited on
+   * a selected GROUP, propagate into the group's descendant LEAF nodes
+   * (Illustrator / Figma parity). Shapes are authored with explicit
+   * fill/stroke, so relying on SVG inheritance via the group `<g>`
+   * (painted by GROUP-STYLE-FIX A in the renderer) would visibly do
+   * nothing — each child's own value wins. Recoloring the leaves makes
+   * the edit always visible. Deliberately EXCLUDES non-inherited /
+   * group-as-unit fields (`opacity`, `filter`, `clipPath`, `mask`,
+   * `mixBlendMode`, `visibility`) — those stay on the group node itself
+   * and paint on its `<g>` wrapper via Fix A.
+   */
+  private readonly propagatingStyleFields: ReadonlySet<keyof SvgStyle> = new Set([
+    'fill',
+    'stroke',
+    'strokeWidth',
+    'fillOpacity',
+    'strokeOpacity',
+    'strokeLinecap',
+    'strokeLinejoin',
+    'strokeDasharray',
+  ]);
+
+  /**
+   * **GROUP-STYLE-FIX (B)** — resolve the target ids for a style edit on
+   * a specific field. For INHERITED paint fields ({@link
+   * propagatingStyleFields}) any GROUP in the editable set is expanded to
+   * its descendant LEAF nodes, so the edit recolors the shapes inside
+   * (market parity — visible even when children carry their own explicit
+   * values). For non-propagating fields the group id itself is the target
+   * (those apply to the group as a unit, painted on the group `<g>`
+   * wrapper). Both the READ (`commonStyleValue`) and the WRITE
+   * (`setStyle`/`setStyleNumber`) route through here so the Inspector's
+   * displayed value and its dedup match what actually gets written.
+   *
+   * Locking is honored at both levels: a locked focused group already
+   * yields `[]` from {@link editableIdsForStyle}, and locked leaves inside
+   * an unlocked group are skipped during expansion. Non-group selections
+   * are unaffected (no group → no expansion → identical ids).
+   */
+  private editableIdsForStyleField(field: keyof SvgStyle): readonly NodeId[] {
+    const base = this.editableIdsForStyle();
+    if (!this.propagatingStyleFields.has(field)) return base;
+    const root = this.state.document().root;
+    const out: NodeId[] = [];
+    const seen = new Set<NodeId>();
+    const add = (id: NodeId): void => {
+      if (!seen.has(id)) {
+        seen.add(id);
+        out.push(id);
+      }
+    };
+    for (const id of base) {
+      const node = findNodeById(root, id);
+      if (node !== null && isGroupNode(node)) {
+        // walk() is pre-order and includes the root group; isGroupNode
+        // filters it (and nested groups) out so only painted LEAVES get
+        // the value. Locked leaves are protected.
+        walk(node, (n) => {
+          if (!isGroupNode(n) && !this.layers.isLocked(n.id)) add(n.id);
+        });
+      } else {
+        add(id);
+      }
+    }
+    return out;
+  }
+
+  /**
    * Value bound to the `<input type="color">` picker. Color inputs only
    * accept `#RRGGBB`, so non-hex values are NORMALIZED to hex via
    * {@link cssColorToHex6}. Special non-paint values (`'none'`,
