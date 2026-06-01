@@ -29,6 +29,7 @@ import {
   BrushLibraryService,
   BrushSelectionService,
   expandStrokeWithProfile,
+  type GradientGeometry,
   GradientLibraryService,
   GRADIENT_TOOL_ID,
   InsertSymbolInstanceCommand,
@@ -1046,10 +1047,39 @@ export class SvgeLibrariesPanel {
     const g = this.gradients.get(id);
     if (g === null) return 'transparent';
     const stopsCss = g.stops.map((s) => `${s.color} ${(s.offset * 100).toFixed(0)}%`).join(', ');
-    return g.kind === 'linear'
-      ? `linear-gradient(to right, ${stopsCss})`
-      : `radial-gradient(circle, ${stopsCss})`;
+    if (g.kind !== 'linear') {
+      return `radial-gradient(circle, ${stopsCss})`;
+    }
+    // Derive the CSS sweep direction from the item's D-058 geometry so
+    // horizontal / vertical / diagonal presets read distinctly in the
+    // thumbnail. Items without geometry (the pre-D-058 builtins) keep the
+    // historical left-to-right default.
+    const dir = linearCssDirection(g.geometry);
+    return `linear-gradient(${dir}, ${stopsCss})`;
   }
+}
+
+/**
+ * Map a {@link GradientGeometry} linear vector `(x1,y1)→(x2,y2)` (in
+ * objectBoundingBox 0..1) to a CSS `linear-gradient` direction. CSS
+ * angles run clockwise with 0deg pointing UP, whereas SVG's y axis
+ * points DOWN, so `atan2(dx, -dy)` already yields the CSS angle. Falls
+ * back to `to right` when geometry is absent (pre-D-058 builtins).
+ */
+function linearCssDirection(geometry: GradientGeometry | undefined): string {
+  if (geometry === undefined) return 'to right';
+  const x1 = geometry.x1 ?? 0;
+  const y1 = geometry.y1 ?? 0;
+  const x2 = geometry.x2 ?? 1;
+  const y2 = geometry.y2 ?? 0;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  if (dx === 0 && dy === 0) return 'to right';
+  const deg = (Math.atan2(dx, -dy) * 180) / Math.PI;
+  // Normalize to [0, 360) and round — CSS accepts any angle but a clean
+  // integer keeps the inline style tidy.
+  const norm = ((Math.round(deg) % 360) + 360) % 360;
+  return `${norm}deg`;
 }
 
 /**
