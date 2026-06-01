@@ -1872,6 +1872,17 @@ describe('SvgeInspector — PAGES-REFACTOR Fase 8 extended page options', () => 
 // would otherwise win over the group's inherited value. NON-propagating
 // fields (opacity/filter/…) stay on the group node itself.
 describe('SvgeInspector — GROUP-STYLE-FIX (B): group paint propagation', () => {
+  // Local accessor for the component instance — the `inspectorOf`
+  // helpers elsewhere in this file are nested inside other describe
+  // blocks and not visible here. Same access pattern (the SvgeInspector
+  // is the first projected child of the TestHost).
+  function inspectorOf(fixture: ReturnType<typeof setup>['fixture']): {
+    setStyle(field: string, value: string): void;
+    setStyleNumber(field: string, raw: string): void;
+  } {
+    return fixture.debugElement.children[0]?.componentInstance as never;
+  }
+
   function setupGroup(fillA: string, fillB: string) {
     const ctx = setup();
     TestBed.inject(LayersService).unlockAll();
