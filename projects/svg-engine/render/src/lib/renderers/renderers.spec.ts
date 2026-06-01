@@ -151,6 +151,72 @@ describe('Renderer dispatch — built-in node types', () => {
     const leafRect = svg.querySelector(`g[data-node-id="${leaf.id}"] rect`);
     expect(leafRect).not.toBeNull();
   });
+
+  // ── GROUP-STYLE-FIX (A) — paint/filter/opacity on the group <g> ──
+  // The wrapper <g> of a GROUP must express the group's own style; for
+  // LEAF nodes the per-type directive paints the inner element and the
+  // group-gated bindings stay null (no double-apply). Mirrors the
+  // exporter, which already emits these on <g>.
+  it('binds fill / stroke / stroke-width on the group wrapper <g>', () => {
+    const group = createGroup([createRect({ x: 0, y: 0, width: 5, height: 5 })], {
+      style: { fill: '#00ff00', stroke: '#ff00ff', strokeWidth: 3 },
+    });
+    const { svg } = mount(group);
+    const g = svg.querySelector(`g[data-node-id="${group.id}"]`);
+    expect(g!.getAttribute('fill')).toBe('#00ff00');
+    expect(g!.getAttribute('stroke')).toBe('#ff00ff');
+    expect(g!.getAttribute('stroke-width')).toBe('3');
+  });
+
+  it('binds filter + opacity (group-as-unit) on the group wrapper <g>', () => {
+    const group = createGroup([createRect({ x: 0, y: 0, width: 5, height: 5 })], {
+      style: { filter: 'url(#blur)', opacity: 0.5 },
+    });
+    const { svg } = mount(group);
+    const g = svg.querySelector(`g[data-node-id="${group.id}"]`);
+    expect(g!.getAttribute('filter')).toBe('url(#blur)');
+    expect(g!.getAttribute('opacity')).toBe('0.5');
+  });
+
+  it('formats stroke-dasharray as a space-joined string on the group <g>', () => {
+    const group = createGroup([createRect({ x: 0, y: 0, width: 5, height: 5 })], {
+      style: { strokeDasharray: [4, 2] },
+    });
+    const { svg } = mount(group);
+    const g = svg.querySelector(`g[data-node-id="${group.id}"]`);
+    expect(g!.getAttribute('stroke-dasharray')).toBe('4 2');
+  });
+
+  it('emits NO paint/filter attrs for a group whose style is empty', () => {
+    // Empty-style groups (e.g. via createGroup without style) must not
+    // gain spurious attributes — regression guard for existing docs.
+    const group = createGroup([createRect({ x: 0, y: 0, width: 5, height: 5 })], {
+      style: {},
+    });
+    const { svg } = mount(group);
+    const g = svg.querySelector(`g[data-node-id="${group.id}"]`);
+    expect(g!.getAttribute('fill')).toBeNull();
+    expect(g!.getAttribute('stroke')).toBeNull();
+    expect(g!.getAttribute('filter')).toBeNull();
+    expect(g!.getAttribute('opacity')).toBeNull();
+  });
+
+  it('does NOT bind a LEAF node style on its wrapper <g> (no double-apply)', () => {
+    // Leaf paint lives on the inner element via the per-type directive;
+    // the group-gated wrapper bindings must stay null for leaves so
+    // filter/opacity are never applied twice.
+    const rect = createRect(
+      { x: 0, y: 0, width: 5, height: 5 },
+      { style: { fill: '#123456', filter: 'url(#blur)' } },
+    );
+    const { svg } = mount(rect);
+    const g = svg.querySelector(`g[data-node-id="${rect.id}"]`);
+    const rectEl = svg.querySelector(`g[data-node-id="${rect.id}"] rect`);
+    expect(g!.getAttribute('fill')).toBeNull();
+    expect(g!.getAttribute('filter')).toBeNull();
+    expect(rectEl!.getAttribute('fill')).toBe('#123456');
+    expect(rectEl!.getAttribute('filter')).toBe('url(#blur)');
+  });
 });
 
 // ── D-068 follow-up — id on <path> for textPath href resolution ────

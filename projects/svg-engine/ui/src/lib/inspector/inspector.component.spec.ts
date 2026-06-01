@@ -1863,3 +1863,55 @@ describe('SvgeInspector — PAGES-REFACTOR Fase 8 extended page options', () => 
     expect(getPageOptions(findNodeById(state.document().root, pageId)!).margins.top).toBe(0);
   });
 });
+
+// ── GROUP-STYLE-FIX (B) — paint propagation to descendant leaves ──────
+//
+// Editing an INHERITED paint field (fill/stroke/stroke-width/…) on a
+// selected GROUP must recolor the group's descendant LEAF nodes
+// (Illustrator/Figma parity), because shapes carry explicit fills that
+// would otherwise win over the group's inherited value. NON-propagating
+// fields (opacity/filter/…) stay on the group node itself.
+describe('SvgeInspector — GROUP-STYLE-FIX (B): group paint propagation', () => {
+  function setupGroup(fillA: string, fillB: string) {
+    const ctx = setup();
+    TestBed.inject(LayersService).unlockAll();
+    const a = createRect({ x: 0, y: 0, width: 10, height: 10 }, { style: { fill: fillA } });
+    const b = createRect({ x: 20, y: 0, width: 10, height: 10 }, { style: { fill: fillB } });
+    const group = createGroup([a, b]);
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup([group], { id: ctx.state.document().root.id }),
+    });
+    ctx.selection.select(group.id);
+    ctx.fixture.detectChanges();
+    return { ...ctx, a, b, group };
+  }
+
+  it('setStyle fill on a selected group recolors every descendant leaf', () => {
+    const { fixture, state, a, b } = setupGroup('#111111', '#222222');
+    inspectorOf(fixture).setStyle('fill', '#ff0000');
+    fixture.detectChanges();
+    expect(findNodeById(state.document().root, a.id)?.style.fill).toBe('#ff0000');
+    expect(findNodeById(state.document().root, b.id)?.style.fill).toBe('#ff0000');
+  });
+
+  it('non-propagating fields (opacity) stay on the group, not the leaves', () => {
+    const { fixture, state, a, b, group } = setupGroup('#111111', '#222222');
+    inspectorOf(fixture).setStyleNumber('opacity', '0.5');
+    fixture.detectChanges();
+    expect(findNodeById(state.document().root, group.id)?.style.opacity).toBe(0.5);
+    expect(findNodeById(state.document().root, a.id)?.style.opacity).toBeUndefined();
+    expect(findNodeById(state.document().root, b.id)?.style.opacity).toBeUndefined();
+  });
+
+  it('locked descendant leaves are not recolored by a group paint edit', () => {
+    const { fixture, state, a, b } = setupGroup('#111111', '#222222');
+    TestBed.inject(LayersService).setLocked(b.id, true);
+    fixture.detectChanges();
+    inspectorOf(fixture).setStyle('fill', '#00ff00');
+    fixture.detectChanges();
+    expect(findNodeById(state.document().root, a.id)?.style.fill).toBe('#00ff00');
+    // Locked leaf keeps its original fill.
+    expect(findNodeById(state.document().root, b.id)?.style.fill).toBe('#222222');
+  });
+});
