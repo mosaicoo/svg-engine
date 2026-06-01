@@ -1,6 +1,6 @@
 import { NgComponentOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
-import { isGroupNode, type SvgNode, type TextNode } from 'svg-engine/core';
+import { isGroupNode, type SvgNode, type SvgStyle, type TextNode } from 'svg-engine/core';
 import { NodeRendererRegistry } from '../registry/node-renderer-registry.service';
 import { renderTransformAttr } from '../util/transform-attr';
 import { SvgeEllipseDirective } from './ellipse-renderer.directive';
@@ -181,6 +181,34 @@ import { SvgeTextDirective } from './text-renderer.directive';
     '[attr.clip-path]': 'node().style.clipPath ?? null',
     '[attr.mask]': 'node().style.mask ?? null',
     '[style.mix-blend-mode]': 'node().style.mixBlendMode ?? null',
+    // **GROUP-STYLE-FIX (A)** — paint + non-inherited presentation
+    // attributes on the GROUP wrapper <g>. The wrapper IS the group, so:
+    //   - filter / opacity are NOT inherited — they apply to the group as
+    //     a flattened unit (correct SVG group semantics), exactly what the
+    //     Effects panel + Inspector opacity expect for a selected group.
+    //   - fill / stroke / stroke-* ARE inherited — set here they cascade
+    //     to descendants without an explicit value of their own (e.g.
+    //     imported <g fill=...><rect/></g> content). Descendants WITH their
+    //     own value override per SVG inheritance; the Inspector propagates
+    //     group paint edits down to those leaves separately (GROUP-STYLE-
+    //     FIX B in inspector.component.ts) so the change is always visible.
+    // Gated to groups via groupStyle(): for LEAF nodes the per-type
+    // directive ([svgeRect]/[svgePath]/...) paints style on the inner
+    // element, so binding here too would DOUBLE-apply filter/opacity on the
+    // leaf wrapper. groupStyle() returns null for leaves -> no attribute.
+    // Mirrors the exporter, which already emits these on <g> (render/export
+    // parity — svg-exporter.ts styleAttrs).
+    '[attr.fill]': 'groupStyle()?.fill ?? null',
+    '[attr.fill-opacity]': 'groupStyle()?.fillOpacity ?? null',
+    '[attr.stroke]': 'groupStyle()?.stroke ?? null',
+    '[attr.stroke-width]': 'groupStyle()?.strokeWidth ?? null',
+    '[attr.stroke-opacity]': 'groupStyle()?.strokeOpacity ?? null',
+    '[attr.stroke-linecap]': 'groupStyle()?.strokeLinecap ?? null',
+    '[attr.stroke-linejoin]': 'groupStyle()?.strokeLinejoin ?? null',
+    '[attr.stroke-dasharray]': 'groupDashArray()',
+    '[attr.opacity]': 'groupStyle()?.opacity ?? null',
+    '[attr.filter]': 'groupStyle()?.filter ?? null',
+    '[attr.visibility]': 'groupStyle()?.visibility ?? null',
     // D-056 follow-up — `metadata.visible === false` hides the node
     // from rendering at the DOCUMENT level. Distinct from
     // `LayersService.hiddenIds` (which is editor-session only, applied
@@ -219,6 +247,30 @@ export class SvgeNodeRenderer {
    * install/uninstall) and we want the @switch default branch to react.
    */
   protected readonly customComponent = computed(() => this.registry.resolve(this.node().type));
+
+  /**
+   * **GROUP-STYLE-FIX (A)** — the node's style ONLY when it's a group,
+   * else `null`. Drives the group-wrapper paint/filter/opacity host
+   * bindings (see the `host` block). Leaf nodes return `null` here so
+   * those bindings emit no attribute on the leaf wrapper (the per-type
+   * directive paints the leaf's style on its inner element instead).
+   */
+  protected readonly groupStyle = computed<SvgStyle | null>(() => {
+    const n = this.node();
+    return isGroupNode(n) ? n.style : null;
+  });
+
+  /**
+   * `stroke-dasharray` for the group wrapper, formatted as the SVG
+   * space-separated string. `null` (no attribute) when this isn't a
+   * group or the group has no dash pattern. Mirrors the exporter's
+   * `strokeDasharray.map(fmt).join(' ')`.
+   */
+  protected groupDashArray(): string | null {
+    const s = this.groupStyle();
+    if (s?.strokeDasharray === undefined || s.strokeDasharray.length === 0) return null;
+    return s.strokeDasharray.join(' ');
+  }
 
   /**
    * Text content access for the `@case ('text')` branch. Returns `''`
