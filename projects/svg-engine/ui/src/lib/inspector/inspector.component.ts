@@ -3494,7 +3494,7 @@ export class SvgeInspector {
    * value (avoids a no-op undo entry on touch-without-change UIs).
    */
   protected setStyle(field: keyof SvgStyle, value: string): void {
-    const ids = this.editableIdsForStyle();
+    const ids = this.editableIdsForStyleField(field);
     if (ids.length === 0) return;
     const current = this.commonStyleValue(field);
     if (current !== MIXED && current === value) return;
@@ -3503,7 +3503,7 @@ export class SvgeInspector {
 
   /** Numeric variant of {@link setStyle}: parses + validates first. */
   protected setStyleNumber(field: keyof SvgStyle, raw: string): void {
-    const ids = this.editableIdsForStyle();
+    const ids = this.editableIdsForStyleField(field);
     if (ids.length === 0) return;
     const value = parseNumericInput(raw);
     if (value === null) return;
