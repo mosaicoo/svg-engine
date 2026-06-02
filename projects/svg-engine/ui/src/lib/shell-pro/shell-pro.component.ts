@@ -313,12 +313,6 @@ import { SvgeToolsPalette } from '../tools-palette';
             icon="tune"
           >
             <svge-inspector />
-            <!--
-              D-058 — Gradient inline editor. Auto-hides via its
-              internal active() computed when selection has no gradient
-              fill, so it sits inert when irrelevant.
-            -->
-            <svge-gradient-editor />
           </ng-template>
           <ng-template
             svgePanelGroupTab
@@ -343,6 +337,23 @@ import { SvgeToolsPalette } from '../tools-palette';
             icon="download"
           >
             <svge-asset-export-panel />
+          </ng-template>
+          <!--
+            D-058 follow-up — Gradient editor now has its OWN tab (below
+            Export), instead of trailing the inspector inside Properties.
+            Dedicated tab = clearer affordance: users go to "Gradient" to
+            tune stops/type/orientation. The component self-gates via its
+            internal active() computed — when the selection has no gradient
+            fill it shows a friendly empty hint, so the tab is never broken,
+            just inert. Icon matches the Gradients library section.
+          -->
+          <ng-template
+            svgePanelGroupTab
+            svgePanelGroupTabId="gradient"
+            label="Gradient"
+            icon="gradient"
+          >
+            <svge-gradient-editor />
           </ng-template>
         </svge-panel-group>
       </aside>
