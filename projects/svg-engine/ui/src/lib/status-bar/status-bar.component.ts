@@ -155,43 +155,51 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
         <span class="value">{{ snapLabel() }}</span>
         <mat-icon class="caret" aria-hidden="true">arrow_drop_down</mat-icon>
       </button>
-      <mat-menu #snapMenu="matMenu" xPosition="before">
+      <!-- Icons standardized to match the View ▸ Snap submenu in the
+           menu bar: Enabled = power_settings_new, Grid only = grid_4x4,
+           Objects only = category, Both = apps. The icons stay FIXED
+           (no swap-to-check on the active item, mirroring the menu bar);
+           the currently-active state is signalled with the .active-item
+           class (accent + bold) plus aria-checked for screen readers. -->
+      <mat-menu #snapMenu="matMenu" xPosition="before" panelClass="svge-snap-menu">
         <button
           mat-menu-item
           type="button"
+          [class.active-item]="!snapEnabled()"
           (click)="setSnap('off')"
           [attr.aria-checked]="!snapEnabled()"
         >
-          <mat-icon>{{ !snapEnabled() ? 'check' : 'remove' }}</mat-icon>
+          <mat-icon>power_settings_new</mat-icon>
           <span>Off</span>
         </button>
         <button
           mat-menu-item
           type="button"
+          [class.active-item]="snapEnabled() && snapMode() === 'grid'"
           (click)="setSnap('grid')"
           [attr.aria-checked]="snapEnabled() && snapMode() === 'grid'"
         >
-          <mat-icon>{{ snapEnabled() && snapMode() === 'grid' ? 'check' : 'grid_4x4' }}</mat-icon>
+          <mat-icon>grid_4x4</mat-icon>
           <span>Grid only</span>
         </button>
         <button
           mat-menu-item
           type="button"
+          [class.active-item]="snapEnabled() && snapMode() === 'objects'"
           (click)="setSnap('objects')"
           [attr.aria-checked]="snapEnabled() && snapMode() === 'objects'"
         >
-          <mat-icon>{{
-            snapEnabled() && snapMode() === 'objects' ? 'check' : 'category'
-          }}</mat-icon>
+          <mat-icon>category</mat-icon>
           <span>Objects only</span>
         </button>
         <button
           mat-menu-item
           type="button"
+          [class.active-item]="snapEnabled() && snapMode() === 'both'"
           (click)="setSnap('both')"
           [attr.aria-checked]="snapEnabled() && snapMode() === 'both'"
         >
-          <mat-icon>{{ snapEnabled() && snapMode() === 'both' ? 'check' : 'apps' }}</mat-icon>
+          <mat-icon>apps</mat-icon>
           <span>Both</span>
         </button>
       </mat-menu>
@@ -327,6 +335,19 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
       height: 14px;
       margin-left: -2px;
       opacity: 0.6;
+    }
+    /* Active snap mode in the dropdown. The mat-menu panel renders in the
+       CDK overlay (outside this component's view), so target it via the
+       panelClass (svge-snap-menu) with ::ng-deep. Icons are now FIXED
+       (menu-bar parity) — the active item is flagged by accent colour +
+       bold weight instead of a swap-to-check glyph. */
+    ::ng-deep .svge-snap-menu .active-item {
+      color: var(--mat-sys-primary, #1976d2);
+      font-weight: 600;
+    }
+    ::ng-deep .svge-snap-menu .active-item .mat-icon,
+    ::ng-deep .svge-snap-menu .active-item .mdc-list-item__primary-text {
+      color: var(--mat-sys-primary, #1976d2);
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
