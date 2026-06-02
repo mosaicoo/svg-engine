@@ -55,6 +55,29 @@ describe('SnapGuides component (g[svgeSnapGuides])', () => {
     expect(guides[0]!.classList.contains('object')).toBe(true);
   });
 
+  it('extends each guide far beyond the viewBox (infinite-line behavior)', () => {
+    // The renderer letterboxes its viewBox (preserveAspectRatio meet), so a
+    // guide bounded by the viewBox stops short of the canvas edge. Guides
+    // must over-reach the viewport (default contentBox 800x600) on the
+    // spanning axis; the host .canvas-cell clips the excess. Endpoints are
+    // off-screen by design — we assert they are well outside the viewport.
+    const { fixture, svc } = setup();
+    svc.setActiveGuides([
+      { axis: 'y', value: 50, source: 'object' }, // horizontal line (spans X)
+      { axis: 'x', value: 100, source: 'grid' }, // vertical line (spans Y)
+    ]);
+    fixture.detectChanges();
+    const [horizontal, vertical] = findGuides(fixture.nativeElement);
+    // Horizontal line reaches far left of origin and far right of the
+    // 800-wide viewport — not clamped to the viewBox width.
+    expect(Number(horizontal!.getAttribute('x1'))).toBeLessThan(-100);
+    expect(Number(horizontal!.getAttribute('x2'))).toBeGreaterThan(900);
+    // Vertical line reaches far above origin and far below the 600-tall
+    // viewport — not clamped to the viewBox height.
+    expect(Number(vertical!.getAttribute('y1'))).toBeLessThan(-100);
+    expect(Number(vertical!.getAttribute('y2'))).toBeGreaterThan(700);
+  });
+
   it('clears guides reactively when service clears', () => {
     const { fixture, svc } = setup();
     svc.setActiveGuides([{ axis: 'x', value: 0, source: 'grid' }]);

@@ -78,9 +78,33 @@ export class SnapGuides {
   protected readonly lines = computed<readonly SnapGuide[]>(() => this.snap.activeGuides());
 
   /**
-   * Span of the guides — covers the union of the document's viewBox and
-   * the viewport's viewBox so a guide stays visible even when the user
-   * has panned/zoomed away from the document origin.
+   * **Over-reach factor** for the guide span. The guides extend this many
+   * times the union's larger dimension PAST each edge of the union, making
+   * them effectively "infinite" lines that always reach the canvas edges.
+   *
+   * Why it's needed: the renderer's `<svg>` uses
+   * `preserveAspectRatio="xMidYMid meet"`, which letterboxes the viewBox
+   * inside its host. The VISIBLE area (in document units) is therefore
+   * larger than the viewBox on whichever axis isn't the limiting one — so
+   * a horizontal guide bounded by the viewBox width stops short of the
+   * canvas edge (most obvious when zoomed out, or on a wide container
+   * holding a squarer document). Over-reaching covers that gap.
+   *
+   * `3` comfortably covers container aspect ratios up to ~6:1 (well past
+   * any real display + side panels). Over-reaching is free: the host
+   * `.canvas-cell` has `overflow: hidden`, so the lines are clipped exactly
+   * at the canvas edges and never bleed into the rulers or side panels.
+   * Because the factor multiplies the (zoom-dependent) union, the reach
+   * auto-scales with zoom — small at high zoom, large at low zoom.
+   */
+  private static readonly OVERREACH = 3;
+
+  /**
+   * Span the guide lines stretch across. Starts from the union of the
+   * document's viewBox and the viewport's viewBox (so a guide stays
+   * visible after panning/zooming away from the origin), then over-reaches
+   * that union on every side so each line spans the full visible canvas
+   * regardless of zoom or container aspect ratio (see {@link OVERREACH}).
    */
   protected readonly span = computed(() => {
     const v = this.viewport.viewBox();
@@ -89,6 +113,17 @@ export class SnapGuides {
     const minY = Math.min(v.y, doc.y);
     const maxX = Math.max(v.x + v.width, doc.x + doc.width);
     const maxY = Math.max(v.y + v.height, doc.y + doc.height);
-    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    const unionW = maxX - minX;
+    const unionH = maxY - minY;
+    // Pad both axes by the same reach (derived from the larger dimension)
+    // so the over-reach is enough even for a thin/tall document inside a
+    // wide container (and vice-versa).
+    const reach = Math.max(unionW, unionH) * SnapGuides.OVERREACH;
+    return {
+      x: minX - reach,
+      y: minY - reach,
+      width: unionW + reach * 2,
+      height: unionH + reach * 2,
+    };
   });
 }
