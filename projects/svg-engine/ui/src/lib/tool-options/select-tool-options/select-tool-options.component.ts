@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
@@ -26,7 +25,6 @@ import {
   LayersService,
   type NodeBBox,
   SelectionService,
-  SnapService,
 } from 'svg-engine/edit';
 import { TOOL_OPT_SHARED_STYLES } from '../shared-styles';
 
@@ -38,13 +36,15 @@ import { TOOL_OPT_SHARED_STYLES } from '../shared-styles';
  * labels — the icons + tooltips identify each function and the bar
  * stays compact):
  *
- * - **Snap** — off / grid / objects / both (mirrors the View ▸ Snap
- *   submenu; the only stateful group, kept as a button-toggle).
  * - **Align** — 6 ops (left/center-h/right + top/center-v/bottom).
  * - **Distribute** — 2 ops (horizontal / vertical centers).
  * - **Flip** — horizontal / vertical (mirror around each shape centre).
  * - **Pathfinder** — Union / Intersect / Subtract / Divide / Exclude.
  * - **Convert** — Convert to Path (batch).
+ *
+ * **Snap is intentionally NOT here**: the status bar already owns the
+ * snap mode control (kept as the single source for snap UI), so
+ * duplicating it in the Select options bar would be redundant.
  *
  * **Icon + handler parity with the menu bar**: every icon here is the
  * exact Material symbol the corresponding `menu.object` contribution
@@ -66,37 +66,8 @@ import { TOOL_OPT_SHARED_STYLES } from '../shared-styles';
 @Component({
   selector: 'svge-select-tool-options',
   standalone: true,
-  imports: [MatButtonToggleModule, MatIconModule, MatTooltipModule],
+  imports: [MatIconModule, MatTooltipModule],
   template: `
-    <!-- Snap (stateful) — icon-only mirror of View ▸ Snap submenu. -->
-    <span class="opt-group" role="group" aria-label="Snap">
-      <mat-button-toggle-group
-        [value]="snap.enabled() ? snap.mode() : 'off'"
-        (change)="setSnap($event.value)"
-        hideSingleSelectionIndicator
-        aria-label="Snap mode"
-      >
-        <mat-button-toggle value="off" matTooltip="Snap off" aria-label="Snap off">
-          <mat-icon>close</mat-icon>
-        </mat-button-toggle>
-        <mat-button-toggle value="grid" matTooltip="Snap to grid only" aria-label="Snap to grid">
-          <mat-icon>grid_4x4</mat-icon>
-        </mat-button-toggle>
-        <mat-button-toggle
-          value="objects"
-          matTooltip="Snap to objects only"
-          aria-label="Snap to objects"
-        >
-          <mat-icon>category</mat-icon>
-        </mat-button-toggle>
-        <mat-button-toggle value="both" matTooltip="Snap to grid + objects" aria-label="Snap both">
-          <mat-icon>apps</mat-icon>
-        </mat-button-toggle>
-      </mat-button-toggle-group>
-    </span>
-
-    <span class="opt-divider" aria-hidden="true">|</span>
-
     <!-- Align — 6 ops. Disabled until ≥ 2 nodes selected. -->
     <span class="opt-group" role="group" aria-label="Align">
       <button
@@ -294,16 +265,6 @@ import { TOOL_OPT_SHARED_STYLES } from '../shared-styles';
   // tool-option component uses.
   styles: `
     ${TOOL_OPT_SHARED_STYLES}
-    /* Snap toggle-group: shrink to icon-only chips matching the
-       compact .opt-action sizing used by the action buttons. */
-    mat-button-toggle-group {
-      height: 28px;
-    }
-    mat-button-toggle mat-icon {
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-    }
     /* Flip Vertical reuses the single flip glyph (the menu bar uses the
        same icon for both axes); rotate 90deg so the mirror axis reads as
        vertical, distinguishing it from Flip Horizontal. */
@@ -321,7 +282,6 @@ import { TOOL_OPT_SHARED_STYLES } from '../shared-styles';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SvgeSelectToolOptions {
-  protected readonly snap = inject(SnapService);
   private readonly selection = inject(SelectionService);
   private readonly layers = inject(LayersService);
   private readonly alignment = inject(AlignmentService);
@@ -352,17 +312,6 @@ export class SvgeSelectToolOptions {
     }
     return out;
   });
-
-  // ── Snap ─────────────────────────────────────────────────────────
-
-  protected setSnap(v: 'off' | 'grid' | 'objects' | 'both'): void {
-    if (v === 'off') {
-      this.snap.setEnabled(false);
-      return;
-    }
-    this.snap.setEnabled(true);
-    this.snap.setMode(v);
-  }
 
   // ── Align / Distribute (delegates to AlignmentService) ───────────
 

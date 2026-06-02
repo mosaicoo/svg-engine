@@ -10,20 +10,23 @@ import {
   findNodeById,
   type NodeId,
 } from 'svg-engine/core';
-import { SelectionService, SnapService } from 'svg-engine/edit';
+import { SelectionService } from 'svg-engine/edit';
 import { SvgeSelectToolOptions } from './select-tool-options.component';
 
 /**
  * **TOOL-OPT-SELECT-ACTIONS** — specs for the Select tool options bar.
  *
  * Asserts: (1) the bar is icon-only with no group-name text labels;
- * (2) snap chips drive SnapService; (3) the manipulation handlers
- * (align / distribute / flip / pathfinder / convert) are guarded by
- * the selection count and dispatch the expected commands. DOM-geometry
- * ops (align/distribute/flip) are exercised via the public methods —
- * jsdom has no layout so getRenderedNodeBBox returns null, which the
- * handlers tolerate (no-op); we assert the guard semantics + the ops
- * that don't need geometry (pathfinder gate, convert-to-path).
+ * (2) the manipulation handlers (align / distribute / flip / pathfinder
+ * / convert) are guarded by the selection count and dispatch the
+ * expected commands. DOM-geometry ops (align/distribute/flip) are
+ * exercised via the public methods — jsdom has no layout so
+ * getRenderedNodeBBox returns null, which the handlers tolerate
+ * (no-op); we assert the guard semantics + the ops that don't need
+ * geometry (pathfinder gate, convert-to-path).
+ *
+ * **Snap is intentionally NOT here** — it lives in the status bar (the
+ * single source for snap UI); the Select bar no longer duplicates it.
  */
 
 function setup() {
@@ -38,7 +41,6 @@ function setup() {
     fixture,
     state,
     selection,
-    snap: TestBed.inject(SnapService),
     bus: TestBed.inject(CommandBus),
   };
 }
@@ -77,25 +79,10 @@ describe('SvgeSelectToolOptions — icon-only chrome', () => {
   });
 });
 
-describe('SvgeSelectToolOptions — snap chips drive SnapService', () => {
-  it('setSnap("off") disables snapping', () => {
-    const { fixture, snap } = setup();
-    const inst = fixture.componentInstance as unknown as {
-      setSnap(v: 'off' | 'grid' | 'objects' | 'both'): void;
-    };
-    snap.setEnabled(true);
-    inst.setSnap('off');
-    expect(snap.enabled()).toBe(false);
-  });
-
-  it('setSnap("objects") enables + sets mode', () => {
-    const { fixture, snap } = setup();
-    const inst = fixture.componentInstance as unknown as {
-      setSnap(v: 'off' | 'grid' | 'objects' | 'both'): void;
-    };
-    inst.setSnap('objects');
-    expect(snap.enabled()).toBe(true);
-    expect(snap.mode()).toBe('objects');
+describe('SvgeSelectToolOptions — no snap controls (snap lives in the status bar)', () => {
+  it('renders no mat-button-toggle-group (snap removed)', () => {
+    const { fixture } = setup();
+    expect(fixture.nativeElement.querySelector('mat-button-toggle-group')).toBeNull();
   });
 });
 
