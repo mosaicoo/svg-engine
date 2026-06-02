@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import {
   type BoundingBox,
   CommandBus,
@@ -175,8 +175,15 @@ import { SvgeToolsPalette } from '../tools-palette';
         (consumers who don't install any *Plugin will see "empty"
         sections, which is the intended hint to provision them).
       -->
-      <aside class="libraries-side" aria-label="Libraries panel">
-        <svge-libraries-panel />
+      <aside
+        class="libraries-side"
+        [class.is-collapsed]="leftCollapsed()"
+        aria-label="Libraries panel"
+      >
+        <svge-libraries-panel
+          [collapsed]="leftCollapsed()"
+          (collapsedChange)="setLeftCollapsed($event)"
+        />
       </aside>
       <div
         class="canvas-cell"
@@ -272,7 +279,11 @@ import { SvgeToolsPalette } from '../tools-palette';
         e troca rápida via aba (padrão Photoshop / Figma right panel).
         Painéis internos intactos — só remontados num único contêiner.
       -->
-      <aside class="right-side" aria-label="Layers, properties and appearance panels">
+      <aside
+        class="right-side"
+        [class.is-collapsed]="rightCollapsed()"
+        aria-label="Layers, properties and appearance panels"
+      >
         <!--
           **D-081** — right-rail panel-group now defaults to tabSide=right
           (icons docked against the right edge of the screen). Users can
@@ -295,6 +306,9 @@ import { SvgeToolsPalette } from '../tools-palette';
           title="Panels"
           tabSide="right"
           groupId="shell-pro-right-rail"
+          [collapsible]="true"
+          [collapsed]="rightCollapsed()"
+          (collapsedChange)="setRightCollapsed($event)"
         >
           <ng-template svgePanelGroupTab svgePanelGroupTabId="layers" label="Layers" icon="layers">
             <!--
@@ -432,11 +446,27 @@ import { SvgeToolsPalette } from '../tools-palette';
     .main {
       display: grid;
       /* 4-column layout (D-048):
-       * tools-side (auto, ~44px) | libraries-side (220px) | canvas (1fr) | right-side (280px)
-       */
-      grid-template-columns: auto 220px 1fr 280px;
+       * tools-side (auto, ~44px) | libraries-side | canvas (1fr) | right-side
+       *
+       * COLLAPSE — the libraries + right columns use CSS custom
+       * properties so a collapsed panel shrinks its column to just the
+       * icon strip (~36px), handing the freed width to the 1fr canvas.
+       * The aside's .is-collapsed class flips the variable; the grid
+       * tracks it live (no JS layout math). Default widths preserved. */
+      --svge-libraries-w: 220px;
+      --svge-right-w: 280px;
+      grid-template-columns: auto var(--svge-libraries-w) 1fr var(--svge-right-w);
       min-height: 0;
       overflow: hidden;
+    }
+    /* Collapsed-width override. 36px matches the panel-group's vertical
+       icon strip (min-width: 36px in panel-group.component) so the strip
+       stays fully visible and clickable to re-open the panel. */
+    .main:has(.libraries-side.is-collapsed) {
+      --svge-libraries-w: 36px;
+    }
+    .main:has(.right-side.is-collapsed) {
+      --svge-right-w: 36px;
     }
     .tools-side {
       min-width: 44px;
@@ -446,6 +476,12 @@ import { SvgeToolsPalette } from '../tools-palette';
       overflow: auto;
       border-right: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
       background: var(--mat-sys-surface, transparent);
+    }
+    /* When collapsed the column is narrow; hide horizontal overflow so the
+       strip never shows a scrollbar in the 36px track. */
+    .libraries-side.is-collapsed,
+    .right-side.is-collapsed {
+      overflow: hidden;
     }
     .canvas-cell {
       position: relative;
@@ -608,6 +644,55 @@ export class SvgeShellPro {
     this.bus.dispatch(new EnsureDefaultPageCommand());
     if (this.toolHost.activeId() === null) {
       this.toolHost.activate(SELECT_TOOL_ID);
+    }
+  }
+
+  // ── COLLAPSE — hide/show the side panels to reclaim canvas space ────
+  //
+  // Each side's collapsed flag is a signal restored from localStorage on
+  // construction and persisted on every toggle (same convention as the
+  // panel-group's tab-side preference). The grid in `.main` reads the
+  // `.is-collapsed` class on each aside (CSS `:has`) and shrinks that
+  // column to the icon strip's width, so a collapsed panel hands its
+  // width to the canvas. Default: both expanded.
+
+  private static readonly COLLAPSE_KEY_LEFT = 'svge-shell-pro-libraries-collapsed';
+  private static readonly COLLAPSE_KEY_RIGHT = 'svge-shell-pro-right-rail-collapsed';
+
+  protected readonly leftCollapsed = signal<boolean>(
+    SvgeShellPro.readCollapsed(SvgeShellPro.COLLAPSE_KEY_LEFT),
+  );
+  protected readonly rightCollapsed = signal<boolean>(
+    SvgeShellPro.readCollapsed(SvgeShellPro.COLLAPSE_KEY_RIGHT),
+  );
+
+  protected setLeftCollapsed(v: boolean): void {
+    this.leftCollapsed.set(v);
+    SvgeShellPro.writeCollapsed(SvgeShellPro.COLLAPSE_KEY_LEFT, v);
+  }
+
+  protected setRightCollapsed(v: boolean): void {
+    this.rightCollapsed.set(v);
+    SvgeShellPro.writeCollapsed(SvgeShellPro.COLLAPSE_KEY_RIGHT, v);
+  }
+
+  /** Read a persisted collapsed flag. Defensive against SSR / disabled storage. */
+  private static readCollapsed(key: string): boolean {
+    if (typeof localStorage === 'undefined') return false;
+    try {
+      return localStorage.getItem(key) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  /** Persist a collapsed flag. Fails silently (quota / private mode). */
+  private static writeCollapsed(key: string, v: boolean): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(key, v ? '1' : '0');
+    } catch {
+      // Storage unavailable — the in-memory signal still drives this session.
     }
   }
 

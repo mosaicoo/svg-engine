@@ -4,6 +4,8 @@ import {
   computed,
   effect,
   inject,
+  input,
+  output,
   signal,
 } from '@angular/core';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
@@ -101,6 +103,9 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
       orientation="vertical"
       [activeTab]="activeTab()"
       (activeTabChange)="onTabChange($event)"
+      [collapsible]="true"
+      [collapsed]="collapsed()"
+      (collapsedChange)="collapsedChange.emit($event)"
     >
       <!-- SHAPES -->
       @if (shapesItems().length > 0) {
@@ -676,6 +681,17 @@ export class SvgeLibrariesPanel {
    * auto-routes — once the user has picked a tab manually, the
    * panel respects their choice until the next auto-route trigger.
    */
+  /**
+   * **COLLAPSE** — passthrough to the inner `<svge-panel-group>`'s
+   * collapse feature. The shell owns the state + persistence (it owns
+   * the layout column), so this component just forwards the controlled
+   * `collapsed` input down and the `collapsedChange` request back up.
+   * Defaults to expanded; a consumer that doesn't wire these gets the
+   * original non-collapsible panel.
+   */
+  readonly collapsed = input<boolean>(false);
+  readonly collapsedChange = output<boolean>();
+
   private readonly _activeTab = signal<string | null>(null);
   protected readonly activeTab = this._activeTab.asReadonly();
 

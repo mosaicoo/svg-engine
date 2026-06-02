@@ -202,88 +202,109 @@ export class SvgePanelGroupTab {
             }
           </div>
         }
-        <div class="pg-body-wrapper">
-          @if (title() || showSidePicker()) {
-            <!--
-              Header strip sitting above the body — shows the title
-              (or active-tab label when on a lateral side) on the
-              left and the side picker on the right. Always present
-              when EITHER is needed; the picker alone shows when
-              there's no title (chip-style header).
-            -->
-            <header class="pg-header" [class.pg-header--titled]="!!title()">
-              @if (title()) {
-                <h3 class="pg-title">
-                  {{ !isHorizontal() ? (activeTabLabel() ?? title()) : title() }}
-                </h3>
-              }
-              @if (showSidePicker()) {
-                <button
-                  type="button"
-                  class="pg-side-picker-btn"
-                  [matMenuTriggerFor]="sideMenu"
-                  [matTooltip]="'Move tabs (currently: ' + effectiveSide() + ')'"
-                  aria-label="Move panel tabs"
-                  [attr.aria-haspopup]="'menu'"
-                >
-                  <mat-icon>{{ sideIcon() }}</mat-icon>
-                </button>
-                <mat-menu #sideMenu="matMenu" xPosition="before">
+        <!--
+          COLLAPSE — when collapsed, the entire body-wrapper (header +
+          body) is removed; only the tab strip above remains, so the
+          panel shrinks to its icon column and the user clicks a tab to
+          re-open it. The parent shrinks the surrounding layout column.
+        -->
+        @if (!collapsed()) {
+          <div class="pg-body-wrapper">
+            @if (title() || showSidePicker() || showCollapseButton()) {
+              <!--
+                Header strip sitting above the body — shows the title
+                (or active-tab label when on a lateral side) on the
+                left and the side picker + collapse button on the right.
+                Always present when ANY is needed; the chip(s) alone show
+                when there's no title (chip-style header).
+              -->
+              <header class="pg-header" [class.pg-header--titled]="!!title()">
+                @if (title()) {
+                  <h3 class="pg-title">
+                    {{ !isHorizontal() ? (activeTabLabel() ?? title()) : title() }}
+                  </h3>
+                }
+                @if (showCollapseButton()) {
                   <button
-                    mat-menu-item
                     type="button"
-                    (click)="setUserTabSide('top')"
-                    [attr.aria-checked]="effectiveSide() === 'top'"
+                    class="pg-collapse-btn"
+                    [matTooltip]="'Hide panel'"
+                    aria-label="Hide panel"
+                    (click)="toggleCollapsed()"
                   >
-                    <mat-icon>{{ effectiveSide() === 'top' ? 'check' : 'border_top' }}</mat-icon>
-                    <span>Tabs on top</span>
+                    <mat-icon>{{ collapseIcon() }}</mat-icon>
                   </button>
+                }
+                @if (showSidePicker()) {
                   <button
-                    mat-menu-item
                     type="button"
-                    (click)="setUserTabSide('right')"
-                    [attr.aria-checked]="effectiveSide() === 'right'"
+                    class="pg-side-picker-btn"
+                    [matMenuTriggerFor]="sideMenu"
+                    [matTooltip]="'Move tabs (currently: ' + effectiveSide() + ')'"
+                    aria-label="Move panel tabs"
+                    [attr.aria-haspopup]="'menu'"
                   >
-                    <mat-icon>{{
-                      effectiveSide() === 'right' ? 'check' : 'border_right'
-                    }}</mat-icon>
-                    <span>Tabs on right</span>
+                    <mat-icon>{{ sideIcon() }}</mat-icon>
                   </button>
-                  <button
-                    mat-menu-item
-                    type="button"
-                    (click)="setUserTabSide('bottom')"
-                    [attr.aria-checked]="effectiveSide() === 'bottom'"
-                  >
-                    <mat-icon>{{
-                      effectiveSide() === 'bottom' ? 'check' : 'border_bottom'
-                    }}</mat-icon>
-                    <span>Tabs on bottom</span>
-                  </button>
-                  <button
-                    mat-menu-item
-                    type="button"
-                    (click)="setUserTabSide('left')"
-                    [attr.aria-checked]="effectiveSide() === 'left'"
-                  >
-                    <mat-icon>{{ effectiveSide() === 'left' ? 'check' : 'border_left' }}</mat-icon>
-                    <span>Tabs on left</span>
-                  </button>
-                </mat-menu>
-              }
-            </header>
-          }
-          <div
-            class="pg-body"
-            role="tabpanel"
-            [id]="bodyId()"
-            [attr.aria-labelledby]="tabButtonId(resolvedActiveId())"
-          >
-            @if (activeTemplate(); as tpl) {
-              <ng-container [ngTemplateOutlet]="tpl" />
+                  <mat-menu #sideMenu="matMenu" xPosition="before">
+                    <button
+                      mat-menu-item
+                      type="button"
+                      (click)="setUserTabSide('top')"
+                      [attr.aria-checked]="effectiveSide() === 'top'"
+                    >
+                      <mat-icon>{{ effectiveSide() === 'top' ? 'check' : 'border_top' }}</mat-icon>
+                      <span>Tabs on top</span>
+                    </button>
+                    <button
+                      mat-menu-item
+                      type="button"
+                      (click)="setUserTabSide('right')"
+                      [attr.aria-checked]="effectiveSide() === 'right'"
+                    >
+                      <mat-icon>{{
+                        effectiveSide() === 'right' ? 'check' : 'border_right'
+                      }}</mat-icon>
+                      <span>Tabs on right</span>
+                    </button>
+                    <button
+                      mat-menu-item
+                      type="button"
+                      (click)="setUserTabSide('bottom')"
+                      [attr.aria-checked]="effectiveSide() === 'bottom'"
+                    >
+                      <mat-icon>{{
+                        effectiveSide() === 'bottom' ? 'check' : 'border_bottom'
+                      }}</mat-icon>
+                      <span>Tabs on bottom</span>
+                    </button>
+                    <button
+                      mat-menu-item
+                      type="button"
+                      (click)="setUserTabSide('left')"
+                      [attr.aria-checked]="effectiveSide() === 'left'"
+                    >
+                      <mat-icon>{{
+                        effectiveSide() === 'left' ? 'check' : 'border_left'
+                      }}</mat-icon>
+                      <span>Tabs on left</span>
+                    </button>
+                  </mat-menu>
+                }
+              </header>
             }
+            <div
+              class="pg-body"
+              role="tabpanel"
+              [id]="bodyId()"
+              [attr.aria-labelledby]="tabButtonId(resolvedActiveId())"
+            >
+              @if (activeTemplate(); as tpl) {
+                <ng-container [ngTemplateOutlet]="tpl" />
+              }
+            </div>
           </div>
-        </div>
+        }
       </div>
     }
   `,
@@ -427,6 +448,52 @@ export class SvgePanelGroupTab {
       font-size: 16px;
       width: 16px;
       height: 16px;
+    }
+    /* COLLAPSE — header button to hide the panel. Same chip look as the
+       side picker; margin-left: auto floats it (and the side picker that
+       follows) to the right edge of the header even when there's no
+       title to push them over. A 2px right margin sits it just left of
+       the side picker so the two layout controls read as a pair. */
+    .pg-collapse-btn {
+      flex: 0 0 auto;
+      align-self: center;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      margin: 0 2px 0 auto;
+      padding: 0;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      opacity: 0.45;
+      transition:
+        opacity 120ms ease,
+        background 120ms ease;
+    }
+    /* When the collapse button is present, the side picker that follows
+       it must NOT also claim margin-left: auto (that would insert a gap
+       between the two). Collapse already floated the pair right, so the
+       picker just needs its small right gutter. */
+    .pg-collapse-btn + .pg-side-picker-btn {
+      margin-left: 0;
+    }
+    .pg-collapse-btn:hover {
+      opacity: 0.95;
+      background: var(--mat-sys-surface-container-high, rgba(0, 0, 0, 0.06));
+    }
+    .pg-collapse-btn:focus-visible {
+      outline: 2px solid var(--mat-sys-primary, #1976d2);
+      outline-offset: -2px;
+      opacity: 1;
+    }
+    .pg-collapse-btn mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
     }
     .pg-tab {
       display: inline-flex;
@@ -586,6 +653,34 @@ export class SvgePanelGroup {
    */
   readonly hideSidePicker = input<boolean>(false);
 
+  /**
+   * **COLLAPSE** — opt-in: when `true`, a collapse button appears in the
+   * header (next to the side picker) and the group can hide its body to
+   * reclaim canvas space. The button only renders when there is also a
+   * tab strip to fall back on (`tabs().length > 1`) so a collapsed group
+   * is always re-openable by clicking a tab. Defaults to `false` (the
+   * Inspector's inner panel-group, for instance, never collapses).
+   */
+  readonly collapsible = input<boolean>(false);
+
+  /**
+   * **COLLAPSE** — controlled collapsed state (mirrors {@link activeTab}'s
+   * controlled pattern). When `true` the body/header are hidden and only
+   * the tab strip remains; the consumer is responsible for shrinking the
+   * surrounding layout column. Toggling the header button — or clicking a
+   * tab while collapsed — emits {@link collapsedChange}; the parent flips
+   * this input back. The parent also owns persistence (it owns the
+   * layout), keeping this component purely presentational for collapse.
+   */
+  readonly collapsed = input<boolean>(false);
+
+  /**
+   * **COLLAPSE** — emitted when the user toggles collapse via the header
+   * button, or when a tab is clicked while collapsed (which requests
+   * re-expansion). The parent updates the controlled `collapsed` input.
+   */
+  readonly collapsedChange = output<boolean>();
+
   /** Emitted when the user clicks a tab. */
   readonly activeTabChange = output<string>();
 
@@ -693,7 +788,48 @@ export class SvgePanelGroup {
   protected selectTab(id: string): void {
     this.internalActiveId.set(id);
     this.activeTabChange.emit(id);
+    // COLLAPSE — clicking a tab while collapsed re-opens the body on that
+    // tab (the strip stays visible when collapsed, so this is the natural
+    // re-expand affordance the user expects: "click the panel to show it").
+    if (this.collapsed()) this.collapsedChange.emit(false);
   }
+
+  /**
+   * **COLLAPSE** — toggle the collapsed state from the header button.
+   * Purely emits the request; the parent owns the controlled `collapsed`
+   * input (and persistence). Re-expanding from here keeps whatever tab
+   * was last active.
+   */
+  protected toggleCollapsed(): void {
+    this.collapsedChange.emit(!this.collapsed());
+  }
+
+  /**
+   * **COLLAPSE** — show the collapse button only when opted-in AND there
+   * is a tab strip to re-open from once collapsed (a single-tab group has
+   * no strip, so a collapsed one-tab group would be unreachable).
+   */
+  protected readonly showCollapseButton = computed(
+    () => this.collapsible() && this.tabs().length > 1,
+  );
+
+  /**
+   * **COLLAPSE** — icon for the collapse/expand button. The arrow points
+   * the way the panel hides (toward its screen edge), matching VSCode /
+   * Figma: a right-docked panel hides to the RIGHT (chevron_right), a
+   * left-docked one hides to the LEFT. When collapsed, the arrow flips to
+   * point back toward the canvas (the "bring it back" direction).
+   */
+  protected readonly collapseIcon = computed<string>(() => {
+    // Which screen edge is this panel against? Lateral tab side tells us:
+    // tabs on the right → panel docked on the right edge; tabs on the left
+    // (or any non-right side) → treat as left-docked for the arrow.
+    const dockedRight = this.effectiveSide() === 'right';
+    if (this.collapsed()) {
+      return dockedRight ? 'chevron_left' : 'chevron_right';
+    }
+    return dockedRight ? 'chevron_right' : 'chevron_left';
+  });
 
   /**
    * **D-081** — resolved tab side. Priority order:

@@ -3,7 +3,11 @@ import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { describe, expect, it } from 'vitest';
 
-import { SvgePanelGroup, SvgePanelGroupTab } from './panel-group.component';
+import {
+  SvgePanelGroup,
+  SvgePanelGroupTab,
+  type SvgePanelGroupTabSide,
+} from './panel-group.component';
 
 /**
  * D-061 — `<svge-panel-group>` specs:
@@ -60,6 +64,56 @@ class MultiTabHost {
   `,
 })
 class VerticalHost {}
+
+/**
+ * COLLAPSE host — a multi-tab group with the collapse feature opted-in.
+ * `collapsed` is two-way bound so a click on the header button (or a tab
+ * while collapsed) flips it, mirroring how the shell wires it up. `side`
+ * is bindable to exercise the directional chevron.
+ */
+@Component({
+  standalone: true,
+  imports: [SvgePanelGroup, SvgePanelGroupTab],
+  template: `
+    <svge-panel-group
+      title="Right Rail"
+      [tabSide]="side"
+      [collapsible]="collapsible"
+      [collapsed]="collapsed"
+      (collapsedChange)="collapsed = $event"
+    >
+      <ng-template svgePanelGroupTab svgePanelGroupTabId="layers" label="Layers" icon="layers">
+        <div class="layers-body">LAYERS-CONTENT</div>
+      </ng-template>
+      <ng-template svgePanelGroupTab svgePanelGroupTabId="props" label="Properties" icon="tune">
+        <div class="props-body">PROPS-CONTENT</div>
+      </ng-template>
+    </svge-panel-group>
+  `,
+})
+class CollapsibleHost {
+  side: SvgePanelGroupTabSide = 'right';
+  collapsible = true;
+  collapsed = false;
+}
+
+/**
+ * COLLAPSE single-tab host — opted-in but with only one tab. The collapse
+ * button must NOT render: a collapsed single-tab group has no strip to
+ * re-open from, so collapsing it would make it unreachable.
+ */
+@Component({
+  standalone: true,
+  imports: [SvgePanelGroup, SvgePanelGroupTab],
+  template: `
+    <svge-panel-group title="Solo" [collapsible]="true">
+      <ng-template svgePanelGroupTab svgePanelGroupTabId="only" label="Only" icon="star">
+        <div class="only-body">ONLY-CONTENT</div>
+      </ng-template>
+    </svge-panel-group>
+  `,
+})
+class CollapsibleSingleTabHost {}
 
 describe('<svge-panel-group>', () => {
   it('hides tab strip when there is only one tab', () => {
@@ -133,5 +187,103 @@ describe('<svge-panel-group>', () => {
     brushesButton.click();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.pg-title')?.textContent?.trim()).toBe('Brushes');
+  });
+});
+
+/**
+ * COLLAPSE specs — the opt-in hide/show feature used by the shell to
+ * reclaim canvas space. The panel-group is presentational for collapse:
+ * it shows the button (only when re-openable), removes its body when
+ * collapsed, and emits `collapsedChange` requests; the parent owns the
+ * controlled `collapsed` input + layout shrink + persistence.
+ */
+describe('<svge-panel-group> — collapse', () => {
+  it('renders the collapse button when collapsible + multiple tabs', () => {
+    TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+    const fixture = TestBed.createComponent(CollapsibleHost);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.pg-collapse-btn')).not.toBeNull();
+  });
+
+  it('hides the collapse button when collapsible but only one tab', () => {
+    TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+    const fixture = TestBed.createComponent(CollapsibleSingleTabHost);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.pg-collapse-btn')).toBeNull();
+  });
+
+  it('hides the collapse button when not collapsible (opt-out default)', () => {
+    TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+    const fixture = TestBed.createComponent(CollapsibleHost);
+    fixture.componentInstance.collapsible = false;
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.pg-collapse-btn')).toBeNull();
+  });
+
+  it('clicking the collapse button emits collapsedChange(true)', () => {
+    TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+    const fixture = TestBed.createComponent(CollapsibleHost);
+    fixture.detectChanges();
+    const btn = fixture.nativeElement.querySelector('.pg-collapse-btn') as HTMLButtonElement;
+    btn.click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.collapsed).toBe(true);
+  });
+
+  it('when collapsed, removes the body wrapper but keeps the tab strip', () => {
+    TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+    const fixture = TestBed.createComponent(CollapsibleHost);
+    fixture.componentInstance.collapsed = true;
+    fixture.detectChanges();
+    // Body (and its header) gone — only the icon strip remains.
+    expect(fixture.nativeElement.querySelector('.pg-body-wrapper')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.props-body')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.layers-body')).toBeNull();
+    // Strip stays so the user can click to re-open.
+    expect(fixture.nativeElement.querySelector('.pg-tabs')).not.toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('.pg-tab').length).toBe(2);
+  });
+
+  it('clicking a tab while collapsed requests re-expansion onto that tab', () => {
+    TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+    const fixture = TestBed.createComponent(CollapsibleHost);
+    fixture.componentInstance.collapsed = true;
+    fixture.detectChanges();
+    const propsTab = Array.from(
+      fixture.nativeElement.querySelectorAll('.pg-tab') as NodeListOf<HTMLButtonElement>,
+    ).find((b) => b.getAttribute('title') === 'Properties') as HTMLButtonElement;
+    propsTab.click();
+    fixture.detectChanges();
+    // collapsedChange(false) flipped the host's controlled input...
+    expect(fixture.componentInstance.collapsed).toBe(false);
+    // ...and the body re-rendered on the clicked tab.
+    expect(fixture.nativeElement.querySelector('.props-body')?.textContent?.trim()).toBe(
+      'PROPS-CONTENT',
+    );
+  });
+
+  // The docked edge drives the chevron direction. Each side is checked in
+  // a FRESH fixture configured before the first detectChanges() — mutating
+  // a root-host input between two CD passes trips dev-mode's check-no-changes
+  // guard, which is a test-harness artifact, not a component bug (real
+  // consumers set tabSide once or via the persisted picker signal).
+  it('collapse arrow points toward the wall when right-docked (chevron_right)', () => {
+    TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+    const fixture = TestBed.createComponent(CollapsibleHost);
+    fixture.componentInstance.side = 'right';
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelector('.pg-collapse-btn mat-icon')?.textContent?.trim(),
+    ).toBe('chevron_right');
+  });
+
+  it('collapse arrow points toward the wall when left-docked (chevron_left)', () => {
+    TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+    const fixture = TestBed.createComponent(CollapsibleHost);
+    fixture.componentInstance.side = 'left';
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelector('.pg-collapse-btn mat-icon')?.textContent?.trim(),
+    ).toBe('chevron_left');
   });
 });
