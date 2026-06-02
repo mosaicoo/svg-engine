@@ -178,3 +178,103 @@ describe('SvgeMenuBar — MenuContributionRegistry integration', () => {
     expect(dividers.length).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe('SvgeMenuBar — hover-switch (desktop menu bar behavior)', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [TestHost],
+      providers: [provideNoopAnimations()],
+    });
+  });
+
+  /** Register one distinct item per menu so we can tell which one is open. */
+  function setupWithItems(): ComponentFixture<TestHost> {
+    const reg = TestBed.inject(MenuContributionRegistry);
+    reg.register({
+      id: 'hs.file.a',
+      slot: MENU_SLOT.FILE,
+      label: 'FileItem',
+      run() {
+        /* test stub */
+      },
+    });
+    reg.register({
+      id: 'hs.edit.a',
+      slot: MENU_SLOT.EDIT,
+      label: 'EditItem',
+      run() {
+        /* test stub */
+      },
+    });
+    const fixture = TestBed.createComponent(TestHost);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  function openMenuContents(): string {
+    return Array.from(document.querySelectorAll('.mat-mdc-menu-content'))
+      .map((el) => el.textContent ?? '')
+      .join(' | ');
+  }
+
+  /**
+   * Material detaches a CLOSING menu's overlay on a macrotask even when
+   * animations are disabled — `MatMenu._setIsOpen(false)` schedules
+   * `_onAnimationDone` via `setTimeout`, and only then does the trigger run
+   * `overlayRef.detach()`. So any assertion about a menu having CLOSED must
+   * wait one macrotask; opening is synchronous and needs no wait.
+   */
+  async function settleMenus(fixture: ComponentFixture<TestHost>): Promise<void> {
+    await new Promise<void>((resolve) => setTimeout(resolve));
+    fixture.detectChanges();
+    await fixture.whenStable();
+  }
+
+  it('does not open any menu on hover while the bar is at rest (click required to arm)', () => {
+    const fixture = setupWithItems();
+    findMenuButton(fixture.nativeElement, 'File')!.dispatchEvent(
+      new MouseEvent('mouseenter', { bubbles: true }),
+    );
+    fixture.detectChanges();
+    expect(document.querySelector('.mat-mdc-menu-content')).toBeNull();
+  });
+
+  it('switches the open menu when hovering a sibling button after one is already open', async () => {
+    const fixture = setupWithItems();
+    // Arm the bar with a single click on File.
+    findMenuButton(fixture.nativeElement, 'File')!.click();
+    fixture.detectChanges();
+    expect(openMenuContents()).toContain('FileItem');
+    // Now ONLY hover Edit — no click — and it should switch.
+    findMenuButton(fixture.nativeElement, 'Edit')!.dispatchEvent(
+      new MouseEvent('mouseenter', { bubbles: true }),
+    );
+    await settleMenus(fixture);
+    const contents = openMenuContents();
+    expect(contents).toContain('EditItem');
+    expect(contents).not.toContain('FileItem');
+  });
+
+  it('opens top-level menus WITHOUT a backdrop (so sibling buttons stay hoverable)', () => {
+    const fixture = setupWithItems();
+    findMenuButton(fixture.nativeElement, 'File')!.click();
+    fixture.detectChanges();
+    expect(document.querySelector('.mat-mdc-menu-content')).not.toBeNull();
+    // The transparent CDK backdrop must NOT be present — it would swallow
+    // the mouseenter used for the hover-switch.
+    expect(document.querySelector('.cdk-overlay-backdrop')).toBeNull();
+  });
+
+  it('closes the open menu on a pointerdown outside the bar and panel', async () => {
+    const fixture = setupWithItems();
+    findMenuButton(fixture.nativeElement, 'File')!.click();
+    fixture.detectChanges();
+    expect(document.querySelector('.mat-mdc-menu-content')).not.toBeNull();
+    // Outside click (e.g., on the canvas) — bubbles to the document listener
+    // with a target that is neither the bar nor a menu panel.
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    await settleMenus(fixture);
+    expect(document.querySelector('.mat-mdc-menu-content')).toBeNull();
+  });
+});

@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  ElementRef,
   inject,
   Injector,
   input,
@@ -58,13 +59,33 @@ import {
   host: {
     role: 'menubar',
     'aria-label': 'Editor menu bar',
+    // MENUBAR HOVER-SWITCH — top-level dropdowns run without a backdrop so
+    // the bar buttons stay hoverable; this global listener restores the
+    // backdrop's outside-click-to-close behavior.
+    '(document:pointerdown)': 'onDocumentPointerDown($event)',
   },
   template: `
     @for (menu of menus(); track menu.slot) {
-      <button mat-button type="button" [matMenuTriggerFor]="dropdown" [attr.aria-haspopup]="'menu'">
+      <button
+        mat-button
+        type="button"
+        [matMenuTriggerFor]="dropdown"
+        #trigger="matMenuTrigger"
+        (menuOpened)="onMenuOpened(trigger)"
+        (menuClosed)="onMenuClosed(trigger)"
+        (mouseenter)="onButtonEnter(trigger)"
+        [attr.aria-haspopup]="'menu'"
+      >
         {{ menu.label }}
       </button>
-      <mat-menu #dropdown="matMenu">
+      <!--
+        MENUBAR HOVER-SWITCH — [hasBackdrop]="false" removes the transparent
+        CDK backdrop that would otherwise sit over the bar and swallow the
+        mouseenter on sibling buttons. Outside-click-to-close is restored by
+        the host (document:pointerdown) listener. Submenus are unaffected
+        (they never had a backdrop).
+      -->
+      <mat-menu #dropdown="matMenu" [hasBackdrop]="false">
         @for (item of menu.topLevel(); track item.id) {
           @if (item.divider) {
             <mat-divider />
@@ -216,12 +237,74 @@ export class SvgeMenuBar {
   private readonly injector = inject(Injector);
   private readonly disabledFor = makeDisabledResolver(this.injector);
 
+  /** Host element — used to tell "click inside the bar" from "click outside". */
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
   protected isDisabled(item: MenuContribution): boolean {
     return this.disabledFor(item)();
   }
 
   protected runItem(item: MenuContribution): void {
     runContribution(item, this.injector);
+  }
+
+  /**
+   * **MENUBAR HOVER-SWITCH** — the currently-open top-level trigger, or
+   * `null` when the bar is at rest (no menu open). This is what makes the
+   * bar behave like every desktop menu bar (Office / Figma / macOS): the
+   * FIRST menu still needs a click to "arm" the bar, but once something is
+   * open, simply moving the mouse over a sibling top-level button switches
+   * to it — no click required. Tracked via `(menuOpened)`/`(menuClosed)`.
+   */
+  private activeTrigger: MatMenuTrigger | null = null;
+
+  /** A top-level menu opened — the bar is now in "menu mode". */
+  protected onMenuOpened(trigger: MatMenuTrigger): void {
+    this.activeTrigger = trigger;
+  }
+
+  /**
+   * A top-level menu closed. Only clear `activeTrigger` if the one that
+   * closed is still the active one: during a hover-switch the newly-opened
+   * menu has already registered itself as active before the previous menu's
+   * close event lands, so this guard avoids nulling out the fresh menu.
+   */
+  protected onMenuClosed(trigger: MatMenuTrigger): void {
+    if (this.activeTrigger === trigger) {
+      this.activeTrigger = null;
+    }
+  }
+
+  /**
+   * Hover over a top-level button. Switch the open menu ONLY when the bar is
+   * already armed (some menu open) and the hovered button isn't the one
+   * already showing. At rest, hover does nothing — the user clicks once to
+   * arm, matching standard menu-bar behavior.
+   */
+  protected onButtonEnter(trigger: MatMenuTrigger): void {
+    const active = this.activeTrigger;
+    if (active && active !== trigger) {
+      active.closeMenu();
+      trigger.openMenu();
+    }
+  }
+
+  /**
+   * Outside-click close. Because the top-level dropdowns run WITHOUT a
+   * backdrop (so the bar stays hoverable for the switch above), Material no
+   * longer auto-closes them on an outside click — we restore it here. A
+   * `pointerdown` inside an open menu panel is left to the item
+   * (`closeOnInteraction`); one on the bar itself is left to the trigger's
+   * own toggle; anything else closes the open menu.
+   */
+  protected onDocumentPointerDown(event: Event): void {
+    const active = this.activeTrigger;
+    if (!active) return;
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+    if (target.closest('.mat-mdc-menu-panel')) return;
+    if (this.host.nativeElement.contains(target)) return;
+    active.closeMenu();
   }
 
   /** Fallback humanizer for slots without an explicit label. */
