@@ -279,7 +279,23 @@ import { SvgeToolsPalette } from '../tools-palette';
           flip to top/bottom/left via the picker chip in the header;
           their choice persists in localStorage under the groupId key.
         -->
-        <svge-panel-group class="rs-group" tabSide="right" groupId="shell-pro-right-rail">
+        <!--
+          A title is REQUIRED for the header h3 to render. In lateral
+          (left/right) mode the panel-group shows the ACTIVE tab's name
+          (activeTabLabel falling back to title) — Layers / History /
+          Properties / Appearance / Export / Gradient — exactly like the
+          libraries panel surfaces "GRADIENTS". Without a title the header
+          at-if skips the h3 and only the side-picker chip shows, so the
+          user never sees which panel is open. "Panels" is just the
+          fallback when no tab is active (effectively never once a tab is
+          selected).
+        -->
+        <svge-panel-group
+          class="rs-group"
+          title="Panels"
+          tabSide="right"
+          groupId="shell-pro-right-rail"
+        >
           <ng-template svgePanelGroupTab svgePanelGroupTabId="layers" label="Layers" icon="layers">
             <!--
               PAGES-FIX-4: when a page is active, pass its GroupNode
