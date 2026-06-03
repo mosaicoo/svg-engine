@@ -43,6 +43,7 @@ import {
   ResizeNodeCommand,
   ResizePageCommand,
   RotateNodeCommand,
+  SetCornerRadiusCommand,
   SetPageOptionsCommand,
   SetPropertyCommand,
   SetStylePropertyOnManyCommand,
@@ -363,8 +364,26 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
                     (change)="setString('d', $any($event.target).value)"
                   ></textarea>
                 </mat-form-field>
+                <!--
+                  D-055 Live Corners — non-destructive corner rounding. The
+                  authored path data above is preserved; the renderer/exporter
+                  derive a rounded version when radius > 0. 0 (or empty)
+                  restores exact sharp corners. Dispatches SetCornerRadiusCommand.
+                -->
+                <mat-form-field appearance="outline" class="full-width-field">
+                  <mat-label>Corner radius (Live Corners)</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    min="0"
+                    [disabled]="isLocked()"
+                    [value]="numField(node, 'cornerRadius')"
+                    (change)="setCornerRadius($any($event.target).value)"
+                  />
+                </mat-form-field>
                 <p class="placeholder small">
-                  Tip: edit anchors visually with Direct Select (A) or run Pathfinder ops.
+                  Tip: edit anchors visually with Direct Select (A) or run Pathfinder ops. Corner
+                  radius rounds sharp corners without altering the path data (0 = sharp).
                 </p>
               </section>
             }
@@ -3601,6 +3620,25 @@ export class SvgeInspector {
     this.bus.dispatch(
       new SetPropertyCommand<SvgNode, never>(node.id, field as never, raw as never),
     );
+  }
+
+  /**
+   * **D-055 Live Corners** — set the non-destructive `cornerRadius` on the
+   * focused path. Clamps to `>= 0`; an empty / unparseable field is ignored
+   * so blurring without typing doesn't push a no-op undo entry. Dedups
+   * against the current value (treating absent as 0). Dispatches the
+   * path-only {@link SetCornerRadiusCommand} (undoable).
+   */
+  protected setCornerRadius(raw: string): void {
+    const node = this.focusNode();
+    if (node === null || node.type !== 'path') return;
+    if (this.layers.isLocked(node.id)) return;
+    const parsed = parseNumericInput(raw);
+    if (parsed === null) return;
+    const value = Math.max(0, parsed);
+    const current = (node as { cornerRadius?: number }).cornerRadius ?? 0;
+    if (current === value) return;
+    this.bus.dispatch(new SetCornerRadiusCommand([node.id], value));
   }
 
   /**

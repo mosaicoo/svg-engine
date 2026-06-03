@@ -207,6 +207,33 @@ describe('SvgeInspector — geometry per type', () => {
     expect(after !== null && after.type === 'path' ? after.d : null).toBe('M5 5 L20 20 Z');
   });
 
+  // D-055 Live Corners — interactive cornerRadius control on the path
+  // geometry tab.
+  it('path geometry exposes a Corner radius (Live Corners) number input, empty by default', () => {
+    const p = createPath('M0 0 L10 0 L10 10 Z');
+    const { fixture } = setupWith(p);
+    const numInputs = Array.from(
+      fixture.nativeElement.querySelectorAll('mat-form-field input[type="number"]'),
+    ) as HTMLInputElement[];
+    // Path geometry has exactly one numeric input: the corner radius.
+    expect(numInputs.length).toBe(1);
+    // Fresh path → no cornerRadius → empty field (reads as "sharp").
+    expect(numInputs[0]!.value).toBe('');
+  });
+
+  it('editing Corner radius dispatches SetCornerRadiusCommand and sets cornerRadius', () => {
+    const p = createPath('M0 0 L100 0 L100 100 L0 100 Z');
+    const { fixture, state, node } = setupWith(p);
+    const input = fixture.nativeElement.querySelector(
+      'mat-form-field input[type="number"]',
+    ) as HTMLInputElement;
+    input.value = '15';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    const after = findNodeById(state.document().root, node.id);
+    expect(after !== null && after.type === 'path' ? after.cornerRadius : null).toBe(15);
+  });
+
   it('polygon shows a textarea with formatted points (Audit #11)', () => {
     const p = createPolygon([
       { x: 0, y: 0 },

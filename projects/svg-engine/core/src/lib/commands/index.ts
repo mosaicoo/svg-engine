@@ -80,6 +80,8 @@ export {
 export { EnsureDefaultPageCommand } from './ensure-default-page.command';
 export { SetPropertyCommand } from './set-property.command';
 export { SetPropertyOnManyCommand } from './set-property-on-many.command';
+// D-055 — Live Corners: set the non-destructive cornerRadius on PathNodes.
+export { SetCornerRadiusCommand } from './set-corner-radius.command';
 export { SetStylePropertyOnManyCommand } from './set-style-property-on-many.command';
 export { TranslateManyCommand } from './translate-many.command';
 export { UngroupCommand } from './ungroup.command';
