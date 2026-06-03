@@ -23,6 +23,9 @@ export * from './lib/model';
 // Geometry helpers (scale-bake — Bloco 4-Resize-Proper)
 export * from './lib/geometry';
 
+// D-082 — Animation Timeline (F0): pure model + easing + sampling
+export * from './lib/animation';
+
 // Immutable tree operations
 export * from './lib/tree';
 

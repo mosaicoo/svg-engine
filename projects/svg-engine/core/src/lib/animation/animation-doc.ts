@@ -1,0 +1,136 @@
+import type { SvgNode } from '../model/svg-node';
+import type { NodeId } from '../types/node-id';
+import { DEFAULT_EASING, type EasingSpec } from './easing';
+
+/**
+ * **D-082 (Animation Timeline) — F0.** Pure, immutable model for a page's
+ * animation, plus its storage convention. Zero Angular; the source of truth
+ * is the document tree (non-destructive "layer above" — see D-082).
+ *
+ * **Where it lives**: an {@link AnimationDoc} is stored on a *container*
+ * node's `metadata.customData[ANIMATION_KEY]` (the active page, or the
+ * document root when there are no pages). It NEVER touches the animated
+ * shapes' own fields — the playhead derives the displayed values at runtime.
+ *
+ * **Time unit**: milliseconds (a neutral absolute unit — converts cleanly to
+ * SMIL seconds / CSS percentages / Lottie frames in the future export phase).
+ */
+
+/** Key under `metadata.customData` where the page's AnimationDoc is stored. */
+export const ANIMATION_KEY = 'svgeAnimation';
+
+/**
+ * A single keyframe: a property reaches `value` at `time` (ms). `easing`
+ * shapes the interpolation of the segment **starting** at this keyframe
+ * (toward the next one); it's ignored on the last keyframe of a track.
+ *
+ * **F0 scope**: `value` is numeric. Color/transform interpolation arrives in
+ * F1 (the model stays the same — only the interpolator widens).
+ */
+export interface Keyframe {
+  /** Time in milliseconds from the timeline start. */
+  readonly time: number;
+  /** Numeric value at `time`. */
+  readonly value: number;
+  /** Easing of the segment starting here (toward the next keyframe). */
+  readonly easing: EasingSpec;
+}
+
+/**
+ * All keyframes for one `(nodeId, property)` pair. `property` is the real
+ * SVG attribute / Inspector field name (`'x'`, `'opacity'`, `'cx'`,
+ * `'rotation'`, …) — aligning the model with export targets so a serializer
+ * needs no translation table.
+ */
+export interface AnimationTrack {
+  readonly nodeId: NodeId;
+  readonly property: string;
+  /** Keyframes sorted ascending by `time`. */
+  readonly keyframes: readonly Keyframe[];
+}
+
+/** A page's animation: the total duration plus the per-property tracks. */
+export interface AnimationDoc {
+  readonly durationMs: number;
+  readonly tracks: readonly AnimationTrack[];
+}
+
+/** An empty animation with the given duration (default 1000 ms). */
+export function emptyAnimationDoc(durationMs = 1000): AnimationDoc {
+  return { durationMs, tracks: [] };
+}
+
+/** Read the AnimationDoc stored on a node, or `null` when none. */
+export function readAnimationDoc(node: SvgNode | null): AnimationDoc | null {
+  const raw = node?.metadata.customData?.[ANIMATION_KEY];
+  return isAnimationDoc(raw) ? raw : null;
+}
+
+/** Structural guard for an {@link AnimationDoc} (defensive read of metadata). */
+export function isAnimationDoc(value: unknown): value is AnimationDoc {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as AnimationDoc).durationMs === 'number' &&
+    Array.isArray((value as AnimationDoc).tracks)
+  );
+}
+
+/** Find the track for `(nodeId, property)`, or `null`. */
+export function findTrack(
+  doc: AnimationDoc,
+  nodeId: NodeId,
+  property: string,
+): AnimationTrack | null {
+  return doc.tracks.find((t) => t.nodeId === nodeId && t.property === property) ?? null;
+}
+
+const TIME_EPS = 1e-6;
+
+/**
+ * Insert or replace a keyframe on `(nodeId, property)`, returning a NEW doc
+ * (immutable). A keyframe at the same `time` (within epsilon) is replaced;
+ * otherwise it's inserted keeping the track sorted by time. Creates the track
+ * when absent. Missing `easing` defaults to {@link DEFAULT_EASING}.
+ */
+export function upsertKeyframe(
+  doc: AnimationDoc,
+  nodeId: NodeId,
+  property: string,
+  keyframe: Keyframe,
+): AnimationDoc {
+  const kf: Keyframe = { ...keyframe, easing: keyframe.easing ?? DEFAULT_EASING };
+  const existing = findTrack(doc, nodeId, property);
+
+  if (existing === null) {
+    const track: AnimationTrack = { nodeId, property, keyframes: [kf] };
+    return { ...doc, tracks: [...doc.tracks, track] };
+  }
+
+  const kept = existing.keyframes.filter((k) => Math.abs(k.time - kf.time) > TIME_EPS);
+  const merged = [...kept, kf].sort((a, b) => a.time - b.time);
+  const nextTracks = doc.tracks.map((t) => (t === existing ? { ...t, keyframes: merged } : t));
+  return { ...doc, tracks: nextTracks };
+}
+
+/**
+ * Remove the keyframe at `time` from `(nodeId, property)`, returning a NEW
+ * doc. The track is dropped entirely when it becomes empty. No-op (same doc
+ * by value) when nothing matches.
+ */
+export function removeKeyframe(
+  doc: AnimationDoc,
+  nodeId: NodeId,
+  property: string,
+  time: number,
+): AnimationDoc {
+  const existing = findTrack(doc, nodeId, property);
+  if (existing === null) return doc;
+  const remaining = existing.keyframes.filter((k) => Math.abs(k.time - time) > TIME_EPS);
+  if (remaining.length === existing.keyframes.length) return doc; // nothing removed
+  const nextTracks =
+    remaining.length === 0
+      ? doc.tracks.filter((t) => t !== existing)
+      : doc.tracks.map((t) => (t === existing ? { ...t, keyframes: remaining } : t));
+  return { ...doc, tracks: nextTracks };
+}
