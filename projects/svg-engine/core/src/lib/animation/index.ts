@@ -26,3 +26,14 @@ export {
 // F1 — value interpolation (number + color) and the non-destructive overlay.
 export { interpolateValue, mixColor, parseColor } from './interpolate';
 export { applyAnimationToTree } from './apply-animation';
+// F3 — catalog of animatable properties per node type (timeline rows source).
+export {
+  type AnimatablePropertyDef,
+  type AnimatablePropertyGroup,
+  type AnimatablePropertyKind,
+  animatablePropertiesForNode,
+  findAnimatableProperty,
+  readAnimatableValue,
+  STYLE_PROPERTY_NAMES,
+  TRANSFORM_PROPERTY_NAMES,
+} from './animatable-properties';

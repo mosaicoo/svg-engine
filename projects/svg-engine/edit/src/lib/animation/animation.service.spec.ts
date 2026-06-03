@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   CommandBus,
   createEmptyDocument,
+  createRect,
   DEFAULT_EASING,
   EditorStateService,
   generateNodeId,
@@ -92,5 +93,33 @@ describe('AnimationService', () => {
     anim.addKeyframe(NODE, 'x', { time: 100, value: 100, easing: DEFAULT_EASING });
     const s = anim.sample(50); // linear midpoint
     expect(s.get(NODE)!.get('x')).toBe(50);
+  });
+
+  // ── F3 — animatable-property catalog (read side) ──
+
+  it('animatablePropertiesFor returns the catalog for a node in the document', () => {
+    const { anim, state } = setup();
+    const rect = createRect({ x: 5, y: 5, width: 20, height: 10 });
+    const doc = state.document();
+    state.setDocument({ ...doc, root: { ...doc.root, children: [rect] } });
+    const props = anim.animatablePropertiesFor(rect.id).map((p) => p.property);
+    expect(props.slice(0, 4)).toEqual(['x', 'y', 'width', 'height']);
+    expect(props).toContain('rotation');
+    expect(props).toContain('fill');
+  });
+
+  it('animatablePropertiesFor returns [] for an unknown node', () => {
+    const { anim } = setup();
+    expect(anim.animatablePropertiesFor(generateNodeId())).toEqual([]);
+  });
+
+  it('currentValue reads the live value of a property (null when unknown node)', () => {
+    const { anim, state } = setup();
+    const rect = createRect({ x: 5, y: 7, width: 20, height: 10 });
+    const doc = state.document();
+    state.setDocument({ ...doc, root: { ...doc.root, children: [rect] } });
+    expect(anim.currentValue(rect.id, 'x')).toBe(5);
+    expect(anim.currentValue(rect.id, 'height')).toBe(10);
+    expect(anim.currentValue(generateNodeId(), 'x')).toBeNull();
   });
 });

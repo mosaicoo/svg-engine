@@ -1,6 +1,7 @@
 import { type DecomposedTransform, composeTransform, decomposeTransform } from '../geometry';
 import { isGroupNode, type SvgNode } from '../model/svg-node';
 import type { SvgStyle } from '../types/style';
+import { STYLE_PROPERTY_NAMES, TRANSFORM_PROPERTY_NAMES } from './animatable-properties';
 import type { AnimationSample, AnimationValue } from './sample-animation';
 
 /**
@@ -19,24 +20,11 @@ export function applyAnimationToTree(tree: SvgNode, sample: AnimationSample): Sv
   return applyNode(tree, sample);
 }
 
-/** Transform-component properties (recomposed via decompose/compose). */
-const TRANSFORM_PROPS: ReadonlySet<string> = new Set([
-  'translateX',
-  'translateY',
-  'rotation',
-  'scaleX',
-  'scaleY',
-]);
-
-/** Style-bag properties (live under `node.style`, not as top-level fields). */
-const STYLE_PROPS: ReadonlySet<string> = new Set([
-  'opacity',
-  'fillOpacity',
-  'strokeOpacity',
-  'strokeWidth',
-  'fill',
-  'stroke',
-]);
+// Property classification is shared with the F3 catalog
+// (`animatable-properties.ts`) so the list the timeline offers and the list
+// this layer applies can never drift. `TRANSFORM_PROPERTY_NAMES` are recomposed
+// via decompose/compose; `STYLE_PROPERTY_NAMES` live under `node.style`;
+// everything else is a top-level geometry field.
 
 function applyNode(node: SvgNode, sample: AnimationSample): SvgNode {
   let next = node;
@@ -65,10 +53,10 @@ function applyOverrides(node: SvgNode, overrides: ReadonlyMap<string, AnimationV
   let hasXform = false;
 
   for (const [prop, value] of overrides) {
-    if (TRANSFORM_PROPS.has(prop)) {
+    if (TRANSFORM_PROPERTY_NAMES.has(prop)) {
       transformOverrides.set(prop, asNumber(value));
       hasXform = true;
-    } else if (STYLE_PROPS.has(prop)) {
+    } else if (STYLE_PROPERTY_NAMES.has(prop)) {
       styleOverrides[prop] = value;
       hasStyle = true;
     } else {

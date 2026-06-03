@@ -1,6 +1,8 @@
 import { computed, inject, Injectable } from '@angular/core';
 import {
   AddKeyframeCommand,
+  type AnimatablePropertyDef,
+  animatablePropertiesForNode,
   type AnimationDoc,
   type AnimationSample,
   type AnimationTrack,
@@ -13,6 +15,7 @@ import {
   type Keyframe,
   MoveKeyframeCommand,
   type NodeId,
+  readAnimatableValue,
   readAnimationDoc,
   RemoveKeyframeCommand,
   sampleAnimation,
@@ -132,5 +135,27 @@ export class AnimationService {
    */
   sample(timeMs: number): AnimationSample {
     return sampleAnimation(this.doc(), timeMs);
+  }
+
+  // ── F3 — animatable-property catalog (read side, source of timeline rows) ──
+
+  /**
+   * The animatable properties of the node `nodeId` — the rows the timeline
+   * offers when that shape is expanded (geometry by type + transform + style).
+   * Returns `[]` when the node isn't found in the current document.
+   */
+  animatablePropertiesFor(nodeId: NodeId): readonly AnimatablePropertyDef[] {
+    const node = findNodeById(this.state.document().root, nodeId);
+    return node === null ? [] : animatablePropertiesForNode(node);
+  }
+
+  /**
+   * The node's **current** value for `property` — what a "set keyframe at the
+   * playhead" action captures (F5). Returns `null` when the node is absent or
+   * the property isn't set; callers fall back to the def's `defaultValue`.
+   */
+  currentValue(nodeId: NodeId, property: string): number | string | null {
+    const node = findNodeById(this.state.document().root, nodeId);
+    return node === null ? null : readAnimatableValue(node, property);
   }
 }
