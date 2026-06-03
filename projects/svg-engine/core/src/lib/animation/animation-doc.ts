@@ -136,3 +136,73 @@ export function removeKeyframe(
       : doc.tracks.map((t) => (t === existing ? { ...t, keyframes: remaining } : t));
   return { ...doc, tracks: nextTracks };
 }
+
+/**
+ * **F2.** Move the keyframe at `fromTime` on `(nodeId, property)` to `toTime`,
+ * optionally replacing its value, returning a NEW doc. The easing is carried
+ * over. Implemented as remove-then-upsert, so landing on a time that already
+ * has a keyframe **replaces** it (upsert semantics). Returns the SAME doc
+ * reference (no-op) when there is no keyframe at `fromTime`, or when the move
+ * is a true identity (same time AND same value) — the latter lets the command
+ * layer skip a redundant history entry.
+ */
+export function moveKeyframe(
+  doc: AnimationDoc,
+  nodeId: NodeId,
+  property: string,
+  fromTime: number,
+  toTime: number,
+  newValue?: number | string,
+): AnimationDoc {
+  const track = findTrack(doc, nodeId, property);
+  if (track === null) return doc;
+  const kf = track.keyframes.find((k) => Math.abs(k.time - fromTime) <= TIME_EPS);
+  if (kf === undefined) return doc;
+  // `??` (not `||`) so a numeric 0 / empty-string value is honored, not
+  // treated as "keep old".
+  const nextValue = newValue ?? kf.value;
+  if (Math.abs(toTime - fromTime) <= TIME_EPS && nextValue === kf.value) return doc; // identity
+  const without = removeKeyframe(doc, nodeId, property, fromTime);
+  return upsertKeyframe(without, nodeId, property, {
+    time: toTime,
+    value: nextValue,
+    easing: kf.easing,
+  });
+}
+
+/**
+ * **F2.** Replace the `easing` of the keyframe at `time` on
+ * `(nodeId, property)`, returning a NEW doc. No-op (same doc) when the track
+ * or keyframe is absent.
+ */
+export function setKeyframeEasing(
+  doc: AnimationDoc,
+  nodeId: NodeId,
+  property: string,
+  time: number,
+  easing: EasingSpec,
+): AnimationDoc {
+  const track = findTrack(doc, nodeId, property);
+  if (track === null) return doc;
+  let found = false;
+  const nextKeyframes = track.keyframes.map((k) => {
+    if (Math.abs(k.time - time) <= TIME_EPS) {
+      found = true;
+      return { ...k, easing };
+    }
+    return k;
+  });
+  if (!found) return doc;
+  const nextTracks = doc.tracks.map((t) => (t === track ? { ...t, keyframes: nextKeyframes } : t));
+  return { ...doc, tracks: nextTracks };
+}
+
+/**
+ * **F2.** Set the timeline `durationMs`, returning a NEW doc. Negative values
+ * are clamped to `0`. No-op (same doc) when the duration is unchanged.
+ */
+export function setAnimationDuration(doc: AnimationDoc, durationMs: number): AnimationDoc {
+  const clamped = durationMs < 0 ? 0 : durationMs;
+  if (clamped === doc.durationMs) return doc; // no-op
+  return { ...doc, durationMs: clamped };
+}

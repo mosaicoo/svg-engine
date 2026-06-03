@@ -10,6 +10,8 @@ import { ViewportService } from 'svg-engine/render';
 
 import { AlignmentService } from '../alignment/alignment.service';
 import { AnchorSelectionService } from '../anchor-editor/anchor-selection.service';
+import { AnimationService } from '../animation/animation.service';
+import { PlaybackService } from '../animation/playback.service';
 import { AssetExportPersistenceService } from '../asset-export/asset-export-persistence.service';
 import { AssetExportRegistry } from '../asset-export/asset-export-registry.service';
 import { AssetExportRunner } from '../asset-export/asset-export-runner.service';
@@ -409,5 +411,14 @@ export function provideSvgEngineEditorScope(options?: SvgEngineEditorScopeOption
     // SelectionService at construction time and read an empty
     // selection (the original bug fixed here).
     SelectSameService,
+    // **D-082 (Animation Timeline) — F2.** Per-editor animation engine +
+    // transport. AnimationService reads/edits the active page's AnimationDoc
+    // via undoable commands; PlaybackService owns the playhead. Scoped so two
+    // editors mounted side-by-side animate and play independently (each has
+    // its own container, doc, playhead, and play state). Non-destructive: the
+    // document is only read by these services — playback never mutates it, and
+    // edits go through the CommandBus like every other change.
+    AnimationService,
+    PlaybackService,
   ];
 }

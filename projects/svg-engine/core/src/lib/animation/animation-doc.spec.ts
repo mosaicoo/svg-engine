@@ -6,11 +6,14 @@ import {
   emptyAnimationDoc,
   findTrack,
   isAnimationDoc,
+  moveKeyframe,
   readAnimationDoc,
   removeKeyframe,
+  setAnimationDuration,
+  setKeyframeEasing,
   upsertKeyframe,
 } from './animation-doc';
-import { DEFAULT_EASING } from './easing';
+import { DEFAULT_EASING, type EasingSpec } from './easing';
 
 const A = generateNodeId();
 const B = generateNodeId();
@@ -91,6 +94,89 @@ describe('AnimationDoc model', () => {
     });
     expect(removeKeyframe(d, A, 'x', 999)).toBe(d);
     expect(removeKeyframe(d, B, 'x', 0)).toBe(d);
+  });
+
+  // ── F2 — moveKeyframe / setKeyframeEasing / setAnimationDuration ──
+
+  it('moveKeyframe relocates a keyframe in time, carrying its easing', () => {
+    const EASE: EasingSpec = { kind: 'easeIn' };
+    let d = upsertKeyframe(emptyAnimationDoc(), A, 'x', { time: 0, value: 1, easing: EASE });
+    d = upsertKeyframe(d, A, 'x', { time: 100, value: 2, easing: DEFAULT_EASING });
+    d = moveKeyframe(d, A, 'x', 0, 50);
+    const t = findTrack(d, A, 'x')!;
+    expect(t.keyframes.map((k) => k.time)).toEqual([50, 100]);
+    const moved = t.keyframes.find((k) => k.time === 50)!;
+    expect(moved.value).toBe(1); // value preserved
+    expect(moved.easing).toEqual(EASE); // easing carried over
+  });
+
+  it('moveKeyframe can replace the value while moving', () => {
+    let d = upsertKeyframe(emptyAnimationDoc(), A, 'x', {
+      time: 0,
+      value: 1,
+      easing: DEFAULT_EASING,
+    });
+    d = moveKeyframe(d, A, 'x', 0, 0, 42); // same time, new value
+    expect(findTrack(d, A, 'x')!.keyframes[0]).toEqual({
+      time: 0,
+      value: 42,
+      easing: DEFAULT_EASING,
+    });
+  });
+
+  it('moveKeyframe onto an existing time replaces (upsert semantics)', () => {
+    let d = upsertKeyframe(emptyAnimationDoc(), A, 'x', {
+      time: 0,
+      value: 1,
+      easing: DEFAULT_EASING,
+    });
+    d = upsertKeyframe(d, A, 'x', { time: 100, value: 2, easing: DEFAULT_EASING });
+    d = moveKeyframe(d, A, 'x', 0, 100); // land on the t=100 keyframe
+    const t = findTrack(d, A, 'x')!;
+    expect(t.keyframes).toHaveLength(1);
+    expect(t.keyframes[0]).toEqual({ time: 100, value: 1, easing: DEFAULT_EASING });
+  });
+
+  it('moveKeyframe is a no-op when there is no keyframe at fromTime or it is an identity', () => {
+    const d = upsertKeyframe(emptyAnimationDoc(), A, 'x', {
+      time: 0,
+      value: 1,
+      easing: DEFAULT_EASING,
+    });
+    expect(moveKeyframe(d, A, 'x', 999, 50)).toBe(d); // nothing at 999
+    expect(moveKeyframe(d, B, 'x', 0, 50)).toBe(d); // no track
+    expect(moveKeyframe(d, A, 'x', 0, 0)).toBe(d); // same time + same value
+  });
+
+  it('setKeyframeEasing replaces a single keyframe easing', () => {
+    const EASE: EasingSpec = { kind: 'cubicBezier', x1: 0.1, y1: 0.2, x2: 0.3, y2: 0.4 };
+    let d = upsertKeyframe(emptyAnimationDoc(), A, 'x', {
+      time: 0,
+      value: 1,
+      easing: DEFAULT_EASING,
+    });
+    d = upsertKeyframe(d, A, 'x', { time: 100, value: 2, easing: DEFAULT_EASING });
+    d = setKeyframeEasing(d, A, 'x', 0, EASE);
+    const t = findTrack(d, A, 'x')!;
+    expect(t.keyframes[0]!.easing).toEqual(EASE);
+    expect(t.keyframes[1]!.easing).toEqual(DEFAULT_EASING); // sibling untouched
+  });
+
+  it('setKeyframeEasing is a no-op when the keyframe is absent', () => {
+    const d = upsertKeyframe(emptyAnimationDoc(), A, 'x', {
+      time: 0,
+      value: 1,
+      easing: DEFAULT_EASING,
+    });
+    expect(setKeyframeEasing(d, A, 'x', 999, { kind: 'easeOut' })).toBe(d);
+    expect(setKeyframeEasing(d, B, 'x', 0, { kind: 'easeOut' })).toBe(d);
+  });
+
+  it('setAnimationDuration updates duration, clamps negatives, and no-ops when unchanged', () => {
+    const d = emptyAnimationDoc(1000);
+    expect(setAnimationDuration(d, 2000).durationMs).toBe(2000);
+    expect(setAnimationDuration(d, -5).durationMs).toBe(0); // clamped
+    expect(setAnimationDuration(d, 1000)).toBe(d); // no-op
   });
 
   it('readAnimationDoc reads from metadata.customData; isAnimationDoc guards', () => {

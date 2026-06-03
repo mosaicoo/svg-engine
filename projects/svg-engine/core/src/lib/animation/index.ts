@@ -10,8 +10,11 @@ export {
   findTrack,
   isAnimationDoc,
   type Keyframe,
+  moveKeyframe,
   readAnimationDoc,
   removeKeyframe,
+  setAnimationDuration,
+  setKeyframeEasing,
   upsertKeyframe,
 } from './animation-doc';
 export {

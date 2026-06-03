@@ -156,3 +156,9 @@ export * from './lib/asset-export';
 // Pairs with core/model/page.ts (helpers) + core/commands/page.commands.ts.
 // UI panel lives in `svg-engine/ui` (PAGES-C SvgePagesPanel).
 export * from './lib/pages';
+
+// D-082 — Animation Timeline (F2): per-editor animation engine + transport.
+// AnimationService edits the page's AnimationDoc via undoable commands;
+// PlaybackService owns the playhead (play/pause/seek/step/loop/speed).
+// Pairs with the headless core model (F0/F1: AnimationDoc + applyAnimationToTree).
+export * from './lib/animation';

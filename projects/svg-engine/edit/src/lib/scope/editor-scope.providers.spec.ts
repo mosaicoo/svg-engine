@@ -16,6 +16,8 @@ import { describe, expect, it } from 'vitest';
 
 import { AlignmentService } from '../alignment/alignment.service';
 import { AnchorSelectionService } from '../anchor-editor/anchor-selection.service';
+import { AnimationService } from '../animation/animation.service';
+import { PlaybackService } from '../animation/playback.service';
 import { AUTOSAVE_STORAGE_KEY } from '../autosave/autosave.config';
 import { AutoSaveService } from '../autosave/autosave.service';
 import { ClipboardService } from '../clipboard/clipboard.service';
@@ -245,6 +247,9 @@ const STATEFUL_SCOPED_TOKENS: readonly ProviderToken<unknown>[] = [
   AssetExportRunner,
   // D-077 follow-up — opt-in localStorage persistence for the slot list.
   AssetExportPersistenceService,
+  // D-082 — Animation Timeline (F2): per-editor animation engine + transport.
+  AnimationService,
+  PlaybackService,
 ];
 
 describe('provideSvgEngineEditorScope — stateful services exhaustiveness trap', () => {

@@ -82,8 +82,15 @@ export { SetPropertyCommand } from './set-property.command';
 export { SetPropertyOnManyCommand } from './set-property-on-many.command';
 // D-055 — Live Corners: set the non-destructive cornerRadius on PathNodes.
 export { SetCornerRadiusCommand } from './set-corner-radius.command';
-// D-082 — Animation Timeline (F0): add/replace a keyframe in the page anim.
-export { AddKeyframeCommand } from './animation.commands';
+// D-082 — Animation Timeline: undoable keyframe/duration edits on the page
+// animation. F0 = AddKeyframe; F2 = Move/Remove/SetEasing/SetDuration.
+export {
+  AddKeyframeCommand,
+  MoveKeyframeCommand,
+  RemoveKeyframeCommand,
+  SetAnimationDurationCommand,
+  SetKeyframeEasingCommand,
+} from './animation.commands';
 export { SetStylePropertyOnManyCommand } from './set-style-property-on-many.command';
 export { TranslateManyCommand } from './translate-many.command';
 export { UngroupCommand } from './ungroup.command';

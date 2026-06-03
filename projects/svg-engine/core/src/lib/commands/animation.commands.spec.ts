@@ -1,10 +1,22 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
-import { ANIMATION_KEY, DEFAULT_EASING, findTrack, readAnimationDoc } from '../animation';
+import {
+  ANIMATION_KEY,
+  DEFAULT_EASING,
+  type EasingSpec,
+  findTrack,
+  readAnimationDoc,
+} from '../animation';
 import { createEmptyDocument } from '../document/document-factory';
 import { EditorStateService } from '../state/editor-state.service';
 import { generateNodeId } from '../types/node-id';
-import { AddKeyframeCommand } from './animation.commands';
+import {
+  AddKeyframeCommand,
+  MoveKeyframeCommand,
+  RemoveKeyframeCommand,
+  SetAnimationDurationCommand,
+  SetKeyframeEasingCommand,
+} from './animation.commands';
 
 function setup() {
   TestBed.configureTestingModule({});
@@ -121,5 +133,113 @@ describe('AddKeyframeCommand', () => {
     }).execute(ctx);
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/not found/);
+  });
+});
+
+/** Seed two keyframes (t=0 and t=100) on (NODE, 'x') so the F2 edit commands
+ * have something to operate on. Returns the same setup() bundle. */
+function seedTwoKeyframes(): ReturnType<typeof setup> {
+  const s = setup();
+  new AddKeyframeCommand(s.rootId, NODE, 'x', {
+    time: 0,
+    value: 0,
+    easing: DEFAULT_EASING,
+  }).execute(s.ctx);
+  new AddKeyframeCommand(s.rootId, NODE, 'x', {
+    time: 100,
+    value: 50,
+    easing: DEFAULT_EASING,
+  }).execute(s.ctx);
+  return s;
+}
+
+describe('MoveKeyframeCommand', () => {
+  it('relocates a keyframe in time (undoably)', () => {
+    const { state, ctx, rootId } = seedTwoKeyframes();
+    const cmd = new MoveKeyframeCommand(rootId, NODE, 'x', 0, 25);
+    expect(cmd.execute(ctx).ok).toBe(true);
+    expect(
+      findTrack(readAnimationDoc(state.document().root)!, NODE, 'x')!.keyframes.map((k) => k.time),
+    ).toEqual([25, 100]);
+    cmd.undo(ctx);
+    expect(
+      findTrack(readAnimationDoc(state.document().root)!, NODE, 'x')!.keyframes.map((k) => k.time),
+    ).toEqual([0, 100]);
+  });
+
+  it('can move + replace the value', () => {
+    const { state, ctx, rootId } = seedTwoKeyframes();
+    new MoveKeyframeCommand(rootId, NODE, 'x', 0, 10, 7).execute(ctx);
+    const kf = findTrack(readAnimationDoc(state.document().root)!, NODE, 'x')!.keyframes.find(
+      (k) => k.time === 10,
+    )!;
+    expect(kf.value).toBe(7);
+  });
+
+  it('fails as a no-op when there is no keyframe at fromTime', () => {
+    const { ctx, rootId } = seedTwoKeyframes();
+    const r = new MoveKeyframeCommand(rootId, NODE, 'x', 999, 10).execute(ctx);
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/no change/);
+  });
+});
+
+describe('RemoveKeyframeCommand', () => {
+  it('removes a keyframe and restores it on undo', () => {
+    const { state, ctx, rootId } = seedTwoKeyframes();
+    const cmd = new RemoveKeyframeCommand(rootId, NODE, 'x', 0);
+    expect(cmd.execute(ctx).ok).toBe(true);
+    expect(
+      findTrack(readAnimationDoc(state.document().root)!, NODE, 'x')!.keyframes.map((k) => k.time),
+    ).toEqual([100]);
+    cmd.undo(ctx);
+    expect(
+      findTrack(readAnimationDoc(state.document().root)!, NODE, 'x')!.keyframes.map((k) => k.time),
+    ).toEqual([0, 100]);
+  });
+
+  it('fails as a no-op when nothing matches', () => {
+    const { ctx, rootId } = seedTwoKeyframes();
+    const r = new RemoveKeyframeCommand(rootId, NODE, 'x', 999).execute(ctx);
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/no change/);
+  });
+});
+
+describe('SetKeyframeEasingCommand', () => {
+  const EASE: EasingSpec = { kind: 'cubicBezier', x1: 0.1, y1: 0.2, x2: 0.3, y2: 0.4 };
+
+  it('sets the easing of one keyframe and restores on undo', () => {
+    const { state, ctx, rootId } = seedTwoKeyframes();
+    const cmd = new SetKeyframeEasingCommand(rootId, NODE, 'x', 0, EASE);
+    expect(cmd.execute(ctx).ok).toBe(true);
+    const t = () => findTrack(readAnimationDoc(state.document().root)!, NODE, 'x')!;
+    expect(t().keyframes[0]!.easing).toEqual(EASE);
+    cmd.undo(ctx);
+    expect(t().keyframes[0]!.easing).toEqual(DEFAULT_EASING);
+  });
+
+  it('fails as a no-op when the keyframe is absent', () => {
+    const { ctx, rootId } = seedTwoKeyframes();
+    const r = new SetKeyframeEasingCommand(rootId, NODE, 'x', 999, EASE).execute(ctx);
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe('SetAnimationDurationCommand', () => {
+  it('sets the duration and restores on undo', () => {
+    const { state, ctx, rootId } = seedTwoKeyframes();
+    const cmd = new SetAnimationDurationCommand(rootId, 2500);
+    expect(cmd.execute(ctx).ok).toBe(true);
+    expect(readAnimationDoc(state.document().root)!.durationMs).toBe(2500);
+    cmd.undo(ctx);
+    expect(readAnimationDoc(state.document().root)!.durationMs).toBe(1000); // back to default
+  });
+
+  it('fails as a no-op when the duration is unchanged', () => {
+    const { ctx, rootId } = seedTwoKeyframes();
+    // The seeded doc has the default 1000ms duration.
+    const r = new SetAnimationDurationCommand(rootId, 1000).execute(ctx);
+    expect(r.ok).toBe(false);
   });
 });
