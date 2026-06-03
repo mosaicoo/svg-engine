@@ -61,7 +61,19 @@ interface DragState {
   readonly laneLeft: number;
   readonly laneWidth: number;
   readonly currentTime: number;
+  /** Pointer X (client space) at pointerdown — the drag-threshold origin. */
+  readonly startClientX: number;
+  /** Becomes true once the pointer crosses {@link DRAG_THRESHOLD_PX}. */
+  moved: boolean;
 }
+
+/**
+ * Pixels the pointer must travel before a keyframe press is treated as a
+ * *drag* rather than a *click*. Below this, pointerup selects the keyframe
+ * (enabling the footer value/easing/Delete editor) instead of committing a
+ * micro-move — so a plain click reliably selects, and Delete becomes usable.
+ */
+const DRAG_THRESHOLD_PX = 4;
 
 /** "Nice" ruler steps (ms) — the smallest that yields ≲ 8 ticks is picked. */
 const NICE_STEPS_MS: readonly number[] = [
@@ -211,6 +223,15 @@ export function clientXToTime(
                     (click)="addKeyframeAtPlayhead(row.nodeId, row.property)"
                   >
                     ◆
+                  </button>
+                  <button
+                    type="button"
+                    class="tl-track-del-btn"
+                    title="Remove this track"
+                    aria-label="Remove this track"
+                    (click)="removeTrack(row.nodeId, row.property)"
+                  >
+                    ×
                   </button>
                 }
               </div>
@@ -498,6 +519,22 @@ export function clientXToTime(
       opacity: 0.6;
     }
     .tl-key-btn:hover {
+      opacity: 1;
+      background: var(--mat-sys-surface-container-high, rgba(0, 0, 0, 0.06));
+    }
+    .tl-track-del-btn {
+      flex: 0 0 auto;
+      border: 0;
+      background: transparent;
+      color: var(--mat-sys-error, #d32f2f);
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      padding: 0 2px;
+      border-radius: 2px;
+      opacity: 0.55;
+    }
+    .tl-track-del-btn:hover {
       opacity: 1;
       background: var(--mat-sys-surface-container-high, rgba(0, 0, 0, 0.06));
     }
@@ -819,6 +856,19 @@ export class SvgeTimeline {
     this.selected.set(null);
   }
 
+  /**
+   * Remove an entire track `(nodeId, property)` — every keyframe at once — in a
+   * single undoable step. Clears the selection when the removed track owned it,
+   * so the footer editor doesn't dangle on a keyframe that no longer exists.
+   */
+  protected removeTrack(nodeId: NodeId, property: string): void {
+    this.anim.removeTrack(nodeId, property);
+    const s = this.selected();
+    if (s !== null && s.nodeId === nodeId && s.property === property) {
+      this.selected.set(null);
+    }
+  }
+
   protected onEasingChange(event: Event): void {
     const s = this.selected();
     if (s === null) return;
@@ -916,6 +966,8 @@ export class SvgeTimeline {
       laneLeft: r.left,
       laneWidth: r.width,
       currentTime: time,
+      startClientX: event.clientX,
+      moved: false,
     });
     diamond.setPointerCapture?.(event.pointerId);
   }
@@ -923,6 +975,10 @@ export class SvgeTimeline {
   protected onKfMove(event: PointerEvent): void {
     const d = this.drag();
     if (d === null) return;
+    // Ignore sub-threshold jitter so a plain click stays a click (and selects
+    // the keyframe) rather than committing a one-pixel move.
+    if (!d.moved && Math.abs(event.clientX - d.startClientX) < DRAG_THRESHOLD_PX) return;
+    d.moved = true;
     const t = clientXToTime(
       event.clientX,
       { left: d.laneLeft, width: d.laneWidth },
@@ -936,7 +992,9 @@ export class SvgeTimeline {
     this.drag.set(null);
     (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
     if (d === null) return;
-    if (Math.abs(d.currentTime - d.fromTime) < 1e-6) return; // a click, not a move
+    // Never crossed the drag threshold → a click: the keyframe is already
+    // selected (onKfDown), so the footer editor/Delete is live. Don't move it.
+    if (!d.moved) return;
     this.anim.moveKeyframe(d.nodeId, d.property, d.fromTime, d.currentTime);
     this.selected.set({ nodeId: d.nodeId, property: d.property, time: d.currentTime });
     // Follow the moved keyframe with the playhead so the canvas keeps showing it.

@@ -18,6 +18,7 @@ import {
   readAnimatableValue,
   readAnimationDoc,
   RemoveKeyframeCommand,
+  RemoveTrackCommand,
   sampleAnimation,
   SetAnimationDurationCommand,
   SetKeyframeEasingCommand,
@@ -93,6 +94,11 @@ export class AnimationService {
   /** Remove the keyframe at `time` on `(nodeId, property)`. */
   removeKeyframe(nodeId: NodeId, property: string, time: number): CommandResult {
     return this.bus.dispatch(new RemoveKeyframeCommand(this.containerId(), nodeId, property, time));
+  }
+
+  /** Remove the entire track `(nodeId, property)` — all its keyframes at once. */
+  removeTrack(nodeId: NodeId, property: string): CommandResult {
+    return this.bus.dispatch(new RemoveTrackCommand(this.containerId(), nodeId, property));
   }
 
   /**

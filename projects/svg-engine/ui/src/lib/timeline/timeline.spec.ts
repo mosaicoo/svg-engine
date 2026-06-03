@@ -148,10 +148,11 @@ const noop = (): void => {
 };
 
 /** Fake PointerEvent on a keyframe diamond (offsetParent supplies the lane box). */
-function kfDown(left = 0, width = 100): PointerEvent {
+function kfDown(left = 0, width = 100, clientX = 0): PointerEvent {
   return {
     stopPropagation: noop,
     pointerId: 1,
+    clientX,
     currentTarget: {
       offsetParent: { getBoundingClientRect: () => ({ left, width }) },
       setPointerCapture: noop,
@@ -232,6 +233,30 @@ describe('D-082 F5 — SvgeTimeline (editing)', () => {
     comp.onKfUp(ptrUp()); // no move in between
     expect(kfTimes(anim, rect.id, 'x')).toEqual([200]); // unchanged
     expect(comp.selectedKfView()).not.toBeNull();
+  });
+
+  it('sub-threshold pointer jitter is treated as a click, not a move', () => {
+    const { state, anim, comp } = mount();
+    const rect = seedRect(state);
+    anim.addKeyframe(rect.id, 'x', { time: 200, value: 0, easing: DEFAULT_EASING });
+    comp.onKfDown(kfDown(0, 100, 40), rect.id, 'x', 200); // pointer starts at 40
+    comp.onKfMove(ptrMove(42)); // only 2px — below the 4px drag threshold
+    comp.onKfUp(ptrUp());
+    expect(kfTimes(anim, rect.id, 'x')).toEqual([200]); // unchanged → selectable
+    expect(comp.selectedKfView()).not.toBeNull();
+  });
+
+  it('the × button removes the whole track and clears its selection', () => {
+    const { state, anim, comp } = mount();
+    const rect = seedRect(state);
+    anim.addKeyframe(rect.id, 'x', { time: 0, value: 0, easing: DEFAULT_EASING });
+    anim.addKeyframe(rect.id, 'x', { time: 500, value: 9, easing: DEFAULT_EASING });
+    comp.onKfDown(kfDown(), rect.id, 'x', 0);
+    comp.onKfUp(ptrUp());
+    expect(comp.selectedKfView()).not.toBeNull();
+    comp.removeTrack(rect.id, 'x');
+    expect(anim.tracks().find((t) => t.property === 'x')).toBeUndefined();
+    expect(comp.selectedKfView()).toBeNull();
   });
 
   it('the footer deletes the selected keyframe', () => {

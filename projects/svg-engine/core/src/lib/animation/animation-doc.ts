@@ -138,6 +138,17 @@ export function removeKeyframe(
 }
 
 /**
+ * **F5 follow-up.** Remove the ENTIRE track for `(nodeId, property)` (all its
+ * keyframes at once), returning a NEW doc. No-op (same doc) when the track is
+ * absent.
+ */
+export function removeTrack(doc: AnimationDoc, nodeId: NodeId, property: string): AnimationDoc {
+  const next = doc.tracks.filter((t) => !(t.nodeId === nodeId && t.property === property));
+  if (next.length === doc.tracks.length) return doc; // nothing removed
+  return { ...doc, tracks: next };
+}
+
+/**
  * **F2.** Move the keyframe at `fromTime` on `(nodeId, property)` to `toTime`,
  * optionally replacing its value, returning a NEW doc. The easing is carried
  * over. Implemented as remove-then-upsert, so landing on a time that already

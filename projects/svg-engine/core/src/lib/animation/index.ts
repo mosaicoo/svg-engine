@@ -13,6 +13,7 @@ export {
   moveKeyframe,
   readAnimationDoc,
   removeKeyframe,
+  removeTrack,
   setAnimationDuration,
   setKeyframeEasing,
   upsertKeyframe,

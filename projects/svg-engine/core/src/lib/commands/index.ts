@@ -88,6 +88,7 @@ export {
   AddKeyframeCommand,
   MoveKeyframeCommand,
   RemoveKeyframeCommand,
+  RemoveTrackCommand,
   SetAnimationDurationCommand,
   SetKeyframeEasingCommand,
 } from './animation.commands';

@@ -7,6 +7,7 @@ import {
   moveKeyframe,
   readAnimationDoc,
   removeKeyframe,
+  removeTrack,
   setAnimationDuration,
   setKeyframeEasing,
   upsertKeyframe,
@@ -216,5 +217,26 @@ export class SetAnimationDurationCommand extends AnimationDocCommand {
 
   protected nextDoc(current: AnimationDoc): AnimationDoc {
     return setAnimationDuration(current, this.durationMs);
+  }
+}
+
+/**
+ * **F5 follow-up.** Remove an entire track `(nodeId, property)` — all its
+ * keyframes at once — in a single undoable step. Fails as a no-op when the
+ * track is absent.
+ */
+export class RemoveTrackCommand extends AnimationDocCommand {
+  readonly label = 'Remove track';
+
+  constructor(
+    containerId: NodeId,
+    private readonly nodeId: NodeId,
+    private readonly property: string,
+  ) {
+    super(containerId);
+  }
+
+  protected nextDoc(current: AnimationDoc): AnimationDoc {
+    return removeTrack(current, this.nodeId, this.property);
   }
 }
