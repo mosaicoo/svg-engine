@@ -335,3 +335,56 @@ describe('D-082 F6 — SvgeTimeline transport', () => {
     expect(playback.playhead()).toBeLessThan(fwd);
   });
 });
+
+const kfValue = (
+  anim: AnimationService,
+  nodeId: string,
+  property: string,
+  time: number,
+): number | string | undefined =>
+  anim
+    .tracks()
+    .find((t) => t.nodeId === nodeId && t.property === property)
+    ?.keyframes.find((k) => k.time === time)?.value;
+
+describe('D-082 follow-up — set keyframe value + seek-on-select', () => {
+  it('selecting a keyframe seeks the playhead to its time', () => {
+    const { state, anim, playback, comp } = mount();
+    const rect = seedRect(state);
+    anim.addKeyframe(rect.id, 'x', { time: 300, value: 9, easing: DEFAULT_EASING });
+    comp.onKfDown(kfDown(), rect.id, 'x', 300);
+    comp.onKfUp(ptrUp()); // a click (no move)
+    expect(playback.playhead()).toBe(300);
+  });
+
+  it('the footer value input sets the keyframe value, preserving the easing', () => {
+    const { state, anim, comp } = mount();
+    const rect = seedRect(state);
+    anim.addKeyframe(rect.id, 'x', { time: 0, value: 5, easing: { kind: 'easeIn' } });
+    comp.onKfDown(kfDown(), rect.id, 'x', 0);
+    comp.onKfUp(ptrUp());
+    comp.onKfValueChange(targetEvent('42'));
+    expect(kfValue(anim, rect.id, 'x', 0)).toBe(42);
+    // easing carried over (moveKeyframe preserves it)
+    const kf = anim.tracks().find((t) => t.property === 'x')!.keyframes[0]!;
+    expect(kf.easing).toEqual({ kind: 'easeIn' });
+  });
+
+  it('the footer value input edits a color keyframe', () => {
+    const { state, anim, comp } = mount();
+    const rect = seedRect(state);
+    anim.addKeyframe(rect.id, 'fill', { time: 0, value: '#ff0000', easing: DEFAULT_EASING });
+    comp.onKfDown(kfDown(), rect.id, 'fill', 0);
+    comp.onKfUp(ptrUp());
+    expect(comp.selectedKfView().kind).toBe('color');
+    comp.onKfValueChange(targetEvent('#00ff00'));
+    expect(kfValue(anim, rect.id, 'fill', 0)).toBe('#00ff00');
+  });
+
+  it('colorInputValue coerces non-hex values to #000000', () => {
+    const { comp } = mount();
+    expect(comp.colorInputValue('#abcdef')).toBe('#abcdef');
+    expect(comp.colorInputValue('rgb(1,2,3)')).toBe('#000000');
+    expect(comp.colorInputValue(42)).toBe('#000000');
+  });
+});

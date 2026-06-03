@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import {
   type AnimatablePropertyDef,
+  type AnimatablePropertyKind,
   type AnimationTrack,
   DEFAULT_EASING,
   type EasingSpec,
@@ -256,9 +257,30 @@ export function clientXToTime(
       <!-- Footer: selected-keyframe strip, else "Animate <selected shape>". -->
       @if (selectedKfView(); as sel) {
         <div class="tl-footer">
-          <span class="tl-foot-info"
-            >Keyframe {{ formatTimeLabel(sel.time) }} = {{ sel.valueLabel }}</span
-          >
+          <span class="tl-foot-info">Keyframe {{ formatTimeLabel(sel.time) }}</span>
+          <!-- A <span> (not <label>) wraps the caption: the conditional input
+               can't be statically associated to a <label for>, and the input
+               already carries its own aria-label. -->
+          <span class="tl-foot-value">
+            Value
+            @if (sel.kind === 'color') {
+              <input
+                type="color"
+                class="tl-value-color"
+                [value]="colorInputValue(sel.value)"
+                (change)="onKfValueChange($event)"
+                aria-label="Keyframe value"
+              />
+            } @else {
+              <input
+                type="number"
+                class="tl-value-num"
+                [value]="sel.value"
+                (change)="onKfValueChange($event)"
+                aria-label="Keyframe value"
+              />
+            }
+          </span>
           <label class="tl-foot-ease">
             Easing
             <select (change)="onEasingChange($event)" aria-label="Keyframe easing">
@@ -518,18 +540,31 @@ export function clientXToTime(
       opacity: 0.85;
     }
     .tl-foot-ease,
+    .tl-foot-value,
     .tl-footer select {
       display: inline-flex;
       align-items: center;
       gap: 4px;
     }
-    .tl-footer select {
+    .tl-footer select,
+    .tl-value-num {
       font: inherit;
       padding: 1px 4px;
       border: 1px solid var(--mat-sys-outline, rgba(0, 0, 0, 0.2));
       border-radius: 2px;
       background: var(--mat-sys-surface, #fff);
       color: inherit;
+    }
+    .tl-value-num {
+      width: 72px;
+    }
+    .tl-value-color {
+      width: 32px;
+      height: 22px;
+      padding: 0;
+      border: 1px solid var(--mat-sys-outline, rgba(0, 0, 0, 0.2));
+      border-radius: 2px;
+      background: var(--mat-sys-surface, #fff);
     }
     .tl-del-btn,
     .tl-add-btn {
@@ -658,7 +693,9 @@ export class SvgeTimeline {
     nodeId: NodeId;
     property: string;
     time: number;
+    value: number | string;
     valueLabel: string;
+    kind: AnimatablePropertyKind;
     easingKind: EasingSpec['kind'];
   } | null>(() => {
     const sel = this.selected();
@@ -668,11 +705,18 @@ export class SvgeTimeline {
       .find((t) => t.nodeId === sel.nodeId && t.property === sel.property);
     const kf = track?.keyframes.find((k) => Math.abs(k.time - sel.time) < 1e-6);
     if (kf === undefined) return null;
+    // The value kind (number/angle/scale/color) drives which input the footer
+    // shows. Falls back to 'number' when the node/property can't be resolved.
+    const node = findNodeById(this.state.document().root, sel.nodeId);
+    const kind =
+      (node !== null ? findAnimatableProperty(node, sel.property)?.kind : undefined) ?? 'number';
     return {
       nodeId: sel.nodeId,
       property: sel.property,
       time: kf.time,
+      value: kf.value,
       valueLabel: this.valueLabel(kf.value),
+      kind,
       easingKind: kf.easing.kind,
     };
   });
@@ -761,6 +805,27 @@ export class SvgeTimeline {
     this.anim.setKeyframeEasing(s.nodeId, s.property, s.time, this.easingForKind(kind));
   }
 
+  /**
+   * Set the **value** the selected keyframe holds (footer value input). Routed
+   * through `moveKeyframe(time, time, newValue)` — a same-time move replaces the
+   * value while preserving the easing — so it's an undoable CommandBus edit like
+   * everything else. Non-numeric input on a numeric kind is ignored.
+   */
+  protected onKfValueChange(event: Event): void {
+    const view = this.selectedKfView();
+    if (view === null) return;
+    const raw = (event.target as HTMLInputElement).value;
+    const next: number | string = view.kind === 'color' ? raw : Number(raw);
+    if (view.kind !== 'color' && !Number.isFinite(next as number)) return;
+    if (next === view.value) return; // no-op
+    this.anim.moveKeyframe(view.nodeId, view.property, view.time, view.time, next);
+  }
+
+  /** Coerce a stored color value to a `#rrggbb` for `<input type="color">`. */
+  protected colorInputValue(value: number | string): string {
+    return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value) ? value : '#000000';
+  }
+
   protected onDurationChange(event: Event): void {
     const raw = Number((event.target as HTMLInputElement).value);
     if (!Number.isFinite(raw)) return;
@@ -817,6 +882,9 @@ export class SvgeTimeline {
     // Diamonds own their gesture — don't let it bubble into the scrub handler.
     event.stopPropagation();
     this.selected.set({ nodeId, property, time });
+    // Selecting a keyframe moves the playhead to it, so the canvas (preview)
+    // immediately reflects the value this keyframe holds.
+    this.playback.seek(time);
     const diamond = event.currentTarget as HTMLElement;
     const lane = (diamond.offsetParent as HTMLElement | null) ?? diamond.parentElement;
     const r = (lane ?? diamond).getBoundingClientRect();
@@ -850,6 +918,8 @@ export class SvgeTimeline {
     if (Math.abs(d.currentTime - d.fromTime) < 1e-6) return; // a click, not a move
     this.anim.moveKeyframe(d.nodeId, d.property, d.fromTime, d.currentTime);
     this.selected.set({ nodeId: d.nodeId, property: d.property, time: d.currentTime });
+    // Follow the moved keyframe with the playhead so the canvas keeps showing it.
+    this.playback.seek(d.currentTime);
   }
 
   // ── label / formatting / value helpers ────────────────────────────
