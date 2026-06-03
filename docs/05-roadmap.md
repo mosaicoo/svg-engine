@@ -490,6 +490,33 @@
 
 ---
 
+## Fase 9 — Animation Timeline (D-082 — planejado, não iniciado)
+
+Timeline de animação **não-destrutiva** ("camada acima": o documento base
+nunca é mutado; o `playhead` é um signal e a árvore animada é derivada e
+alimenta o renderer). Ver **D-082** em `04-decisoes-tecnicas.md` para a
+decisão completa, invariantes de não-quebra e decisões em aberto.
+
+- [ ] **F0** — Contrato headless (`AnimationDoc` + `sampleAnimation` + easing + `AddKeyframe`) + specs-trava
+- [ ] **F1** — Interpolação + `applyAnimationToTree` (identidade em t0; lerp
+      número/cor/transform)
+- [ ] **F2** — `AnimationService` + `PlaybackService` escopados + comandos
+      undoable
+- [ ] **F3** — Catálogo de propriedades animáveis por tipo (reusa Inspector)
+- [ ] **F4** — `<svge-timeline>` read-only (dock inferior opt-in `[showTimeline]`)
+- [ ] **F5** — Edição (criar/mover/deletar keyframe, easing, duração, scrub)
+- [ ] **F6** — Preview no canvas (`animatedTree()` → renderer) + transporte
+      ao vivo (play/pause/step/loop/speed)
+- [ ] **F7** — Persistência (metadata/AutoSave) + round-trip + auto-snapshot
+- [ ] **F8** — Doc-catchup + validação final
+- [ ] **(Futuro)** Export (SMIL/CSS/Lottie/vídeo), path-`d` morph, motion path
+
+**Decisões em aberto antes do F0**: v1 só-preview vs export (e alvo);
+persistir no documento vs sessão; props do v1 (adiar path-`d` morph); reusar
+entry points existentes vs novo `svg-engine/animate`.
+
+---
+
 ## Princípios de evolução
 
 - Toda fase termina com **documentação atualizada** e build verde.

@@ -2214,3 +2214,154 @@ PAGES-E) para 1792+ passing. Zero regressão em nenhuma fase.
   salta no pointerup). Comprimisso: undo stack limpo (1 drag =
   1 entrada) vs feedback completamente live. Pode virar plugin
   opcional via gesture service futuro.
+
+---
+
+## D-082 — Animation Timeline (camada de animação não-destrutiva)
+
+**Status**: 🟡 Aceito (planejado) — plano de fases; implementação **ainda
+não iniciada** (registrado 2026-06-03)
+
+### Contexto
+
+O usuário pediu uma **timeline de animação** (termo correto de mercado —
+_animation timeline_, como After Effects / Adobe Animate / Rive / editores
+Lottie): poder animar as propriedades de uma ou mais formas (na verdade
+tudo que estiver na **página**), com as propriedades **guiadas pelo shape
+selecionado**, definindo **keyframes**, **função de easing**, **tempo**, e
+controles de transporte **play/pause/avançar/recuar/seek**.
+
+Restrição central e explícita: **não quebrar o existente**. A animação deve
+viver em uma **"camada acima"** — uma sobreposição que lê o documento e
+calcula valores no tempo `t`, **sem nunca mutar** o modelo base. É o mesmo
+princípio não-destrutivo já validado em D-055 (Live Corners), D-056 (Boolean
+Live) e D-074 (Smart Object): o estado autoral é a fonte de verdade; o que se
+vê é **derivado**.
+
+### Alternativas consideradas
+
+1. **Mutar o documento a cada frame** (timeline destrutiva). ❌ Rejeitado:
+   quebraria undo, autosave, hit-test, export e o princípio não-destrutivo.
+2. **Exportar direto para SMIL/CSS/Lottie sem preview interno.** ❌ Rejeitado
+   como base: sem feedback de edição não há "timeline" de verdade; export
+   vira alvo **opcional** depois.
+3. **Camada não-destrutiva derivada (escolhida).** Playhead é um signal; um
+   `computed` deriva a "árvore animada em `t`" e alimenta o renderer. Em `t`
+   parado e sem tracks, a árvore animada **é** a base (identidade) → render,
+   hit-test, overlays e export idênticos ao editor atual.
+
+### Decisão (arquitetura "camada acima")
+
+A animação é uma **layer não-destrutiva**. Pilares e onde cada peça mora
+(reusando o que já existe — sem reinventar):
+
+1. **Modelo (core, puro/headless)** — `AnimationDoc`: lista de _tracks_ por
+   `(nodeId, propertyPath)` → `keyframes[] { time, value, easing }` +
+   `duration`. Mora em `metadata.customData` da **página ativa** (round-trip
+   no save/load, igual aos flags de Page/Smart Object). **Não toca** os
+   campos do shape.
+2. **Interpolação (core, funções puras)** — `sampleAnimation(anim, t)` →
+   mapa de overrides `{ nodeId → { prop → value } }`; `applyAnimationToTree(
+baseTree, overrides)` → nova árvore com _structural sharing_ (só os nós
+   afetados são clonados). Easing = funções puras (linear, ease-in/out,
+   cubic-bezier).
+3. **Motor (edit, escopado)** — `AnimationService` (CRUD de tracks/keyframes
+   via comandos undoable) + `PlaybackService` (`playhead` signal, loop
+   `requestAnimationFrame`, play/pause/step/seek/scrub/loop/speed).
+   Registrados em `provideSvgEngineEditorScope()` como todo serviço stateful.
+4. **Comandos undoable (core/edit)** — `AddKeyframe` / `MoveKeyframe` /
+   `RemoveKeyframe` / `SetKeyframeEasing` / `SetTrackDuration` no `CommandBus`
+   (Ctrl+Z unificado com o resto).
+5. **Preview (shell + render)** — o shell passa `[tree]="animatedTree()"` ao
+   `<svge-renderer>`, onde `animatedTree = applyAnimationToTree(baseTree,
+sampleAnimation(anim, playhead))`. **Única fiação cross-cutting**, atrás
+   de flag.
+6. **UI (ui)** — `<svge-timeline>` em dock **inferior**: lista de tracks
+   (shapes da página, cada um expandindo nas suas **propriedades animáveis**)
+   - régua de tempo + keyframes (losangos) + transporte + scrubber do
+     playhead. As "propriedades guiadas pelo shape" reusam o **catálogo de
+     props por tipo de nó que o Inspector já conhece** (x/y, w/h, cx/cy/rx/ry,
+     opacity, fill/stroke, rotation/scale via `decomposeTransform`).
+7. **Plugin (edit)** — `builtinAnimationPlugin` registra serviço + comandos +
+   entradas de menu + atalhos via DI (`ctx.injector.get(...)`). Nada
+   hardcoded fora do shell.
+
+### Garantias de NÃO quebrar o existente (invariantes da camada)
+
+- O `EditorStateService.document()` **nunca é mutado** pela reprodução —
+  só o `playhead` muda; a árvore exibida é derivada.
+- Em `playhead = 0` **sem** tracks, `animatedTree() === baseTree`
+  (**identidade referencial**) → render/hit-test/overlays/export idênticos
+  ao editor de hoje.
+- Animação é **opt-in**: sem o plugin instalado e sem o dock montado, o
+  editor é **exatamente** o atual. As mudanças no shell ficam atrás de
+  `@if`/input (`[showTimeline]`), como `[showRulers]`/Pages.
+- Edição normal de shape (mover/escalar/estilo) continua nos comandos
+  existentes sobre a base. A timeline só **lê** a base e **grava keyframes**
+  via comandos próprios.
+- Export padrão (SVG/PNG) continua exportando o **estado base** (em `t`
+  corrente). Export **animado** é alvo separado e opcional.
+
+### Plano de fases (cada fase = 1 commit + push, gate build/lint/test verde, zero regressão)
+
+- **F0 — Contrato headless + specs-trava (sem UI)**: tipos `AnimationDoc`,
+  `sampleAnimation`, easing puros e `AddKeyframe` no core; specs unitários.
+- **F1 — Interpolação + `applyAnimationToTree`** (core puro) + specs:
+  **identidade em t0**, lerp numérico, cor, transform (via
+  `decomposeTransform`).
+- **F2 — `AnimationService` + `PlaybackService`** (escopados) + comandos
+  undoable (Add/Move/Remove keyframe, SetEasing, SetDuration) + specs.
+- **F3 — Catálogo de propriedades animáveis por tipo de nó** (reusa o
+  conhecimento do Inspector) — fonte das linhas da timeline.
+- **F4 — `<svge-timeline>` read-only** (ui): render de tracks/keyframes +
+  régua + playhead, **sem editar**. Mount opcional no shell (dock inferior
+  atrás de `[showTimeline]`, default `false`).
+- **F5 — Edição na timeline**: criar/mover/deletar keyframes (drag), escolher
+  easing, definir duração; scrubbing do playhead.
+- **F6 — Preview no canvas**: shell alimenta `animatedTree()` ao renderer +
+  transporte ao vivo (play/pause/step/loop/speed). **Aqui** entra a única
+  fiação cross-cutting do shell.
+- **F7 — Persistência (metadata/AutoSave) + round-trip** + auto-snapshot
+  pré-ação destrutiva (reusa D-073).
+- **F8 — Doc-catchup** (06 componentes / 09 API / 10 guia-plugin) +
+  validação final + atualização desta decisão para `✅ Aceito + impl`.
+- **(Futuro, fora do MVP) F9+** — Export (SMIL `<animate>`/`<animateTransform>`,
+  CSS `@keyframes`, Lottie JSON, GIF/vídeo), **path-`d` morph**, curvas de
+  easing custom (UI bezier), motion path.
+
+### Decisões em aberto (fechar antes de iniciar F0)
+
+1. **v1 = só preview** no canvas (recomendado) vs já exportar — e **qual
+   alvo** (SMIL / CSS / Lottie / vídeo).
+2. **Persistência**: no documento (round-trip — recomendado, metadata da
+   página) vs só sessão.
+3. **Props do v1**: posição/tamanho/opacidade/cor/transform; **adiar**
+   path-`d` morph.
+4. **Entry point**: reusar `core`/`edit`/`ui` (como Pages/Snapshots —
+   recomendado, **sem novo entry point**) vs extrair `svg-engine/animate`
+   depois (como o NLU foi extraído em D-...). Reusar evita mexer nos
+   specs-trava de "N entry points".
+5. **Escopo do timeline = página ativa** (confirmado pelo usuário).
+
+### Consequências
+
+**Positivas**:
+
+- Feature de alto valor (motion design) sobre infra **já existente**
+  (signals / commands / scope / não-destrutivo) — pouco código novo
+  "estrutural".
+- **Zero impacto quando desligada** (identidade em t0 + opt-in).
+- Ergonomia padrão de mercado (After Effects / Animate).
+- Reaproveita `decomposeTransform`, catálogo do Inspector, AutoSave,
+  Snapshots (D-073), `panel-group`, CommandBus/undo.
+
+**Negativas / limitações**:
+
+- Preview ao vivo usa `requestAnimationFrame` → custo de CPU durante o
+  play (mitigado: só recomputa os nós com track ativo no `t`).
+- **Path-`d` morph adiado** (interpolar formato de path exige normalizar
+  contagem de comandos — caro; fora do MVP).
+- **Export animado** é outro pipeline (SMIL/CSS/Lottie) — adiado para F9+.
+- 1 fiação cross-cutting no shell (`animatedTree` + dock inferior) —
+  pequena e atrás de flag, mas é a parte que **não** é "puro plugin"
+  (não há registry genérico de dock/painel hoje).
