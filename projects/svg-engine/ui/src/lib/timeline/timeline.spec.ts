@@ -388,3 +388,56 @@ describe('D-082 follow-up — set keyframe value + seek-on-select', () => {
     expect(comp.colorInputValue(42)).toBe('#000000');
   });
 });
+
+describe('D-082 follow-up — multi-property + multi-shape authoring', () => {
+  const propsFor = (anim: AnimationService, nodeId: string): string[] =>
+    anim
+      .tracks()
+      .filter((t) => t.nodeId === nodeId)
+      .map((t) => t.property)
+      .sort();
+
+  it('the add-track row stays available while a keyframe is selected (more properties)', () => {
+    const { state, anim, selection, comp } = mount();
+    const rect = seedRect(state);
+    selection.select(rect.id);
+
+    comp.onAddPropertyChange(targetEvent('opacity'));
+    comp.addTrack();
+    // The newly-added keyframe is auto-selected (keyframe editor visible)…
+    expect(comp.selectedKfView()).not.toBeNull();
+    // …AND the add-track row is still available (independent of selection).
+    expect(comp.addableProperties().length).toBeGreaterThan(0);
+    // The already-animated property dropped out of the addable list.
+    expect(
+      comp.addableProperties().some((p: { property: string }) => p.property === 'opacity'),
+    ).toBe(false);
+
+    // Add a second property on the same shape — no need to deselect first.
+    comp.onAddPropertyChange(targetEvent('rotation'));
+    comp.addTrack();
+    expect(propsFor(anim, rect.id)).toEqual(['opacity', 'rotation']);
+  });
+
+  it('animates a second shape by selecting it (add-track follows the focused shape)', () => {
+    const { state, anim, selection, comp } = mount();
+    const a = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const b = createRect({ x: 50, y: 0, width: 10, height: 10 });
+    const doc = state.document();
+    state.setDocument({ ...doc, root: { ...doc.root, children: [a, b] } });
+
+    selection.select(a.id);
+    comp.onAddPropertyChange(targetEvent('opacity'));
+    comp.addTrack();
+
+    // Switch to shape B — its addable properties surface even with a keyframe
+    // from shape A still selected.
+    selection.select(b.id);
+    expect(comp.addableProperties().length).toBeGreaterThan(0);
+    comp.onAddPropertyChange(targetEvent('x'));
+    comp.addTrack();
+
+    expect(anim.tracks().some((t) => t.nodeId === a.id && t.property === 'opacity')).toBe(true);
+    expect(anim.tracks().some((t) => t.nodeId === b.id && t.property === 'x')).toBe(true);
+  });
+});

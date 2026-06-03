@@ -254,62 +254,77 @@ export function clientXToTime(
         </div>
       }
 
-      <!-- Footer: selected-keyframe strip, else "Animate <selected shape>". -->
-      @if (selectedKfView(); as sel) {
+      <!--
+        Footer: the keyframe editor and the "Animate <shape>" add-track row are
+        INDEPENDENT (not mutually exclusive). The add-track row stays available
+        even while a keyframe is selected, so you can keep adding properties and
+        switch shapes (select another shape → its addable properties appear)
+        without first deselecting the current keyframe.
+      -->
+      @if (selectedKfView() !== null || addableProperties().length > 0) {
         <div class="tl-footer">
-          <span class="tl-foot-info">Keyframe {{ formatTimeLabel(sel.time) }}</span>
-          <!-- A <span> (not <label>) wraps the caption: the conditional input
-               can't be statically associated to a <label for>, and the input
-               already carries its own aria-label. -->
-          <span class="tl-foot-value">
-            Value
-            @if (sel.kind === 'color') {
-              <input
-                type="color"
-                class="tl-value-color"
-                [value]="colorInputValue(sel.value)"
-                (change)="onKfValueChange($event)"
-                aria-label="Keyframe value"
-              />
-            } @else {
-              <input
-                type="number"
-                class="tl-value-num"
-                [value]="sel.value"
-                (change)="onKfValueChange($event)"
-                aria-label="Keyframe value"
-              />
-            }
-          </span>
-          <label class="tl-foot-ease">
-            Easing
-            <select (change)="onEasingChange($event)" aria-label="Keyframe easing">
-              @for (opt of easingOptions; track opt.kind) {
-                <option [value]="opt.kind" [selected]="opt.kind === sel.easingKind">
-                  {{ opt.label }}
-                </option>
-              }
-            </select>
-          </label>
-          <button type="button" class="tl-del-btn" (click)="deleteSelectedKf()">Delete</button>
-        </div>
-      } @else if (addableProperties().length > 0) {
-        <div class="tl-footer">
-          <span class="tl-foot-info">Animate {{ focusLabel() }}</span>
-          <select (change)="onAddPropertyChange($event)" aria-label="Property to animate">
-            <option value="">Property…</option>
-            @for (p of addableProperties(); track p.property) {
-              <option [value]="p.property">{{ p.label }}</option>
-            }
-          </select>
-          <button
-            type="button"
-            class="tl-add-btn"
-            [disabled]="addProperty() === ''"
-            (click)="addTrack()"
-          >
-            + Add track
-          </button>
+          @if (selectedKfView(); as sel) {
+            <div class="tl-foot-row">
+              <span class="tl-foot-info">Keyframe {{ formatTimeLabel(sel.time) }}</span>
+              <!-- A <span> (not <label>) wraps the caption: the conditional
+                   input can't be statically associated to a <label for>, and the
+                   input already carries its own aria-label. -->
+              <span class="tl-foot-value">
+                Value
+                @if (sel.kind === 'color') {
+                  <input
+                    type="color"
+                    class="tl-value-color"
+                    [value]="colorInputValue(sel.value)"
+                    (change)="onKfValueChange($event)"
+                    aria-label="Keyframe value"
+                  />
+                } @else {
+                  <input
+                    type="number"
+                    class="tl-value-num"
+                    [value]="sel.value"
+                    (change)="onKfValueChange($event)"
+                    aria-label="Keyframe value"
+                  />
+                }
+              </span>
+              <label class="tl-foot-ease">
+                Easing
+                <select (change)="onEasingChange($event)" aria-label="Keyframe easing">
+                  @for (opt of easingOptions; track opt.kind) {
+                    <option [value]="opt.kind" [selected]="opt.kind === sel.easingKind">
+                      {{ opt.label }}
+                    </option>
+                  }
+                </select>
+              </label>
+              <button type="button" class="tl-del-btn" (click)="deleteSelectedKf()">Delete</button>
+            </div>
+          }
+          @if (addableProperties().length > 0) {
+            <div class="tl-foot-row">
+              <span class="tl-foot-info">Animate {{ focusLabel() }}</span>
+              <select
+                [value]="addProperty()"
+                (change)="onAddPropertyChange($event)"
+                aria-label="Property to animate"
+              >
+                <option value="">Property…</option>
+                @for (p of addableProperties(); track p.property) {
+                  <option [value]="p.property">{{ p.label }}</option>
+                }
+              </select>
+              <button
+                type="button"
+                class="tl-add-btn"
+                [disabled]="addProperty() === ''"
+                (click)="addTrack()"
+              >
+                + Add track
+              </button>
+            </div>
+          }
         </div>
       }
     </div>
@@ -530,10 +545,16 @@ export function clientXToTime(
     }
     .tl-footer {
       display: flex;
-      align-items: center;
-      gap: 10px;
+      flex-direction: column;
+      gap: 4px;
       padding: 4px 8px;
       border-top: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+    }
+    .tl-foot-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
     }
     .tl-foot-info {
       font-variant-numeric: tabular-nums;
