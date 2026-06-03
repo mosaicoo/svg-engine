@@ -289,3 +289,49 @@ describe('D-082 F5 — SvgeTimeline (editing)', () => {
     expect(anim.tracks().some((t) => t.nodeId === rect.id && t.property === 'opacity')).toBe(true);
   });
 });
+
+describe('D-082 F6 — SvgeTimeline transport', () => {
+  it('renders the transport controls + speed select in the header', () => {
+    const { fixture } = mount();
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.tl-transport')).not.toBeNull();
+    expect(host.querySelector('.tl-play')).not.toBeNull();
+    expect(host.querySelector('.tl-speed')).not.toBeNull();
+  });
+
+  it('play/pause toggles PlaybackService.isPlaying', () => {
+    const { playback, comp } = mount();
+    comp.togglePlay();
+    expect(playback.isPlaying()).toBe(true);
+    comp.togglePlay();
+    expect(playback.isPlaying()).toBe(false);
+  });
+
+  it('the loop button toggles looping', () => {
+    const { playback, comp } = mount();
+    comp.toggleLoop();
+    expect(playback.loop()).toBe(true);
+    comp.toggleLoop();
+    expect(playback.loop()).toBe(false);
+  });
+
+  it('the speed select changes playback speed', () => {
+    const { playback, comp } = mount();
+    comp.onSpeedChange(targetEvent('2'));
+    expect(playback.speed()).toBe(2);
+  });
+
+  it('start / end / step move the playhead', () => {
+    const { playback, comp } = mount();
+    comp.toEnd();
+    expect(playback.playhead()).toBe(1000); // default duration
+    comp.toStart();
+    expect(playback.playhead()).toBe(0);
+    playback.seek(500);
+    comp.stepFwd();
+    expect(playback.playhead()).toBeGreaterThan(500);
+    const fwd = playback.playhead();
+    comp.stepBack();
+    expect(playback.playhead()).toBeLessThan(fwd);
+  });
+});

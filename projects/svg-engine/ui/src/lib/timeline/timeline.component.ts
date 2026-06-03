@@ -124,6 +124,51 @@ export function clientXToTime(
     <div class="tl">
       <div class="tl-header">
         <span class="tl-title">Timeline</span>
+        <!-- F6 — live transport. -->
+        <div class="tl-transport" role="group" aria-label="Playback transport">
+          <button type="button" title="Go to start" aria-label="Go to start" (click)="toStart()">
+            ⏮
+          </button>
+          <button type="button" title="Step back" aria-label="Step back" (click)="stepBack()">
+            ◀
+          </button>
+          <button
+            type="button"
+            class="tl-play"
+            [title]="isPlaying() ? 'Pause' : 'Play'"
+            [attr.aria-label]="isPlaying() ? 'Pause' : 'Play'"
+            (click)="togglePlay()"
+          >
+            {{ isPlaying() ? '⏸' : '▶' }}
+          </button>
+          <button type="button" title="Step forward" aria-label="Step forward" (click)="stepFwd()">
+            ▶
+          </button>
+          <button type="button" title="Go to end" aria-label="Go to end" (click)="toEnd()">
+            ⏭
+          </button>
+          <button
+            type="button"
+            class="tl-loop"
+            [class.tl-loop--on]="loopOn()"
+            [attr.aria-pressed]="loopOn()"
+            title="Loop"
+            aria-label="Toggle loop"
+            (click)="toggleLoop()"
+          >
+            ⟳
+          </button>
+          <select
+            class="tl-speed"
+            aria-label="Playback speed"
+            title="Playback speed"
+            (change)="onSpeedChange($event)"
+          >
+            @for (s of speedOptions; track s) {
+              <option [value]="s" [selected]="s === speed()">{{ s }}×</option>
+            }
+          </select>
+        </div>
         <label class="tl-duration">
           Duration
           <input
@@ -271,6 +316,44 @@ export function clientXToTime(
     .tl-title {
       font-weight: 600;
       letter-spacing: 0.02em;
+    }
+    .tl-transport {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .tl-transport button {
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      padding: 3px 5px;
+      border-radius: 3px;
+      opacity: 0.75;
+    }
+    .tl-transport button:hover {
+      opacity: 1;
+      background: var(--mat-sys-surface-container-high, rgba(0, 0, 0, 0.06));
+    }
+    .tl-transport .tl-play {
+      color: var(--mat-sys-primary, #1976d2);
+      font-size: 14px;
+    }
+    .tl-transport .tl-loop--on {
+      opacity: 1;
+      color: var(--mat-sys-primary, #1976d2);
+      background: var(--mat-sys-surface-container-high, rgba(0, 0, 0, 0.06));
+    }
+    .tl-speed {
+      font: inherit;
+      margin-left: 2px;
+      padding: 1px 2px;
+      border: 1px solid var(--mat-sys-outline, rgba(0, 0, 0, 0.2));
+      border-radius: 2px;
+      background: var(--mat-sys-surface, #fff);
+      color: inherit;
     }
     .tl-duration {
       display: inline-flex;
@@ -479,6 +562,13 @@ export class SvgeTimeline {
   private readonly selection = inject(SelectionService);
 
   protected readonly easingOptions = EASING_OPTIONS;
+  /** Playback-speed presets for the transport dropdown. */
+  protected readonly speedOptions: readonly number[] = [0.25, 0.5, 1, 2, 4];
+
+  // ── F6 — transport (delegates to the editor-scoped PlaybackService) ──
+  protected readonly isPlaying = computed<boolean>(() => this.playback.isPlaying());
+  protected readonly loopOn = computed<boolean>(() => this.playback.loop());
+  protected readonly speed = computed<number>(() => this.playback.speed());
 
   /** The currently-selected keyframe (footer target), or `null`. */
   private readonly selected = signal<SelectedKf | null>(null);
@@ -675,6 +765,30 @@ export class SvgeTimeline {
     const raw = Number((event.target as HTMLInputElement).value);
     if (!Number.isFinite(raw)) return;
     this.anim.setDuration(Math.max(1, Math.round(raw)));
+  }
+
+  // ── F6 — transport ────────────────────────────────────────────────
+
+  protected togglePlay(): void {
+    this.playback.toggle();
+  }
+  protected stepBack(): void {
+    this.playback.stepBackward();
+  }
+  protected stepFwd(): void {
+    this.playback.stepForward();
+  }
+  protected toStart(): void {
+    this.playback.goToStart();
+  }
+  protected toEnd(): void {
+    this.playback.goToEnd();
+  }
+  protected toggleLoop(): void {
+    this.playback.setLoop(!this.playback.loop());
+  }
+  protected onSpeedChange(event: Event): void {
+    this.playback.setSpeed(Number((event.target as HTMLSelectElement).value));
   }
 
   // ── scrub (playhead) ──────────────────────────────────────────────

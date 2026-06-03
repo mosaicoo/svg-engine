@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import {
+  applyAnimationToTree,
   type BoundingBox,
   CommandBus,
   EditorStateService,
@@ -9,6 +10,7 @@ import {
 import {
   ActiveDefsService,
   ActivePageService,
+  AnimationService,
   GradientOverlay,
   GridOverlay,
   GuidesOverlay,
@@ -17,6 +19,7 @@ import {
   LayersFilter,
   OutlineFilter,
   PageOverlay,
+  PlaybackService,
   resolveSelectableNodeId,
   SvgePageSelectionOverlay,
   SELECT_TOOL_ID,
@@ -42,6 +45,7 @@ import { SvgeThemeToggle } from '../theme-toggle';
 import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
 import { SvgeRulers } from '../rulers';
 import { SvgeStatusBar } from '../status-bar';
+import { SvgeTimeline } from '../timeline';
 import { SvgeToolbar } from '../toolbar';
 import { SvgeToolOptions } from '../tool-options';
 import { SvgeToolsPalette } from '../tools-palette';
@@ -135,6 +139,7 @@ import { SvgeToolsPalette } from '../tools-palette';
     SvgeToolOptions,
     SvgeToolsPalette,
     SvgeStatusBar,
+    SvgeTimeline,
     LayersPanel,
     SnapshotsPanel,
     SvgeInspector,
@@ -220,7 +225,7 @@ import { SvgeToolsPalette } from '../tools-palette';
             svgeLayersFilter
             svgeIsolationFilter
             svgeOutlineFilter
-            [tree]="resolvedTree()"
+            [tree]="animatedTree()"
             [viewBox]="resolvedViewBox()"
             [defs]="resolvedDefs()"
             [ariaLabel]="ariaLabel() ?? 'Editable SVG document'"
@@ -388,17 +393,33 @@ import { SvgeToolsPalette } from '../tools-palette';
         </svge-panel-group>
       </aside>
     </div>
+    @if (showTimeline()) {
+      <!--
+        D-082 F6 — Animation Timeline dock (bottom). Opt-in via
+        [showTimeline] (default false), so the shell is byte-for-byte the
+        current editor unless the consumer turns it on. The timeline reads
+        the editor-scoped AnimationService/PlaybackService and edits only
+        through undoable commands; the canvas preview above is driven by
+        the animatedTree() computed (resolvedTree + applyAnimationToTree at
+        the playhead). At playhead 0 with no tracks, animatedTree() returns
+        the base tree by reference — render/hit-test unchanged.
+      -->
+      <svge-timeline class="timeline-row" />
+    }
     <svge-status-bar class="status-row" />
   `,
   styles: `
     :host {
       display: grid;
-      /* 5 rows: menu | toolbar | tool-options | main(1fr) | status.
+      /* 6 rows: menu | toolbar | tool-options | main(1fr) | timeline | status.
          Pages strip (D-079) used to be its own row between tool-options
          and main; PAGES-REFACTOR follow-up #8 moved it into canvas-cell
          as a bottom overlay (same pattern as the isolation breadcrumb
-         at top), so the grid row went away. */
-      grid-template-rows: auto auto auto 1fr auto;
+         at top), so the grid row went away. D-082 F6 adds the optional
+         Animation Timeline dock (5th track, auto) above the status bar —
+         empty/zero-height when [showTimeline] is false (the @if renders
+         nothing, so the track simply collapses). */
+      grid-template-rows: auto auto auto 1fr auto auto;
       width: 100%;
       height: 100%;
       min-height: 0;
@@ -605,6 +626,11 @@ export class SvgeShellPro {
   // behavior (treeForRendering / viewBoxForRendering fall back to
   // root + document.viewBox).
   private readonly activePage = inject(ActivePageService);
+  // **D-082 F6** — animation engine + transport (editor-scoped). Drive
+  // the canvas preview: animatedTree() = applyAnimationToTree(base,
+  // anim.sample(playhead)). Read-only here; edits go through the timeline.
+  private readonly anim = inject(AnimationService);
+  private readonly playback = inject(PlaybackService);
   private readonly bus = inject(CommandBus);
   private readonly toolHost = inject(ToolHostService);
   /**
@@ -737,6 +763,14 @@ export class SvgeShellPro {
   /** Slot id for the right-click context menu. Default `'context.canvas'`. */
   readonly contextMenuSlot = input<string>('context.canvas');
 
+  /**
+   * **D-082 F6** — mount the Animation Timeline dock + drive the canvas
+   * preview from the playhead. Default `false`: without it the shell renders
+   * the base tree exactly as today (the `animatedTree` computed short-circuits
+   * to `resolvedTree`), so existing consumers are unaffected.
+   */
+  readonly showTimeline = input<boolean>(false);
+
   protected readonly resolvedTree = computed<SvgNode>(() => {
     // Consumer-supplied [tree] always wins (advanced use-cases).
     const explicit = this.tree();
@@ -745,6 +779,21 @@ export class SvgeShellPro {
     // ActivePageService.treeForRendering falls back to document.root
     // when no page exists (back-compat with legacy docs).
     return this.activePage.treeForRendering();
+  });
+
+  /**
+   * **D-082 F6** — the tree fed to `<svge-renderer>`: the base
+   * {@link resolvedTree} with the animation applied at the current playhead.
+   * When the timeline is off, returns the base tree untouched. When on, applies
+   * `sampleAnimation(playhead)` non-destructively (`applyAnimationToTree`
+   * structurally shares unchanged subtrees and returns the SAME reference when
+   * nothing is animated — so playhead 0 with no tracks paints exactly the base
+   * document; render, hit-test, overlays and export are unchanged).
+   */
+  protected readonly animatedTree = computed<SvgNode>(() => {
+    const base = this.resolvedTree();
+    if (!this.showTimeline()) return base;
+    return applyAnimationToTree(base, this.anim.sample(this.playback.playhead()));
   });
   protected readonly resolvedViewBox = computed<BoundingBox>(() => {
     const explicit = this.viewBox();
