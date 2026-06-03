@@ -4,7 +4,7 @@ import type { Point } from '../types/point';
 /**
  * **D-055 (Item 6.4)** — Round sharp corners in a path `d` string
  * with a uniform radius. Returns a new `d` whose cusp vertices are
- * trimmed by the radius and connected by quarter-arcs.
+ * replaced by a **circular arc tangent to both edges** (a true fillet).
  *
  * **Algorithm** (per subpath):
  *
@@ -13,21 +13,25 @@ import type { Point } from '../types/point';
  *    `cusp` AND both adjacent edges are STRAIGHT (handle == point on
  *    both sides). Smooth/symmetric anchors (already-curved corners)
  *    are skipped — rounding them would do nothing visible.
- * 3. For each sharp vertex `v` between previous `p` and next `n`:
- *    - Compute the per-corner radius: `min(r, |v-p| / 2, |v-n| / 2)`.
- *      Clamping to half the shorter edge prevents the rounded arc
- *      from overshooting into the neighbor — same clamp Illustrator
- *      uses on rectangles when `rx` exceeds `width / 2`.
- *    - Trim the incoming edge to end at `v - radius * normalize(v-p)`.
- *    - Trim the outgoing edge to start at `v + radius * normalize(n-v)`.
- *    - Insert a small arc between the two trim points.
+ * 3. For each sharp vertex `v` between previous `p` and next `n`, with
+ *    interior angle θ between the two edges:
+ *    - **Tangent length** `t = R / tan(θ/2)` — the distance from `v` to
+ *      each tangent point so a circle of radius `R` touches both edges.
+ *      This is the key: trimming by `R` (and arcing with radius `R`)
+ *      is tangent ONLY at θ = 90° (tan 45° = 1), which is why the old
+ *      90°-only version mangled acute tips and reflex/obtuse corners.
+ *    - Clamp `t` to `min(|v-p|, |v-n|) / 2` so adjacent corners never
+ *      overrun a shared edge; the effective fillet radius becomes
+ *      `t · tan(θ/2)` so the arc stays exactly tangent after clamping.
+ *    - Trim each edge to its tangent point and connect them with an arc
+ *      of the (effective) fillet radius.
  * 4. Re-emit the result with `M`/`L`/`A` commands.
  *
- * **Direction of the arc** (largeArcFlag, sweepFlag): always 0/0 for
- * the inward (convex) case and 0/1 for the outward (reflex) case.
- * The cross product `(v-p) × (n-v)` tells convex vs reflex; we set
- * the sweep flag accordingly so the arc curves AROUND the corner
- * rather than back across it.
+ * **Direction of the arc**: `largeArcFlag` is always `0` — the fillet
+ * arc subtends the exterior angle `π − θ ∈ (0, π)`, i.e. always a minor
+ * arc. The `sweepFlag` comes from the turn direction (cross product
+ * `(v-p) × (n-v)`): convex and reflex corners curve opposite ways so
+ * the arc always bulges toward the corner interior.
  *
  * **Open subpath endpoints** are left untouched — only INTERIOR
  * vertices get rounded. Closed subpaths get their wrap-around vertex
@@ -97,32 +101,64 @@ function emitRoundedSubpath(sub: AnchorSubpath, radius: number): string {
     return i > 0 && i < n - 1;
   });
 
-  // For each anchor, compute the (possibly trimmed) trimIn and
-  // trimOut points. Untrimmed anchors have trimIn === trimOut === point.
+  // For each anchor, compute the (possibly trimmed) trimIn / trimOut
+  // tangent points AND the true fillet radius `arcR[i]` (0 → no arc).
+  //
+  // TANGENT FILLET (the corrected geometry): a circle of radius R that is
+  // tangent to both straight edges touches each edge at distance
+  // `t = R / tan(θ/2)` from the vertex, where θ is the interior angle of
+  // the corner. Trimming each edge by `t` (NOT by `R`) and drawing an arc
+  // of radius `R` between the two tangent points produces a corner that is
+  // actually tangent — for ANY angle. The old code trimmed by `R` and used
+  // `R` as the arc radius, which is the tangent condition ONLY at 90°
+  // (tan 45° = 1); acute tips and reflex/obtuse corners came out wrong.
   const trimIn: Point[] = [];
   const trimOut: Point[] = [];
+  const arcR: number[] = [];
   for (let i = 0; i < n; i++) {
     const a = anchors[i]!;
     if (!trim[i]) {
       trimIn.push(a.point);
       trimOut.push(a.point);
+      arcR.push(0);
       continue;
     }
     const prev = anchors[(i - 1 + n) % n]!;
     const next = anchors[(i + 1) % n]!;
     const inLen = dist(prev.point, a.point);
     const outLen = dist(a.point, next.point);
-    // Clamp to half each neighbor edge → max possible safe radius.
-    const r = Math.min(radius, inLen / 2, outLen / 2);
-    if (r <= 0) {
+    // Unit vectors from the vertex toward each neighbor.
+    const u = normalize(sub2(prev.point, a.point)); // V → prev
+    const w = normalize(sub2(next.point, a.point)); // V → next
+    // Interior angle between the two edges, unsigned, in (0, π). Same value
+    // for the convex and the reflex version of a corner — only the bulge
+    // direction (sweep flag, computed at emit) differs.
+    const dot = Math.max(-1, Math.min(1, u.x * w.x + u.y * w.y));
+    const alpha = Math.acos(dot);
+    // Skip near-straight vertices (no real corner) and degenerate edges.
+    if (alpha <= 1e-4 || alpha >= Math.PI - 1e-4 || inLen < 1e-9 || outLen < 1e-9) {
       trimIn.push(a.point);
       trimOut.push(a.point);
+      arcR.push(0);
       continue;
     }
-    const dirIn = normalize(sub2(a.point, prev.point)); // prev → curr
-    const dirOut = normalize(sub2(next.point, a.point)); // curr → next
-    trimIn.push({ x: a.point.x - r * dirIn.x, y: a.point.y - r * dirIn.y });
-    trimOut.push({ x: a.point.x + r * dirOut.x, y: a.point.y + r * dirOut.y });
+    const tanHalf = Math.tan(alpha / 2);
+    // Tangent length for the requested radius, clamped to half of each
+    // neighbor edge so adjacent corners never overrun a shared edge.
+    const t = Math.min(radius / tanHalf, inLen / 2, outLen / 2);
+    if (t < 1e-9) {
+      trimIn.push(a.point);
+      trimOut.push(a.point);
+      arcR.push(0);
+      continue;
+    }
+    // Effective fillet radius after clamping — keeps the arc exactly
+    // tangent to both (trimmed) edges even when the requested radius
+    // didn't fit.
+    const reff = t * tanHalf;
+    trimIn.push({ x: a.point.x + t * u.x, y: a.point.y + t * u.y });
+    trimOut.push({ x: a.point.x + t * w.x, y: a.point.y + t * w.y });
+    arcR.push(reff);
   }
 
   // Emit commands. For the first anchor's "start" position:
@@ -157,10 +193,9 @@ function emitRoundedSubpath(sub: AnchorSubpath, radius: number): string {
     } else {
       out.push(` L${fmt(trimIn[i]!.x)} ${fmt(trimIn[i]!.y)}`);
     }
-    if (trim[i]) {
-      // Arc from trimIn[i] to trimOut[i], radius computed earlier.
-      // Recompute r from the trim distance to ensure consistency.
-      const r = dist(trimIn[i]!, a.point);
+    if (arcR[i]! > 0) {
+      // True tangent-fillet radius (computed alongside the trim above).
+      const r = arcR[i]!;
       // Sweep flag depends on the corner's turn direction.
       const prevPt = anchors[(i - 1 + n) % n]!.point;
       const nextPt = anchors[(i + 1) % n]!.point;
@@ -185,8 +220,8 @@ function emitRoundedSubpath(sub: AnchorSubpath, radius: number): string {
     } else {
       out.push(` L${fmt(trimIn[0]!.x)} ${fmt(trimIn[0]!.y)}`);
     }
-    if (trim[0]) {
-      const r = dist(trimIn[0]!, first.point);
+    if (arcR[0]! > 0) {
+      const r = arcR[0]!;
       const prevPt = anchors[n - 1]!.point;
       const nextPt = anchors[1 % n]!.point;
       const sweep = turnSweep(prevPt, first.point, nextPt);
