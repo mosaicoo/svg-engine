@@ -393,7 +393,7 @@ import { SvgeToolsPalette } from '../tools-palette';
         </svge-panel-group>
       </aside>
     </div>
-    @if (showTimeline()) {
+    @if (timelineVisible()) {
       <!--
         D-082 F6 — Animation Timeline dock (bottom). Opt-in via
         [showTimeline] (default false), so the shell is byte-for-byte the
@@ -790,9 +790,20 @@ export class SvgeShellPro {
    * nothing is animated — so playhead 0 with no tracks paints exactly the base
    * document; render, hit-test, overlays and export are unchanged).
    */
+  /**
+   * **D-082 F6 + follow-up** — effective timeline visibility: the
+   * `[showTimeline]` input (consumer-controlled) OR the WorkspaceService
+   * `timeline()` flag (end-user toggle via **View ▸ Show Timeline**). Either
+   * one mounts the dock and drives the canvas preview. Default `false` on both,
+   * so the shell is byte-for-byte the current editor until opted in.
+   */
+  protected readonly timelineVisible = computed<boolean>(
+    () => this.showTimeline() || this.ws.timeline(),
+  );
+
   protected readonly animatedTree = computed<SvgNode>(() => {
     const base = this.resolvedTree();
-    if (!this.showTimeline()) return base;
+    if (!this.timelineVisible()) return base;
     return applyAnimationToTree(base, this.anim.sample(this.playback.playhead()));
   });
   protected readonly resolvedViewBox = computed<BoundingBox>(() => {

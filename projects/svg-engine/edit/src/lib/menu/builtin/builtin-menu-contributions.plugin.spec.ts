@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import { provideSvgEnginePlugin } from '../../plugin/provide-plugin';
 import { provideSvgEngineEditorScope } from '../../scope';
 import { SelectionService } from '../../selection/selection.service';
+import { WorkspaceService } from '../../workspace/workspace.service';
 import { MenuContributionRegistry } from '../menu-contribution-registry.service';
 import { resolveDisabledSignal } from '../menu-context';
 import { CONTEXT_MENU_SLOT, MENU_SLOT, TOOLBAR_SLOT } from '../menu-slots';
@@ -60,7 +61,7 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(ids).toContain('svge.builtin.edit.ungroup');
   });
 
-  it('populates View slot with Zoom + Toggle Grid/Rulers/Outline', () => {
+  it('populates View slot with Zoom + Toggle Grid/Rulers/Outline/Timeline', () => {
     const { reg } = setupRoot();
     const ids = reg
       .bySlot(MENU_SLOT.VIEW)()
@@ -71,6 +72,19 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(ids).toContain('svge.builtin.view.toggle-grid');
     expect(ids).toContain('svge.builtin.view.toggle-rulers');
     expect(ids).toContain('svge.builtin.view.toggle-outline');
+    expect(ids).toContain('svge.builtin.view.toggle-timeline');
+  });
+
+  it('Show Timeline menu item toggles WorkspaceService.timeline()', () => {
+    const { reg, injector } = setupRoot();
+    const item = reg
+      .bySlot(MENU_SLOT.VIEW)()
+      .find((c) => c.id === 'svge.builtin.view.toggle-timeline');
+    expect(item).toBeDefined();
+    const ws = injector.get(WorkspaceService);
+    expect(ws.timeline()).toBe(false);
+    item!.run({ injector });
+    expect(ws.timeline()).toBe(true);
   });
 
   it('populates Object slot with reorder items', () => {

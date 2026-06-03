@@ -713,6 +713,21 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+    // **D-082 F6 follow-up** — Animation Timeline visibility toggle. Flips
+    // WorkspaceService.timeline(), which `<svge-shell-pro>` reads to mount
+    // the bottom dock + drive the canvas preview from the playhead.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.toggle-timeline',
+        slot: MENU_SLOT.VIEW,
+        label: 'Show Timeline',
+        icon: 'timeline',
+        order: 72,
+        run(runCtx) {
+          fromCtx(WorkspaceService, runCtx).toggleTimeline();
+        },
+      }),
+    );
     // D-044: Snap toggle (also surfaced clickable in <svge-status-bar>).
     ctx.track(
       reg.register({

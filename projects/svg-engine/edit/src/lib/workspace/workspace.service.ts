@@ -272,6 +272,26 @@ export class WorkspaceService {
   }
 
   /**
+   * **D-082 F6 follow-up** — master visibility of the Animation Timeline
+   * dock (`<svge-timeline>`). Like {@link outlineMode}, this service only
+   * owns the toggle state; `<svge-shell-pro>` reads it to mount/unmount the
+   * dock (in addition to its `[showTimeline]` input). Default `false`
+   * (opt-in) so the shell is byte-for-byte the current editor until the user
+   * turns it on via **View ▸ Show Timeline**.
+   */
+  private readonly _timeline = signal<boolean>(false);
+  readonly timeline = this._timeline.asReadonly();
+
+  setTimelineEnabled(enabled: boolean): void {
+    if (this._timeline() === enabled) return;
+    this._timeline.set(enabled);
+  }
+
+  toggleTimeline(): void {
+    this.setTimelineEnabled(!this._timeline());
+  }
+
+  /**
    * Reactive snapshot of canvas-interaction prefs (currently just
    * wheel-zoom speed). Consumed by `SvgeCanvasGestures` to compute
    * the effective zoom factor per wheel event.

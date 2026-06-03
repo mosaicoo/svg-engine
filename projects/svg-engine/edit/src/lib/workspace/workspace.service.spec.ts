@@ -198,6 +198,20 @@ describe('WorkspaceService — rulers (Bloco 4f)', () => {
   });
 });
 
+describe('WorkspaceService — timeline (D-082 F6 follow-up)', () => {
+  it('starts disabled (opt-in)', () => {
+    expect(setup().timeline()).toBe(false);
+  });
+
+  it('toggleTimeline / setTimelineEnabled', () => {
+    const ws = setup();
+    ws.toggleTimeline();
+    expect(ws.timeline()).toBe(true);
+    ws.setTimelineEnabled(false);
+    expect(ws.timeline()).toBe(false);
+  });
+});
+
 describe('WorkspaceService — guides (Bloco 4f)', () => {
   it('starts with no guides', () => {
     expect(setup().guides()).toEqual([]);
