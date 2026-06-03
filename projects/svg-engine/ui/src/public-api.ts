@@ -135,3 +135,9 @@ export * from './lib/asset-export-panel';
 // style tabs above the canvas. Auto-hides when the document has zero
 // pages (back-compat). Pairs with PagesService + ActivePageService.
 export * from './lib/pages-panel';
+
+// D-082 — Animation Timeline (F4): read-only <svge-timeline> dock.
+// Renders the active page's animation (ruler + per-track keyframes +
+// playhead). No editing (F5) or transport wiring (F6) yet. Pairs with
+// the edit-side AnimationService + PlaybackService.
+export * from './lib/timeline';
