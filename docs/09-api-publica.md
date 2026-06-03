@@ -602,6 +602,49 @@ seção 2026-05-18.
 
 ---
 
+## Animation Timeline (D-082) — surface por entry point ✅
+
+Feature **não-destrutiva** ("camada acima"): o documento base nunca é mutado;
+o `playhead` é um signal e a árvore exibida é derivada. Opt-in via
+`<svge-shell-pro [showTimeline]="true">`. Em `playhead = 0` sem tracks, a árvore
+animada **é** a base (identidade referencial).
+
+### `svg-engine/core` — modelo + interpolação + comandos (puros/headless)
+
+| Símbolo                                                                                                                         | Descrição                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `AnimationDoc` / `AnimationTrack` / `Keyframe` (types)                                                                          | `{ durationMs, tracks[] }`; track = `(nodeId, property, keyframes[])`; keyframe = `{ time(ms), value, easing }` |
+| `ANIMATION_KEY`                                                                                                                 | chave em `metadata.customData` onde o `AnimationDoc` da página mora (`'svgeAnimation'`)                         |
+| `emptyAnimationDoc`, `readAnimationDoc`, `isAnimationDoc`, `findTrack`                                                          | leitura/guarda do modelo                                                                                        |
+| `upsertKeyframe`, `removeKeyframe`, `moveKeyframe`, `setKeyframeEasing`, `setAnimationDuration`                                 | helpers imutáveis (no-op retorna a mesma referência)                                                            |
+| `EasingSpec`, `DEFAULT_EASING`, `evalEasing`, `easingControlPoints`                                                             | easing: `linear`/`easeIn`/`easeOut`/`easeInOut`/`cubicBezier`; avaliação WebKit UnitBezier                      |
+| `sampleAnimation(doc, t)` → `AnimationSample`; `sampleTrack`                                                                    | amostra o doc em `t` → `Map<nodeId, Map<prop, value>>`                                                          |
+| `interpolateValue`, `parseColor`, `mixColor`                                                                                    | interpolação número (lerp) + cor (`#rgb`/`rgb()`/`rgba()`); tipos incompatíveis seguram discreto                |
+| `applyAnimationToTree(tree, sample)`                                                                                            | overlay não-destrutivo: identidade p/ sample vazio + structural sharing                                         |
+| `animatablePropertiesForNode`, `findAnimatableProperty`, `readAnimatableValue`, `AnimatablePropertyDef`                         | catálogo de props animáveis por tipo (geometria por tipo + transform + style)                                   |
+| `AddKeyframeCommand`, `MoveKeyframeCommand`, `RemoveKeyframeCommand`, `SetKeyframeEasingCommand`, `SetAnimationDurationCommand` | comandos undoable (escrevem `customData[ANIMATION_KEY]` do container)                                           |
+
+### `svg-engine/edit` — engine + transporte (escopados, `provideSvgEngineEditorScope`)
+
+| Símbolo                            | Descrição                                                                                                                                                                                                                                                   |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AnimationService` (`@Injectable`) | `doc()`/`tracks()`/`durationMs()` derivados do documento; `containerId()` (página ativa/root); CRUD (`addKeyframe`/`removeKeyframe`/`moveKeyframe`/`setKeyframeEasing`/`setDuration`); `sample(t)`; `animatablePropertiesFor(id)`; `currentValue(id, prop)` |
+| `PlaybackService` (`@Injectable`)  | `playhead()`/`isPlaying()`/`loop()`/`speed()`/`durationMs()`; `play`/`pause`/`toggle`/`seek`/`step`/`stepForward`/`stepBackward`/`goToStart`/`goToEnd`/`setLoop`/`setSpeed`/`tick`; loop `requestAnimationFrame` (DestroyRef cancela)                       |
+
+### `svg-engine/ui` — UI
+
+| Símbolo                            | Descrição                                                                                                                                                         |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SvgeTimeline` (`<svge-timeline>`) | dock da timeline: régua + tracks/keyframes + playhead + transporte + criação/edição (drag, easing, duração, scrub). Montado por `<svge-shell-pro [showTimeline]>` |
+
+### `svg-engine/io` — persistência
+
+O `AnimationDoc` faz round-trip via atributo `data-svge-animation` (JSON) no
+grupo da página — emitido pelo `svgExporter`, relido pelo `svgImporter`. Como o
+`AutoSave` serializa pelo exporter SVG, a animação persiste no save/recovery.
+
+---
+
 ## Convenções
 
 - **Nomes**: `PascalCase` para classes/interfaces/tipos; `camelCase` para

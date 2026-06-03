@@ -6,6 +6,47 @@
 
 ---
 
+## 2026-06-03 — D-082 Animation Timeline (MVP F0–F8) ✅
+
+Timeline de animação **não-destrutiva** ("camada acima"), implementada em 8
+fases (commits `17eefcb` → `f23f519`). O documento base nunca é mutado: o
+`playhead` é um signal e a árvore exibida é derivada via
+`applyAnimationToTree(base, sampleAnimation(playhead))` — com identidade
+referencial em `t=0` sem tracks (render/hit-test/export idênticos ao editor de
+hoje). Opt-in por `<svge-shell-pro [showTimeline]>`.
+
+- **F0/F1 (core)** — modelo headless (`AnimationDoc`/`AnimationTrack`/
+  `Keyframe` em `metadata.customData[svgeAnimation]`), easing puro
+  (linear/easeIn/easeOut/easeInOut/cubicBezier), `sampleAnimation`,
+  interpolação (número lerp + cor) e `applyAnimationToTree` (overlay com
+  structural sharing).
+- **F2 (core+edit)** — comandos undoable (Add/Move/Remove keyframe, SetEasing,
+  SetDuration) + `AnimationService` (engine) e `PlaybackService` (transporte,
+  loop `requestAnimationFrame`), escopados em `provideSvgEngineEditorScope`.
+- **F3 (core)** — catálogo de propriedades animáveis por tipo de nó (geometria
+  - transform + style), com sets canônicos compartilhados com o apply.
+- **F4–F6 (ui)** — `<svge-timeline>`: read-only → editável (criar/mover/deletar
+  keyframe, easing, duração, scrubbing) → preview ao vivo no canvas +
+  transporte. Única fiação cross-cutting do shell (`animatedTree()`), atrás de
+  `[showTimeline]`.
+- **F7 (io)** — persistência: o `AnimationDoc` faz round-trip via atributo
+  `data-svge-animation` (JSON) no grupo da página. Como o AutoSave serializa
+  pelo `svgExporter`, a animação persiste no save/recovery. Export SVG/PNG
+  padrão continua exportando a base no `t` corrente.
+- **F8** — doc-catchup (este registro + 04 D-082 `✅ impl` + 05 roadmap Fase 9
+  - 06 componentes + 09 API).
+
+**Auto-snapshot (D-073)**: edições de keyframe/duração **não** são marcadas
+`isDestructive` (são rotineiras e baratas de desfazer) — por design, sem
+auto-snapshot. **Adiado (F9+)**: export animado (SMIL/CSS/Lottie/vídeo),
+path-`d` morph, motion path, curva de easing custom (UI bezier).
+
+Gate por fase: `build:lib` RC=0 + `test:lib` verde (+~80 specs no total) +
+lint limpo (x3). Suíte final: **2069 passed | 1 skipped** (flake conhecido do
+`pages.spec.ts`).
+
+---
+
 ## 2026-05-29 — Auditoria Round 3 + Doc-Catchup Phase 1
 
 **Contexto.** Auditoria sistemática profunda com 6 subagentes paralelos cobrindo dimensões diferentes (entry points, core, edit, ui+svg-studio, io+optimize+ai+playground, doc drift). Cada agente com briefing explícito anti-alucinação exigindo `file:line` por claim. Após retorno dos 6, todas as claims foram re-verificadas via Read/Grep direto antes de virar registro persistente (protocolo "auditar antes de agir" — estabelecido como regra absoluta pelo proprietário no mesmo dia).

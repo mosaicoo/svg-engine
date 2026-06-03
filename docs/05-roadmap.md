@@ -490,30 +490,33 @@
 
 ---
 
-## Fase 9 — Animation Timeline (D-082 — planejado, não iniciado)
+## Fase 9 — Animation Timeline (D-082 — ✅ MVP implementado, F0–F8)
 
 Timeline de animação **não-destrutiva** ("camada acima": o documento base
 nunca é mutado; o `playhead` é um signal e a árvore animada é derivada e
 alimenta o renderer). Ver **D-082** em `04-decisoes-tecnicas.md` para a
-decisão completa, invariantes de não-quebra e decisões em aberto.
+decisão completa, invariantes de não-quebra e o status de implementação.
 
-- [ ] **F0** — Contrato headless (`AnimationDoc` + `sampleAnimation` + easing + `AddKeyframe`) + specs-trava
-- [ ] **F1** — Interpolação + `applyAnimationToTree` (identidade em t0; lerp
-      número/cor/transform)
-- [ ] **F2** — `AnimationService` + `PlaybackService` escopados + comandos
-      undoable
-- [ ] **F3** — Catálogo de propriedades animáveis por tipo (reusa Inspector)
-- [ ] **F4** — `<svge-timeline>` read-only (dock inferior opt-in `[showTimeline]`)
-- [ ] **F5** — Edição (criar/mover/deletar keyframe, easing, duração, scrub)
-- [ ] **F6** — Preview no canvas (`animatedTree()` → renderer) + transporte
-      ao vivo (play/pause/step/loop/speed)
-- [ ] **F7** — Persistência (metadata/AutoSave) + round-trip + auto-snapshot
-- [ ] **F8** — Doc-catchup + validação final
-- [ ] **(Futuro)** Export (SMIL/CSS/Lottie/vídeo), path-`d` morph, motion path
+- [x] **F0** — Contrato headless (`AnimationDoc` + `sampleAnimation` + easing + `AddKeyframe`) + specs-trava — `17eefcb`
+- [x] **F1** — Interpolação + `applyAnimationToTree` (identidade em t0; lerp
+      número/cor/transform) — `aa1b115`
+- [x] **F2** — `AnimationService` + `PlaybackService` escopados + comandos
+      undoable (Add/Move/Remove/SetEasing/SetDuration) — `09c714d`
+- [x] **F3** — Catálogo de propriedades animáveis por tipo (reusa Inspector) — `745beb5`
+- [x] **F4** — `<svge-timeline>` read-only (dock inferior opt-in `[showTimeline]`) — `64d2a6a`
+- [x] **F5** — Edição (criar/mover/deletar keyframe, easing, duração, scrub) — `0d3832c`
+- [x] **F6** — Preview no canvas (`animatedTree()` → renderer) + transporte
+      ao vivo (play/pause/step/loop/speed) — `244ab57`
+- [x] **F7** — Persistência via round-trip do exporter/importer SVG
+      (`data-svge-animation`); auto-snapshot dispensado (edições rotineiras) — `f23f519`
+- [x] **F8** — Doc-catchup + validação final
+- [ ] **(Futuro, fora do MVP)** Export animado (SMIL/CSS/Lottie/vídeo),
+      path-`d` morph, motion path, curva de easing custom (UI bezier)
 
-**Decisões em aberto antes do F0**: v1 só-preview vs export (e alvo);
-persistir no documento vs sessão; props do v1 (adiar path-`d` morph); reusar
-entry points existentes vs novo `svg-engine/animate`.
+**Decisões em aberto fechadas no F0**: v1 = só-preview (export adiado p/ F9+);
+persistência no documento (round-trip via metadata/`data-svge-animation`);
+props do v1 = geometria + transform + style (path-`d` morph adiado); reuso dos
+entry points `core`/`edit`/`ui` (sem novo `svg-engine/animate`).
 
 ---
 

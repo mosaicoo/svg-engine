@@ -363,6 +363,16 @@ Algumas necessidades parecem plugin mas não são:
   (Union/Intersect/Subtract/Exclude/Divide) cobrem os casos clássicos
   e são built-in. Para uma op derivada (ex.: "Trim"), você escreve um
   command próprio compondo dispatches dos 5 — não há `PathfinderOpRegistry`.
+- **Usar a Animation Timeline (D-082)** — NÃO é um plugin. É consumida
+  via serviços escopados (`AnimationService` + `PlaybackService` do
+  `provideSvgEngineEditorScope`) + o componente `<svge-timeline>`, montado
+  pelo shell via `<svge-shell-pro [showTimeline]="true">`. O modelo
+  (`AnimationDoc`) e os comandos undoable vivem em `svg-engine/core`; a
+  persistência é automática (round-trip do exporter/importer SVG via
+  `data-svge-animation`). Para animar programaticamente, injete o
+  `AnimationService` e chame `addKeyframe(...)`/`setDuration(...)` — tudo
+  passa pelo CommandBus (undo unificado). Um `builtinAnimationPlugin`
+  (menu + atalhos) é ideia futura, não implementada no MVP.
 
 Se sua necessidade não cabe nas 9 categorias do D-023 + não é uma
 das exclusões acima, abra issue propondo uma nova categoria.

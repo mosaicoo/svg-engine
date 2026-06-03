@@ -2219,8 +2219,9 @@ PAGES-E) para 1792+ passing. Zero regressão em nenhuma fase.
 
 ## D-082 — Animation Timeline (camada de animação não-destrutiva)
 
-**Status**: 🟡 Aceito (planejado) — plano de fases; implementação **ainda
-não iniciada** (registrado 2026-06-03)
+**Status**: ✅ Aceito + **MVP implementado** (F0–F8) — registrado 2026-06-03,
+implementado 2026-06-03 (commits `17eefcb` → `f23f519`). Export animado e
+path-`d` morph permanecem **adiados** (F9+, fora do MVP).
 
 ### Contexto
 
