@@ -46,21 +46,38 @@ describe('roundPathCorners', () => {
 
   it('uses a TANGENT trim for non-90° corners (trim = r / tan(θ/2), not r)', () => {
     // Equilateral triangle: every interior angle = 60°. For radius 10 the
-    // tangent length is 10 / tan(30°) ≈ 17.32 — NOT 10. The old 90°-only
-    // code trimmed by exactly `r`, so the first point would land at ≈5;
-    // the tangent fillet pushes it out to ≈8.66 (= 17.32 · cos(30°)).
+    // tangent length is 10 / tan(30°) ≈ 17.32 — NOT 10. A closed subpath
+    // starts the M at the first vertex's OUTGOING tangent point:
+    //   V=(0,0), toward next (100,0) → unit (1,0) → M ≈ (17.32, 0).
+    // The old 90°-only code trimmed by exactly r=10 → would be (10, 0), so
+    // an x ≈ 17.32 proves the tangent trim is in effect.
     const d = 'M0 0 L100 0 L50 86.6025 Z';
     const out = roundPathCorners(d, 10);
-    // Closed subpath starts the M at the first vertex's tangent point:
-    //   V=(0,0), toward prev (50,86.6025) → unit (0.5, 0.8660)
-    //   tangent point = 17.3205 · (0.5, 0.8660) ≈ (8.6603, 15.0)
     const m = out.match(/^M([\d.eE+-]+) ([\d.eE+-]+)/);
     expect(m).not.toBeNull();
     const x = Number(m![1]);
     const y = Number(m![2]);
-    expect(x).toBeGreaterThan(8); // old (trim = r) would put this at ~5
-    expect(x).toBeLessThan(9);
-    expect(y).toBeCloseTo(15, 1);
+    expect(x).toBeGreaterThan(15); // old (trim = r = 10) would be 10
+    expect(x).toBeLessThan(19);
+    expect(y).toBeCloseTo(0, 1);
+  });
+
+  it('closes a rounded path cleanly — last corner arc ends at M (no leftover chord/lens)', () => {
+    // Regression for the closing-vertex bug: a closed subpath must start the
+    // M at the first vertex's OUTGOING tangent point so the final corner arc
+    // (vertex 0) lands exactly on M and the closing Z is zero-length. The old
+    // code started M at the INCOMING tangent point, so Z drew a stray chord
+    // and vertex 0's arc + that chord formed a detached "lens" at the start
+    // vertex (visible as a leaf/spike on closed shapes).
+    const out = roundPathCorners('M0 0 L100 0 L100 100 L0 100 Z', 10);
+    const m = out.match(/^M([\d.eE+-]+) ([\d.eE+-]+)/);
+    expect(m).not.toBeNull();
+    // Last "A rx ry rot largeArc sweep x y" before the closing Z.
+    const arcs = [...out.matchAll(/A[\d.eE+-]+ [\d.eE+-]+ \d+ \d+ \d+ ([\d.eE+-]+) ([\d.eE+-]+)/g)];
+    expect(arcs.length).toBeGreaterThan(0);
+    const last = arcs[arcs.length - 1]!;
+    expect(Number(last[1])).toBeCloseTo(Number(m![1]), 3);
+    expect(Number(last[2])).toBeCloseTo(Number(m![2]), 3);
   });
 
   it('emits the TRUE fillet radius (≈ requested) as the arc rx for a non-90° corner', () => {

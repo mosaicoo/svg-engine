@@ -162,11 +162,16 @@ function emitRoundedSubpath(sub: AnchorSubpath, radius: number): string {
   }
 
   // Emit commands. For the first anchor's "start" position:
-  // - Closed subpath: start at the FIRST trimIn (we'll close with a
-  //   final arc + Z).
+  // - Closed subpath: start at the FIRST anchor's OUTGOING tangent point
+  //   (`trimOut[0]`, on the edge toward anchor 1). The final corner arc
+  //   (anchor 0) lands exactly back on this point, so the closing `Z` has
+  //   zero length. Starting at `trimIn[0]` instead (the INCOMING tangent
+  //   point) is wrong: the first edge would cut a chord across vertex 0,
+  //   and `Z` would draw a stray chord back — leaving a detached arc+chord
+  //   "lens" at the path's start vertex.
   // - Open subpath: start at anchors[0].point (untrimmed endpoint).
   const out: string[] = [];
-  const startPt = sub.closed ? trimIn[0]! : anchors[0]!.point;
+  const startPt = sub.closed ? trimOut[0]! : anchors[0]!.point;
   out.push(`M${fmt(startPt.x)} ${fmt(startPt.y)}`);
 
   // For each anchor i ≥ 1, draw the edge from the PREVIOUS trimOut
