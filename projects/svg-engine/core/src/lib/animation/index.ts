@@ -14,4 +14,12 @@ export {
   removeKeyframe,
   upsertKeyframe,
 } from './animation-doc';
-export { type AnimationSample, sampleAnimation, sampleTrack } from './sample-animation';
+export {
+  type AnimationSample,
+  type AnimationValue,
+  sampleAnimation,
+  sampleTrack,
+} from './sample-animation';
+// F1 — value interpolation (number + color) and the non-destructive overlay.
+export { interpolateValue, mixColor, parseColor } from './interpolate';
+export { applyAnimationToTree } from './apply-animation';

@@ -1,27 +1,31 @@
 import type { NodeId } from '../types/node-id';
 import type { AnimationDoc, AnimationTrack } from './animation-doc';
 import { evalEasing } from './easing';
+import { interpolateValue } from './interpolate';
 
 /**
- * **D-082 (Animation Timeline) — F0.** Sample an {@link AnimationDoc} at a
+ * **D-082 (Animation Timeline) — F0/F1.** Sample an {@link AnimationDoc} at a
  * given time, producing the set of property overrides to apply.
  *
- * The result is `nodeId → (property → value)`. A later phase (F1) feeds this
- * into `applyAnimationToTree(baseTree, overrides)` to derive the displayed
- * tree non-destructively — the base document is never mutated.
+ * The result is `nodeId → (property → value)`. `applyAnimationToTree(baseTree,
+ * sample)` (F1) feeds this into the tree to derive the displayed tree
+ * non-destructively — the base document is never mutated.
  *
- * Pure, headless. F0 interpolates **numeric** values only.
+ * Pure, headless. Values are `number` (numeric props / transform components)
+ * or `string` (colors); interpolation per kind is handled by
+ * {@link interpolateValue}.
  */
-export type AnimationSample = ReadonlyMap<NodeId, ReadonlyMap<string, number>>;
+export type AnimationValue = number | string;
+export type AnimationSample = ReadonlyMap<NodeId, ReadonlyMap<string, AnimationValue>>;
 
 /**
  * Interpolate a single track at `timeMs`:
  * - empty track → `null` (no override);
  * - before the first keyframe / after the last → that keyframe's value (hold);
- * - between two keyframes → eased linear interpolation, using the easing of
- *   the segment's STARTING keyframe.
+ * - between two keyframes → `interpolateValue` blended by the easing of the
+ *   segment's STARTING keyframe.
  */
-export function sampleTrack(track: AnimationTrack, timeMs: number): number | null {
+export function sampleTrack(track: AnimationTrack, timeMs: number): AnimationValue | null {
   const ks = track.keyframes;
   if (ks.length === 0) return null;
   const first = ks[0]!;
@@ -35,7 +39,7 @@ export function sampleTrack(track: AnimationTrack, timeMs: number): number | nul
       const span = b.time - a.time;
       const local = span <= 0 ? 0 : (timeMs - a.time) / span;
       const eased = evalEasing(a.easing, local);
-      return a.value + (b.value - a.value) * eased;
+      return interpolateValue(a.value, b.value, eased);
     }
   }
   return last.value; // unreachable (guarded above)
@@ -47,13 +51,13 @@ export function sampleTrack(track: AnimationTrack, timeMs: number): number | nul
  * overridden property.
  */
 export function sampleAnimation(doc: AnimationDoc, timeMs: number): AnimationSample {
-  const out = new Map<NodeId, Map<string, number>>();
+  const out = new Map<NodeId, Map<string, AnimationValue>>();
   for (const track of doc.tracks) {
     const value = sampleTrack(track, timeMs);
     if (value === null) continue;
     let byProp = out.get(track.nodeId);
     if (byProp === undefined) {
-      byProp = new Map<string, number>();
+      byProp = new Map<string, AnimationValue>();
       out.set(track.nodeId, byProp);
     }
     byProp.set(track.property, value);

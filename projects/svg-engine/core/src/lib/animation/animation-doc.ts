@@ -24,14 +24,16 @@ export const ANIMATION_KEY = 'svgeAnimation';
  * shapes the interpolation of the segment **starting** at this keyframe
  * (toward the next one); it's ignored on the last keyframe of a track.
  *
- * **F0 scope**: `value` is numeric. Color/transform interpolation arrives in
- * F1 (the model stays the same — only the interpolator widens).
+ * **Value kinds** (F1): `number` for numeric properties (geometry, opacity,
+ * transform components) and `string` for colors (`fill`/`stroke`). The
+ * interpolator picks the right blend per kind; incompatible pairs hold
+ * discretely (see `interpolateValue`).
  */
 export interface Keyframe {
   /** Time in milliseconds from the timeline start. */
   readonly time: number;
-  /** Numeric value at `time`. */
-  readonly value: number;
+  /** Value at `time` — number (numeric props) or string (colors). */
+  readonly value: number | string;
   /** Easing of the segment starting here (toward the next keyframe). */
   readonly easing: EasingSpec;
 }
