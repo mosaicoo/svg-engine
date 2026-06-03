@@ -9,8 +9,8 @@ import {
   EditorStateService,
   type RectNode,
 } from 'svg-engine/core';
-import { AnimationService, PlaybackService } from 'svg-engine/edit';
-import { SvgeTimeline } from './timeline.component';
+import { AnimationService, PlaybackService, SelectionService } from 'svg-engine/edit';
+import { clientXToTime, SvgeTimeline } from './timeline.component';
 
 @Component({
   standalone: true,
@@ -115,5 +115,177 @@ describe('D-082 F4 — SvgeTimeline (read-only)', () => {
     playback.seek(500);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.tl-time')?.textContent).toContain('0.5s / 1s');
+  });
+});
+
+// ── F5 — editing ──────────────────────────────────────────────────────
+
+/** Mount the timeline directly so protected handlers are reachable for
+ * deterministic, DOM-free interaction tests. */
+function mount() {
+  TestBed.resetTestingModule();
+  TestBed.configureTestingModule({ providers: [provideNoopAnimations()] });
+  const state = TestBed.inject(EditorStateService);
+  state.resetDocument(createEmptyDocument());
+  const anim = TestBed.inject(AnimationService);
+  const playback = TestBed.inject(PlaybackService);
+  const selection = TestBed.inject(SelectionService);
+  const fixture = TestBed.createComponent(SvgeTimeline);
+  fixture.detectChanges();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- reach protected handlers in tests
+  const comp = fixture.componentInstance as any;
+  return { fixture, state, anim, playback, selection, comp };
+}
+
+const kfTimes = (anim: AnimationService, nodeId: string, property: string): number[] =>
+  anim
+    .tracks()
+    .find((t) => t.nodeId === nodeId && t.property === property)
+    ?.keyframes.map((k) => k.time) ?? [];
+
+const noop = (): void => {
+  /* test stub */
+};
+
+/** Fake PointerEvent on a keyframe diamond (offsetParent supplies the lane box). */
+function kfDown(left = 0, width = 100): PointerEvent {
+  return {
+    stopPropagation: noop,
+    pointerId: 1,
+    currentTarget: {
+      offsetParent: { getBoundingClientRect: () => ({ left, width }) },
+      setPointerCapture: noop,
+    },
+  } as unknown as PointerEvent;
+}
+function ptrMove(clientX: number): PointerEvent {
+  return { clientX } as PointerEvent;
+}
+function ptrUp(): PointerEvent {
+  return {
+    currentTarget: { releasePointerCapture: noop },
+    pointerId: 1,
+  } as unknown as PointerEvent;
+}
+function scrubDown(clientX: number, width = 200): PointerEvent {
+  return {
+    pointerId: 1,
+    clientX,
+    currentTarget: {
+      getBoundingClientRect: () => ({ left: 0, width }),
+      setPointerCapture: noop,
+    },
+  } as unknown as PointerEvent;
+}
+const targetEvent = (value: string): Event => ({ target: { value } }) as unknown as Event;
+
+describe('D-082 F5 — SvgeTimeline (editing)', () => {
+  describe('clientXToTime (pure)', () => {
+    it('maps clientX to time within [0, duration]', () => {
+      const r = { left: 0, width: 100 };
+      expect(clientXToTime(50, r, 1000)).toBe(500);
+      expect(clientXToTime(0, r, 1000)).toBe(0);
+      expect(clientXToTime(100, r, 1000)).toBe(1000);
+    });
+    it('clamps out-of-range and degenerate inputs', () => {
+      expect(clientXToTime(-20, { left: 0, width: 100 }, 1000)).toBe(0);
+      expect(clientXToTime(9999, { left: 0, width: 100 }, 1000)).toBe(1000);
+      expect(clientXToTime(50, { left: 0, width: 0 }, 1000)).toBe(0); // zero width
+      expect(clientXToTime(50, { left: 0, width: 100 }, 0)).toBe(0); // zero duration
+    });
+    it('honors a non-zero lane offset', () => {
+      expect(clientXToTime(150, { left: 100, width: 100 }, 1000)).toBe(500);
+    });
+  });
+
+  it('the per-track key button sets a keyframe at the playhead capturing the live value', () => {
+    const { fixture, state, anim, playback } = mount();
+    const rect = seedRect(state);
+    anim.addKeyframe(rect.id, 'x', { time: 0, value: 0, easing: DEFAULT_EASING });
+    playback.seek(300);
+    fixture.detectChanges();
+    const keyBtn = fixture.nativeElement.querySelector('.tl-key-btn') as HTMLButtonElement;
+    keyBtn.click();
+    expect(kfTimes(anim, rect.id, 'x')).toEqual([0, 300]);
+    const kf = anim
+      .tracks()
+      .find((t) => t.property === 'x')!
+      .keyframes.find((k) => k.time === 300)!;
+    expect(kf.value).toBe(5); // rect.x === 5 was captured
+  });
+
+  it('dragging a keyframe diamond moves it (undoable command)', () => {
+    const { state, anim, comp } = mount();
+    const rect = seedRect(state);
+    anim.addKeyframe(rect.id, 'x', { time: 0, value: 0, easing: DEFAULT_EASING });
+    comp.onKfDown(kfDown(0, 100), rect.id, 'x', 0);
+    comp.onKfMove(ptrMove(50)); // 50% of 1000ms → 500
+    comp.onKfUp(ptrUp());
+    expect(kfTimes(anim, rect.id, 'x')).toEqual([500]);
+  });
+
+  it('a click on a diamond (no movement) selects without moving it', () => {
+    const { state, anim, comp } = mount();
+    const rect = seedRect(state);
+    anim.addKeyframe(rect.id, 'x', { time: 200, value: 0, easing: DEFAULT_EASING });
+    comp.onKfDown(kfDown(0, 100), rect.id, 'x', 200);
+    comp.onKfUp(ptrUp()); // no move in between
+    expect(kfTimes(anim, rect.id, 'x')).toEqual([200]); // unchanged
+    expect(comp.selectedKfView()).not.toBeNull();
+  });
+
+  it('the footer deletes the selected keyframe', () => {
+    const { fixture, state, anim, comp } = mount();
+    const rect = seedRect(state);
+    anim.addKeyframe(rect.id, 'x', { time: 0, value: 0, easing: DEFAULT_EASING });
+    anim.addKeyframe(rect.id, 'x', { time: 500, value: 9, easing: DEFAULT_EASING });
+    comp.onKfDown(kfDown(), rect.id, 'x', 500);
+    comp.onKfUp(ptrUp());
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.tl-del-btn') as HTMLButtonElement).click();
+    expect(kfTimes(anim, rect.id, 'x')).toEqual([0]);
+    expect(comp.selectedKfView()).toBeNull();
+  });
+
+  it('changes the easing of the selected keyframe', () => {
+    const { state, anim, comp } = mount();
+    const rect = seedRect(state);
+    anim.addKeyframe(rect.id, 'x', { time: 0, value: 0, easing: DEFAULT_EASING });
+    comp.onKfDown(kfDown(), rect.id, 'x', 0);
+    comp.onKfUp(ptrUp());
+    comp.onEasingChange(targetEvent('easeIn'));
+    const kf = anim.tracks().find((t) => t.property === 'x')!.keyframes[0]!;
+    expect(kf.easing).toEqual({ kind: 'easeIn' });
+  });
+
+  it('sets the duration from the header input', () => {
+    const { anim, comp } = mount();
+    expect(anim.durationMs()).toBe(1000); // default
+    comp.onDurationChange(targetEvent('2500'));
+    expect(anim.durationMs()).toBe(2500);
+  });
+
+  it('scrubbing seeks the playhead', () => {
+    const { state, anim, playback, comp } = mount();
+    const rect = seedRect(state);
+    anim.addKeyframe(rect.id, 'x', { time: 0, value: 0, easing: DEFAULT_EASING });
+    comp.onScrubDown(scrubDown(100, 200)); // 100/200 → 50% → 500ms
+    expect(playback.playhead()).toBe(500);
+    comp.onScrubMove(ptrMove(50)); // 50/200 → 25% → 250ms
+    expect(playback.playhead()).toBe(250);
+    comp.onScrubUp(ptrUp());
+  });
+
+  it('starts a new track for a property of the selected shape', () => {
+    const { state, anim, selection, comp } = mount();
+    const rect = seedRect(state);
+    selection.select(rect.id);
+    // 'opacity' is animatable and not yet tracked → addable
+    expect(
+      comp.addableProperties().some((p: { property: string }) => p.property === 'opacity'),
+    ).toBe(true);
+    comp.onAddPropertyChange(targetEvent('opacity'));
+    comp.addTrack();
+    expect(anim.tracks().some((t) => t.nodeId === rect.id && t.property === 'opacity')).toBe(true);
   });
 });
