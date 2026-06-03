@@ -1,4 +1,5 @@
 import {
+  ANIMATION_KEY,
   bbox,
   type BoundingBox,
   createEllipse,
@@ -11,6 +12,7 @@ import {
   createRect,
   createText,
   generateNodeId,
+  isAnimationDoc,
   type NodeFactoryOptions,
   parseTransformAttr,
   SVGE_KIND_KEY,
@@ -228,6 +230,21 @@ function parseAuthoredName(el: Element): string | undefined {
 }
 
 /**
+ * **D-082 F7** — best-effort parse of a `data-svge-animation` attribute value
+ * into an {@link import('svg-engine/core').AnimationDoc}. Returns `null` on
+ * malformed JSON or a value that doesn't satisfy {@link isAnimationDoc} — the
+ * importer never throws on foreign/corrupt input.
+ */
+function tryParseAnimationDoc(raw: string): unknown | null {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return isAnimationDoc(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Mutable view over {@link NodeFactoryOptions} — used by
  * {@link baseFactoryOpts} so callers can splice extra metadata (e.g.,
  * the `customData.svgeKind` layer flag) into the returned object
@@ -348,6 +365,24 @@ function parseElement(
           ...(opts.metadata ?? {}),
           customData,
         };
+      }
+      // **D-082 F7 — Animation Timeline persistence**. Read the page's
+      // AnimationDoc back from `data-svge-animation` and MERGE it into
+      // customData (additive — independent of the svgeKind branch above, so a
+      // 'page' group keeps both its page flag and its animation). Best-effort:
+      // malformed/foreign JSON is ignored, never throws.
+      const rawAnim = el.getAttribute('data-svge-animation');
+      if (rawAnim !== null && rawAnim.length > 0) {
+        const parsedAnim = tryParseAnimationDoc(rawAnim);
+        if (parsedAnim !== null) {
+          opts.metadata = {
+            ...(opts.metadata ?? {}),
+            customData: {
+              ...(opts.metadata?.customData ?? {}),
+              [ANIMATION_KEY]: parsedAnim,
+            },
+          };
+        }
       }
       return createGroup(parseChildren(el, warnings, unsupportedTags), opts);
     }

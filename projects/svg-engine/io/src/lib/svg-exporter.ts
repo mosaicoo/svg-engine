@@ -1,9 +1,11 @@
 import {
+  ANIMATION_KEY,
   type EllipseNode,
   getPageName,
   getPageViewBox,
   type GroupNode,
   type ImageNode,
+  isAnimationDoc,
   isGroupNode,
   isLayer,
   isPage,
@@ -289,6 +291,20 @@ function renderGroup(node: GroupNode, depth: number, ctx: ExportContext): string
     if (pname.length > 0 && pname !== 'Untitled Page' && pname !== groupBaseName) {
       attrs.push(['data-svge-page-name', pname]);
     }
+  }
+  // **D-082 F7 — Animation Timeline persistence**. Emit the page's
+  // AnimationDoc (stored in `metadata.customData[ANIMATION_KEY]`) as a
+  // JSON-encoded `data-svge-animation` attribute so the animation survives
+  // an export → re-import round-trip — which is exactly how AutoSave
+  // persists (it serializes the document through this SVG exporter and
+  // recovers by re-importing). Same transport mechanism as the layer /
+  // smart-object / page flags, and INDEPENDENT of `data-svge-kind`: a
+  // 'page' group can also carry animation. The attribute value is escaped
+  // by `escapeAttr` (the JSON's `"` become `&quot;`), so it's valid SVG and
+  // is ignored by renderers + preserved by other editors.
+  const animDoc = node.metadata.customData?.[ANIMATION_KEY];
+  if (isAnimationDoc(animDoc)) {
+    attrs.push(['data-svge-animation', JSON.stringify(animDoc)]);
   }
   // **D-072 follow-up — Authored name via `<title>` child**. Emitted
   // as the FIRST child of the group so screen readers announce the
