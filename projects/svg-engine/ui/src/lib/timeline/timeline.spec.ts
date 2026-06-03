@@ -272,6 +272,39 @@ describe('D-082 F5 — SvgeTimeline (editing)', () => {
     expect(comp.selectedKfView()).toBeNull();
   });
 
+  it('Delete on a focused keyframe removes that keyframe (not the shape) and stops the event', () => {
+    const { state, anim, comp } = mount();
+    const rect = seedRect(state);
+    anim.addKeyframe(rect.id, 'x', { time: 0, value: 0, easing: DEFAULT_EASING });
+    anim.addKeyframe(rect.id, 'x', { time: 500, value: 9, easing: DEFAULT_EASING });
+    comp.onKfDown(kfDown(), rect.id, 'x', 500);
+    comp.onKfUp(ptrUp());
+    let stopped = false;
+    const ev = {
+      key: 'Delete',
+      preventDefault: noop,
+      stopPropagation: () => {
+        stopped = true;
+      },
+    } as unknown as KeyboardEvent;
+    comp.onKfKey(ev);
+    expect(kfTimes(anim, rect.id, 'x')).toEqual([0]); // only the selected kf was removed
+    expect(comp.selectedKfView()).toBeNull();
+    expect(stopped).toBe(true); // shell's document Delete handler is prevented
+  });
+
+  it('Escape on a focused keyframe clears the selection', () => {
+    const { state, anim, comp } = mount();
+    const rect = seedRect(state);
+    anim.addKeyframe(rect.id, 'x', { time: 0, value: 0, easing: DEFAULT_EASING });
+    comp.onKfDown(kfDown(), rect.id, 'x', 0);
+    comp.onKfUp(ptrUp());
+    expect(comp.selectedKfView()).not.toBeNull();
+    comp.onKfKey({ key: 'Escape', preventDefault: noop, stopPropagation: noop } as KeyboardEvent);
+    expect(comp.selectedKfView()).toBeNull();
+    expect(kfTimes(anim, rect.id, 'x')).toEqual([0]); // nothing removed
+  });
+
   it('changes the easing of the selected keyframe', () => {
     const { state, anim, comp } = mount();
     const rect = seedRect(state);

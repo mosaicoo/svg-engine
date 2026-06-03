@@ -258,6 +258,9 @@ export function clientXToTime(
                   @for (kf of row.keyframes; track kf.time) {
                     <span
                       class="tl-kf"
+                      tabindex="0"
+                      role="button"
+                      [attr.aria-label]="kf.title"
                       [class.tl-kf--selected]="isSelectedKf(row.nodeId, row.property, kf.time)"
                       [style.left.%]="kfLeftPct(row.nodeId, row.property, kf)"
                       [title]="kf.title"
@@ -265,6 +268,7 @@ export function clientXToTime(
                       (pointermove)="onKfMove($event)"
                       (pointerup)="onKfUp($event)"
                       (pointercancel)="onKfUp($event)"
+                      (keydown)="onKfKey($event)"
                     ></span>
                   }
                 }
@@ -560,6 +564,10 @@ export function clientXToTime(
     .tl-kf--selected {
       background: var(--mat-sys-tertiary, #7b1fa2);
       box-shadow: 0 0 0 2px var(--mat-sys-tertiary, #7b1fa2);
+    }
+    .tl-kf:focus-visible {
+      outline: 2px solid var(--mat-sys-tertiary, #7b1fa2);
+      outline-offset: 1px;
     }
     .tl-playhead {
       position: absolute;
@@ -970,6 +978,10 @@ export class SvgeTimeline {
       moved: false,
     });
     diamond.setPointerCapture?.(event.pointerId);
+    // Move DOM focus to the diamond so a subsequent Delete/Backspace is handled
+    // here (onKfKey) instead of bubbling to the shell's document-level handler,
+    // which would delete the *canvas shape* rather than the keyframe.
+    diamond.focus?.();
   }
 
   protected onKfMove(event: PointerEvent): void {
@@ -999,6 +1011,28 @@ export class SvgeTimeline {
     this.selected.set({ nodeId: d.nodeId, property: d.property, time: d.currentTime });
     // Follow the moved keyframe with the playhead so the canvas keeps showing it.
     this.playback.seek(d.currentTime);
+  }
+
+  /**
+   * Keyboard on a focused keyframe diamond. **Delete/Backspace removes the
+   * selected keyframe**, not the canvas shape — we `stopPropagation()` so the
+   * shell's document-level Delete handler never fires (it's bubble-phase, so
+   * stopping here is enough). **Escape** clears the keyframe selection. This is
+   * what makes per-keyframe deletion work with the keyboard: clicking a diamond
+   * focuses it (onKfDown), so these keys are routed here first.
+   */
+  protected onKfKey(event: KeyboardEvent): void {
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.deleteSelectedKf();
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.selected.set(null);
+    }
   }
 
   // ── label / formatting / value helpers ────────────────────────────
