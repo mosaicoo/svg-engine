@@ -1,5 +1,6 @@
 import { computed, type Injector, type ProviderToken, type Signal } from '@angular/core';
 import {
+  ANIMATION_KEY,
   CommandBus,
   ConvertNodeToPathCommand,
   CreateLayerCommand,
@@ -43,6 +44,7 @@ import {
   type DistributeAxis,
   type NodeBBox,
 } from '../../alignment';
+import { AnimationService } from '../../animation/animation.service';
 import { ClipboardService } from '../../clipboard/clipboard.service';
 import { SelectSameService } from '../../find-replace/select-same.service';
 import { getRenderedNodeBBox } from '../../geometry/node-bbox';
@@ -253,6 +255,21 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         order: 50,
         run(runCtx) {
           void exportAndDownload(runCtx, fromCtx, 'svg');
+        },
+      }),
+    );
+    // **D-082 F9d** — Export the animation as a standalone animated SVG (native
+    // SMIL). Reuses the SVG export path with the opt-in flag; falls back to a
+    // plain SVG when the page has no animation.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.export-svg-animated',
+        slot: MENU_SLOT.FILE,
+        label: 'Export Animated SVG (SMIL)…',
+        icon: 'animation',
+        order: 55,
+        run(runCtx) {
+          void exportAndDownload(runCtx, fromCtx, 'svg', true);
         },
       }),
     );
@@ -2204,6 +2221,7 @@ async function exportAndDownload(
   runCtx: MenuContributionContext | undefined,
   fromCtx: Resolver,
   format: 'svg' | 'png',
+  animated = false,
 ): Promise<void> {
   if (typeof document === 'undefined' || typeof URL === 'undefined') return;
   const state = fromCtx(EditorStateService, runCtx);
@@ -2227,7 +2245,30 @@ async function exportAndDownload(
   // an export-side projection.
   const activePage = fromCtx(ActivePageService, runCtx);
   const docWithDefs = { ...docRaw, defs: activeDefs.buildExportDefs(docRaw.defs) };
-  const doc = activePage.effectiveExportDoc(docWithDefs);
+  let doc = activePage.effectiveExportDoc(docWithDefs);
+  // **D-082 F9d — Animated SVG (SMIL) export.** `effectiveExportDoc` projects
+  // the active page by replacing the root's children with the page's children
+  // — which DROPS the page group that carries the AnimationDoc in its
+  // customData. Re-attach the active container's AnimationDoc onto the exported
+  // root (whose descendants are the animated nodes) and flip the opt-in flag so
+  // the exporter (F9c) injects the SMIL elements. Skipped when there are no
+  // tracks (a plain SVG export then).
+  if (animated && format === 'svg') {
+    const animDoc = fromCtx(AnimationService, runCtx).doc();
+    if (animDoc.tracks.length > 0) {
+      doc = {
+        ...doc,
+        root: {
+          ...doc.root,
+          metadata: {
+            ...doc.root.metadata,
+            customData: { ...doc.root.metadata.customData, [ANIMATION_KEY]: animDoc },
+          },
+        },
+        exportPreferences: { ...doc.exportPreferences, emitSmilAnimation: true },
+      };
+    }
+  }
   const exporter = format === 'svg' ? svgExporter : pngExporter;
   // `Exporter.export` may return `string` (SVG) or `Promise<string | Blob>`
   // (PNG). Normalize both branches into a Blob for download.
@@ -2244,7 +2285,7 @@ async function exportAndDownload(
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `untitled.${exporter.extension}`;
+  anchor.download = `untitled${animated ? '-animated' : ''}.${exporter.extension}`;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();

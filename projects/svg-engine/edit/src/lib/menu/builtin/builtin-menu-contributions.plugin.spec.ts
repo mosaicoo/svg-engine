@@ -98,6 +98,16 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(ids).toContain('svge.builtin.object.send-to-back');
   });
 
+  it('populates File slot with Export SVG / Export Animated SVG (SMIL) / Export PNG (D-082 F9d)', () => {
+    const { reg } = setupRoot();
+    const ids = reg
+      .bySlot(MENU_SLOT.FILE)()
+      .map((c) => c.id);
+    expect(ids).toContain('svge.builtin.file.export-svg');
+    expect(ids).toContain('svge.builtin.file.export-svg-animated');
+    expect(ids).toContain('svge.builtin.file.export-png');
+  });
+
   it('populates Toolbar, Context Canvas, Context Node slots', () => {
     const { reg } = setupRoot();
     // **Help slot intentionally empty on the edit-side plugin.**
