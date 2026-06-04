@@ -1,5 +1,7 @@
 import {
   ANIMATION_KEY,
+  type AnimationDoc,
+  animationToSmil,
   type EllipseNode,
   getPageName,
   getPageViewBox,
@@ -15,6 +17,7 @@ import {
   type PathNode,
   type PolygonNode,
   type PolylineNode,
+  readAnimationDoc,
   type RectNode,
   roundPathCorners,
   type SvgDocument,
@@ -23,6 +26,7 @@ import {
   type SymbolUseNode,
   type TextNode,
   type Transform,
+  TRANSFORM_PROPERTY_NAMES,
   walk,
 } from 'svg-engine/core';
 import type { Exporter } from './io-types';
@@ -72,7 +76,16 @@ export const svgExporter: Exporter = {
     // here so per-node renderers can ask `shouldEmitTitle(node)`
     // cheaply. Default: emit titles for any node with `metadata.name`.
     const emitTitles = document.exportPreferences?.emitAuthoredTitles !== false;
-    const ctx: ExportContext = { referencedIds, emitTitles };
+    // **D-082 F9c — Animated SVG (SMIL) export** (opt-in). When enabled, build a
+    // `nodeId → AnimationDoc` index once so each rendered node can inject its
+    // `<animate>`/`<animateTransform>` children. Default OFF keeps the AutoSave
+    // round-trip byte-for-byte identical (the animation persists via the
+    // `data-svge-animation` JSON attr regardless — F7).
+    const emitSmil = document.exportPreferences?.emitSmilAnimation === true;
+    const animDocByNode = emitSmil
+      ? buildAnimDocIndex(document.root)
+      : new Map<NodeId, AnimationDoc>();
+    const ctx: ExportContext = { referencedIds, emitTitles, emitSmil, animDocByNode };
     const lines: string[] = [];
     lines.push('<?xml version="1.0" encoding="UTF-8"?>');
     lines.push(
@@ -144,6 +157,59 @@ export function collectReferencedPathIds(root: GroupNode): ReadonlySet<NodeId> {
 interface ExportContext {
   readonly referencedIds: ReadonlySet<NodeId>;
   readonly emitTitles: boolean;
+  /** **D-082 F9c** — whether to inject SMIL animation children (opt-in). */
+  readonly emitSmil: boolean;
+  /** **D-082 F9c** — `nodeId → AnimationDoc` index (empty unless `emitSmil`). */
+  readonly animDocByNode: ReadonlyMap<NodeId, AnimationDoc>;
+}
+
+/**
+ * **D-082 F9c** — Pre-scan: map every animated node id to the {@link AnimationDoc}
+ * that targets it. AnimationDocs live on container groups (pages / root) under
+ * `metadata.customData[ANIMATION_KEY]`; their tracks reference descendant node
+ * ids. The first doc that claims a node wins (a node belongs to one page).
+ */
+function buildAnimDocIndex(root: GroupNode): Map<NodeId, AnimationDoc> {
+  const map = new Map<NodeId, AnimationDoc>();
+  walk(root, (n) => {
+    const doc = readAnimationDoc(n);
+    if (doc === null) return;
+    for (const track of doc.tracks) {
+      if (!map.has(track.nodeId)) map.set(track.nodeId, doc);
+    }
+  });
+  return map;
+}
+
+/** The SMIL children + transform-drop flag for a node, or `null` when none. */
+interface NodeAnimation {
+  /** `<animate>`/`<animateTransform>` element strings (no indentation). */
+  readonly smil: readonly string[];
+  /**
+   * Whether the node's STATIC `transform` attribute must be dropped: a
+   * transform-animated node rebuilds its full transform additively via
+   * `<animateTransform>` (which bakes the static components as constants), so
+   * keeping the static attribute would double-apply it.
+   */
+  readonly dropTransform: boolean;
+}
+
+/**
+ * **D-082 F9c** — Resolve a node's SMIL animation for injection. Returns `null`
+ * when SMIL export is off, the node isn't animated, or there's nothing to emit
+ * (e.g. zero-duration). `animationToSmil` receives the node's static transform
+ * so non-animated transform components are baked as constants.
+ */
+function nodeAnimation(node: SvgNode, ctx: ExportContext): NodeAnimation | null {
+  if (!ctx.emitSmil) return null;
+  const doc = ctx.animDocByNode.get(node.id);
+  if (doc === undefined) return null;
+  const smil = animationToSmil(doc, node.id, node.transform);
+  if (smil.length === 0) return null;
+  const dropTransform = doc.tracks.some(
+    (t) => t.nodeId === node.id && TRANSFORM_PROPERTY_NAMES.has(t.property),
+  );
+  return { smil, dropTransform };
 }
 
 /**
@@ -168,28 +234,41 @@ function titleChildLine(node: SvgNode, depth: number, ctx: ExportContext): strin
 }
 
 /**
- * Wrap a self-closing leaf element so it carries a `<title>` child
- * when the node is authored-named. Without this helper every leaf
- * renderer would need a fork between "self-close" and "open-title-
- * close" branches; isolating the branch keeps each renderer readable.
+ * Render a leaf element (`rect`, `path`, `use`, …) from its geometry-specific
+ * attributes, appending the common base attrs (style + transform) and any
+ * child elements: a `<title>` (authored name) and — when SMIL export is on
+ * (D-082 F9c) and the node is animated — `<animate>` / `<animateTransform>`
+ * children. Self-closes when there are no children; otherwise emits the
+ * open/children/close form. A transform-animated node drops its static
+ * `transform` attribute (rebuilt additively by `<animateTransform>`).
  *
- * `selfClosingTag` is the full element string the renderer would have
- * emitted (e.g., `<rect x="0" y="0" .../>`). When titling is required
- * the leading `<` is preserved, the `/` and final `>` are dropped,
- * children get an extra indent level, and the closing tag is appended.
+ * `geometryAttrs` are the element-type-specific attributes (e.g. `x`/`y`/
+ * `width`/`height` for a rect); base attrs are appended here so the
+ * transform-drop decision lives in one place.
  */
-function wrapLeafWithTitle(
+function renderLeaf(
   tagName: string,
-  attrsString: string,
+  geometryAttrs: readonly [string, string][],
   depth: number,
   node: SvgNode,
   ctx: ExportContext,
 ): string {
   const indent = '  '.repeat(depth);
-  if (!shouldEmitTitle(node, ctx)) {
+  const anim = nodeAnimation(node, ctx);
+  const attrsString = attrsStr([
+    ...geometryAttrs,
+    ...baseAttrs(node, anim?.dropTransform ?? false),
+  ]);
+  const childLines: string[] = [];
+  if (shouldEmitTitle(node, ctx)) childLines.push(titleChildLine(node, depth + 1, ctx));
+  if (anim !== null) {
+    const childIndent = '  '.repeat(depth + 1);
+    for (const el of anim.smil) childLines.push(`${childIndent}${el}`);
+  }
+  if (childLines.length === 0) {
     return `${indent}<${tagName}${attrsString} />`;
   }
-  return `${indent}<${tagName}${attrsString}>\n${titleChildLine(node, depth + 1, ctx)}\n${indent}</${tagName}>`;
+  return `${indent}<${tagName}${attrsString}>\n${childLines.join('\n')}\n${indent}</${tagName}>`;
 }
 
 // ── Element renderers ─────────────────────────────────────────────
@@ -238,12 +317,15 @@ function renderSymbolUse(node: SymbolUseNode, depth: number, ctx: ExportContext)
   ];
   if (node.width !== undefined) attrs.push(['width', fmt(node.width)]);
   if (node.height !== undefined) attrs.push(['height', fmt(node.height)]);
-  return wrapLeafWithTitle('use', attrsStr([...attrs, ...baseAttrs(node)]), depth, node, ctx);
+  return renderLeaf('use', attrs, depth, node, ctx);
 }
 
 function renderGroup(node: GroupNode, depth: number, ctx: ExportContext): string {
   const indent = '  '.repeat(depth);
-  const attrs = baseAttrs(node);
+  // **D-082 F9c** — a group can itself be animated (transform/opacity); resolve
+  // its SMIL children + transform-drop before building the attribute set.
+  const anim = nodeAnimation(node, ctx);
+  const attrs = baseAttrs(node, anim?.dropTransform ?? false);
   // Capture metadata.name BEFORE the kind-narrowing if-chain. The
   // chained `is GroupNode` guards (isLayer/isSmartObject/isPage) cause
   // TS to narrow `node` to `never` after a few branches even though
@@ -312,19 +394,27 @@ function renderGroup(node: GroupNode, depth: number, ctx: ExportContext): string
   // group has no authored name OR the document opted out of title
   // emission (`exportPreferences.emitAuthoredTitles === false`).
   const titleLine = shouldEmitTitle(node, ctx) ? titleChildLine(node, depth + 1, ctx) : '';
+  // **D-082 F9c** — the group's own `<animate>`/`<animateTransform>` children,
+  // emitted right after the title (before child shapes).
+  const childIndent = '  '.repeat(depth + 1);
+  const animLines = anim !== null ? anim.smil.map((el) => `${childIndent}${el}`) : [];
 
   if (!isGroupNode(node) || node.children.length === 0) {
     // Empty group still renders (preserves structure for round-trip).
-    // When the empty group has a title we MUST switch to open+close
-    // form so the title can live as a child — self-closing wouldn't
-    // permit children.
-    if (titleLine.length > 0) {
-      return `${indent}<g${attrsStr(attrs)}>\n${titleLine}\n${indent}</g>`;
+    // When the empty group has a title OR its own animation we MUST switch to
+    // open+close form so those children can live inside — self-closing
+    // wouldn't permit children.
+    const head: string[] = [];
+    if (titleLine.length > 0) head.push(titleLine);
+    head.push(...animLines);
+    if (head.length > 0) {
+      return `${indent}<g${attrsStr(attrs)}>\n${head.join('\n')}\n${indent}</g>`;
     }
     return `${indent}<g${attrsStr(attrs)} />`;
   }
   const lines = [`${indent}<g${attrsStr(attrs)}>`];
   if (titleLine.length > 0) lines.push(titleLine);
+  lines.push(...animLines);
   for (const child of node.children) {
     // Filter empty strings — renderNode returns '' for hidden nodes
     // (metadata.visible === false). Skip them so we don't emit blank
@@ -345,7 +435,7 @@ function renderRect(node: RectNode, depth: number, ctx: ExportContext): string {
   ];
   if (node.rx !== undefined) attrs.push(['rx', fmt(node.rx)]);
   if (node.ry !== undefined) attrs.push(['ry', fmt(node.ry)]);
-  return wrapLeafWithTitle('rect', attrsStr([...attrs, ...baseAttrs(node)]), depth, node, ctx);
+  return renderLeaf('rect', attrs, depth, node, ctx);
 }
 
 function renderEllipse(node: EllipseNode, depth: number, ctx: ExportContext): string {
@@ -355,7 +445,7 @@ function renderEllipse(node: EllipseNode, depth: number, ctx: ExportContext): st
     ['rx', fmt(node.rx)],
     ['ry', fmt(node.ry)],
   ];
-  return wrapLeafWithTitle('ellipse', attrsStr([...attrs, ...baseAttrs(node)]), depth, node, ctx);
+  return renderLeaf('ellipse', attrs, depth, node, ctx);
 }
 
 function renderLine(node: LineNode, depth: number, ctx: ExportContext): string {
@@ -365,19 +455,19 @@ function renderLine(node: LineNode, depth: number, ctx: ExportContext): string {
     ['x2', fmt(node.x2)],
     ['y2', fmt(node.y2)],
   ];
-  return wrapLeafWithTitle('line', attrsStr([...attrs, ...baseAttrs(node)]), depth, node, ctx);
+  return renderLeaf('line', attrs, depth, node, ctx);
 }
 
 function renderPolygon(node: PolygonNode, depth: number, ctx: ExportContext): string {
   const points = node.points.map((p) => `${fmt(p.x)},${fmt(p.y)}`).join(' ');
   const attrs: [string, string][] = [['points', points]];
-  return wrapLeafWithTitle('polygon', attrsStr([...attrs, ...baseAttrs(node)]), depth, node, ctx);
+  return renderLeaf('polygon', attrs, depth, node, ctx);
 }
 
 function renderPolyline(node: PolylineNode, depth: number, ctx: ExportContext): string {
   const points = node.points.map((p) => `${fmt(p.x)},${fmt(p.y)}`).join(' ');
   const attrs: [string, string][] = [['points', points]];
-  return wrapLeafWithTitle('polyline', attrsStr([...attrs, ...baseAttrs(node)]), depth, node, ctx);
+  return renderLeaf('polyline', attrs, depth, node, ctx);
 }
 
 function renderPath(node: PathNode, depth: number, ctx: ExportContext): string {
@@ -395,7 +485,7 @@ function renderPath(node: PathNode, depth: number, ctx: ExportContext): string {
   if (ctx.referencedIds.has(node.id)) {
     attrs.push(['id', node.id]);
   }
-  return wrapLeafWithTitle('path', attrsStr([...attrs, ...baseAttrs(node)]), depth, node, ctx);
+  return renderLeaf('path', attrs, depth, node, ctx);
 }
 
 function renderText(node: TextNode, depth: number, ctx: ExportContext): string {
@@ -432,12 +522,20 @@ function renderText(node: TextNode, depth: number, ctx: ExportContext): string {
   }
   if (styleProps.length > 0) attrs.push(['style', styleProps.join('; ')]);
 
-  // D-053 — Text on path. When textPathRef is set, content lives inside
-  // a <textPath href="#id"> child instead of as direct text. The
-  // renderer pre-collapses whitespace; mirror that to avoid the
-  // typical \n-to-space stretch issue. `textPathRef` is the target
-  // path's NodeId (UUID) which `renderPath` emits as `id="UUID"` via
-  // `ctx.referencedIds`.
+  // **D-082 F9c** — text can be animated (x/y/opacity/fill/transform). Resolve
+  // its SMIL + transform-drop once and inject the elements as children in every
+  // text shape (textPath / multi-line / single-line). `attrsString` and the
+  // child-indent are shared by all branches below.
+  const anim = nodeAnimation(node, ctx);
+  const attrsString = attrsStr([...attrs, ...baseAttrs(node, anim?.dropTransform ?? false)]);
+  const childIndent = '  '.repeat(depth + 1);
+  const animLines = anim !== null ? anim.smil.map((el) => `${childIndent}${el}`) : [];
+  const titleLine = shouldEmitTitle(node, ctx) ? titleChildLine(node, depth + 1, ctx) : null;
+  const titleLines = titleLine !== null ? [titleLine] : [];
+
+  // D-053 — Text on path. When textPathRef is set, content lives inside a
+  // <textPath href="#id"> child instead of as direct text. The renderer
+  // pre-collapses whitespace; mirror that to avoid the \n-to-space stretch.
   const ref = node.textPathRef;
   if (ref !== undefined && ref !== null && ref !== '') {
     const flat = node.content.replace(/\s+/g, ' ');
@@ -447,50 +545,41 @@ function renderText(node: TextNode, depth: number, ctx: ExportContext): string {
         ? ` startOffset="${escapeAttr(startOffset)}"`
         : '';
     const refStr = ref as unknown as string;
-    const titleLine = shouldEmitTitle(node, ctx) ? `${titleChildLine(node, depth + 1, ctx)}\n` : '';
-    return `${indent}<text${attrsStr([...attrs, ...baseAttrs(node)])}>\n${titleLine}${'  '.repeat(depth + 1)}<textPath href="#${escapeAttr(refStr)}"${offsetAttr}>${escapeXml(flat)}</textPath>\n${indent}</text>`;
+    const children = [
+      ...titleLines,
+      ...animLines,
+      `${childIndent}<textPath href="#${escapeAttr(refStr)}"${offsetAttr}>${escapeXml(flat)}</textPath>`,
+    ];
+    return `${indent}<text${attrsString}>\n${children.join('\n')}\n${indent}</text>`;
   }
 
-  // **D-053/D-069 follow-up — Multi-line tspan emission**. The
-  // editor's canvas renderer splits `node.content` on `\n` and emits
-  // one `<tspan dy>` per line so what the user sees is laid out as
-  // real text lines (not a single run with literal newlines, which
-  // most SVG viewers collapse to a single space). Mirror that in the
-  // exporter so a saved file opens elsewhere with the same line
-  // layout — otherwise WYSIWYG breaks the moment the file leaves the
-  // editor. Single-line text (no `\n`) keeps the plain-character-data
-  // shape for back-compat with snapshots / specs / other tools that
-  // expected the legacy form.
+  // **D-053/D-069 follow-up — Multi-line tspan emission**. The editor's canvas
+  // renderer splits `node.content` on `\n` and emits one `<tspan dy>` per line
+  // so the saved file opens elsewhere with the same line layout. Single-line
+  // text (no `\n`) keeps the plain-character-data shape for back-compat.
   const lines = node.content.includes('\n') ? node.content.split('\n') : null;
-  const titleLine = shouldEmitTitle(node, ctx) ? titleChildLine(node, depth + 1, ctx) : null;
 
   if (lines !== null) {
-    // Multi-line — emit a `<tspan>` per line. Every tspan resets `x`
-    // to the parent text's `x` (without it, tspans flow continuously
-    // from the previous run's end-x, which is NOT a line break). `dy`
-    // shifts each line down by `lineHeight em`s relative to the
-    // previous baseline; first line uses `0` so we don't push the
-    // text below `node.y` (single-line equivalent stays at y exactly).
+    // Each tspan resets `x` to the parent text's `x` (a real line break); `dy`
+    // shifts each line down by `lineHeight em`s (first line `0`).
     const lineDy = resolveLineHeightEm(node);
-    const innerIndent = '  '.repeat(depth + 1);
     const xAttr = fmt(node.x);
-    const tspans = lines
-      .map((line, i) => {
-        const dy = i === 0 ? '0' : lineDy;
-        return `${innerIndent}<tspan x="${xAttr}" dy="${dy}">${escapeXml(line)}</tspan>`;
-      })
-      .join('\n');
-    const titlePrefix = titleLine !== null ? `${titleLine}\n` : '';
-    return `${indent}<text${attrsStr([...attrs, ...baseAttrs(node)])}>\n${titlePrefix}${tspans}\n${indent}</text>`;
+    const tspans = lines.map((line, i) => {
+      const dy = i === 0 ? '0' : lineDy;
+      return `${childIndent}<tspan x="${xAttr}" dy="${dy}">${escapeXml(line)}</tspan>`;
+    });
+    const children = [...titleLines, ...animLines, ...tspans];
+    return `${indent}<text${attrsString}>\n${children.join('\n')}\n${indent}</text>`;
   }
 
-  // **D-072 follow-up** — Single-line text with an authored name:
-  // emit `<title>` child before the text content so screen readers
-  // announce the name first.
-  if (titleLine !== null) {
-    return `${indent}<text${attrsStr([...attrs, ...baseAttrs(node)])}>\n${titleLine}\n${'  '.repeat(depth + 1)}${escapeXml(node.content)}\n${indent}</text>`;
+  // Single-line. Use the compact inline form ONLY when there are no children
+  // (no authored title, no animation); otherwise open/close with children so
+  // the title/animation can live inside.
+  if (titleLines.length > 0 || animLines.length > 0) {
+    const children = [...titleLines, ...animLines, `${childIndent}${escapeXml(node.content)}`];
+    return `${indent}<text${attrsString}>\n${children.join('\n')}\n${indent}</text>`;
   }
-  return `${indent}<text${attrsStr([...attrs, ...baseAttrs(node)])}>${escapeXml(node.content)}</text>`;
+  return `${indent}<text${attrsString}>${escapeXml(node.content)}</text>`;
 }
 
 /**
@@ -516,7 +605,7 @@ function renderImage(node: ImageNode, depth: number, ctx: ExportContext): string
     ['height', fmt(node.height)],
     ['href', node.href],
   ];
-  return wrapLeafWithTitle('image', attrsStr([...attrs, ...baseAttrs(node)]), depth, node, ctx);
+  return renderLeaf('image', attrs, depth, node, ctx);
 }
 
 // ── Base attributes (style, transform) ─────────────────────────────
@@ -530,10 +619,13 @@ function renderImage(node: ImageNode, depth: number, ctx: ExportContext): string
  * elements via `titleChildLine` / `wrapLeafWithTitle`, NOT via
  * attributes — see {@link ExportContext} for the rationale.
  */
-function baseAttrs(node: SvgNode): [string, string][] {
+function baseAttrs(node: SvgNode, skipTransform = false): [string, string][] {
   const out: [string, string][] = [];
   out.push(...styleAttrs(node.style));
-  if (!isIdentityTransform(node.transform)) {
+  // `skipTransform` (D-082 F9c): a transform-animated node rebuilds its whole
+  // transform via additive `<animateTransform>`, so the static attribute is
+  // dropped to avoid double-applying it.
+  if (!skipTransform && !isIdentityTransform(node.transform)) {
     out.push(['transform', transformAttr(node.transform)]);
   }
   return out;

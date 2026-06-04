@@ -66,5 +66,19 @@ export interface SvgDocument {
      * Default `true`.
      */
     readonly emitAuthoredTitles?: boolean;
+    /**
+     * **D-082 F9c — Animated SVG (SMIL) export.** When `true`, the SVG
+     * exporter injects native SMIL `<animate>` / `<animateTransform>`
+     * children into animated nodes (derived from each page's `AnimationDoc`
+     * via `animationToSmil`), producing a standalone animated SVG.
+     *
+     * Default `false` / unset — and this MUST stay the default: the editor's
+     * AutoSave round-trips the document through this exporter and recovers by
+     * re-importing, so the everyday save path must remain the static SVG (the
+     * animation already round-trips losslessly via the `data-svge-animation`
+     * JSON attribute, F7). This flag is opt-in, set only by an explicit
+     * "Export Animated SVG" action (F9d).
+     */
+    readonly emitSmilAnimation?: boolean;
   };
 }
