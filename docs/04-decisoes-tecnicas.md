@@ -2219,9 +2219,12 @@ PAGES-E) para 1792+ passing. Zero regressão em nenhuma fase.
 
 ## D-082 — Animation Timeline (camada de animação não-destrutiva)
 
-**Status**: ✅ Aceito + **MVP implementado** (F0–F8) — registrado 2026-06-03,
-implementado 2026-06-03 (commits `17eefcb` → `f23f519`). Export animado e
-path-`d` morph permanecem **adiados** (F9+, fora do MVP).
+**Status**: ✅ Aceito + **implementado** (F0–F8 MVP + **F9 export SMIL**) —
+registrado 2026-06-03, implementado 2026-06-03. MVP em `17eefcb` → `f23f519`;
+**export SMIL (F9a–F9d)** em `bfb54b2` (serializer geometria/estilo) → `53b7935`
+(transform) → `07fbc3e` (wiring no exporter) → `30817fa` (ação de menu).
+**Adiados** (fora deste escopo): demais alvos de export (CSS `@keyframes` /
+Lottie / GIF-vídeo) e **path-`d` morph**.
 
 ### Contexto
 
@@ -2326,9 +2329,27 @@ sampleAnimation(anim, playhead))`. **Única fiação cross-cutting**, atrás
   pré-ação destrutiva (reusa D-073).
 - **F8 — Doc-catchup** (06 componentes / 09 API / 10 guia-plugin) +
   validação final + atualização desta decisão para `✅ Aceito + impl`.
-- **(Futuro, fora do MVP) F9+** — Export (SMIL `<animate>`/`<animateTransform>`,
-  CSS `@keyframes`, Lottie JSON, GIF/vídeo), **path-`d` morph**, curvas de
-  easing custom (UI bezier), motion path.
+- **F9 — Export animado (SMIL)** ✅ — serializer puro
+  `animationToSmil(doc, nodeId, baseTransform?)` (core) → `<animate>`
+  (geometria/estilo) + `<animateTransform>` (translate/rotate/scale, `additive`
+  na ordem `T·R·S` que espelha `composeTransform`); fiel ao preview (hold nas
+  pontas via keyframes sintéticos em t0/tD, `keySplines` por segmento omitidos
+  quando linear, `repeatCount="indefinite"`). Wiring no `svgExporter` atrás do
+  opt-in `exportPreferences.emitSmilAnimation` (F9c) — **default OFF**, então o
+  round-trip do AutoSave fica byte-a-byte idêntico (a animação persiste via o
+  JSON `data-svge-animation`, F7). Nó com transform animado **descarta** o
+  `transform` estático (reconstruído additive). Ação **File ▸ Export Animated
+  SVG (SMIL)** (F9d) reanexa o `AnimationDoc` da página ativa ao root projetado
+  (o `effectiveExportDoc` descarta o grupo de página) e baixa
+  `untitled-animated.svg`.
+  - **Fidelidade**: 1 eixo de translate/scale animado (outro estático) mantém
+    easing exato via `keySplines`; com **os 2 eixos** animados, o par é
+    amostrado (eased) na união dos tempos com interpolação linear entre amostras
+    — exato em cada keyframe, leve linearização intra-segmento só com easing
+    não-linear.
+- **(Futuro, fora deste escopo) F9+** — demais alvos de export (CSS
+  `@keyframes`, Lottie JSON, GIF/vídeo), **path-`d` morph**, curvas de easing
+  custom (UI bezier), motion path.
 
 ### Decisões em aberto (fechar antes de iniciar F0)
 
@@ -2362,7 +2383,8 @@ sampleAnimation(anim, playhead))`. **Única fiação cross-cutting**, atrás
   play (mitigado: só recomputa os nós com track ativo no `t`).
 - **Path-`d` morph adiado** (interpolar formato de path exige normalizar
   contagem de comandos — caro; fora do MVP).
-- **Export animado** é outro pipeline (SMIL/CSS/Lottie) — adiado para F9+.
+- **Export animado**: **SMIL implementado** (F9, opt-in `emitSmilAnimation`);
+  CSS `@keyframes` / Lottie / GIF-vídeo seguem adiados (outro pipeline).
 - 1 fiação cross-cutting no shell (`animatedTree` + dock inferior) —
   pequena e atrás de flag, mas é a parte que **não** é "puro plugin"
   (não há registry genérico de dock/painel hoje).

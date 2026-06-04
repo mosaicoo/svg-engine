@@ -6,6 +6,52 @@
 
 ---
 
+## 2026-06-03 — D-082 F9 — Export animado SMIL + follow-ups de UX da timeline ✅
+
+**Export animado (SMIL), F9a–F9d** (`bfb54b2` → `53b7935` → `07fbc3e` →
+`30817fa`). Primeiro alvo de export da animação (escolha do usuário: SVG nativo,
+sem runtime externo).
+
+- **F9a/F9b (core)** — serializer puro `animationToSmil(doc, nodeId,
+baseTransform?)`: geometria/estilo → `<animate>`; transform → `<animateTransform>`
+  (translate/rotate/scale, `additive="sum"` na ordem `T·R·S` que reproduz
+  `composeTransform`). Fiel ao preview: hold nas pontas via keyframes sintéticos
+  em t0/tD; `keySplines` por segmento (omitidos quando tudo linear);
+  `repeatCount="indefinite"` (espelha o loop). Componentes de transform
+  estáticos são "assados" como `<animateTransform>` constante. Nomes camelCase
+  de estilo → atributo SVG (`strokeWidth`→`stroke-width`). **Fidelidade**: 1
+  eixo de translate/scale animado mantém easing exato; 2 eixos → amostragem
+  eased na união dos tempos (exato em cada keyframe, intra-segmento linearizado).
+- **F9c (io)** — wiring no `svgExporter` atrás do opt-in
+  `exportPreferences.emitSmilAnimation` (**default OFF**). Pré-scan
+  `nodeId → AnimationDoc`; injeção dos elementos como filhos dos nós animados
+  (leaves viram open+children; `renderLeaf` substituiu `wrapLeafWithTitle`);
+  grupos e texto também. Nó com transform animado **descarta** o `transform`
+  estático. **Invariante travado por spec**: sem o flag, o export é byte-a-byte
+  idêntico (a animação persiste via o JSON `data-svge-animation`, F7) — o
+  round-trip do AutoSave não muda.
+- **F9d (edit)** — ação **File ▸ Export Animated SVG (SMIL)** (ícone
+  `animation`). Corrige um furo: `effectiveExportDoc` projeta a página ativa
+  trocando os filhos do root, **descartando** o grupo que carrega o
+  `AnimationDoc` — o caminho animado reanexa `AnimationService.doc()` ao root
+  projetado e liga o flag; baixa `untitled-animated.svg`. Sem tracks → SVG
+  comum.
+
+**Follow-ups de UX da timeline** (mesma sessão, pré-F9): botão **×** para
+remover track inteira; **limiar de arrasto de 4px** para o clique selecionar o
+keyframe de forma confiável; e **tecla Delete/Backspace** com o losango focado
+remove o **keyframe** (não o shape do canvas) — losango ganhou `tabindex` +
+foco no pointerdown + `stopPropagation` no keydown (o handler global de Delete é
+bubble-phase). Esc desseleciona.
+
+**Adiado (F9+)**: CSS `@keyframes`, Lottie, GIF/vídeo, path-`d` morph, motion
+path, curva de easing custom (UI bezier).
+
+Gate por fase: `build:lib` RC=0 + suíte verde + lint limpo. Suíte ao fim do F9:
+**2108 passed | 1 skipped** (+~30 specs no F9).
+
+---
+
 ## 2026-06-03 — D-082 Animation Timeline (MVP F0–F8) ✅
 
 Timeline de animação **não-destrutiva** ("camada acima"), implementada em 8

@@ -611,25 +611,26 @@ animada **é** a base (identidade referencial).
 
 ### `svg-engine/core` — modelo + interpolação + comandos (puros/headless)
 
-| Símbolo                                                                                                                         | Descrição                                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `AnimationDoc` / `AnimationTrack` / `Keyframe` (types)                                                                          | `{ durationMs, tracks[] }`; track = `(nodeId, property, keyframes[])`; keyframe = `{ time(ms), value, easing }` |
-| `ANIMATION_KEY`                                                                                                                 | chave em `metadata.customData` onde o `AnimationDoc` da página mora (`'svgeAnimation'`)                         |
-| `emptyAnimationDoc`, `readAnimationDoc`, `isAnimationDoc`, `findTrack`                                                          | leitura/guarda do modelo                                                                                        |
-| `upsertKeyframe`, `removeKeyframe`, `moveKeyframe`, `setKeyframeEasing`, `setAnimationDuration`                                 | helpers imutáveis (no-op retorna a mesma referência)                                                            |
-| `EasingSpec`, `DEFAULT_EASING`, `evalEasing`, `easingControlPoints`                                                             | easing: `linear`/`easeIn`/`easeOut`/`easeInOut`/`cubicBezier`; avaliação WebKit UnitBezier                      |
-| `sampleAnimation(doc, t)` → `AnimationSample`; `sampleTrack`                                                                    | amostra o doc em `t` → `Map<nodeId, Map<prop, value>>`                                                          |
-| `interpolateValue`, `parseColor`, `mixColor`                                                                                    | interpolação número (lerp) + cor (`#rgb`/`rgb()`/`rgba()`); tipos incompatíveis seguram discreto                |
-| `applyAnimationToTree(tree, sample)`                                                                                            | overlay não-destrutivo: identidade p/ sample vazio + structural sharing                                         |
-| `animatablePropertiesForNode`, `findAnimatableProperty`, `readAnimatableValue`, `AnimatablePropertyDef`                         | catálogo de props animáveis por tipo (geometria por tipo + transform + style)                                   |
-| `AddKeyframeCommand`, `MoveKeyframeCommand`, `RemoveKeyframeCommand`, `SetKeyframeEasingCommand`, `SetAnimationDurationCommand` | comandos undoable (escrevem `customData[ANIMATION_KEY]` do container)                                           |
+| Símbolo                                                                                                                                               | Descrição                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AnimationDoc` / `AnimationTrack` / `Keyframe` (types)                                                                                                | `{ durationMs, tracks[] }`; track = `(nodeId, property, keyframes[])`; keyframe = `{ time(ms), value, easing }`                                            |
+| `ANIMATION_KEY`                                                                                                                                       | chave em `metadata.customData` onde o `AnimationDoc` da página mora (`'svgeAnimation'`)                                                                    |
+| `emptyAnimationDoc`, `readAnimationDoc`, `isAnimationDoc`, `findTrack`                                                                                | leitura/guarda do modelo                                                                                                                                   |
+| `upsertKeyframe`, `removeKeyframe`, `removeTrack`, `moveKeyframe`, `setKeyframeEasing`, `setAnimationDuration`                                        | helpers imutáveis (no-op retorna a mesma referência); `removeTrack` apaga uma track inteira                                                                |
+| `EasingSpec`, `DEFAULT_EASING`, `evalEasing`, `easingControlPoints`                                                                                   | easing: `linear`/`easeIn`/`easeOut`/`easeInOut`/`cubicBezier`; avaliação WebKit UnitBezier                                                                 |
+| `sampleAnimation(doc, t)` → `AnimationSample`; `sampleTrack`                                                                                          | amostra o doc em `t` → `Map<nodeId, Map<prop, value>>`                                                                                                     |
+| `interpolateValue`, `parseColor`, `mixColor`                                                                                                          | interpolação número (lerp) + cor (`#rgb`/`rgb()`/`rgba()`); tipos incompatíveis seguram discreto                                                           |
+| `applyAnimationToTree(tree, sample)`                                                                                                                  | overlay não-destrutivo: identidade p/ sample vazio + structural sharing                                                                                    |
+| `animatablePropertiesForNode`, `findAnimatableProperty`, `readAnimatableValue`, `AnimatablePropertyDef`                                               | catálogo de props animáveis por tipo (geometria por tipo + transform + style)                                                                              |
+| `animationToSmil(doc, nodeId, baseTransform?)` → `string[]` **(F9)**                                                                                  | serializer SMIL puro: geometria/estilo → `<animate>`, transform → `<animateTransform>` (`additive` T·R·S). Consumido pelo exporter via `emitSmilAnimation` |
+| `AddKeyframeCommand`, `MoveKeyframeCommand`, `RemoveKeyframeCommand`, `RemoveTrackCommand`, `SetKeyframeEasingCommand`, `SetAnimationDurationCommand` | comandos undoable (escrevem `customData[ANIMATION_KEY]` do container)                                                                                      |
 
 ### `svg-engine/edit` — engine + transporte (escopados, `provideSvgEngineEditorScope`)
 
-| Símbolo                            | Descrição                                                                                                                                                                                                                                                   |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AnimationService` (`@Injectable`) | `doc()`/`tracks()`/`durationMs()` derivados do documento; `containerId()` (página ativa/root); CRUD (`addKeyframe`/`removeKeyframe`/`moveKeyframe`/`setKeyframeEasing`/`setDuration`); `sample(t)`; `animatablePropertiesFor(id)`; `currentValue(id, prop)` |
-| `PlaybackService` (`@Injectable`)  | `playhead()`/`isPlaying()`/`loop()`/`speed()`/`durationMs()`; `play`/`pause`/`toggle`/`seek`/`step`/`stepForward`/`stepBackward`/`goToStart`/`goToEnd`/`setLoop`/`setSpeed`/`tick`; loop `requestAnimationFrame` (DestroyRef cancela)                       |
+| Símbolo                            | Descrição                                                                                                                                                                                                                                                                 |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AnimationService` (`@Injectable`) | `doc()`/`tracks()`/`durationMs()` derivados do documento; `containerId()` (página ativa/root); CRUD (`addKeyframe`/`removeKeyframe`/`removeTrack`/`moveKeyframe`/`setKeyframeEasing`/`setDuration`); `sample(t)`; `animatablePropertiesFor(id)`; `currentValue(id, prop)` |
+| `PlaybackService` (`@Injectable`)  | `playhead()`/`isPlaying()`/`loop()`/`speed()`/`durationMs()`; `play`/`pause`/`toggle`/`seek`/`step`/`stepForward`/`stepBackward`/`goToStart`/`goToEnd`/`setLoop`/`setSpeed`/`tick`; loop `requestAnimationFrame` (DestroyRef cancela)                                     |
 
 ### `svg-engine/ui` — UI
 
@@ -642,6 +643,14 @@ animada **é** a base (identidade referencial).
 O `AnimationDoc` faz round-trip via atributo `data-svge-animation` (JSON) no
 grupo da página — emitido pelo `svgExporter`, relido pelo `svgImporter`. Como o
 `AutoSave` serializa pelo exporter SVG, a animação persiste no save/recovery.
+
+**Export animado SMIL (F9)**: o `svgExporter` injeta `<animate>`/`<animateTransform>`
+nativos nos nós animados **apenas** quando
+`SvgDocument.exportPreferences.emitSmilAnimation === true` (default `false`).
+Nesse modo, nós com transform animado têm o `transform` estático descartado
+(reconstruído additive). A ação **File ▸ Export Animated SVG (SMIL)** liga o flag
+e baixa `untitled-animated.svg`. Com o flag desligado o export é byte-a-byte
+idêntico ao de hoje — o round-trip do AutoSave **não** emite SMIL.
 
 ---
 
