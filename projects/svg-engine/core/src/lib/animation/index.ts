@@ -27,6 +27,8 @@ export {
 // F1 — value interpolation (number + color) and the non-destructive overlay.
 export { interpolateValue, mixColor, parseColor } from './interpolate';
 export { applyAnimationToTree } from './apply-animation';
+// F9a — SMIL export serializer (geometry + style → <animate>).
+export { animationToSmil } from './animation-smil';
 // F3 — catalog of animatable properties per node type (timeline rows source).
 export {
   type AnimatablePropertyDef,
