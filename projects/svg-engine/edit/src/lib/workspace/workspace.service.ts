@@ -182,6 +182,63 @@ export function pageBoundsIn(
   return { x: 0, y: 0, width: effW, height: effH };
 }
 
+/** A rectangle in document coordinates (page/grid/guides anchor). */
+export interface PageRect {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * **Single source of truth for the page rectangle** the page-paper, grid and
+ * guides overlays anchor to — so they can never disagree on "where/how big is
+ * the page" (the bug where the grid stayed at the legacy origin while the page
+ * rect followed the active D-079 page).
+ *
+ * Precedence (highest first):
+ * 1. **`dragPreview`** — a live Page-tool (Shift+O) resize/move in flight; the
+ *    grid must track the *previewed* geometry in real time, not the committed
+ *    one, so it stays glued to the paper while the user drags.
+ * 2. **`activeViewBox`** — the active page's stored viewBox (its *current*
+ *    dimensions, including after a committed resize). This is what makes the
+ *    grid adapt when the page size changes.
+ * 3. **`legacyPage`** — `WorkspaceService.page()` anchored at the origin via
+ *    {@link pageBoundsIn}, for documents with no D-079 page (headless / legacy).
+ *
+ * The caller resolves `activeViewBox` (`getPageViewBox(active)`) and
+ * `dragPreview` (`pageDrag.previewFor(active.id)`) so this helper stays pure
+ * (no Angular, no `svg-engine/core` import here). Returns `null` when nothing
+ * has positive dimensions.
+ */
+export function resolvePageBounds(
+  activeViewBox: PageRect | null,
+  dragPreview: PageRect | null,
+  legacyPage: PageConfig | null,
+  contentBox: { readonly width: number; readonly height: number },
+): PageRect | null {
+  if (dragPreview !== null && dragPreview.width > 0 && dragPreview.height > 0) {
+    return {
+      x: dragPreview.x,
+      y: dragPreview.y,
+      width: dragPreview.width,
+      height: dragPreview.height,
+    };
+  }
+  if (activeViewBox !== null && activeViewBox.width > 0 && activeViewBox.height > 0) {
+    return {
+      x: activeViewBox.x,
+      y: activeViewBox.y,
+      width: activeViewBox.width,
+      height: activeViewBox.height,
+    };
+  }
+  if (legacyPage !== null && legacyPage.width > 0 && legacyPage.height > 0) {
+    return pageBoundsIn(contentBox, legacyPage);
+  }
+  return null;
+}
+
 /**
  * Editor-side **workspace presentation state** (D-021 resolution).
  *

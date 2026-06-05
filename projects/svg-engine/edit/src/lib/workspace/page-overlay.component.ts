@@ -5,7 +5,7 @@ import { ActivePageService } from '../pages/active-page.service';
 import { PageDragService } from '../pages/page-drag.service';
 import { PAGE_TOOL_ID } from '../tool/builtin-tools';
 import { ToolHostService } from '../tool/tool-host.service';
-import { pageBoundsIn, WorkspaceService } from './workspace.service';
+import { type PageRect, resolvePageBounds, WorkspaceService } from './workspace.service';
 
 /**
  * SVG overlay that draws a visible **page marker** (the printable area)
@@ -187,36 +187,21 @@ export class PageOverlay {
    * Returns null when dimensions are zero (defensive — `patchPage` /
    * `CreatePageCommand` reject zeros, but tests may stub).
    */
-  protected readonly pageBounds = computed<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(() => {
+  protected readonly pageBounds = computed<PageRect | null>(() => {
+    // Resolved via the SHARED helper so the page paper, the grid and any
+    // page-anchored overlay agree on one rectangle (precedence: live Page-tool
+    // drag preview → active page viewBox → legacy WorkspaceService.page()).
+    // Behaviour is unchanged from the previous inline logic — extracted so the
+    // GridOverlay can reuse the exact same resolution.
     const active = this.activePage?.activePage() ?? null;
-    if (active !== null) {
-      // **PAGES-REFACTOR follow-up #4** — when a Page-tool drag is
-      // in flight on THIS page, render at the previewed geometry so
-      // the paper rect tracks the cursor in real time (matches the
-      // brackets/label). Falls back to the stored viewBox when no
-      // drag is active OR the drag targets a different page.
-      const preview = this.pageDrag?.previewFor(active.id) ?? null;
-      if (preview !== null && preview.width > 0 && preview.height > 0) {
-        return {
-          x: preview.x,
-          y: preview.y,
-          width: preview.width,
-          height: preview.height,
-        };
-      }
-      const vb = getPageViewBox(active);
-      if (vb !== null && vb.width > 0 && vb.height > 0) {
-        return { x: vb.x, y: vb.y, width: vb.width, height: vb.height };
-      }
-    }
-    const page = this.ws.page();
-    if (page.width <= 0 || page.height <= 0) return null;
-    return pageBoundsIn(this.viewport.contentBox(), page);
+    const activeViewBox = active !== null ? getPageViewBox(active) : null;
+    const dragPreview = active !== null ? (this.pageDrag?.previewFor(active.id) ?? null) : null;
+    return resolvePageBounds(
+      activeViewBox,
+      dragPreview,
+      this.ws.page(),
+      this.viewport.contentBox(),
+    );
   });
 
   /**

@@ -1,6 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { getPageViewBox } from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
-import { pageBoundsIn, WorkspaceService } from './workspace.service';
+import { ActivePageService } from '../pages/active-page.service';
+import { PageDragService } from '../pages/page-drag.service';
+import { type PageRect, resolvePageBounds, WorkspaceService } from './workspace.service';
 
 /**
  * SVG overlay that draws the editor grid (Bloco 4f) — vertical +
@@ -76,11 +79,37 @@ import { pageBoundsIn, WorkspaceService } from './workspace.service';
 export class GridOverlay {
   private readonly ws = inject(WorkspaceService);
   private readonly viewport = inject(ViewportService);
+  // **Grid-anchor fix** — the grid must anchor to the SAME page rectangle as
+  // the page paper (PageOverlay). Both injected optionally so the overlay still
+  // works in a headless / pre-D-079 harness (falls back to WorkspaceService).
+  private readonly activePage = inject(ActivePageService, { optional: true });
+  private readonly pageDrag = inject(PageDragService, { optional: true });
 
   protected readonly visible = computed(() => this.ws.grid().enabled);
 
   /** Color binding — read once per render so all lines share it. */
   protected readonly lineColor = computed(() => this.ws.grid().color);
+
+  /**
+   * The page rectangle the grid anchors to — resolved via the SAME precedence
+   * as the page paper ({@link resolvePageBounds}): live Page-tool (Shift+O)
+   * drag preview → the active D-079 page's current viewBox → legacy
+   * `WorkspaceService.page()`. This is the fix for the grid staying glued to
+   * the legacy origin while the page rect followed the active page, and it
+   * makes the grid **adapt to page resizes** (the page can change dimensions
+   * via the Page tool). Returns `null` when no positive bounds exist.
+   */
+  protected readonly pageBounds = computed<PageRect | null>(() => {
+    const active = this.activePage?.activePage() ?? null;
+    const activeViewBox = active !== null ? getPageViewBox(active) : null;
+    const dragPreview = active !== null ? (this.pageDrag?.previewFor(active.id) ?? null) : null;
+    return resolvePageBounds(
+      activeViewBox,
+      dragPreview,
+      this.ws.page(),
+      this.viewport.contentBox(),
+    );
+  });
 
   /**
    * The set of `<line>` records to render. Lines are constrained to the
@@ -97,12 +126,13 @@ export class GridOverlay {
     const grid = this.ws.grid();
     if (!grid.enabled) return [];
     const vb = this.viewport.viewBox();
-    const page = this.ws.page();
-    if (page.width <= 0 || page.height <= 0) return [];
-    // Page bounds in document space — anchored at doc origin via
-    // pageBoundsIn helper. Grid lines anchor to the page so they
-    // stay aligned with the page wherever it sits in the canvas.
-    const pb = pageBoundsIn(this.viewport.contentBox(), page);
+    // Page bounds via the SHARED resolver (same source as the page paper):
+    // the grid follows the active page's viewBox / live resize, instead of the
+    // legacy origin-anchored WorkspaceService.page() it used to read (the bug
+    // where the grid didn't track the page). Null → no positive page bounds →
+    // no grid.
+    const pb = this.pageBounds();
+    if (pb === null) return [];
     const pageLeft = pb.x;
     const pageTop = pb.y;
     const pageRight = pb.x + pb.width;

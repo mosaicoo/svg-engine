@@ -375,6 +375,66 @@ describe('pageBoundsIn (helper)', () => {
   });
 });
 
+// **Grid-anchor fix** — the page paper (PageOverlay) and the grid (GridOverlay)
+// now resolve their rectangle through this single helper, so they can never
+// disagree (the bug where the grid stayed at the legacy origin while the page
+// followed the active D-079 page) and the grid adapts to Page-tool resizes.
+describe('resolvePageBounds (helper) — grid/page anchor precedence', () => {
+  const legacy = {
+    width: 800,
+    height: 600,
+    orientation: 'landscape' as const,
+    margins: { top: 0, right: 0, bottom: 0, left: 0 },
+  };
+  const contentBox = { width: 1000, height: 1000 };
+
+  it('drag preview wins over active viewBox and legacy (live Page-tool resize)', async () => {
+    const { resolvePageBounds } = await import('./workspace.service');
+    const out = resolvePageBounds(
+      { x: 10, y: 20, width: 300, height: 400 }, // active viewBox
+      { x: 5, y: 6, width: 333, height: 222 }, // live drag preview
+      legacy,
+      contentBox,
+    );
+    expect(out).toEqual({ x: 5, y: 6, width: 333, height: 222 });
+  });
+
+  it('active page viewBox wins over legacy — grid follows the page position AND size', async () => {
+    const { resolvePageBounds } = await import('./workspace.service');
+    const out = resolvePageBounds(
+      { x: 100, y: 50, width: 250, height: 175 }, // page moved + resized
+      null,
+      legacy,
+      contentBox,
+    );
+    // NOT the legacy {0,0,800,600}: the grid anchors to the active page.
+    expect(out).toEqual({ x: 100, y: 50, width: 250, height: 175 });
+  });
+
+  it('falls back to the legacy origin-anchored page when there is no active page', async () => {
+    const { resolvePageBounds, pageBoundsIn } = await import('./workspace.service');
+    const out = resolvePageBounds(null, null, legacy, contentBox);
+    expect(out).toEqual(pageBoundsIn(contentBox, legacy)); // {0,0,800,600}
+  });
+
+  it('ignores a zero-size drag preview and uses the active viewBox', async () => {
+    const { resolvePageBounds } = await import('./workspace.service');
+    const out = resolvePageBounds(
+      { x: 0, y: 0, width: 200, height: 200 },
+      { x: 0, y: 0, width: 0, height: 50 }, // invalid preview
+      legacy,
+      contentBox,
+    );
+    expect(out).toEqual({ x: 0, y: 0, width: 200, height: 200 });
+  });
+
+  it('returns null when nothing has positive dimensions', async () => {
+    const { resolvePageBounds } = await import('./workspace.service');
+    expect(resolvePageBounds(null, null, { ...legacy, width: 0 }, contentBox)).toBeNull();
+    expect(resolvePageBounds(null, null, null, contentBox)).toBeNull();
+  });
+});
+
 describe('WorkspaceService — rulerCursor tracking', () => {
   it('starts as null', () => {
     const ws = setup();
