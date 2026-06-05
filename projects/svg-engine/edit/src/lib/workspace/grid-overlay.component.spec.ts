@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { createEmptyDocument, type SvgDocument } from 'svg-engine/core';
 import { SvgeRenderer } from 'svg-engine/render';
 import { describe, expect, it } from 'vitest';
-import { GridOverlay } from './grid-overlay.component';
+import { buildGridLines, GridOverlay } from './grid-overlay.component';
 
 /**
  * Regression guards for commit a20635b (z-order). Grid is a reference
@@ -69,5 +69,46 @@ describe('GridOverlay × SvgeRenderer — actual DOM projection slot (regression
     expect(contentG).not.toBeNull();
     const pos = gridG!.compareDocumentPosition(contentG!);
     expect((pos & Node.DOCUMENT_POSITION_PRECEDING) !== 0).toBe(true);
+  });
+});
+
+describe('buildGridLines (pure) — full-page coverage independent of viewport', () => {
+  const page = { x: 0, y: 0, width: 400, height: 200 };
+
+  it('covers the ENTIRE page: (cols+1) verticals + (rows+1) horizontals', () => {
+    const lines = buildGridLines(page, 50, 5);
+    // 400/50 = 8 cols → 9 vertical lines; 200/50 = 4 rows → 5 horizontal lines.
+    const verticals = lines.filter((l) => l.key.startsWith('v'));
+    const horizontals = lines.filter((l) => l.key.startsWith('h'));
+    expect(verticals).toHaveLength(9);
+    expect(horizontals).toHaveLength(5);
+  });
+
+  it('each line spans the page edge-to-edge (no viewport windowing)', () => {
+    const lines = buildGridLines(page, 50, 5);
+    const v = lines.find((l) => l.key === 'v3')!; // x = 150
+    expect(v).toMatchObject({ x1: 150, y1: 0, x2: 150, y2: 200 }); // full height
+    const h = lines.find((l) => l.key === 'h2')!; // y = 100
+    expect(h).toMatchObject({ x1: 0, y1: 100, x2: 400, y2: 100 }); // full width
+  });
+
+  it('anchors at the page origin (non-zero x/y page)', () => {
+    const moved = buildGridLines({ x: 120, y: 60, width: 100, height: 100 }, 50, 4);
+    const v0 = moved.find((l) => l.key === 'v0')!;
+    expect(v0).toMatchObject({ x1: 120, y1: 60, x2: 120, y2: 160 });
+  });
+
+  it('flags every majorEvery-th line as major', () => {
+    const lines = buildGridLines(page, 50, 4);
+    expect(lines.find((l) => l.key === 'v0')!.major).toBe(true);
+    expect(lines.find((l) => l.key === 'v4')!.major).toBe(true);
+    expect(lines.find((l) => l.key === 'v3')!.major).toBe(false);
+  });
+
+  it('returns [] for non-positive spacing / page and for a pathological count', () => {
+    expect(buildGridLines(page, 0, 5)).toEqual([]);
+    expect(buildGridLines({ x: 0, y: 0, width: 0, height: 200 }, 50, 5)).toEqual([]);
+    // spacing 1 on a 10000×10000 page → ~20000 lines → guard kicks in.
+    expect(buildGridLines({ x: 0, y: 0, width: 10000, height: 10000 }, 1, 10)).toEqual([]);
   });
 });

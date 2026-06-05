@@ -69,6 +69,14 @@ import { type PageRect, resolvePageBounds, WorkspaceService } from './workspace.
       vector-effect: non-scaling-stroke;
       pointer-events: none;
       opacity: 0.35;
+      /*
+       * Grid lines are axis-aligned 1px hairlines. At fractional zoom (e.g.
+       * 201%) anti-aliased hairlines land on sub-pixel boundaries and fade
+       * out in periodic bands (both axes). crispEdges snaps them to the
+       * device-pixel grid so every line renders as a solid pixel — no
+       * vanishing bands. Safe here precisely because the lines are H/V only.
+       */
+      shape-rendering: crispEdges;
     }
     .grid-line.major {
       opacity: 0.65;
@@ -112,105 +120,69 @@ export class GridOverlay {
   });
 
   /**
-   * The set of `<line>` records to render. Lines are constrained to the
-   * **intersection of viewport and page bounds** — grid serves as an
-   * alignment aid for content INSIDE the page, so showing it across
-   * the pasteboard creates visual noise. When the intersection is empty
-   * (page is entirely outside viewport, e.g., panned far away), no
-   * lines render.
+   * The `<line>` records to render — the **entire page** grid, in document
+   * coordinates. **Not** windowed to the viewport: the grid is generated once
+   * per page/grid change and the renderer's SVG `viewBox` transforms + clips it
+   * for free, so the grid is **uniform across the whole page at any zoom/pan**
+   * (the previous viewport-windowing left visible gaps/bands at high zoom and
+   * regenerated on every pan). Lines span edge-to-edge of the page.
    *
-   * `key` is stable across pan so Angular's `@for` track avoids
-   * re-creating DOM nodes when scrolling.
+   * Depends only on `grid` + `pageBounds()` (NOT `viewBox()`), so panning/
+   * zooming never regenerates the DOM — the SVG transform handles it.
    */
-  protected readonly lines = computed(() => {
+  protected readonly lines = computed<GridLine[]>(() => {
     const grid = this.ws.grid();
     if (!grid.enabled) return [];
-    const vb = this.viewport.viewBox();
-    // Page bounds via the SHARED resolver (same source as the page paper):
-    // the grid follows the active page's viewBox / live resize, instead of the
-    // legacy origin-anchored WorkspaceService.page() it used to read (the bug
-    // where the grid didn't track the page). Null → no positive page bounds →
-    // no grid.
     const pb = this.pageBounds();
     if (pb === null) return [];
-    const pageLeft = pb.x;
-    const pageTop = pb.y;
-    const pageRight = pb.x + pb.width;
-    const pageBottom = pb.y + pb.height;
-    // Intersection of viewport and page — used ONLY to decide WHICH
-    // grid columns/rows to generate (perf: skip lines completely
-    // outside the visible area). The line endpoints themselves use
-    // the FULL page bounds so the line visually spans the page from
-    // edge to edge regardless of pan/zoom. The previous version used
-    // intersection bounds for endpoints, which made each line shrink
-    // to match the visible viewport — they appeared "anchored" to
-    // the viewport edges when panning, instead of moving with the
-    // page as expected. (Fase 6 UX polish — bug reported via
-    // screenshot of pan animation.)
-    const ix1 = Math.max(vb.x, pageLeft);
-    const iy1 = Math.max(vb.y, pageTop);
-    const ix2 = Math.min(vb.x + vb.width, pageRight);
-    const iy2 = Math.min(vb.y + vb.height, pageBottom);
-    if (ix2 <= ix1 || iy2 <= iy1) return [];
-
-    const out: {
-      key: string;
-      x1: number;
-      y1: number;
-      x2: number;
-      y2: number;
-      major: boolean;
-    }[] = [];
-    const { spacing, majorEvery } = grid;
-    // Compute integer column/row count for the FULL page so the
-    // rightmost/bottommost line at the exact page edge is always
-    // included regardless of viewport pan. Then clip the iteration
-    // window by the viewport intersection — but using the page-derived
-    // max as the inclusive upper bound, never the viewport derived
-    // value (otherwise floating-point drift at the lateral edge can
-    // drop the boundary line, causing a visible "missing line" gap
-    // on the right/bottom edges of the page during pan).
-    const pageColMax = Math.round(pb.width / spacing);
-    const pageRowMax = Math.round(pb.height / spacing);
-    // Epsilon comparison so a column that lands within 1e-6 of pageRight
-    // (i.e., logically AT the page edge) is treated as inside, not
-    // beyond. Same reasoning for rows. Without this guard, FP drift
-    // accumulated over ~50+ multiplications can make x === pageRight
-    // resolve as x > pageRight.
-    const EDGE_EPS = 1e-6;
-    const colStartIdx = Math.max(0, Math.floor((ix1 - pageLeft) / spacing));
-    const colEndIdx = Math.min(pageColMax, Math.ceil((ix2 - pageLeft) / spacing));
-    const rowStartIdx = Math.max(0, Math.floor((iy1 - pageTop) / spacing));
-    const rowEndIdx = Math.min(pageRowMax, Math.ceil((iy2 - pageTop) / spacing));
-    for (let col = colStartIdx; col <= colEndIdx; col++) {
-      const x = pageLeft + col * spacing;
-      if (x - pageRight > EDGE_EPS) break;
-      out.push({
-        key: `v${col}`,
-        x1: x,
-        // Line spans the FULL page height in doc coords. SVG viewBox
-        // clipping handles the offscreen portion for free — no perf
-        // cost from "drawing past the edge" because the browser only
-        // rasterizes visible pixels.
-        y1: pageTop,
-        x2: x,
-        y2: pageBottom,
-        major: col % majorEvery === 0,
-      });
-    }
-    for (let row = rowStartIdx; row <= rowEndIdx; row++) {
-      const y = pageTop + row * spacing;
-      if (y - pageBottom > EDGE_EPS) break;
-      out.push({
-        key: `h${row}`,
-        // Horizontal lines span the FULL page width (same reasoning).
-        x1: pageLeft,
-        y1: y,
-        x2: pageRight,
-        y2: y,
-        major: row % majorEvery === 0,
-      });
-    }
-    return out;
+    return buildGridLines(pb, grid.spacing, grid.majorEvery);
   });
+}
+
+/** One grid `<line>` in document coordinates. */
+export interface GridLine {
+  readonly key: string;
+  readonly x1: number;
+  readonly y1: number;
+  readonly x2: number;
+  readonly y2: number;
+  readonly major: boolean;
+}
+
+/**
+ * Generate the FULL-page grid (doc coordinates): every column
+ * `0..⌈width/spacing⌉` and row `0..⌈height/spacing⌉`, each line spanning the
+ * page edge-to-edge. Covers the **whole page regardless of zoom/pan** — the SVG
+ * `viewBox` transforms and clips offscreen lines for free, so there's no
+ * viewport windowing that could leave visible gaps. `key`s are page-relative
+ * (stable across pan) so Angular's `@for` track reuses DOM nodes.
+ *
+ * Returns `[]` for non-positive spacing/page, or when the line count would be
+ * pathological (e.g. spacing 1 on a 10000px page) — better no grid than a
+ * frozen tab. Realistic grids are far below the cap.
+ */
+export function buildGridLines(
+  pb: { readonly x: number; readonly y: number; readonly width: number; readonly height: number },
+  spacing: number,
+  majorEvery: number,
+): GridLine[] {
+  if (spacing <= 0 || pb.width <= 0 || pb.height <= 0) return [];
+  const cols = Math.round(pb.width / spacing);
+  const rows = Math.round(pb.height / spacing);
+  if (cols + rows > 8000) return []; // pathological-grid guard
+  const safeMajor = majorEvery > 0 ? majorEvery : 1;
+  const left = pb.x;
+  const top = pb.y;
+  const right = pb.x + pb.width;
+  const bottom = pb.y + pb.height;
+  const out: GridLine[] = [];
+  for (let col = 0; col <= cols; col++) {
+    const x = left + col * spacing;
+    out.push({ key: `v${col}`, x1: x, y1: top, x2: x, y2: bottom, major: col % safeMajor === 0 });
+  }
+  for (let row = 0; row <= rows; row++) {
+    const y = top + row * spacing;
+    out.push({ key: `h${row}`, x1: left, y1: y, x2: right, y2: y, major: row % safeMajor === 0 });
+  }
+  return out;
 }
