@@ -128,7 +128,7 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
       @if (showsTransformHandles()) {
         @for (h of resizeHandles(); track h.anchor) {
           <svg:rect
-            class="handle resize"
+            [class]="'handle resize handle-' + h.anchor"
             [attr.x]="h.x - handleHalf()"
             [attr.y]="h.y - handleHalf()"
             [attr.width]="handleSize()"
@@ -214,17 +214,42 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
       stroke-width: 2;
       filter: drop-shadow(0 0 2px rgba(255, 111, 0, 0.5));
     }
-    .handle.resize {
-      cursor: grab;
+    /*
+     * Per-handle cursors (Select V). Each resize handle shows the axis it
+     * resizes along; the rotation handle shows a rotate cursor. The "hand"
+     * (grab) is intentionally NOT used here — it is reserved for dragging
+     * the shape body. Mirrors the page-selection-overlay convention +
+     * Illustrator / Figma / Affinity. The bbox + handles are axis-aligned
+     * (AABB) even for rotated nodes, so axis-aligned cursors are correct.
+     * Selectors include .resize/.rotation so specificity beats the base
+     * .handle { cursor } rule regardless of source order.
+     */
+    .handle.resize.handle-tl,
+    .handle.resize.handle-br {
+      cursor: nwse-resize;
     }
-    .handle.resize:active {
-      cursor: grabbing;
+    .handle.resize.handle-tr,
+    .handle.resize.handle-bl {
+      cursor: nesw-resize;
+    }
+    .handle.resize.handle-tc,
+    .handle.resize.handle-bc {
+      cursor: ns-resize;
+    }
+    .handle.resize.handle-ml,
+    .handle.resize.handle-mr {
+      cursor: ew-resize;
     }
     .handle.rotation {
-      cursor: grab;
-    }
-    .handle.rotation:active {
-      cursor: grabbing;
+      /*
+       * Custom rotate cursor (circular-arrow / "refresh" glyph, white halo
+       * for contrast on light + dark canvases, hotspot centred on 24×24).
+       * Falls back to crosshair if the data URI can't load — never the hand.
+       */
+      cursor:
+        url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M17.65%206.35A7.96%207.96%200%200%200%2012%204a8%208%200%201%200%207.75%2010h-2.08A6%206%200%201%201%2012%206c1.66%200%203.14.69%204.22%201.78L13%2011h7V4z'%20fill='%23222'%20stroke='%23fff'%20stroke-width='1'/%3E%3C/svg%3E")
+          12 12,
+        crosshair;
     }
     .rotation-stem {
       stroke: #1976d2;
