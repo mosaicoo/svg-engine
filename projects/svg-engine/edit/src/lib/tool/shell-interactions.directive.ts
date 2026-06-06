@@ -174,6 +174,18 @@ export class SvgeShellInteractions implements OnDestroy {
   protected onPointerDown(event: PointerEvent): void {
     if (event.button !== 0) return; // middle/right handled elsewhere
 
+    // 0. Clear any active GUIDE selection. Guides handle their own
+    //    pointerdown (GuidesOverlay) and `stopPropagation`, so reaching
+    //    THIS directive means the user clicked something that is NOT a
+    //    guide (a shape, the page, or empty canvas) — which deselects the
+    //    guide (returning it from the orange "selected" highlight to the
+    //    default style). Parity with the custom-editor playground, whose
+    //    bespoke `onCanvasPointerDown` already did this; the call was not
+    //    ported when the interaction logic was extracted into this shared
+    //    directive (D-039), so svge-shell-pro / svge-editor kept the guide
+    //    highlighted after selecting another object.
+    this.workspace.selectGuide(null);
+
     // 1. Drawing tools (Stamp, Shape, Pen, Text, ...) consume the
     //    event first. Select / Direct-Select tools fall through.
     const activeId = this.toolHost.activeId();
