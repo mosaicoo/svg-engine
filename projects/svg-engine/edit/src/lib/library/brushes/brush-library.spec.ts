@@ -9,7 +9,7 @@ import { expandStrokeWithProfile, sampleProfile } from './expand-stroke';
 
 /**
  * D-060 — Brush Library specs:
- * 1. Plugin registers 9 builtins.
+ * 1. Plugin registers 18 builtins.
  * 2. expandStrokeWithProfile produces valid closed-polygon d strings.
  * 3. sampleProfile interpolates correctly.
  * 4. BrushSelectionService manages active brush id.
@@ -25,7 +25,7 @@ function setup() {
   };
 }
 
-describe('builtinBrushesPlugin — registra 9 builtins', () => {
+describe('builtinBrushesPlugin — registra 18 builtins', () => {
   it('registra uniform, tapered, calligraphic', () => {
     const { catalog } = setup();
     const ids = catalog.items().map((i) => i.id);
@@ -35,7 +35,7 @@ describe('builtinBrushesPlugin — registra 9 builtins', () => {
     expect(catalog.items().length).toBe(BUILTIN_BRUSHES.length);
   });
 
-  it('registra os 6 brushes adicionais (brush-pen, wedge, spindle, ribbon, comet, bulge)', () => {
+  it('registra os 6 brushes do round 1 (brush-pen, wedge, spindle, ribbon, comet, bulge)', () => {
     const { catalog } = setup();
     const ids = catalog.items().map((i) => i.id);
     expect(ids).toContain('svge.builtin.brush.brush-pen');
@@ -44,7 +44,26 @@ describe('builtinBrushesPlugin — registra 9 builtins', () => {
     expect(ids).toContain('svge.builtin.brush.ribbon');
     expect(ids).toContain('svge.builtin.brush.comet');
     expect(ids).toContain('svge.builtin.brush.bulge');
-    expect(catalog.items().length).toBe(9);
+  });
+
+  it('registra os 9 brushes do round 2 (ramp, swell, marker, flared, swash, beads, bamboo, twin, rough)', () => {
+    const { catalog } = setup();
+    const ids = catalog.items().map((i) => i.id);
+    expect(ids).toContain('svge.builtin.brush.ramp');
+    expect(ids).toContain('svge.builtin.brush.swell');
+    expect(ids).toContain('svge.builtin.brush.marker');
+    expect(ids).toContain('svge.builtin.brush.flared');
+    expect(ids).toContain('svge.builtin.brush.swash');
+    expect(ids).toContain('svge.builtin.brush.beads');
+    expect(ids).toContain('svge.builtin.brush.bamboo');
+    expect(ids).toContain('svge.builtin.brush.twin');
+    expect(ids).toContain('svge.builtin.brush.rough');
+    expect(catalog.items().length).toBe(18);
+  });
+
+  it('todos os ids são únicos', () => {
+    const ids = BUILTIN_BRUSHES.map((b) => b.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it('nenhum profile tem valor negativo (a expansão exige largura ≥ 0)', () => {
@@ -72,6 +91,32 @@ describe('builtinBrushesPlugin — registra 9 builtins', () => {
     expect(p[0]!).toBeGreaterThan(0);
     expect(p[0]!).toBeLessThan(0.5);
     expect(p[Math.floor(p.length / 2)]!).toBeGreaterThan(1);
+  });
+
+  it('ramp cresce monotonicamente (thin→thick)', () => {
+    const { catalog } = setup();
+    const p = catalog.get('svge.builtin.brush.ramp')!.widthProfile;
+    expect(p[0]!).toBeLessThan(p.at(-1)!);
+    for (let i = 1; i < p.length; i++) expect(p[i]!).toBeGreaterThanOrEqual(p[i - 1]!);
+  });
+
+  it('flared tem cintura invertida: grosso nas pontas, fino no meio', () => {
+    const { catalog } = setup();
+    const p = catalog.get('svge.builtin.brush.flared')!.widthProfile;
+    const mid = p[Math.floor(p.length / 2)]!;
+    expect(p[0]!).toBeGreaterThan(mid);
+    expect(p.at(-1)!).toBeGreaterThan(mid);
+  });
+
+  it('twin tem dois corcovas: picos nos quartos, vales nas pontas+meio', () => {
+    const { catalog } = setup();
+    const p = catalog.get('svge.builtin.brush.twin')!.widthProfile;
+    const q1 = p[Math.round(p.length * 0.25)]!;
+    const q3 = p[Math.round(p.length * 0.75)]!;
+    const mid = p[Math.floor(p.length / 2)]!;
+    expect(q1).toBeGreaterThan(mid);
+    expect(q3).toBeGreaterThan(mid);
+    expect(q1).toBeGreaterThan(p[0]!);
   });
 
   it('cada builtin tem widthProfile não-vazio + baseWidth > 0', () => {
