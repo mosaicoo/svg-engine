@@ -2,7 +2,7 @@ import { createPath, type PathNode } from 'svg-engine/core';
 import type { ShapeLibraryItem } from './shape-library.service';
 
 /**
- * 12 built-in shapes for the Shape Library (D-048). Each is a
+ * 24 built-in shapes for the Shape Library (D-048). Each is a
  * `createPath` factory that returns a fresh `PathNode` with a
  * neutral default style (gray fill, no stroke) — consumers customize
  * after insertion via the Inspector / Color Picker.
@@ -174,15 +174,170 @@ export const triangleShape: ShapeLibraryItem = {
   },
 };
 
-/** Ordered list of all 12 builtins, in the order they appear in pickers. */
+// ── 12 additional shapes (round 2) ─────────────────────────────────
+// Same conventions: 100×100 box, absolute coords, closed with `Z`,
+// neutral DEFAULT_STYLE. Broadens each existing category (more
+// regular polygons, directional arrows, symbol glyphs).
+
+/** Regular pentagon, point-up. Inscribed radius ≈46 around (50,50). */
+export const pentagonShape: ShapeLibraryItem = {
+  id: 'svge.builtin.shape.pentagon',
+  name: 'Pentagon',
+  category: 'geometric',
+  build(): PathNode {
+    return createPath('M50 4 L94 36 L77 87 L23 87 L6 36 Z', { style: { ...DEFAULT_STYLE } });
+  },
+};
+
+/** Regular octagon (flat-top), corners cut at 30% of the box. */
+export const octagonShape: ShapeLibraryItem = {
+  id: 'svge.builtin.shape.octagon',
+  name: 'Octagon',
+  category: 'geometric',
+  build(): PathNode {
+    return createPath('M30 4 L70 4 L96 30 L96 70 L70 96 L30 96 L4 70 L4 30 Z', {
+      style: { ...DEFAULT_STYLE },
+    });
+  },
+};
+
+/** Parallelogram — top edge shifted right, equal slanted sides. */
+export const parallelogramShape: ShapeLibraryItem = {
+  id: 'svge.builtin.shape.parallelogram',
+  name: 'Parallelogram',
+  category: 'geometric',
+  build(): PathNode {
+    return createPath('M25 20 L95 20 L75 80 L5 80 Z', { style: { ...DEFAULT_STYLE } });
+  },
+};
+
+/** Isosceles trapezoid — narrow top, wide base. */
+export const trapezoidShape: ShapeLibraryItem = {
+  id: 'svge.builtin.shape.trapezoid',
+  name: 'Trapezoid',
+  category: 'geometric',
+  build(): PathNode {
+    return createPath('M25 20 L75 20 L95 80 L5 80 Z', { style: { ...DEFAULT_STYLE } });
+  },
+};
+
+/** Right triangle with the right-angle at the bottom-left corner. */
+export const rightTriangleShape: ShapeLibraryItem = {
+  id: 'svge.builtin.shape.right-triangle',
+  name: 'Right triangle',
+  category: 'geometric',
+  build(): PathNode {
+    return createPath('M10 10 L10 90 L90 90 Z', { style: { ...DEFAULT_STYLE } });
+  },
+};
+
+/** Rounded rectangle (corner radius ≈12) built from quadratic corners. */
+export const roundedRectShape: ShapeLibraryItem = {
+  id: 'svge.builtin.shape.rounded-rect',
+  name: 'Rounded rectangle',
+  category: 'geometric',
+  build(): PathNode {
+    return createPath(
+      'M22 20 L78 20 Q90 20 90 32 L90 68 Q90 80 78 80 L22 80 Q10 80 10 68 L10 32 Q10 20 22 20 Z',
+      { style: { ...DEFAULT_STYLE } },
+    );
+  },
+};
+
+/** Double-headed (bidirectional) horizontal arrow. */
+export const doubleArrowShape: ShapeLibraryItem = {
+  id: 'svge.builtin.shape.double-arrow',
+  name: 'Double arrow',
+  category: 'arrows',
+  build(): PathNode {
+    return createPath('M5 50 L25 30 L25 42 L75 42 L75 30 L95 50 L75 70 L75 58 L25 58 L25 70 Z', {
+      style: { ...DEFAULT_STYLE },
+    });
+  },
+};
+
+/** Up-pointing arrow (rectangular shaft + triangular head). */
+export const upArrowShape: ShapeLibraryItem = {
+  id: 'svge.builtin.shape.up-arrow',
+  name: 'Up arrow',
+  category: 'arrows',
+  build(): PathNode {
+    return createPath('M50 5 L85 40 L65 40 L65 95 L35 95 L35 40 L15 40 Z', {
+      style: { ...DEFAULT_STYLE },
+    });
+  },
+};
+
+/** Chevron — thick right-pointing "›" with a notched back. */
+export const chevronShape: ShapeLibraryItem = {
+  id: 'svge.builtin.shape.chevron',
+  name: 'Chevron',
+  category: 'arrows',
+  build(): PathNode {
+    return createPath('M20 15 L50 15 L80 50 L50 85 L20 85 L50 50 Z', {
+      style: { ...DEFAULT_STYLE },
+    });
+  },
+};
+
+/**
+ * Crescent moon — canonical two-arc construction (outer r=45, inner
+ * rx=35/ry=45 carving the right side). Opens to the right.
+ */
+export const crescentMoonShape: ShapeLibraryItem = {
+  id: 'svge.builtin.shape.crescent-moon',
+  name: 'Crescent moon',
+  category: 'symbols',
+  build(): PathNode {
+    return createPath('M50 5 A45 45 0 1 0 50 95 A35 45 0 1 1 50 5 Z', {
+      style: { ...DEFAULT_STYLE },
+    });
+  },
+};
+
+/** Sparkle — slim 4-pointed star (top/right/bottom/left). */
+export const sparkleShape: ShapeLibraryItem = {
+  id: 'svge.builtin.shape.sparkle',
+  name: 'Sparkle',
+  category: 'symbols',
+  build(): PathNode {
+    return createPath('M50 5 L58 42 L95 50 L58 58 L50 95 L42 58 L5 50 L42 42 Z', {
+      style: { ...DEFAULT_STYLE },
+    });
+  },
+};
+
+/** Hexagram — 6-pointed star (outer r=46, inner r=23). */
+export const hexagramShape: ShapeLibraryItem = {
+  id: 'svge.builtin.shape.hexagram',
+  name: 'Hexagram',
+  category: 'symbols',
+  build(): PathNode {
+    return createPath(
+      'M50 4 L62 30 L90 27 L73 50 L90 73 L62 70 L50 96 L38 70 L10 73 L27 50 L10 27 L38 30 Z',
+      { style: { ...DEFAULT_STYLE } },
+    );
+  },
+};
+
+/** Ordered list of all 24 builtins, in the order they appear in pickers. */
 export const BUILTIN_SHAPES: readonly ShapeLibraryItem[] = [
   // geometric primitives
   triangleShape,
   diamondShape,
   hexagonShape,
   crossShape,
+  pentagonShape,
+  octagonShape,
+  parallelogramShape,
+  trapezoidShape,
+  rightTriangleShape,
+  roundedRectShape,
   // arrows
   arrowShape,
+  doubleArrowShape,
+  upArrowShape,
+  chevronShape,
   // callouts
   balloonShape,
   // symbols
@@ -192,4 +347,7 @@ export const BUILTIN_SHAPES: readonly ShapeLibraryItem[] = [
   cloudShape,
   gearShape,
   checkmarkShape,
+  crescentMoonShape,
+  sparkleShape,
+  hexagramShape,
 ];

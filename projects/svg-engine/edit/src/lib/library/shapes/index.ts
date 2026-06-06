@@ -14,5 +14,18 @@ export {
   lightningShape,
   starShape,
   triangleShape,
+  // round 2
+  pentagonShape,
+  octagonShape,
+  parallelogramShape,
+  trapezoidShape,
+  rightTriangleShape,
+  roundedRectShape,
+  doubleArrowShape,
+  upArrowShape,
+  chevronShape,
+  crescentMoonShape,
+  sparkleShape,
+  hexagramShape,
 } from './builtin-shapes';
 export { builtinShapesPlugin } from './builtin-shapes.plugin';
