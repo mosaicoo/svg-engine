@@ -2,7 +2,7 @@ import { type EditorPlugin, PLUGIN_API_VERSION } from '../../plugin/plugin';
 import { type BrushLibraryItem, BrushLibraryService } from './brush-library.service';
 
 /**
- * **D-060** — 3 built-in brushes covering the most common
+ * **D-060** — 9 built-in brushes covering the most common
  * variable-width stroke shapes:
  *
  * - **Uniform** — constant width. The "default brush" equivalent;
@@ -12,6 +12,18 @@ import { type BrushLibraryItem, BrushLibraryService } from './brush-library.serv
  *   marker stroke).
  * - **Calligraphic** — thin at the start, thick at the end. Mimics
  *   a pressure-sensitive nib leaving a trail (chisel-tip pen).
+ * - **Brush Pen** — quick swell to full, then a long taper to a fine
+ *   point (lettering / signature down-stroke).
+ * - **Wedge** — thick→thin linear taper (angled chisel; the inverse
+ *   ramp of Calligraphic).
+ * - **Spindle** — sharp triangular peak, pointed at both ends
+ *   (leaf / diamond).
+ * - **Ribbon** — undulating sine humps, never pinching to zero
+ *   (folded ribbon / bamboo).
+ * - **Comet** — blunt thick head easing to a long fine tail
+ *   (teardrop).
+ * - **Bulge** — fat exaggerated belly (peaks past base width) with
+ *   thin non-zero ends (brush-blob accent).
  *
  * **Profile sampling**: more samples = smoother width transition.
  * 16 samples is enough for visually-smooth modulation across typical
@@ -70,14 +82,102 @@ export const calligraphicBrush: BrushLibraryItem = {
   }),
 };
 
+// ── 6 additional brushes ───────────────────────────────────────────
+// Each is a distinct width-along-the-stroke profile (every value ≥ 0;
+// values may exceed 1 for exaggerated bulge). Same `sample()` machinery
+// as the originals — the Pencil expansion linearly interpolates between
+// samples, so smooth functions read as smooth strokes.
+
+/**
+ * Brush Pen — a quick swell to full width then a long, smooth taper to a
+ * fine point. The lettering/signature staple (thick down-stroke that
+ * trails off).
+ */
+export const brushPenBrush: BrushLibraryItem = {
+  id: 'svge.builtin.brush.brush-pen',
+  name: 'Brush Pen',
+  category: 'calligraphic',
+  baseWidth: 10,
+  widthProfile: sample((t) =>
+    t < 0.18 ? 0.25 + (t / 0.18) * 0.75 : Math.max(0, 1 - (t - 0.18) / 0.82),
+  ),
+};
+
+/**
+ * Wedge — thick at the start, linear taper to a thin (not zero) end.
+ * A flat/angled chisel stroke; opposite ramp direction to Calligraphic.
+ */
+export const wedgeBrush: BrushLibraryItem = {
+  id: 'svge.builtin.brush.wedge',
+  name: 'Wedge',
+  category: 'calligraphic',
+  baseWidth: 12,
+  widthProfile: sample((t) => 1 - t * 0.85),
+};
+
+/**
+ * Spindle — sharp triangular peak: pinched to a point at BOTH ends, max
+ * in the middle. Sharper than Tapered's sine (more "leaf"/diamond-like).
+ */
+export const spindleBrush: BrushLibraryItem = {
+  id: 'svge.builtin.brush.spindle',
+  name: 'Spindle',
+  category: 'calligraphic',
+  baseWidth: 12,
+  widthProfile: sample((t) => 1 - Math.abs(2 * t - 1)),
+};
+
+/**
+ * Ribbon — undulating width (a few sine humps along the stroke), never
+ * pinching to zero. Reads like a folded ribbon / bamboo segments.
+ */
+export const ribbonBrush: BrushLibraryItem = {
+  id: 'svge.builtin.brush.ribbon',
+  name: 'Ribbon',
+  category: 'calligraphic',
+  baseWidth: 10,
+  widthProfile: sample((t) => 0.55 + 0.45 * Math.sin(t * Math.PI * 6)),
+};
+
+/**
+ * Comet — blunt, thick head easing to a long fine tail (teardrop). The
+ * eased power curve lingers thick before thinning fast.
+ */
+export const cometBrush: BrushLibraryItem = {
+  id: 'svge.builtin.brush.comet',
+  name: 'Comet',
+  category: 'calligraphic',
+  baseWidth: 14,
+  widthProfile: sample((t) => Math.pow(1 - t, 1.7)),
+};
+
+/**
+ * Bulge — fat, rounded belly with thin (non-zero) ends, exaggerated past
+ * the base width in the middle (profile peaks at 1.25). A dramatic
+ * brush-blob accent.
+ */
+export const bulgeBrush: BrushLibraryItem = {
+  id: 'svge.builtin.brush.bulge',
+  name: 'Bulge',
+  category: 'calligraphic',
+  baseWidth: 9,
+  widthProfile: sample((t) => 0.25 + Math.sin(t * Math.PI)),
+};
+
 export const BUILTIN_BRUSHES: readonly BrushLibraryItem[] = [
   uniformBrush,
   taperedBrush,
   calligraphicBrush,
+  brushPenBrush,
+  wedgeBrush,
+  spindleBrush,
+  ribbonBrush,
+  cometBrush,
+  bulgeBrush,
 ];
 
 /**
- * **`builtinBrushesPlugin`** — D-060. Registers the 3 builtin
+ * **`builtinBrushesPlugin`** — D-060. Registers the 9 builtin
  * brushes. When installed, the libraries panel shows a "Brushes"
  * section; clicking a brush selects it via `BrushSelectionService`;
  * subsequent Pencil strokes get expanded through the brush's
@@ -90,7 +190,7 @@ export const BUILTIN_BRUSHES: readonly BrushLibraryItem[] = [
  */
 export const builtinBrushesPlugin: EditorPlugin = {
   id: 'svge.builtin.brushes',
-  name: 'Built-in brushes (3 calligraphic) — D-060',
+  name: 'Built-in brushes (9 calligraphic) — D-060',
   version: '1.0.0',
   apiVersion: PLUGIN_API_VERSION,
 

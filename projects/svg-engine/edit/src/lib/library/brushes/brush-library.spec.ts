@@ -9,7 +9,7 @@ import { expandStrokeWithProfile, sampleProfile } from './expand-stroke';
 
 /**
  * D-060 — Brush Library specs:
- * 1. Plugin registers 3 builtins.
+ * 1. Plugin registers 9 builtins.
  * 2. expandStrokeWithProfile produces valid closed-polygon d strings.
  * 3. sampleProfile interpolates correctly.
  * 4. BrushSelectionService manages active brush id.
@@ -25,7 +25,7 @@ function setup() {
   };
 }
 
-describe('builtinBrushesPlugin — registra 3 builtins', () => {
+describe('builtinBrushesPlugin — registra 9 builtins', () => {
   it('registra uniform, tapered, calligraphic', () => {
     const { catalog } = setup();
     const ids = catalog.items().map((i) => i.id);
@@ -33,6 +33,45 @@ describe('builtinBrushesPlugin — registra 3 builtins', () => {
     expect(ids).toContain('svge.builtin.brush.tapered');
     expect(ids).toContain('svge.builtin.brush.calligraphic');
     expect(catalog.items().length).toBe(BUILTIN_BRUSHES.length);
+  });
+
+  it('registra os 6 brushes adicionais (brush-pen, wedge, spindle, ribbon, comet, bulge)', () => {
+    const { catalog } = setup();
+    const ids = catalog.items().map((i) => i.id);
+    expect(ids).toContain('svge.builtin.brush.brush-pen');
+    expect(ids).toContain('svge.builtin.brush.wedge');
+    expect(ids).toContain('svge.builtin.brush.spindle');
+    expect(ids).toContain('svge.builtin.brush.ribbon');
+    expect(ids).toContain('svge.builtin.brush.comet');
+    expect(ids).toContain('svge.builtin.brush.bulge');
+    expect(catalog.items().length).toBe(9);
+  });
+
+  it('nenhum profile tem valor negativo (a expansão exige largura ≥ 0)', () => {
+    const { catalog } = setup();
+    for (const item of catalog.items()) {
+      for (const v of item.widthProfile) {
+        expect(v).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it('spindle é pinçado (≈0) em ambos os endpoints e máximo no meio', () => {
+    const { catalog } = setup();
+    const spindle = catalog.get('svge.builtin.brush.spindle')!;
+    const p = spindle.widthProfile;
+    expect(p[0]!).toBeCloseTo(0, 5);
+    expect(p.at(-1)!).toBeCloseTo(0, 5);
+    expect(p[Math.floor(p.length / 2)]!).toBeGreaterThan(0.9);
+  });
+
+  it('bulge é exagerado (> 1) no meio e fino (não-zero) nos endpoints', () => {
+    const { catalog } = setup();
+    const bulge = catalog.get('svge.builtin.brush.bulge')!;
+    const p = bulge.widthProfile;
+    expect(p[0]!).toBeGreaterThan(0);
+    expect(p[0]!).toBeLessThan(0.5);
+    expect(p[Math.floor(p.length / 2)]!).toBeGreaterThan(1);
   });
 
   it('cada builtin tem widthProfile não-vazio + baseWidth > 0', () => {
