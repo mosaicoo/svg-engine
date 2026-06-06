@@ -15,6 +15,7 @@ import {
   type Transform,
 } from 'svg-engine/core';
 import { composeAncestorMatrix } from './compose-ancestor-matrix';
+import { nearestTOnCubic } from './cubic-nearest';
 import { screenToDoc, ViewportService } from 'svg-engine/render';
 import { LayersService } from '../layers/layers.service';
 import { capturePointer, releasePointer } from '../pointer';
@@ -62,7 +63,10 @@ const CYCLE_KIND: Readonly<Record<AnchorKind, AnchorKind>> = {
  * - pointermove during drag → MoveAnchorCommand-equivalent preview
  *   via direct document mutation (preview-then-commit pattern)
  * - pointerup → commit final position via `MoveAnchorCommand`
- * - Alt + pointerdown on a stem/segment midpoint → InsertAnchorCommand
+ * - dblclick on a segment → InsertAnchorCommand at the CLICK LOCATION
+ *   (projected onto the cubic; market convention)
+ * - Alt + click on a segment → InsertAnchorCommand at the midpoint
+ *   (t=0.5; back-compat secondary gesture)
  * - dblclick on anchor → cycle kind (cusp → smooth → symmetric → cusp)
  *
  * **Selection feedback**: selected anchor squares get the `.selected`
@@ -154,18 +158,25 @@ const CYCLE_KIND: Readonly<Record<AnchorKind, AnchorKind>> = {
       }
 
       <!--
-        Invisible segment hit-zones for Alt+click → InsertAnchor.
-        Renders BELOW the anchor squares so a click on the anchor
-        itself wins. 'stroke: transparent' + 'stroke-width' ~10px
-        (in CSS px via 1/zoom) makes the click target generous
-        enough to be discoverable without a precise stylus. Without
-        Alt, the pointer falls through to the underlying canvas
-        (selection / marquee). Alt+click triggers the insert.
+        Invisible segment hit-zones for inserting anchors. Renders BELOW
+        the anchor squares so a click on the anchor itself wins.
+        'stroke: transparent' + 'stroke-width' ~10px (in CSS px via
+        1/zoom) makes the target generous enough to hit without a precise
+        stylus.
 
-        aria-hidden because Alt+click on a curve segment has no
-        comparable keyboard surface (continuous along the curve);
-        the keyboard alternative is to focus an anchor and use Enter
-        to cycle kind / arrow keys to refine geometry.
+        Gestures (see handlers):
+        - **Double-click** → insert a new anchor AT THE CLICK LOCATION
+          (projected onto the curve; market convention — Inkscape /
+          Affinity / Figma). Primary gesture.
+        - **Alt+click** → insert at the segment midpoint (t=0.5). Kept
+          for back-compat with the original D-038 gesture.
+        A plain single click is swallowed (stopPropagation) so it neither
+        deselects the path nor starts a marquee from the curve — and so
+        the overlay survives until the dblclick fires.
+
+        aria-hidden because click-on-curve has no comparable keyboard
+        surface (continuous along the curve); the keyboard alternative is
+        to focus an anchor and use Enter to cycle kind / arrow keys.
       -->
       @for (seg of segments(); track seg.key) {
         <svg:path
@@ -174,6 +185,7 @@ const CYCLE_KIND: Readonly<Record<AnchorKind, AnchorKind>> = {
           [attr.d]="seg.d"
           [attr.stroke-width]="hitZoneSize()"
           (pointerdown)="onSegmentPointerDown($event, seg.ref)"
+          (dblclick)="onSegmentDoubleClick($event, seg)"
         />
       }
 
@@ -382,9 +394,7 @@ export class AnchorOverlay {
    * insert command derives the next-anchor from `subpathIndex` +
    * the closed flag (see InsertAnchorCommand).
    */
-  protected readonly segments = computed<
-    readonly { key: string; d: string; ref: AnchorRef }[] | null
-  >(() => {
+  protected readonly segments = computed<readonly SegmentEntry[] | null>(() => {
     // Reuse the same gating logic as `anchors` — both render only
     // when the path is selected under Direct Select. Sharing the
     // condition would require re-parsing the path; rely on Angular
@@ -404,7 +414,7 @@ export class AnchorOverlay {
     // must align with the rendered curve, which means we need every
     // ancestor's transform, not just the path's own.
     const t = composeAncestorMatrix(doc.root, focusId);
-    const out: { key: string; d: string; ref: AnchorRef }[] = [];
+    const out: SegmentEntry[] = [];
     for (let s = 0; s < subpaths.length; s++) {
       const sub = subpaths[s]!;
       const n = sub.anchors.length;
@@ -420,6 +430,12 @@ export class AnchorOverlay {
           key: `seg:${s}:${i}`,
           d: `M${fmt(p0.x)} ${fmt(p0.y)} C${fmt(p1.x)} ${fmt(p1.y)} ${fmt(p2.x)} ${fmt(p2.y)} ${fmt(p3.x)} ${fmt(p3.y)}`,
           ref: { nodeId: focusId, subpathIndex: s, anchorIndex: i },
+          // Render-space control points — kept so the dblclick handler can
+          // project the click onto this exact cubic to find the insert `t`.
+          p0,
+          p1,
+          p2,
+          p3,
         });
       }
     }
@@ -427,22 +443,57 @@ export class AnchorOverlay {
   });
 
   /**
-   * Alt+click on a segment hit-zone inserts a new anchor at t=0.5
-   * (midpoint of the cubic between segment start and next anchor).
-   * Without Alt, the click falls through to the canvas — selection
-   * / marquee logic handles it normally.
+   * Pointer-down on a segment hit-zone.
    *
-   * The choice of t=0.5 is a Pragmatic simplification: a more
-   * accurate version would project the click point onto the curve
-   * and insert at the closest parameter. Midpoint is enough for
-   * a v1 anchor editor and matches Sketch's behavior.
+   * - **Alt+click** → insert a new anchor at the segment midpoint
+   *   (t=0.5). Secondary/back-compat gesture (the original D-038
+   *   path-editor behavior).
+   * - **Plain left-click** → swallowed (`stopPropagation`, no insert).
+   *   This is intentional and additive: the primary insert gesture is
+   *   now a **double-click** (see {@link onSegmentDoubleClick}), and a
+   *   double-click is two pointer-downs. If those bubbled to the canvas
+   *   they would clear the path selection and tear down this overlay
+   *   *before* the dblclick fired — making the gesture unreliable.
+   *   Swallowing the click also matches Illustrator/Affinity, where
+   *   clicking the curve in node-edit mode never starts a marquee or
+   *   deselects. Dragging the path BODY still works (that lands on the
+   *   real path fill, not this thin stroke hit-zone), as do anchor /
+   *   handle drags (their own squares own those pointer-downs).
    */
   protected onSegmentPointerDown(event: PointerEvent, ref: AnchorRef): void {
-    if (!event.altKey) return; // pass through — canvas handles the click
     if (event.button !== 0) return;
+    if (event.altKey) {
+      event.stopPropagation();
+      event.preventDefault();
+      this.bus.dispatch(new InsertAnchorCommand(ref, 0.5));
+      return;
+    }
+    // Plain click: absorb it (keep selection + overlay stable for the
+    // potential dblclick). No state change.
+    event.stopPropagation();
+  }
+
+  /**
+   * Double-click on a segment hit-zone inserts a new anchor **at the
+   * click location** — the market convention (Inkscape / Affinity /
+   * Figma). The click is projected onto the cubic to recover the curve
+   * parameter `t`; `InsertAnchorCommand` then splits the cubic at that
+   * `t` via De Casteljau, so the path's shape is preserved (it just
+   * gains an editable node where the user clicked).
+   *
+   * Falls back to the midpoint (t=0.5) if the screen→doc conversion is
+   * unavailable (jsdom / detached SVG). `t` is clamped to the open
+   * interval the command requires (`0 < t < 1`) so a near-endpoint
+   * double-click still inserts instead of failing.
+   */
+  protected onSegmentDoubleClick(event: MouseEvent, seg: SegmentEntry): void {
     event.stopPropagation();
     event.preventDefault();
-    this.bus.dispatch(new InsertAnchorCommand(ref, 0.5));
+    const docPoint = this.screenToDoc(event.clientX, event.clientY);
+    const rawT =
+      docPoint === null ? 0.5 : nearestTOnCubic(seg.p0, seg.p1, seg.p2, seg.p3, docPoint);
+    const t = Math.min(0.999, Math.max(0.001, rawT));
+    this.bus.dispatch(new InsertAnchorCommand(seg.ref, t));
   }
 
   // ── Drag state ───────────────────────────────────────────────────
@@ -759,6 +810,22 @@ interface AnchorEntry {
   readonly index: number;
   /** Total anchor count across all subpaths — pairs with `index`. */
   readonly total: number;
+}
+
+/**
+ * One curve segment's invisible hit-zone, plus the render-space cubic
+ * control points (`p0`=start, `p1`=start.handleOut, `p2`=end.handleIn,
+ * `p3`=end) used to project a double-click onto the curve for
+ * insert-at-click-location.
+ */
+interface SegmentEntry {
+  readonly key: string;
+  readonly d: string;
+  readonly ref: AnchorRef;
+  readonly p0: Point;
+  readonly p1: Point;
+  readonly p2: Point;
+  readonly p3: Point;
 }
 
 function pointsEqual(a: Point, b: Point, eps = 1e-6): boolean {

@@ -18,8 +18,9 @@ import { TOOL_OPT_SHARED_STYLES } from '../shared-styles';
     <span class="opt-group">
       <mat-icon class="hint-icon" aria-hidden="true">info_outline</mat-icon>
       <span class="hint">
-        Click an anchor to move it. <strong>Alt</strong> + drag to detach handles.
-        <strong>Double-click</strong> to cycle anchor type (cusp ↔ smooth ↔ symmetric).
+        Drag an anchor to move it. <strong>Double-click a segment</strong> to add an anchor where
+        you click; <strong>double-click an anchor</strong> to cycle its type (cusp ↔ smooth ↔
+        symmetric). <strong>Alt</strong>+click a segment adds one at the midpoint.
       </span>
     </span>
     <span class="opt-spacer"></span>
