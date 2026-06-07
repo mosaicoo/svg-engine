@@ -22,7 +22,8 @@
       "svg-engine/edit": ["./dist/svg-engine/edit"],
       "svg-engine/ui": ["./dist/svg-engine/ui"],
       "svg-engine/ai/nlu": ["./dist/svg-engine/ai/nlu"],
-      "svg-engine/ai/nlu-ui": ["./dist/svg-engine/ai/nlu-ui"]
+      "svg-engine/ai/nlu-ui": ["./dist/svg-engine/ai/nlu-ui"],
+      "svg-engine/ai/nlu-voice-wasm": ["./dist/svg-engine/ai/nlu-voice-wasm"]
     },
     "module": "preserve"
   },

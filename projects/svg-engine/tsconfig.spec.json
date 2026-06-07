@@ -24,6 +24,8 @@
     "ai/nlu/src/**/*.d.ts",
     "ai/nlu/src/**/*.spec.ts",
     "ai/nlu-ui/src/**/*.d.ts",
-    "ai/nlu-ui/src/**/*.spec.ts"
+    "ai/nlu-ui/src/**/*.spec.ts",
+    "ai/nlu-voice-wasm/src/**/*.d.ts",
+    "ai/nlu-voice-wasm/src/**/*.spec.ts"
   ]
 }

@@ -1,7 +1,7 @@
 {
   "name": "svg-engine",
   "version": "0.1.0",
-  "description": "Headless-first, plugin-extensible SVG editor library for Angular v21+. Render, manipulate and optimize SVG inside any Angular app — 8 secondary entry points (core/render/io/optimize/edit/ui + ai/nlu + ai/nlu-ui), Material UI is opt-in.",
+  "description": "Headless-first, plugin-extensible SVG editor library for Angular v21+. Render, manipulate and optimize SVG inside any Angular app — 9 secondary entry points (core/render/io/optimize/edit/ui + ai/nlu + ai/nlu-ui + ai/nlu-voice-wasm), Material UI is opt-in and local Whisper voice is opt-in.",
   "keywords": [
     "svg",
     "svg-editor",
@@ -32,13 +32,21 @@
     "@angular/common": "^21.2.0",
     "@angular/core": "^21.2.0",
     "@angular/material": "^21.2.0",
-    "@angular/cdk": "^21.2.0"
+    "@angular/cdk": "^21.2.0",
+    "@huggingface/transformers": "^4.2.0",
+    "onnxruntime-web": "^1.26.0"
   },
   "peerDependenciesMeta": {
     "@angular/material": {
       "optional": true
     },
     "@angular/cdk": {
+      "optional": true
+    },
+    "@huggingface/transformers": {
+      "optional": true
+    },
+    "onnxruntime-web": {
       "optional": true
     }
   },
