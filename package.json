@@ -3,7 +3,10 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
+    "assemble:ml": "node scripts/assemble-whisper-model.mjs",
+    "prestart": "npm run assemble:ml",
     "start": "ng serve",
+    "prebuild": "npm run assemble:ml",
     "build": "ng build",
     "build:lib": "ng build svg-engine",
     "watch": "ng build --watch --configuration development",

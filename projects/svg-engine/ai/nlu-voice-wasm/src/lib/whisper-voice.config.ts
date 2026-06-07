@@ -99,7 +99,7 @@ export interface WhisperVoiceConfig {
 /** Defaults aplicáveis ao layout padrão de assets dos apps SVGEngine. */
 export const DEFAULT_WHISPER_VOICE_CONFIG: WhisperVoiceConfig = {
   modelBasePath: '/assets/ml/whisper',
-  modelId: 'whisper-base',
+  modelId: 'whisper-small',
   wasmBasePath: '/assets/ml/ort/',
   dtype: 'q8',
   numThreads: 1,

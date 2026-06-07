@@ -64,8 +64,9 @@
               },
               {
                 "glob": "**/*",
-                "input": "assets/ml/whisper/whisper-base",
-                "output": "assets/ml/whisper/whisper-base"
+                "input": "assets/ml/whisper/whisper-small",
+                "output": "assets/ml/whisper/whisper-small",
+                "ignore": ["**/*.part*"]
               },
               {
                 "glob": "ort-wasm-simd-threaded*.{wasm,mjs}",

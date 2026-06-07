@@ -41,7 +41,7 @@ describe('WhisperVoiceConfig', () => {
   it('defaults apontam para assets locais (sem URL externa)', () => {
     expect(DEFAULT_WHISPER_VOICE_CONFIG.modelBasePath.startsWith('/')).toBe(true);
     expect(DEFAULT_WHISPER_VOICE_CONFIG.wasmBasePath.startsWith('/')).toBe(true);
-    expect(DEFAULT_WHISPER_VOICE_CONFIG.modelId).toBe('whisper-base');
+    expect(DEFAULT_WHISPER_VOICE_CONFIG.modelId).toBe('whisper-small');
     expect(DEFAULT_WHISPER_VOICE_CONFIG.numThreads).toBe(1);
   });
 });
