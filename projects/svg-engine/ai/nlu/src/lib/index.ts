@@ -29,3 +29,4 @@ export * from './parsers';
 export * from './dictionaries';
 export * from './scoring';
 export * from './dictionary-registry.service';
+export * from './voice-provider';

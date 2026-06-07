@@ -5,12 +5,15 @@
  *
  * - {@link SvgeNluInput} `<svge-nlu-input>` — text + voice + alternatives
  * - {@link VoiceRecognitionService} — wrapper Web Speech API
+ * - {@link VoiceEngineService} — orquestrador de engine selecionável
+ *   (Web Speech / Whisper local / auto)
  *
  * Importação:
  * ```ts
- * import { SvgeNluInput, VoiceRecognitionService } from 'svg-engine/ai/nlu-ui';
+ * import { SvgeNluInput, VoiceEngineService } from 'svg-engine/ai/nlu-ui';
  * ```
  */
 
 export { SvgeNluInput } from './nlu-input.component';
 export { VoiceRecognitionService } from './voice-recognition.service';
+export { VoiceEngineService } from './voice-engine.service';

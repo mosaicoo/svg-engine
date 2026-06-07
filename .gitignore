@@ -10,6 +10,8 @@ out/
 
 # ---------- Dependencies ----------
 /node_modules
+# nested node_modules (ex.: projects/svg-engine/node_modules gerado por tooling)
+**/node_modules/
 jspm_packages/
 npm-debug.log
 yarn-error.log

@@ -5,3 +5,4 @@ export {
   type WhisperVoiceConfig,
 } from './whisper-voice.config';
 export { WhisperVoiceService } from './whisper-voice.service';
+export { provideWhisperVoiceEngine } from './whisper-voice.providers';

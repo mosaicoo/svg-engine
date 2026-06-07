@@ -15,6 +15,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormField, MatLabel, MatPrefix, MatSuffix } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltip } from '@angular/material/tooltip';
 import {
@@ -22,9 +23,10 @@ import {
   type NluCandidate,
   type NluExecuteResult,
   NaturalLanguageService,
+  type VoiceEngine,
 } from 'svg-engine/ai/nlu';
 import { tokenize } from 'svg-engine/ai/nlu';
-import { VoiceRecognitionService } from './voice-recognition.service';
+import { VoiceEngineService } from './voice-engine.service';
 
 /**
  * **`<svge-nlu-input>`** — D-046 Fase 1 UI surface.
@@ -69,6 +71,7 @@ import { VoiceRecognitionService } from './voice-recognition.service';
     MatSuffix,
     MatIcon,
     MatInput,
+    MatMenuModule,
     MatProgressBarModule,
     MatTooltip,
   ],
@@ -87,6 +90,27 @@ import { VoiceRecognitionService } from './voice-recognition.service';
           [attr.aria-describedby]="topCandidate() ? 'svge-nlu-hint' : null"
           [placeholder]="placeholder()"
         />
+        @if (voice.availableEngines().length > 1) {
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            class="svge-nlu-engine"
+            [matMenuTriggerFor]="engineMenu"
+            [matTooltip]="'Motor de voz: ' + engineLabel(voice.engine())"
+            aria-label="Selecionar motor de voz"
+          >
+            <mat-icon>{{ engineIcon(voice.engine()) }}</mat-icon>
+          </button>
+          <mat-menu #engineMenu="matMenu">
+            @for (e of voice.availableEngines(); track e) {
+              <button mat-menu-item type="button" (click)="voice.setEngine(e)">
+                <mat-icon>{{ voice.engine() === e ? 'check' : engineIcon(e) }}</mat-icon>
+                <span>{{ engineLabel(e) }}</span>
+              </button>
+            }
+          </mat-menu>
+        }
         @if (voice.isSupported()) {
           <button
             mat-icon-button
@@ -94,11 +118,14 @@ import { VoiceRecognitionService } from './voice-recognition.service';
             type="button"
             class="svge-nlu-mic"
             [class.recording]="voice.listening()"
+            [disabled]="voice.modelLoading()"
             [attr.aria-pressed]="voice.listening()"
-            [matTooltip]="voice.listening() ? 'Stop' : 'Voice (' + effectiveVoiceLang() + ')'"
+            [matTooltip]="micTooltip()"
             (click)="toggleVoice()"
           >
-            <mat-icon>{{ voice.listening() ? 'mic_off' : 'mic' }}</mat-icon>
+            <mat-icon>{{
+              voice.modelLoading() ? 'hourglass_empty' : voice.listening() ? 'mic_off' : 'mic'
+            }}</mat-icon>
           </button>
         }
         <button
@@ -367,7 +394,7 @@ export class SvgeNluInput {
   readonly executed = output<NluExecuteResult>();
 
   protected readonly nlu = inject(NaturalLanguageService);
-  protected readonly voice = inject(VoiceRecognitionService);
+  protected readonly voice = inject(VoiceEngineService);
   private readonly hostInjector = inject(Injector);
   private readonly textInputRef = viewChild<ElementRef<HTMLInputElement>>('textInput');
 
@@ -455,10 +482,50 @@ export class SvgeNluInput {
         return `Idioma "${this.voiceLang()}" não suportado pelo navegador.`;
       case 'bad-grammar':
         return 'Erro de gramática do reconhecimento — tente um comando mais simples.';
+      // ── Voz local (Whisper / WASM) ──
+      case 'not-supported':
+        return 'Voz local indisponível neste ambiente (sem microfone ou WebAssembly).';
+      case 'load-failed':
+        return 'Falha ao carregar o modelo de voz local (Whisper). Verifique se os assets do modelo estão publicados (ex.: /assets/ml/whisper).';
+      case 'transcribe-failed':
+        return 'Falha ao transcrever o áudio localmente. Fale novamente e tente de novo.';
       default:
         return `Erro de voz: ${err}`;
     }
   });
+
+  // ── Engine de voz (seletor) ─────────────────────────────────
+
+  /** Rótulo humano para cada engine de voz. */
+  protected engineLabel(engine: VoiceEngine): string {
+    switch (engine) {
+      case 'web-speech':
+        return 'Navegador (rápido)';
+      case 'whisper':
+        return 'Local / Whisper (offline)';
+      case 'auto':
+        return 'Automático (ambos)';
+    }
+  }
+
+  /** Ícone Material para cada engine de voz. */
+  protected engineIcon(engine: VoiceEngine): string {
+    switch (engine) {
+      case 'web-speech':
+        return 'cloud';
+      case 'whisper':
+        return 'offline_bolt';
+      case 'auto':
+        return 'auto_awesome';
+    }
+  }
+
+  /** Tooltip do botão de microfone (reflete carregamento/gravação). */
+  protected micTooltip(): string {
+    if (this.voice.modelLoading()) return 'Carregando modelo de voz local…';
+    if (this.voice.listening()) return 'Parar';
+    return `Voz (${this.effectiveVoiceLang()})`;
+  }
 
   // ── Handlers ────────────────────────────────────────────────
 
