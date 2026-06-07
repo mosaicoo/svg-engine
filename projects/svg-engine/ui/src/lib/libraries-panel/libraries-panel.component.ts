@@ -157,7 +157,9 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
               <button
                 type="button"
                 class="list-item"
-                [title]="'Replace document with ' + item.name"
+                [title]="
+                  item.name + (item.dimensions ? ' — ' + formatDimensions(item.dimensions) : '')
+                "
                 (click)="applyTemplate(item.id)"
               >
                 <span
@@ -165,10 +167,12 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
                   [style.aspect-ratio]="item.aspectRatio"
                   aria-hidden="true"
                 ></span>
-                <span class="list-name">{{ item.name }}</span>
-                @if (item.dimensions) {
-                  <span class="list-meta">{{ item.dimensions }}</span>
-                }
+                <span class="list-text">
+                  <span class="list-name">{{ item.name }}</span>
+                  @if (item.dimensions) {
+                    <span class="list-meta">{{ formatDimensions(item.dimensions) }}</span>
+                  }
+                </span>
               </button>
             }
           </div>
@@ -530,8 +534,6 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
       flex-direction: column;
       gap: 2px;
       padding: 8px;
-      /* Container query target — list-meta auto-hides under 200px. */
-      container-type: inline-size;
     }
     .list-item {
       display: flex;
@@ -552,27 +554,27 @@ import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
     .list-item:hover {
       background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.04));
     }
-    .list-name {
+    /* Name + dimensions stack vertically (name on top, size below) so
+       both stay readable even in a narrow rail — the dimensions used to
+       sit inline to the right and got hidden under 200px. */
+    .list-text {
+      display: flex;
+      flex-direction: column;
       flex: 1 1 auto;
+      min-width: 0;
+      gap: 1px;
+    }
+    .list-name {
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     .list-meta {
-      flex: 0 0 auto;
       font-size: 10px;
       opacity: 0.55;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
-    }
-    /* In very narrow rails (≤ 200px) the dimensions meta crowds out
-       the name. Hide it under that threshold — the title attribute on
-       the row already exposes the same info on hover. */
-    @container (max-width: 200px) {
-      .list-meta {
-        display: none;
-      }
     }
     .assets-body {
       padding: 8px;
@@ -801,6 +803,15 @@ export class SvgeLibrariesPanel {
       aspectRatio: parseAspectRatio(item.dimensions),
     }));
   });
+
+  /**
+   * Format a template's `dimensions` hint ("W×H" / "WxH") for display as
+   * "W × H" (spaced multiplication sign). Presentation-only — the raw
+   * value is kept untouched for {@link parseAspectRatio}.
+   */
+  protected formatDimensions(dimensions: string): string {
+    return dimensions.replace(/\s*[×x]\s*/i, ' × ');
+  }
 
   /**
    * Pattern items enriched with the inner SVG markup of the pattern
