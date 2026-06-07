@@ -73,8 +73,8 @@ export interface WhisperVoiceConfig {
   /**
    * **VAD (detecção de silêncio)** — após a fala começar, encerra a
    * captura automaticamente quando o silêncio durar este tempo (ms).
-   * Espelha o auto-stop nativo da Web Speech para manter o
-   * comportamento consistente entre as engines. Default 2000 (2 s).
+   * Espelha o auto-stop da Web Speech para manter o comportamento
+   * consistente entre as engines. Default 1000 (1 s).
    * `0` desliga o VAD (só para via `stop()` ou `maxRecordMs`).
    */
   readonly silenceMs: number;
@@ -106,7 +106,7 @@ export const DEFAULT_WHISPER_VOICE_CONFIG: WhisperVoiceConfig = {
   graphOptimizationLevel: 'disabled',
   defaultLanguage: 'pt',
   maxRecordMs: 15000,
-  silenceMs: 2000,
+  silenceMs: 1000,
   silenceThreshold: 0.015,
   noSpeechTimeoutMs: 6000,
 };

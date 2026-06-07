@@ -109,6 +109,14 @@ export class VoiceRecognitionService {
   static readonly DEFAULT_LISTEN_TIMEOUT_MS = 30000;
 
   /**
+   * Default do **watchdog de silêncio** (VAD) — encerra a captura
+   * `DEFAULT_SILENCE_MS` ms após a última palavra reconhecida, espelhando
+   * o auto-stop do provider Whisper local. A Web Speech API não tem
+   * config nativa de endpointing; emulamos via `interimResults`.
+   */
+  static readonly DEFAULT_SILENCE_MS = 1000;
+
+  /**
    * Inicia a captura. Resolve com a transcrição final quando o
    * recognizer terminar. Rejeita em erro, em timeout ou se chamado sem suporte.
    *
@@ -116,8 +124,12 @@ export class VoiceRecognitionService {
    * @param options.timeoutMs timeout em ms (default 30000). Após
    *   expirar, aborta o recognizer e rejeita com `'timeout'`.
    */
-  listen(lang = 'pt-BR', options: { readonly timeoutMs?: number } = {}): Promise<string> {
+  listen(
+    lang = 'pt-BR',
+    options: { readonly timeoutMs?: number; readonly silenceMs?: number } = {},
+  ): Promise<string> {
     const timeoutMs = options.timeoutMs ?? VoiceRecognitionService.DEFAULT_LISTEN_TIMEOUT_MS;
+    const silenceMs = options.silenceMs ?? VoiceRecognitionService.DEFAULT_SILENCE_MS;
     return new Promise<string>((resolve, reject) => {
       const Ctor = getSpeechRecognition();
       if (Ctor === null) {
@@ -137,12 +149,22 @@ export class VoiceRecognitionService {
       const rec: SpeechRecognitionLike = new Ctor();
       rec.lang = lang;
       rec.continuous = false;
-      rec.interimResults = false;
+      // interimResults ON: alimenta o watchdog de silêncio (medimos o
+      // tempo desde a última palavra e encerramos após `silenceMs`).
+      rec.interimResults = true;
       rec.maxAlternatives = 1;
       this._lastError.set(null);
       this.activeRec = rec;
 
       let resolved = false;
+      let transcript = '';
+      let silenceHandle: ReturnType<typeof setTimeout> | null = null;
+      const clearSilence = (): void => {
+        if (silenceHandle !== null) {
+          clearTimeout(silenceHandle);
+          silenceHandle = null;
+        }
+      };
 
       // **D-046 review-10**: timeout watchdog pra evitar Promise pendurada
       // quando browser não dispara onend/onerror (bugs raros, tab em
@@ -165,17 +187,34 @@ export class VoiceRecognitionService {
           : null;
       const clearTimer = (): void => {
         if (timeoutHandle !== null) clearTimeout(timeoutHandle);
+        clearSilence();
+      };
+
+      // VAD: encerra `silenceMs` ms após a última palavra reconhecida.
+      const armSilence = (): void => {
+        if (silenceMs <= 0) return;
+        clearSilence();
+        silenceHandle = setTimeout(() => {
+          try {
+            rec.stop();
+          } catch {
+            /* ignore */
+          }
+        }, silenceMs);
       };
 
       rec.onstart = (): void => {
         this._listening.set(true);
       };
       rec.onresult = (event): void => {
-        const first = event.results[0]?.[0];
-        if (first && typeof first.transcript === 'string') {
-          resolved = true;
-          clearTimer();
-          resolve(first.transcript);
+        // Concatena as alternativas top-1 de cada segmento (interim + final).
+        const segments = Array.from(
+          event.results as ArrayLike<ArrayLike<{ readonly transcript: string }>>,
+        );
+        const text = segments.map((seg) => seg[0]?.transcript ?? '').join('');
+        if (text.trim().length > 0) {
+          transcript = text;
+          armSilence(); // reinicia o relógio de silêncio a cada palavra nova
         }
       };
       rec.onerror = (event): void => {
@@ -190,10 +229,11 @@ export class VoiceRecognitionService {
         this._listening.set(false);
         if (this.activeRec === rec) this.activeRec = null;
         if (!resolved) {
-          // Terminou sem `onresult` (sem fala detectada) — resolve com vazio.
+          // Encerrou (silêncio/endpointing) — resolve com o acumulado
+          // (vazio se nada foi reconhecido).
           resolved = true;
           clearTimer();
-          resolve('');
+          resolve(transcript.trim());
         }
       };
 

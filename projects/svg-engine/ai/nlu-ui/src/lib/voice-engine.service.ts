@@ -70,6 +70,16 @@ export class VoiceEngineService {
   /** Último erro do orquestrador (limpo a cada `listen` bem-sucedido). */
   readonly lastError: Signal<string | null> = this._lastError.asReadonly();
 
+  constructor() {
+    // Cross-browser por padrão: quando a voz local (Whisper) existe, 'auto'
+    // é o melhor default — tenta a Web Speech (precisa em Chrome/Safari) e
+    // cai automaticamente pro Whisper local quando a nuvem falha
+    // (Edge/Brave/Firefox costumam dar erro 'network' na Web Speech).
+    if (this.whisper !== null) {
+      this._engine.set('auto');
+    }
+  }
+
   /** Troca a engine ativa. Ignora valores não disponíveis no ambiente. */
   setEngine(engine: VoiceEngine): void {
     if (this.availableEngines().includes(engine)) {
