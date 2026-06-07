@@ -5,5 +5,14 @@ export {
   businessCardTemplate,
   instagramSquareTemplate,
   twitterCardTemplate,
+  // round 2
+  a4LandscapeTemplate,
+  letterPortraitTemplate,
+  instagramStoryTemplate,
+  instagramPortraitTemplate,
+  youtubeThumbnailTemplate,
+  presentation169Template,
+  pinterestPinTemplate,
+  facebookCoverTemplate,
 } from './builtin-templates';
 export { builtinTemplatesPlugin } from './builtin-templates.plugin';

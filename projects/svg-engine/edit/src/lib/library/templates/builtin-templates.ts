@@ -2,14 +2,19 @@ import { bbox, createEmptyDocument } from 'svg-engine/core';
 import type { TemplateLibraryItem } from './template-library.service';
 
 /**
- * 4 built-in document templates (D-048). Each is a blank document
- * pre-sized for a common output format. Apply via
- * `EditorStateService.resetDocument(template.build())`.
+ * 12 built-in document templates (D-048) — the most-used formats across
+ * editing apps + social networks. Each is a blank document pre-sized for
+ * a common output format.
  *
- * Sizes are in SVG units (1 unit = ~1 CSS pixel). The corresponding
- * print/export dimensions match standard formats: A4 portrait at
- * 96 DPI = 794×1123, etc. Tuned to a single round-friendly viewBox
- * for clean editing without imperial-vs-metric rounding errors.
+ * **How they're applied**: the Libraries panel resizes the ACTIVE page to
+ * the template's dimensions (non-destructive `ResizePageCommand`), keeping
+ * the page origin fixed. The `build()` factory (a fresh `SvgDocument`) is
+ * used only to read the target `viewBox` dimensions.
+ *
+ * **Units**: print formats use the point (72-DPI) convention — A4 = 595×842,
+ * Letter = 612×792 — matching PDF/PostScript page sizes. Social / video
+ * formats use each platform's documented pixel spec (e.g. Instagram story
+ * 1080×1920, YouTube thumbnail 1280×720).
  */
 
 /** A4 portrait — 595×842 (standard print). */
@@ -72,10 +77,114 @@ export const businessCardTemplate: TemplateLibraryItem = {
   },
 };
 
-/** Ordered list of all 4 builtins. */
+// ── 8 additional templates (round 2) ───────────────────────────────
+// Most-used formats across editing apps + social networks. Print sizes
+// keep the same point (72-DPI) convention as A4 portrait above; social
+// /video sizes use each platform's documented pixel spec.
+
+/** A4 landscape — 842×595 (rotated A4; the landscape companion). */
+export const a4LandscapeTemplate: TemplateLibraryItem = {
+  id: 'svge.builtin.template.a4-landscape',
+  name: 'A4 (landscape)',
+  category: 'print',
+  dimensions: '842×595',
+  build() {
+    return createEmptyDocument({ viewBox: bbox(0, 0, 842, 595), width: 842, height: 595 });
+  },
+};
+
+/** US Letter portrait — 612×792 (8.5×11" in points, matches A4 convention). */
+export const letterPortraitTemplate: TemplateLibraryItem = {
+  id: 'svge.builtin.template.letter-portrait',
+  name: 'Letter (portrait)',
+  category: 'print',
+  dimensions: '612×792',
+  build() {
+    return createEmptyDocument({ viewBox: bbox(0, 0, 612, 792), width: 612, height: 792 });
+  },
+};
+
+/** Instagram story / Reel — 1080×1920 (9:16; also TikTok / YT Shorts). */
+export const instagramStoryTemplate: TemplateLibraryItem = {
+  id: 'svge.builtin.template.instagram-story',
+  name: 'Instagram story',
+  category: 'social',
+  dimensions: '1080×1920',
+  build() {
+    return createEmptyDocument({ viewBox: bbox(0, 0, 1080, 1920), width: 1080, height: 1920 });
+  },
+};
+
+/** Instagram portrait post — 1080×1350 (4:5, the tallest allowed feed post). */
+export const instagramPortraitTemplate: TemplateLibraryItem = {
+  id: 'svge.builtin.template.instagram-portrait',
+  name: 'Instagram portrait',
+  category: 'social',
+  dimensions: '1080×1350',
+  build() {
+    return createEmptyDocument({ viewBox: bbox(0, 0, 1080, 1350), width: 1080, height: 1350 });
+  },
+};
+
+/** YouTube thumbnail — 1280×720 (16:9). */
+export const youtubeThumbnailTemplate: TemplateLibraryItem = {
+  id: 'svge.builtin.template.youtube-thumbnail',
+  name: 'YouTube thumbnail',
+  category: 'video',
+  dimensions: '1280×720',
+  build() {
+    return createEmptyDocument({ viewBox: bbox(0, 0, 1280, 720), width: 1280, height: 720 });
+  },
+};
+
+/** Presentation 16:9 — 1920×1080 (Full HD slide / desktop wallpaper). */
+export const presentation169Template: TemplateLibraryItem = {
+  id: 'svge.builtin.template.presentation-16-9',
+  name: 'Presentation 16:9',
+  category: 'presentation',
+  dimensions: '1920×1080',
+  build() {
+    return createEmptyDocument({ viewBox: bbox(0, 0, 1920, 1080), width: 1920, height: 1080 });
+  },
+};
+
+/** Pinterest pin — 1000×1500 (2:3, the recommended pin ratio). */
+export const pinterestPinTemplate: TemplateLibraryItem = {
+  id: 'svge.builtin.template.pinterest-pin',
+  name: 'Pinterest pin',
+  category: 'social',
+  dimensions: '1000×1500',
+  build() {
+    return createEmptyDocument({ viewBox: bbox(0, 0, 1000, 1500), width: 1000, height: 1500 });
+  },
+};
+
+/** Facebook cover — 820×312 (page cover photo). */
+export const facebookCoverTemplate: TemplateLibraryItem = {
+  id: 'svge.builtin.template.facebook-cover',
+  name: 'Facebook cover',
+  category: 'social',
+  dimensions: '820×312',
+  build() {
+    return createEmptyDocument({ viewBox: bbox(0, 0, 820, 312), width: 820, height: 312 });
+  },
+};
+
+/** Ordered list of all 12 builtins. */
 export const BUILTIN_TEMPLATES: readonly TemplateLibraryItem[] = [
+  // print
   a4PortraitTemplate,
-  instagramSquareTemplate,
-  twitterCardTemplate,
+  a4LandscapeTemplate,
+  letterPortraitTemplate,
   businessCardTemplate,
+  // social
+  instagramSquareTemplate,
+  instagramPortraitTemplate,
+  instagramStoryTemplate,
+  pinterestPinTemplate,
+  facebookCoverTemplate,
+  twitterCardTemplate,
+  // video / presentation
+  youtubeThumbnailTemplate,
+  presentation169Template,
 ];
