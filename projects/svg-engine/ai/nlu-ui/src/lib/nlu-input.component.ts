@@ -28,6 +28,41 @@ import {
 import { tokenize } from 'svg-engine/ai/nlu';
 import { VoiceEngineService } from './voice-engine.service';
 
+/** Opção de idioma de voz exibida no seletor. */
+interface VoiceLanguageOption {
+  /** BCP-47 (Web Speech usa direto; Whisper mapeia p/ nome do idioma). */
+  readonly code: string;
+  /** Rótulo completo no menu. */
+  readonly label: string;
+  /** Rótulo curto (chip/tooltip). */
+  readonly short: string;
+}
+
+/**
+ * Idiomas suportados pela voz (interseção PT/ES/EN do Whisper local +
+ * locales comuns da Web Speech). PT é sempre **pt-BR** (o Whisper não
+ * distingue BR/PT; a Web Speech usa o modelo acústico pt-BR).
+ */
+const SUPPORTED_VOICE_LANGUAGES: readonly VoiceLanguageOption[] = [
+  { code: 'pt-BR', label: 'Português (Brasil)', short: 'PT-BR' },
+  { code: 'en-US', label: 'English (US)', short: 'EN' },
+  { code: 'es-ES', label: 'Español', short: 'ES' },
+];
+
+/**
+ * Idioma inicial = locale do navegador (`navigator.language`) normalizado
+ * para um dos {@link SUPPORTED_VOICE_LANGUAGES}; cai no `fallback` quando
+ * o locale não é suportado.
+ */
+function detectBrowserVoiceLanguage(fallback = 'pt-BR'): string {
+  const nav = typeof navigator !== 'undefined' ? (navigator.language ?? '') : '';
+  const lower = nav.toLowerCase();
+  if (lower.startsWith('pt')) return 'pt-BR';
+  if (lower.startsWith('es')) return 'es-ES';
+  if (lower.startsWith('en')) return 'en-US';
+  return fallback;
+}
+
 /**
  * **`<svge-nlu-input>`** — D-046 Fase 1 UI surface.
  *
@@ -90,6 +125,27 @@ import { VoiceEngineService } from './voice-engine.service';
           [attr.aria-describedby]="topCandidate() ? 'svge-nlu-hint' : null"
           [placeholder]="placeholder()"
         />
+        @if (voice.isSupported()) {
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            class="svge-nlu-lang"
+            [matMenuTriggerFor]="langMenu"
+            [matTooltip]="'Idioma da voz: ' + languageShort(selectedLanguage())"
+            aria-label="Selecionar idioma da voz"
+          >
+            <mat-icon>translate</mat-icon>
+          </button>
+          <mat-menu #langMenu="matMenu">
+            @for (l of languages; track l.code) {
+              <button mat-menu-item type="button" (click)="setLanguage(l.code)">
+                <mat-icon>{{ selectedLanguage() === l.code ? 'check' : 'language' }}</mat-icon>
+                <span>{{ l.label }}</span>
+              </button>
+            }
+          </mat-menu>
+        }
         @if (voice.availableEngines().length > 1) {
           <button
             mat-icon-button
@@ -432,16 +488,28 @@ export class SvgeNluInput {
   });
 
   /**
-   * Resolve BCP-47 effective pro `voice.listen(lang)`. Se autoDetect
-   * está ON e detectou PT, retorna 'pt-BR'. Se detectou EN, 'en-US'.
-   * Caso unknown ou autoDetect OFF, usa `voiceLang()` (default 'pt-BR').
+   * Idioma de voz selecionado (BCP-47). Default = **locale do navegador**
+   * (normalizado p/ PT-BR/EN-US/ES-ES), trocável pelo usuário no seletor
+   * de idioma. Serve às duas engines: a Web Speech usa o BCP-47 direto; o
+   * Whisper mapeia para o nome do idioma (pt-BR → "portuguese").
+   */
+  protected readonly selectedLanguage = signal<string>(detectBrowserVoiceLanguage());
+
+  /** Opções do seletor de idioma. */
+  protected readonly languages = SUPPORTED_VOICE_LANGUAGES;
+
+  /**
+   * Resolve BCP-47 efetivo pro `voice.listen(lang)`: o idioma do seletor.
+   * Quando `autoDetectLanguage = true`, o idioma detectado do **texto
+   * digitado** (PT/EN) tem prioridade sobre a seleção manual.
    */
   protected readonly effectiveVoiceLang = computed<string>(() => {
-    if (!this.autoDetectLanguage()) return this.voiceLang();
-    const lang = this.detectedLanguage();
-    if (lang === 'pt') return 'pt-BR';
-    if (lang === 'en') return 'en-US';
-    return this.voiceLang();
+    if (this.autoDetectLanguage()) {
+      const lang = this.detectedLanguage();
+      if (lang === 'pt') return 'pt-BR';
+      if (lang === 'en') return 'en-US';
+    }
+    return this.selectedLanguage();
   });
 
   protected readonly topCandidate = computed<NluCandidate | null>(
@@ -495,6 +563,16 @@ export class SvgeNluInput {
   });
 
   // ── Engine de voz (seletor) ─────────────────────────────────
+
+  /** Troca o idioma de voz (seletor). */
+  protected setLanguage(code: string): void {
+    this.selectedLanguage.set(code);
+  }
+
+  /** Rótulo curto do idioma atual (chip do seletor). */
+  protected languageShort(code: string): string {
+    return SUPPORTED_VOICE_LANGUAGES.find((l) => l.code === code)?.short ?? code;
+  }
 
   /** Rótulo humano para cada engine de voz. */
   protected engineLabel(engine: VoiceEngine): string {
