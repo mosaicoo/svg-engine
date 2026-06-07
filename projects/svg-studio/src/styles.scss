@@ -85,3 +85,16 @@ body {
   max-width: none !important;
   width: max-content !important;
 }
+
+/* mat-tooltip pass-through (UX fix) — same as the playground. The Material
+   tooltip renders in the CDK overlay above the toolbars/canvas; while it
+   lingers it can sit on top of an item and swallow the pointer, blocking
+   the click on the element underneath. The tooltip is informational and is
+   shown/hidden by hover/focus on its TRIGGER (never by hovering the bubble),
+   so it must never capture mouse events — disabling pointer-events lets the
+   click fall through to the object below. */
+.mat-mdc-tooltip-panel,
+mat-tooltip-component,
+.mat-mdc-tooltip {
+  pointer-events: none !important;
+}
