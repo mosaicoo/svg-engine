@@ -142,7 +142,14 @@ export class WhisperVoiceService {
                 cleanup();
                 resolve(text);
               })
-              .catch((err: unknown) => fail('transcribe-failed', err));
+              .catch((err: unknown) => {
+                // Loga a causa real (senão fica engolida na UI). Preserva o
+                // código específico já setado (ex.: 'load-failed') em vez de
+                // sobrescrever sempre com 'transcribe-failed'.
+                console.error('[WhisperVoice] falha ao transcrever:', err);
+                const specific = this._lastError();
+                fail(specific ?? 'transcribe-failed', err);
+              });
           };
 
           recorder.start();
@@ -212,6 +219,7 @@ export class WhisperVoiceService {
       this.transcriber = asr;
       return asr;
     } catch (err) {
+      console.error('[WhisperVoice] falha ao carregar o modelo (pipeline):', err);
       this._lastError.set('load-failed');
       throw err instanceof Error ? err : new Error(String(err));
     } finally {
