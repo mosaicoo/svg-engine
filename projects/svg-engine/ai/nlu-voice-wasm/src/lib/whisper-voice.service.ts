@@ -181,10 +181,19 @@ export class WhisperVoiceService {
               const buf = new Uint8Array(analyser.fftSize);
               const tickMs = 100;
               const silenceTicksNeeded = Math.max(1, Math.round(this.config.silenceMs / tickMs));
+              const noSpeechTicks =
+                this.config.noSpeechTimeoutMs > 0
+                  ? Math.max(1, Math.round(this.config.noSpeechTimeoutMs / tickMs))
+                  : 0;
               const threshold = this.config.silenceThreshold;
               let speechStarted = false;
               let silentTicks = 0;
+              let elapsedTicks = 0;
+              const stopRec = (): void => {
+                if (recorder.state !== 'inactive') recorder.stop();
+              };
               vadTimer = setInterval(() => {
+                elapsedTicks++;
                 analyser.getByteTimeDomainData(buf);
                 let sumSq = 0;
                 for (const sample of buf) {
@@ -196,10 +205,12 @@ export class WhisperVoiceService {
                   speechStarted = true;
                   silentTicks = 0;
                 } else if (speechStarted) {
+                  // Silêncio após a fala → encerra ao atingir silenceMs.
                   silentTicks++;
-                  if (silentTicks >= silenceTicksNeeded && recorder.state !== 'inactive') {
-                    recorder.stop();
-                  }
+                  if (silentTicks >= silenceTicksNeeded) stopRec();
+                } else if (noSpeechTicks > 0 && elapsedTicks >= noSpeechTicks) {
+                  // Nunca detectou fala dentro do timeout → encerra (não trava).
+                  stopRec();
                 }
               }, tickMs);
             }
@@ -227,15 +238,25 @@ export class WhisperVoiceService {
   /** Decodifica + downmix mono + reamostra para 16 kHz e roda o ASR. */
   private async transcribe(blob: Blob, language: string): Promise<string> {
     const audio = await decodeToMono16k(blob);
+    const durationS = audio.length / 16000;
     const asr = await this.ensurePipeline();
     const out = await asr(audio, {
       language,
       task: 'transcribe',
+      // Decodificação determinística (sem amostragem aleatória) — mais
+      // estável para comandos curtos. `no_repeat_ngram_size` evita loops.
+      temperature: 0,
+      no_repeat_ngram_size: 3,
       chunk_length_s: 30,
       return_timestamps: false,
     });
-    const text = Array.isArray(out) ? (out[0]?.text ?? '') : (out.text ?? '');
-    return text.trim();
+    const text = (Array.isArray(out) ? (out[0]?.text ?? '') : (out.text ?? '')).trim();
+    // Log de diagnóstico: o que o Whisper realmente ouviu (separa
+    // "ouviu errado" de "NLU interpretou errado"). ~Xs de áudio.
+    console.info(
+      `[WhisperVoice] transcrição (${durationS.toFixed(1)}s, ${language}): ${JSON.stringify(text)}`,
+    );
+    return text;
   }
 
   /**

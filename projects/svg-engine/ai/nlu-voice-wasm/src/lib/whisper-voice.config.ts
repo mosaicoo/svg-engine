@@ -80,12 +80,20 @@ export interface WhisperVoiceConfig {
   readonly silenceMs: number;
 
   /**
-   * Limiar de energia (RMS, 0–1 no domínio do tempo) abaixo do qual o
-   * áudio é considerado silêncio pelo VAD. Default 0.02. Aumente se o
-   * ruído de fundo estiver impedindo o auto-stop; diminua se estiver
-   * cortando a fala cedo demais.
+   * Limiar de energia (RMS, 0–1 no domínio do tempo) acima do qual o
+   * áudio é considerado fala pelo VAD. Default 0.015. Aumente se o
+   * ruído de fundo disparar falso-positivo; diminua se a fala não
+   * estiver sendo detectada (mic baixo/distante).
    */
   readonly silenceThreshold: number;
+
+  /**
+   * **Timeout de "nenhuma fala"** — se o VAD **não** detectar fala
+   * dentro deste tempo (ms) após iniciar, encerra a captura mesmo
+   * assim. Evita o microfone ficar "preso" ligado quando o áudio fica
+   * abaixo do limiar. Default 6000. `0` desliga (só `maxRecordMs`).
+   */
+  readonly noSpeechTimeoutMs: number;
 }
 
 /** Defaults aplicáveis ao layout padrão de assets dos apps SVGEngine. */
@@ -99,7 +107,8 @@ export const DEFAULT_WHISPER_VOICE_CONFIG: WhisperVoiceConfig = {
   defaultLanguage: 'pt',
   maxRecordMs: 15000,
   silenceMs: 2000,
-  silenceThreshold: 0.02,
+  silenceThreshold: 0.015,
+  noSpeechTimeoutMs: 6000,
 };
 
 /** Token DI para a configuração do provider Whisper. */
