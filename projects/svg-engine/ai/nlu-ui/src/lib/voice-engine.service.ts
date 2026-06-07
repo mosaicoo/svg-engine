@@ -1,6 +1,7 @@
 import { computed, inject, Injectable, signal, type Signal } from '@angular/core';
 import { type VoiceEngine, type VoiceProvider, VOICE_WHISPER_PROVIDER } from 'svg-engine/ai/nlu';
 import { VoiceRecognitionService } from './voice-recognition.service';
+import { readVoicePref, writeVoicePref } from './voice-prefs';
 
 /**
  * **`VoiceEngineService`** — orquestrador de voz com engine
@@ -71,10 +72,16 @@ export class VoiceEngineService {
   readonly lastError: Signal<string | null> = this._lastError.asReadonly();
 
   constructor() {
-    // Cross-browser por padrão: quando a voz local (Whisper) existe, 'auto'
-    // é o melhor default — tenta a Web Speech (precisa em Chrome/Safari) e
-    // cai automaticamente pro Whisper local quando a nuvem falha
-    // (Edge/Brave/Firefox costumam dar erro 'network' na Web Speech).
+    // 1) Restaura a escolha persistida (se ainda disponível no ambiente).
+    const saved = readVoicePref('engine');
+    if (saved !== null && this.availableEngines().includes(saved as VoiceEngine)) {
+      this._engine.set(saved as VoiceEngine);
+      return;
+    }
+    // 2) Sem preferência salva: cross-browser por padrão — quando a voz
+    // local (Whisper) existe, 'auto' tenta a Web Speech (precisa em
+    // Chrome/Safari) e cai pro Whisper local quando a nuvem falha
+    // (Edge/Brave/Firefox costumam dar erro 'network').
     if (this.whisper !== null) {
       this._engine.set('auto');
     }
@@ -84,6 +91,7 @@ export class VoiceEngineService {
   setEngine(engine: VoiceEngine): void {
     if (this.availableEngines().includes(engine)) {
       this._engine.set(engine);
+      writeVoicePref('engine', engine);
     }
   }
 

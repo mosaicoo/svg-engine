@@ -27,6 +27,7 @@ import {
 } from 'svg-engine/ai/nlu';
 import { tokenize } from 'svg-engine/ai/nlu';
 import { VoiceEngineService } from './voice-engine.service';
+import { readVoicePref, writeVoicePref } from './voice-prefs';
 
 /** Opção de idioma de voz exibida no seletor. */
 interface VoiceLanguageOption {
@@ -61,6 +62,18 @@ function detectBrowserVoiceLanguage(fallback = 'pt-BR'): string {
   if (lower.startsWith('es')) return 'es-ES';
   if (lower.startsWith('en')) return 'en-US';
   return fallback;
+}
+
+/**
+ * Idioma de voz inicial: a **preferência persistida** (se for um idioma
+ * suportado) tem prioridade; senão, o locale do navegador.
+ */
+function initialVoiceLanguage(): string {
+  const saved = readVoicePref('lang');
+  if (saved !== null && SUPPORTED_VOICE_LANGUAGES.some((l) => l.code === saved)) {
+    return saved;
+  }
+  return detectBrowserVoiceLanguage();
 }
 
 /**
@@ -493,7 +506,7 @@ export class SvgeNluInput {
    * de idioma. Serve às duas engines: a Web Speech usa o BCP-47 direto; o
    * Whisper mapeia para o nome do idioma (pt-BR → "portuguese").
    */
-  protected readonly selectedLanguage = signal<string>(detectBrowserVoiceLanguage());
+  protected readonly selectedLanguage = signal<string>(initialVoiceLanguage());
 
   /** Opções do seletor de idioma. */
   protected readonly languages = SUPPORTED_VOICE_LANGUAGES;
@@ -564,9 +577,10 @@ export class SvgeNluInput {
 
   // ── Engine de voz (seletor) ─────────────────────────────────
 
-  /** Troca o idioma de voz (seletor). */
+  /** Troca o idioma de voz (seletor) e persiste a escolha. */
   protected setLanguage(code: string): void {
     this.selectedLanguage.set(code);
+    writeVoicePref('lang', code);
   }
 
   /** Rótulo curto do idioma atual (chip do seletor). */

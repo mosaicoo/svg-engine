@@ -37,7 +37,15 @@ function configure(web: MockProvider, whisper: MockProvider | null): VoiceEngine
 }
 
 describe('VoiceEngineService', () => {
-  beforeEach(() => TestBed.resetTestingModule());
+  beforeEach(() => {
+    // setEngine persiste no localStorage — limpa p/ isolamento entre testes.
+    try {
+      localStorage.clear();
+    } catch {
+      /* jsdom sempre tem localStorage; guard defensivo */
+    }
+    TestBed.resetTestingModule();
+  });
 
   it('engine default é web-speech', () => {
     const svc = configure(makeProvider(true), null);
@@ -119,5 +127,18 @@ describe('VoiceEngineService', () => {
     expect(svc.modelLoading()).toBe(false);
     loading.set(true);
     expect(svc.modelLoading()).toBe(true);
+  });
+
+  it('persiste a engine e restaura em nova instância (localStorage)', () => {
+    const svc1 = configure(makeProvider(true), makeProvider(true));
+    svc1.setEngine('whisper');
+    TestBed.resetTestingModule();
+    const svc2 = configure(makeProvider(true), makeProvider(true));
+    expect(svc2.engine()).toBe('whisper');
+  });
+
+  it('sem preferência salva + Whisper presente → default "auto"', () => {
+    const svc = configure(makeProvider(true), makeProvider(true));
+    expect(svc.engine()).toBe('auto');
   });
 });
