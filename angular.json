@@ -68,7 +68,7 @@
                 "output": "assets/ml/whisper/whisper-base"
               },
               {
-                "glob": "*.wasm",
+                "glob": "ort-wasm-simd-threaded*.{wasm,mjs}",
                 "input": "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist",
                 "output": "assets/ml/ort"
               }
