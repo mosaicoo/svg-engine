@@ -6,6 +6,51 @@
 
 ---
 
+## 2026-06-07 — D-046 voz híbrida — reconhecimento de voz local (Whisper WASM) ✅
+
+Voz **100% offline** opcional ao lado da Web Speech API, com engine
+**selecionável pelo usuário**. Resolve o `network` error do Web Speech (STT em
+nuvem do vendor, indisponível em Brave/Electron/firewall) sem abrir mão da
+opção rápida. Entregue em 6 stages, gate verde em cada um.
+
+- **Vendoring (assets repo + submodule)** — modelo **Whisper base** int8
+  (encoder/decoder `*_quantized.onnx` + tokenizer/config) vendorado num repo
+  separado `mosaicoo/svgengine-ml-assets` (Apache-2.0 + NOTICE + CHECKSUMS),
+  consumido como **git submodule** em `assets/ml/whisper` (decisão do usuário:
+  evitar custo de Git LFS). `CHECKSUMS.txt` (SHA-256) trava integridade.
+- **Stage 2b (deps)** `ba3df7a` — `@huggingface/transformers@4.2.0` (traz seu
+  próprio `onnxruntime-web` dev build, que casa com o glue `.mjs`).
+- **Stage 3 — entry point `svg-engine/ai/nlu-voice-wasm`** `b96688a` (9º):
+  `WhisperVoiceService` implementa o mesmo contrato do `VoiceRecognitionService`
+  (Web Speech), mas roda local via transformers.js. Config offline
+  (`provideWhisperVoice`/`WHISPER_VOICE_CONFIG`): `allowRemoteModels=false` +
+  `localModelPath`/`wasmPaths` locais. Captura: `getUserMedia` → `MediaRecorder`
+  → decode + downmix mono + reamostragem 16 kHz (`OfflineAudioContext`) →
+  `pipeline` ASR (`dtype:'q8'` → `*_quantized.onnx`). `import()` lazy do
+  transformers (só baixa quando a voz Whisper é acionada). Multilíngue PT-BR/ES/EN.
+- **Stage 4+5 — engine selecionável** `02267da`: contrato `VoiceProvider` +
+  `VoiceEngine` + token opcional `VOICE_WHISPER_PROVIDER` em `ai/nlu` (headless,
+  desacopla nlu-ui↔nlu-voice-wasm). `VoiceEngineService` (nlu-ui) orquestra Web
+  Speech (sempre) + Whisper (opcional), modos `web-speech`/`whisper`/`auto`
+  (fallback). `<svge-nlu-input>` ganha seletor de engine (mat-menu), estado de
+  carregamento do modelo e mensagens de erro do Whisper.
+- **Stage 6 — wiring** `a1a3577`: `angular.json` do playground serve o modelo do
+  submódulo (`/assets/ml/whisper/whisper-base`) e os `.wasm` do onnxruntime
+  (`/assets/ml/ort`); `provideWhisperVoiceEngine()` no app.config registra o
+  Whisper como engine selecionável (rota `/nlu-test`). Removida a dep top-level
+  `onnxruntime-web` (sobrava/divergia). Build dev confirma chunk lazy
+  `transformers-web` (~1.3 MB) + cópia dos assets.
+- **Licenças** — todas permissivas (Whisper MIT, conversão ONNX Apache-2.0,
+  transformers.js Apache-2.0, onnxruntime-web MIT): sem copyleft, sem obrigação
+  de abrir o SVGEngine, sem API key. Ver `THIRD-PARTY-NOTICES.md` (novo).
+- **Limite honesto**: a config offline + o build são garantidos por mim; a
+  **transcrição** em si só se valida rodando no browser com microfone — feita
+  pelo usuário em `/nlu-test` (engine Whisper).
+
+Gate por stage: build:lib RC=0 · lint OK · test:lib 2163 (+15 specs de voz).
+
+---
+
 ## 2026-06-03 — D-082 F9 — Export animado SMIL + follow-ups de UX da timeline ✅
 
 **Export animado (SMIL), F9a–F9d** (`bfb54b2` → `53b7935` → `07fbc3e` →

@@ -1601,6 +1601,48 @@ Sort secundário (tiebreaker quando |Δconfidence| ≤ 0.05): `matches.length` d
 - Mosaicoo entrar em modo acessibilidade explícito
 - Atingir nível de maturidade onde o catálogo de intents auto-descobertos do `MenuContributionRegistry` cobrir comandos suficientes para validar a Fase 1 standalone
 
+### D-046 voz híbrida — reconhecimento de voz local (Whisper WASM) — 2026-06-07
+
+- **Status**: IMPLEMENTADA (gate verde; transcrição validada no browser pelo usuário).
+- **Motivação**: a voz da Fase 1 usava só a **Web Speech API**, que delega o STT
+  a servidores em nuvem do vendor (Google no Chrome/Chromium). Em Brave/Electron/
+  Chromium sem chave Google, ou com firewall/extensões bloqueando `*.google.com`,
+  o `network` error torna a voz **indisponível** — e o tráfego é invisível ao
+  DevTools (out-of-band do processo do browser). Não é bug do app: é dependência
+  arquitetural do Web Speech spec.
+- **Decisão**: voz **híbrida com engine selecionável pelo usuário** — manter a
+  Web Speech (rápida) e adicionar **Whisper local via WASM** (100% offline), com
+  modos `web-speech` / `whisper` / `auto` (Web Speech com fallback automático
+  para o Whisper em falha).
+- **Stack**: `@huggingface/transformers` (transformers.js, Apache-2.0) +
+  `onnxruntime-web` (MIT, **bundlado pelo transformers** — não é dep direta da
+  lib). Modelo **Whisper base** int8 (encoder/decoder `*_quantized.onnx`).
+- **Entry point novo**: `svg-engine/ai/nlu-voice-wasm` (9º) — opt-in pesado;
+  `transformers.js` é `import()` **lazy** (só baixa quando a voz Whisper é
+  acionada → chunk lazy `transformers-web` ~1.3 MB).
+- **Desacoplamento**: o contrato `VoiceProvider` + `VoiceEngine` + token
+  `VOICE_WHISPER_PROVIDER` ficam em `ai/nlu` (headless, sem Material). O
+  orquestrador `VoiceEngineService` (em `nlu-ui`) injeta a Web Speech sempre e o
+  Whisper **opcionalmente** via token; o app habilita com
+  `provideWhisperVoiceEngine()` de `nlu-voice-wasm`. Nenhuma dep cruzada
+  Material↔transformers entre os entry points.
+- **Offline garantido por config** (verificável na aba Rede): transformers com
+  `allowRemoteModels=false` + `localModelPath`/`wasmPaths` apontando para assets
+  servidos pela própria origem. `numThreads=1` (não exige COOP/COEP).
+- **Vendoring do modelo** (decisão do usuário): **NÃO** Git LFS (custo) — um repo
+  separado `mosaicoo/svgengine-ml-assets` (Apache-2.0 + NOTICE com atribuição),
+  consumido como **git submodule** em `assets/ml/whisper` e pinado a commit. Os
+  `.wasm` do onnxruntime vêm do pacote npm (nested do transformers, versão que
+  casa com o glue `.mjs`) via `angular.json` → `/assets/ml/ort/`.
+- **Licença**: Whisper original MIT (OpenAI), conversão ONNX Apache-2.0 (Xenova),
+  transformers.js Apache-2.0, onnxruntime-web MIT — todas permissivas (sem
+  copyleft; só atribuição). **Nenhuma obrigação** de abrir o SVGEngine. Sem
+  necessidade de API key para uso local. Ver `THIRD-PARTY-NOTICES.md`.
+- **Verificação**: build:lib RC=0, lint OK, test:lib 2163 (+15 specs novas:
+  config/provider Whisper + orquestrador). Build dev do playground confirma o
+  chunk lazy + cópia dos assets. A **transcrição** em si é validada no browser
+  (rota `/nlu-test` → engine Whisper), conforme combinado.
+
 ---
 
 ## Sprint pós-D-046 — Catchup retroativo de decisões (D-044, D-047 a D-078)
