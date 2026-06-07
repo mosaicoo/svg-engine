@@ -14,11 +14,14 @@ import {
   AUTO_PARENT,
   CommandBus,
   EditorStateService,
+  EnsureDefaultPageCommand,
   findNodeById,
   getPageViewBox,
   InsertNodeCommand,
+  isPage,
   type NodeId,
   type PathNode,
+  ResizePageCommand,
   SetStylePropertyOnManyCommand,
   type SvgNode,
   type SvgStyle,
@@ -957,37 +960,54 @@ export class SvgeLibrariesPanel {
   }
 
   /**
-   * Replace the whole document with a template + reset the viewport
-   * so the new page fits the canvas. Also clears the selection (stale
-   * ids from the old document would otherwise dangle).
+   * Apply a template by **resizing the active page** to the template's
+   * dimensions — like every other library, the action targets the page
+   * the user is editing (D-079 active page), NOT the whole document.
    *
-   * Confirms before replacing when the current document has content —
-   * applying a template wipes everything in the canvas, which a user
-   * mid-design would not appreciate.
+   * **Semantics** (Illustrator / Affinity "resize artboard"):
+   * - Keeps the page's origin `(x, y)` fixed; the template only drives
+   *   `width` / `height` (so the far corner `x2, y2` moves).
+   * - Content is left untouched — `ResizePageCommand` changes only the
+   *   page's `pageViewBox`; shapes keep their coordinates.
+   * - Non-destructive + undoable (goes through the `CommandBus`).
+   *
+   * **Fallback — no page exists** (legacy single-root doc / 0 pages):
+   * bootstrap a Page 1 via {@link EnsureDefaultPageCommand} (which also
+   * migrates any loose top-level shapes into it), then resize that page.
+   *
+   * **Why not `resetDocument` anymore**: the previous implementation
+   * replaced the entire document with a blank one, which (a) wiped all
+   * content + every other page, (b) dropped the editor out of pages-mode
+   * (0 pages → no active page → the page paper fell back to the legacy
+   * 800×600 default — the "template não aplica" bug), and (c) bypassed
+   * the CommandBus (no undo). Resizing the active page fixes all three.
+   *
+   * Viewport re-framing after the resize is intentionally NOT done here
+   * (it felt like an unexpected zoom change) — deferred follow-up.
    */
   protected applyTemplate(id: string): void {
     const item = this.templates.get(id);
     if (item === null) return;
-    // Confirm only when the current document already has shapes
-    // (empty doc → no-op confirmation makes the UX feel paranoid).
-    const root = this.state.document().root;
-    if (root.type === 'group' && root.children.length > 0) {
-      const ok =
-        typeof window !== 'undefined'
-          ? window.confirm(
-              `Replace current document with template "${item.name}"? This will discard all unsaved shapes.`,
-            )
-          : true;
-      if (!ok) return;
+    // Templates are size presets; we only need their dimensions, read
+    // from the freshly-built document's viewBox.
+    const tpl = item.build().viewBox;
+    if (tpl.width <= 0 || tpl.height <= 0) return;
+
+    // Resolve the target page: the active page, else bootstrap one.
+    let page = this.activePage.activePage();
+    if (page === null) {
+      this.bus.dispatch(new EnsureDefaultPageCommand());
+      page = this.state.document().root.children.find(isPage) ?? null;
     }
-    this.state.resetDocument(item.build());
-    // Reset viewport so the new page (which may have a very different
-    // viewBox) fits the canvas — without this, the user keeps the old
-    // zoom and may not even see the new page.
-    this.viewport.reset();
-    // Clear stale selection — ids from the old document no longer
-    // exist in the new tree.
-    this.selection.clear();
+    if (page === null) return;
+
+    // Keep the origin fixed; apply the template's width/height only.
+    const current = getPageViewBox(page);
+    const x = current?.x ?? 0;
+    const y = current?.y ?? 0;
+    this.bus.dispatch(
+      new ResizePageCommand(page.id, { x, y, width: tpl.width, height: tpl.height }),
+    );
   }
 
   /**
