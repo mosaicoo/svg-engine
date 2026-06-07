@@ -33,8 +33,7 @@
     "@angular/core": "^21.2.0",
     "@angular/material": "^21.2.0",
     "@angular/cdk": "^21.2.0",
-    "@huggingface/transformers": "^4.2.0",
-    "onnxruntime-web": "^1.26.0"
+    "@huggingface/transformers": "^4.2.0"
   },
   "peerDependenciesMeta": {
     "@angular/material": {
@@ -44,9 +43,6 @@
       "optional": true
     },
     "@huggingface/transformers": {
-      "optional": true
-    },
-    "onnxruntime-web": {
       "optional": true
     }
   },

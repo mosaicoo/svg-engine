@@ -33,6 +33,7 @@ import {
 } from 'svg-engine/edit';
 import { builtinUiMenuContributionsPlugin, provideSvgeBuiltinToolOptions } from 'svg-engine/ui';
 import { builtinNluPlugin } from 'svg-engine/ai/nlu';
+import { provideWhisperVoiceEngine } from 'svg-engine/ai/nlu-voice-wasm';
 
 import { stampToolPlugin } from './plugins/stamp-tool.plugin';
 import { routes } from './app.routes';
@@ -126,6 +127,13 @@ export const appConfig: ApplicationConfig = {
     // builtinMenuContributionsPlugin / builtinUiMenuContributionsPlugin
     // para que auto-discovery encontre as contribuições já registradas.
     provideSvgEnginePlugin(builtinNluPlugin),
+    // D-046 voz híbrida — registra o Whisper local (WASM) como engine
+    // de voz selecionável no <svge-nlu-input>. 100% offline: o modelo
+    // vem do submódulo (servido em /assets/ml/whisper) e o onnxruntime
+    // dos .wasm em /assets/ml/ort (ver angular.json). Sem isto, só a
+    // engine Web Speech fica disponível. transformers.js é lazy: só
+    // baixa o modelo na primeira vez que a voz Whisper é acionada.
+    ...provideWhisperVoiceEngine(),
     // D-048 — Libraries ecosystem (8 libraries). Each is opt-in via
     // its own plugin so apps choose what to ship. The Shape/Template/
     // Gradient/Pattern/GraphicStyle plugins register builtin items;

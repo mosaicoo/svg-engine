@@ -33,7 +33,6 @@
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
     "@huggingface/transformers": "^4.2.0",
-    "onnxruntime-web": "^1.26.0",
     "polygon-clipping": "^0.15.7",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"

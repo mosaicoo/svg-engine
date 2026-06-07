@@ -61,6 +61,16 @@
               {
                 "glob": "**/*",
                 "input": "projects/playground/public"
+              },
+              {
+                "glob": "**/*",
+                "input": "assets/ml/whisper/whisper-base",
+                "output": "assets/ml/whisper/whisper-base"
+              },
+              {
+                "glob": "*.wasm",
+                "input": "node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist",
+                "output": "assets/ml/ort"
               }
             ],
             "styles": ["projects/playground/src/styles.scss"],
