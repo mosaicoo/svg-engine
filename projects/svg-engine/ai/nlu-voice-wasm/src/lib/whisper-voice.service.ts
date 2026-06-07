@@ -215,6 +215,9 @@ export class WhisperVoiceService {
       const asr = (await pipeline('automatic-speech-recognition', this.config.modelId, {
         dtype: this.config.dtype,
         device: 'wasm',
+        // Desliga a fusão DQ→MatMulNBits do ORT 1.26 que quebra ao
+        // carregar o decoder int8 do Whisper base (Missing required scale).
+        session_options: { graphOptimizationLevel: this.config.graphOptimizationLevel },
       })) as unknown as AsrPipeline;
       this.transcriber = asr;
       return asr;

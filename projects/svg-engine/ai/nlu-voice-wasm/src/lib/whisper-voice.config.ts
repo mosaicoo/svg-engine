@@ -46,6 +46,18 @@ export interface WhisperVoiceConfig {
   readonly numThreads: number;
 
   /**
+   * Nível de otimização de grafo do onnxruntime (`session_options`).
+   * **`'disabled'`** (default) evita a passada
+   * `TransposeDQWeightsForMatMulNBits` do ORT 1.26, que falha ao carregar
+   * o decoder int8 do Whisper base (`Missing required scale` no
+   * `embed_tokens` merged/transposto). O modelo carrega e roda normal
+   * sem essa fusão — só perde uma otimização de performance irrelevante
+   * para comandos curtos. Suba para `'basic'`/`'all'` apenas se vendorar
+   * um modelo cuja quantização o ORT consiga fundir.
+   */
+  readonly graphOptimizationLevel: 'disabled' | 'basic' | 'extended' | 'all';
+
+  /**
    * Idioma BCP-47 padrão quando o chamador não informa. Default
    * `'pt'`. O Whisper base é multilíngue (PT-BR / ES / EN / …).
    */
@@ -65,6 +77,7 @@ export const DEFAULT_WHISPER_VOICE_CONFIG: WhisperVoiceConfig = {
   wasmBasePath: '/assets/ml/ort/',
   dtype: 'q8',
   numThreads: 1,
+  graphOptimizationLevel: 'disabled',
   defaultLanguage: 'pt',
   maxRecordMs: 15000,
 };
