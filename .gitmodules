@@ -1,0 +1,3 @@
+[submodule "assets/ml/whisper"]
+	path = assets/ml/whisper
+	url = https://github.com/mosaicoo/svgengine-ml-assets.git
