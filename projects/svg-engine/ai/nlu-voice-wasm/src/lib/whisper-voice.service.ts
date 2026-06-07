@@ -96,10 +96,16 @@ export class WhisperVoiceService {
 
       let settled = false;
       let autoStop: ReturnType<typeof setTimeout> | null = null;
+      let vadTimer: ReturnType<typeof setInterval> | null = null;
+      let vadCtx: AudioContext | null = null;
       const chunks: Blob[] = [];
 
       const cleanup = (): void => {
         if (autoStop !== null) clearTimeout(autoStop);
+        if (vadTimer !== null) clearInterval(vadTimer);
+        if (vadCtx !== null) void vadCtx.close();
+        vadTimer = null;
+        vadCtx = null;
         if (this.activeStream !== null) {
           for (const track of this.activeStream.getTracks()) track.stop();
         }
@@ -158,6 +164,45 @@ export class WhisperVoiceService {
             autoStop = setTimeout(() => {
               if (recorder.state !== 'inactive') recorder.stop();
             }, maxMs);
+          }
+
+          // **VAD** — encerra automaticamente após `silenceMs` de silêncio
+          // *depois* que a fala começou (espelha o auto-stop da Web Speech).
+          if (this.config.silenceMs > 0) {
+            const Ctor = resolveAudioContext();
+            if (Ctor !== null) {
+              const ctx = new Ctor();
+              vadCtx = ctx;
+              void ctx.resume();
+              const source = ctx.createMediaStreamSource(stream);
+              const analyser = ctx.createAnalyser();
+              analyser.fftSize = 512;
+              source.connect(analyser);
+              const buf = new Uint8Array(analyser.fftSize);
+              const tickMs = 100;
+              const silenceTicksNeeded = Math.max(1, Math.round(this.config.silenceMs / tickMs));
+              const threshold = this.config.silenceThreshold;
+              let speechStarted = false;
+              let silentTicks = 0;
+              vadTimer = setInterval(() => {
+                analyser.getByteTimeDomainData(buf);
+                let sumSq = 0;
+                for (const sample of buf) {
+                  const v = (sample - 128) / 128;
+                  sumSq += v * v;
+                }
+                const rms = Math.sqrt(sumSq / buf.length);
+                if (rms >= threshold) {
+                  speechStarted = true;
+                  silentTicks = 0;
+                } else if (speechStarted) {
+                  silentTicks++;
+                  if (silentTicks >= silenceTicksNeeded && recorder.state !== 'inactive') {
+                    recorder.stop();
+                  }
+                }
+              }, tickMs);
+            }
           }
         })
         .catch((err: unknown) => {

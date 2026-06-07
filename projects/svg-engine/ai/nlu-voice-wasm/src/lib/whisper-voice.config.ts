@@ -65,9 +65,27 @@ export interface WhisperVoiceConfig {
 
   /**
    * Duração máxima de captura por sessão (ms) antes de parar
-   * automaticamente e transcrever. Default 15000.
+   * automaticamente e transcrever. Funciona como teto de segurança
+   * caso o VAD nunca dispare (ruído constante). Default 15000.
    */
   readonly maxRecordMs: number;
+
+  /**
+   * **VAD (detecção de silêncio)** — após a fala começar, encerra a
+   * captura automaticamente quando o silêncio durar este tempo (ms).
+   * Espelha o auto-stop nativo da Web Speech para manter o
+   * comportamento consistente entre as engines. Default 2000 (2 s).
+   * `0` desliga o VAD (só para via `stop()` ou `maxRecordMs`).
+   */
+  readonly silenceMs: number;
+
+  /**
+   * Limiar de energia (RMS, 0–1 no domínio do tempo) abaixo do qual o
+   * áudio é considerado silêncio pelo VAD. Default 0.02. Aumente se o
+   * ruído de fundo estiver impedindo o auto-stop; diminua se estiver
+   * cortando a fala cedo demais.
+   */
+  readonly silenceThreshold: number;
 }
 
 /** Defaults aplicáveis ao layout padrão de assets dos apps SVGEngine. */
@@ -80,6 +98,8 @@ export const DEFAULT_WHISPER_VOICE_CONFIG: WhisperVoiceConfig = {
   graphOptimizationLevel: 'disabled',
   defaultLanguage: 'pt',
   maxRecordMs: 15000,
+  silenceMs: 2000,
+  silenceThreshold: 0.02,
 };
 
 /** Token DI para a configuração do provider Whisper. */
