@@ -318,6 +318,28 @@ export function extractSlots(
     }
   }
 
+  // ── Pre-pass: contagem "3 círculos" → count (slot non-positional) ──
+  // Captura um número IMEDIATAMENTE antes de uma forma (pulando stopwords)
+  // como contagem de repetição. Específico p/ não confundir com dimensão.
+  const countSchema = schemas['count'];
+  if (countSchema?.kind === 'number' && countSchema.positional === false) {
+    for (let i = 0; i < tokens.length - 1; i++) {
+      if (ctx.consumedIndices.has(i)) continue;
+      const n = parseNumberToken(tokens[i]);
+      if (n === null) continue;
+      let j = i + 1;
+      while (j < tokens.length && (ctx.consumedIndices.has(j) || isStopword(tokens[j]))) j++;
+      if (j >= tokens.length) continue;
+      const nextIsShape =
+        resolveShapeKind(tokens[j]) !== null || fuzzyMatchToken(tokens[j], SHAPE_KEYS) !== null;
+      if (nextIsShape) {
+        result['count'] = n;
+        ctx.consumedIndices.add(i);
+        break;
+      }
+    }
+  }
+
   // ── Pass 1: ANCHORED slots ──────────────────────────────────
   // Slots que declaram `anchorKeywords` ("borda azul" → stroke=azul).
   // Roda ANTES do positional pra "reservar" valores que pertencem a
@@ -349,6 +371,15 @@ export function extractSlots(
 
   for (const [name, schema] of schemaEntries) {
     if (name in result) continue; // já preenchido no pre-pass
+
+    // Slots `positional: false` (ex.: count) NÃO são preenchidos pelo
+    // pass posicional — só pelos pre-passes específicos. Aplica default.
+    if (schema.kind === 'number' && schema.positional === false) {
+      if (schema.optional === true && schema.default !== undefined) {
+        result[name] = schema.default;
+      }
+      continue;
+    }
 
     // **D-046 review-6**: slots com `anchorKeywords` são **anchor-only**.
     // Se o anchor falhou (Pass 1 não preencheu), NÃO faz fallback

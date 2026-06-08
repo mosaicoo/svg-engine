@@ -155,6 +155,10 @@ export const builtinNluPlugin: EditorPlugin = {
             optional: true,
             anchorKeywords: ['posicao', 'position', 'coordenada', 'coordinate'],
           },
+          // **`count`** — repetição: "crie 3 círculos vermelhos". Extraído
+          // pelo pre-pass "número imediatamente antes de uma forma"
+          // (`positional: false` p/ não colidir com dimensão). Default 1.
+          count: { kind: 'number', optional: true, positional: false, default: 1 },
         },
         description:
           'Criar forma (retângulo, círculo, elipse, etc.) — suporta fill/stroke/espessura/posição',
@@ -193,119 +197,135 @@ export const builtinNluPlugin: EditorPlugin = {
           const vb = doc.viewBox;
           // Center default = centro do viewBox; quando user passar
           // `position`, vira o centro explícito do shape.
-          const cx = position ? position.x : vb.x + vb.width / 2;
-          const cy = position ? position.y : vb.y + vb.height / 2;
+          const baseCx = position ? position.x : vb.x + vb.width / 2;
+          const baseCy = position ? position.y : vb.y + vb.height / 2;
 
-          // **Geometria por shape kind** — D-046 review-5: polygons
-          // específicos (triangle/pentagon/hexagon/etc) e line/polyline/
-          // text agora têm geometria REAL gerada (antes eram no-op com
-          // console.warn).
-          //
-          // Convenções:
-          // - rect: top-left em (cx-w/2, cy-h/2), tamanho w×h
-          // - ellipse: centro em (cx, cy), raios w/2 × h/2
-          // - circle: raio = min(w,h)/2 (mantém círculo verdadeiro)
-          // - polígonos regulares: inscritos num círculo de raio min(w,h)/2
-          // - line: horizontal de (cx-w/2, cy) a (cx+w/2, cy)
-          // - polyline: zigzag de 3 pontos (V invertido)
-          // - text: placeholder "Texto"/"Text" — fontSize = min(w,h)/3
-          // - path/image/group/svg: SEM geometria (precisam de dados
-          //   específicos: d-string, URL, children)
-          switch (shape) {
-            case 'rect': {
-              const node = createRect(
-                { x: cx - w / 2, y: cy - h / 2, width: w, height: h },
-                style ? { style } : {},
-              );
-              bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
-              break;
-            }
-            case 'ellipse': {
-              const node = createEllipse({ cx, cy, rx: w / 2, ry: h / 2 }, style ? { style } : {});
-              bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
-              break;
-            }
-            case 'circle': {
-              const r = Math.min(w, h) / 2;
-              const node = createEllipse({ cx, cy, rx: r, ry: r }, style ? { style } : {});
-              bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
-              break;
-            }
-            // Polígonos regulares — geometria computada a partir do kind.
-            case 'triangle':
-            case 'rhombus':
-            case 'pentagon':
-            case 'hexagon':
-            case 'octagon':
-            case 'polygon': {
-              const sides = POLYGON_SIDES[shape] ?? 6;
-              const r = Math.min(w, h) / 2;
-              const points = regularPolygonPoints(cx, cy, r, sides);
-              const node = createPolygon(points, style ? { style } : {});
-              bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
-              break;
-            }
-            // Estrela — 5 pontas, raio interno = 40% do externo.
-            case 'star': {
-              const outerR = Math.min(w, h) / 2;
-              const points = regularStarPoints(cx, cy, outerR);
-              const node = createPolygon(points, style ? { style } : {});
-              bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
-              break;
-            }
-            // Linha horizontal centrada.
-            case 'line': {
-              const node = createLine(
-                { x1: cx - w / 2, y1: cy, x2: cx + w / 2, y2: cy },
-                style ? { style } : {},
-              );
-              bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
-              break;
-            }
-            // Polyline zigzag (V invertido) com 3 pontos.
-            case 'polyline': {
-              const points = [
-                { x: cx - w / 2, y: cy + h / 4 },
-                { x: cx, y: cy - h / 4 },
-                { x: cx + w / 2, y: cy + h / 4 },
-              ];
-              const node = createPolyline(points, style ? { style } : {});
-              bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
-              break;
-            }
-            // Text placeholder — "Texto" se input PT, "Text" se EN.
-            // (sem acesso ao detectLanguage aqui — usa 'Texto' default).
-            case 'text': {
-              const fontSize = Math.max(12, Math.min(w, h) / 3);
-              const node = createText(
-                {
-                  x: cx,
-                  y: cy + fontSize / 3, // alinhamento baseline visual aproximado
-                  content: 'Texto',
-                  fontSize,
-                  textAnchor: 'middle',
-                },
-                style ? { style } : {},
-              );
-              bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
-              break;
-            }
-            // Sem geometria built-in: precisam de input adicional
-            // (URL pra image, d-string pra path, children pra group).
-            case 'path':
-            case 'image':
-            case 'group':
-            case 'svg':
-            default: {
-              if (typeof console !== 'undefined') {
-                console.warn(
-                  '[svge.nlu] create-shape: kind',
-                  shape,
-                  'requer dados específicos (URL/d-string/children) que NLU não infere. ' +
-                    'Registre intent customizado (e.g., create-image com slot `url`).',
+          // **Repetição** — count vem do pre-pass "N <forma>" (clampado
+          // 1..50). Cada iteração despacha seu PRÓPRIO command → **1 passo
+          // de undo por forma**. Cascade diagonal evita empilhar.
+          const count = Math.max(
+            1,
+            Math.min(50, Math.round((slots['count'] as number | undefined) ?? 1)),
+          );
+          const step = Math.max(w, h) * 0.5 + 20;
+          for (let i = 0; i < count; i++) {
+            const cx = baseCx + i * step;
+            const cy = baseCy + i * step;
+
+            // **Geometria por shape kind** — D-046 review-5: polygons
+            // específicos (triangle/pentagon/hexagon/etc) e line/polyline/
+            // text agora têm geometria REAL gerada (antes eram no-op com
+            // console.warn).
+            //
+            // Convenções:
+            // - rect: top-left em (cx-w/2, cy-h/2), tamanho w×h
+            // - ellipse: centro em (cx, cy), raios w/2 × h/2
+            // - circle: raio = min(w,h)/2 (mantém círculo verdadeiro)
+            // - polígonos regulares: inscritos num círculo de raio min(w,h)/2
+            // - line: horizontal de (cx-w/2, cy) a (cx+w/2, cy)
+            // - polyline: zigzag de 3 pontos (V invertido)
+            // - text: placeholder "Texto"/"Text" — fontSize = min(w,h)/3
+            // - path/image/group/svg: SEM geometria (precisam de dados
+            //   específicos: d-string, URL, children)
+            switch (shape) {
+              case 'rect': {
+                const node = createRect(
+                  { x: cx - w / 2, y: cy - h / 2, width: w, height: h },
+                  style ? { style } : {},
                 );
+                bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
+                break;
               }
-              break;
+              case 'ellipse': {
+                const node = createEllipse(
+                  { cx, cy, rx: w / 2, ry: h / 2 },
+                  style ? { style } : {},
+                );
+                bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
+                break;
+              }
+              case 'circle': {
+                const r = Math.min(w, h) / 2;
+                const node = createEllipse({ cx, cy, rx: r, ry: r }, style ? { style } : {});
+                bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
+                break;
+              }
+              // Polígonos regulares — geometria computada a partir do kind.
+              case 'triangle':
+              case 'rhombus':
+              case 'pentagon':
+              case 'hexagon':
+              case 'octagon':
+              case 'polygon': {
+                const sides = POLYGON_SIDES[shape] ?? 6;
+                const r = Math.min(w, h) / 2;
+                const points = regularPolygonPoints(cx, cy, r, sides);
+                const node = createPolygon(points, style ? { style } : {});
+                bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
+                break;
+              }
+              // Estrela — 5 pontas, raio interno = 40% do externo.
+              case 'star': {
+                const outerR = Math.min(w, h) / 2;
+                const points = regularStarPoints(cx, cy, outerR);
+                const node = createPolygon(points, style ? { style } : {});
+                bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
+                break;
+              }
+              // Linha horizontal centrada.
+              case 'line': {
+                const node = createLine(
+                  { x1: cx - w / 2, y1: cy, x2: cx + w / 2, y2: cy },
+                  style ? { style } : {},
+                );
+                bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
+                break;
+              }
+              // Polyline zigzag (V invertido) com 3 pontos.
+              case 'polyline': {
+                const points = [
+                  { x: cx - w / 2, y: cy + h / 4 },
+                  { x: cx, y: cy - h / 4 },
+                  { x: cx + w / 2, y: cy + h / 4 },
+                ];
+                const node = createPolyline(points, style ? { style } : {});
+                bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
+                break;
+              }
+              // Text placeholder — "Texto" se input PT, "Text" se EN.
+              // (sem acesso ao detectLanguage aqui — usa 'Texto' default).
+              case 'text': {
+                const fontSize = Math.max(12, Math.min(w, h) / 3);
+                const node = createText(
+                  {
+                    x: cx,
+                    y: cy + fontSize / 3, // alinhamento baseline visual aproximado
+                    content: 'Texto',
+                    fontSize,
+                    textAnchor: 'middle',
+                  },
+                  style ? { style } : {},
+                );
+                bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
+                break;
+              }
+              // Sem geometria built-in: precisam de input adicional
+              // (URL pra image, d-string pra path, children pra group).
+              case 'path':
+              case 'image':
+              case 'group':
+              case 'svg':
+              default: {
+                if (typeof console !== 'undefined') {
+                  console.warn(
+                    '[svge.nlu] create-shape: kind',
+                    shape,
+                    'requer dados específicos (URL/d-string/children) que NLU não infere. ' +
+                      'Registre intent customizado (e.g., create-image com slot `url`).',
+                  );
+                }
+                break;
+              }
             }
           }
         },

@@ -67,6 +67,14 @@ export type NluSlotSchema =
       readonly optional?: boolean;
       readonly default?: number;
       readonly anchorKeywords?: readonly string[];
+      /**
+       * Quando `false`, o slot **não** é preenchido pelo pass posicional
+       * genérico — só por pre-passes específicos (ex.: `count` da
+       * repetição, extraído como "número antes de uma forma"). Evita que
+       * um número de dimensão seja capturado como contagem por engano.
+       * Default `true` (positional).
+       */
+      readonly positional?: boolean;
     }
   | {
       readonly kind: 'color';

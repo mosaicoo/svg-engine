@@ -479,3 +479,64 @@ describe('NaturalLanguageService.executeSequence (multi-comando)', () => {
     expect(state.document().root.children.length).toBe(before + 1);
   });
 });
+
+describe('create-shape repetição (count)', () => {
+  it('"crie 3 circulos vermelhos" → count=3, NÃO vira dimensão', () => {
+    const { plugins, nlu, injector } = setup();
+    plugins.install(builtinNluPlugin);
+    const top = nlu.parse('crie 3 circulos vermelhos', { injector })[0];
+    expect(top.intent.id).toBe('svge.builtin.nlu.create-shape');
+    expect(top.slots['count']).toBe(3);
+    expect(top.slots['fill']).toBe('#e53935'); // vermelho
+    expect(top.slots['width']).toBe(100); // default — "3" não virou width
+  });
+
+  it('"crie 3 circulos vermelhos" cria 3 nós (cascade, 1 undo cada)', async () => {
+    const { plugins, nlu, injector, state, history } = setup();
+    plugins.install(builtinNluPlugin);
+    const before = state.document().root.children.length;
+    const result = await nlu.execute('crie 3 circulos vermelhos', { injector });
+    expect(result.executed).toBe(true);
+    expect(state.document().root.children.length).toBe(before + 3);
+    expect(history.undoStack().length).toBe(3); // 1 command por forma
+    const [a, b, c] = state.document().root.children.slice(-3);
+    expect(a.type).toBe('ellipse');
+    expect(b.type).toBe('ellipse');
+    expect(c.type).toBe('ellipse');
+    // Cascade diagonal → centros distintos (não empilhados).
+    if (a.type === 'ellipse' && b.type === 'ellipse' && c.type === 'ellipse') {
+      expect(a.cx).not.toBe(b.cx);
+      expect(b.cx).not.toBe(c.cx);
+    }
+  });
+
+  it('"crie 2 retangulos azuis 50x50" preserva dimensão E count', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const before = state.document().root.children.length;
+    const result = await nlu.execute('crie 2 retangulos azuis 50x50', { injector });
+    expect(result.executed).toBe(true);
+    expect(state.document().root.children.length).toBe(before + 2);
+    const rect = state.document().root.children.at(-1)!;
+    expect(rect.type).toBe('rect');
+    if (rect.type === 'rect') {
+      expect(rect.width).toBe(50); // dimensão preservada (não consumida pelo count)
+    }
+  });
+
+  it('clampa count em 1..50 ("crie 100 circulos" → 50)', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const before = state.document().root.children.length;
+    await nlu.execute('crie 100 circulos', { injector });
+    expect(state.document().root.children.length).toBe(before + 50);
+  });
+
+  it('sem count → cria 1 (default), comportamento intacto', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const before = state.document().root.children.length;
+    await nlu.execute('criar circulo vermelho', { injector });
+    expect(state.document().root.children.length).toBe(before + 1);
+  });
+});
