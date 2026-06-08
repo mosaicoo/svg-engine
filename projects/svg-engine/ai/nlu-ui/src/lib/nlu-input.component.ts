@@ -138,76 +138,85 @@ function initialVoiceLanguage(): string {
           [attr.aria-describedby]="topCandidate() ? 'svge-nlu-hint' : null"
           [placeholder]="placeholder()"
         />
-        @if (voice.isSupported()) {
+        <!--
+          Grupo de ações ÚNICO (matSuffix) — idioma + motor de voz +
+          microfone + run ficam LADO A LADO à direita do input. Antes
+          cada botão era um matSuffix separado dentro de um bloco
+          condicional, e o form-field MDC posicionava os condicionais
+          errado (idioma/motor caíam à esquerda/embaixo). Um matSuffix
+          SEMPRE presente (flex) resolve: o Material só ancora o
+          contêiner; os condicionais internos viram DOM comum. Os
+          mat-menu ficam junto de seus botões (mesmo bloco) para
+          preservar o escopo do template ref.
+        -->
+        <span matSuffix class="svge-nlu-actions">
+          @if (voice.isSupported()) {
+            <button
+              mat-icon-button
+              type="button"
+              class="svge-nlu-lang"
+              [matMenuTriggerFor]="langMenu"
+              [matTooltip]="'Idioma da voz: ' + languageShort(selectedLanguage())"
+              aria-label="Selecionar idioma da voz"
+            >
+              <mat-icon>translate</mat-icon>
+            </button>
+            <mat-menu #langMenu="matMenu">
+              @for (l of languages; track l.code) {
+                <button mat-menu-item type="button" (click)="setLanguage(l.code)">
+                  <mat-icon>{{ selectedLanguage() === l.code ? 'check' : 'language' }}</mat-icon>
+                  <span>{{ l.label }}</span>
+                </button>
+              }
+            </mat-menu>
+          }
+          @if (voice.availableEngines().length > 1) {
+            <button
+              mat-icon-button
+              type="button"
+              class="svge-nlu-engine"
+              [matMenuTriggerFor]="engineMenu"
+              [matTooltip]="'Motor de voz: ' + engineLabel(voice.engine())"
+              aria-label="Selecionar motor de voz"
+            >
+              <mat-icon>{{ engineIcon(voice.engine()) }}</mat-icon>
+            </button>
+            <mat-menu #engineMenu="matMenu">
+              @for (e of voice.availableEngines(); track e) {
+                <button mat-menu-item type="button" (click)="voice.setEngine(e)">
+                  <mat-icon>{{ voice.engine() === e ? 'check' : engineIcon(e) }}</mat-icon>
+                  <span>{{ engineLabel(e) }}</span>
+                </button>
+              }
+            </mat-menu>
+          }
+          @if (voice.isSupported()) {
+            <button
+              mat-icon-button
+              type="button"
+              class="svge-nlu-mic"
+              [class.recording]="voice.listening()"
+              [disabled]="voice.modelLoading()"
+              [attr.aria-pressed]="voice.listening()"
+              [matTooltip]="micTooltip()"
+              (click)="toggleVoice()"
+            >
+              <mat-icon>{{
+                voice.modelLoading() ? 'hourglass_empty' : voice.listening() ? 'mic_off' : 'mic'
+              }}</mat-icon>
+            </button>
+          }
           <button
             mat-icon-button
-            matSuffix
             type="button"
-            class="svge-nlu-lang"
-            [matMenuTriggerFor]="langMenu"
-            [matTooltip]="'Idioma da voz: ' + languageShort(selectedLanguage())"
-            aria-label="Selecionar idioma da voz"
+            class="svge-nlu-run"
+            matTooltip="Run (Enter)"
+            [disabled]="text().trim().length === 0"
+            (click)="runNow()"
           >
-            <mat-icon>translate</mat-icon>
+            <mat-icon>send</mat-icon>
           </button>
-          <mat-menu #langMenu="matMenu">
-            @for (l of languages; track l.code) {
-              <button mat-menu-item type="button" (click)="setLanguage(l.code)">
-                <mat-icon>{{ selectedLanguage() === l.code ? 'check' : 'language' }}</mat-icon>
-                <span>{{ l.label }}</span>
-              </button>
-            }
-          </mat-menu>
-        }
-        @if (voice.availableEngines().length > 1) {
-          <button
-            mat-icon-button
-            matSuffix
-            type="button"
-            class="svge-nlu-engine"
-            [matMenuTriggerFor]="engineMenu"
-            [matTooltip]="'Motor de voz: ' + engineLabel(voice.engine())"
-            aria-label="Selecionar motor de voz"
-          >
-            <mat-icon>{{ engineIcon(voice.engine()) }}</mat-icon>
-          </button>
-          <mat-menu #engineMenu="matMenu">
-            @for (e of voice.availableEngines(); track e) {
-              <button mat-menu-item type="button" (click)="voice.setEngine(e)">
-                <mat-icon>{{ voice.engine() === e ? 'check' : engineIcon(e) }}</mat-icon>
-                <span>{{ engineLabel(e) }}</span>
-              </button>
-            }
-          </mat-menu>
-        }
-        @if (voice.isSupported()) {
-          <button
-            mat-icon-button
-            matSuffix
-            type="button"
-            class="svge-nlu-mic"
-            [class.recording]="voice.listening()"
-            [disabled]="voice.modelLoading()"
-            [attr.aria-pressed]="voice.listening()"
-            [matTooltip]="micTooltip()"
-            (click)="toggleVoice()"
-          >
-            <mat-icon>{{
-              voice.modelLoading() ? 'hourglass_empty' : voice.listening() ? 'mic_off' : 'mic'
-            }}</mat-icon>
-          </button>
-        }
-        <button
-          mat-icon-button
-          matSuffix
-          type="button"
-          class="svge-nlu-run"
-          matTooltip="Run (Enter)"
-          [disabled]="text().trim().length === 0"
-          (click)="runNow()"
-        >
-          <mat-icon>send</mat-icon>
-        </button>
+        </span>
       </mat-form-field>
 
       @if (topCandidate(); as top) {
@@ -288,6 +297,14 @@ function initialVoiceLanguage(): string {
     }
     .svge-nlu-field {
       width: 100%;
+    }
+    /* Grupo de ações (idioma + motor + mic + run) — uma fileira só,
+       alinhada verticalmente ao centro do input, à direita. gap 0 mantém
+       a densidade de icon-buttons Material. */
+    .svge-nlu-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 0;
     }
     .svge-nlu-prefix {
       color: var(--mat-sys-primary, #1976d2);
