@@ -34,6 +34,7 @@ import {
 import { builtinUiMenuContributionsPlugin, provideSvgeBuiltinToolOptions } from 'svg-engine/ui';
 import { builtinNluPlugin } from 'svg-engine/ai/nlu';
 
+import { commandPalettePlugin } from './command-palette/command-palette.plugin';
 import { routes } from './app.routes';
 
 /**
@@ -115,6 +116,10 @@ export const appConfig: ApplicationConfig = {
     // ── NLU (must install AFTER menu plugins for auto-discovery) ───
     // D-046 Fase 1 — rule-based natural-language router.
     provideSvgEnginePlugin(builtinNluPlugin),
+    // Command Palette (Ctrl+K + botão "Assistente" no toolbar) que
+    // hospeda o <svge-nlu-input> num MatDialog escopado ao editor.
+    // App-level (não no shell) p/ preservar o desacoplamento ui↛ai.
+    provideSvgEnginePlugin(commandPalettePlugin),
 
     // ── Tool options bar wiring ────────────────────────────────────
     // TOOL-OPT — populates <svge-tool-options> with the built-in
