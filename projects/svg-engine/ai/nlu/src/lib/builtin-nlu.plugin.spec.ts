@@ -419,3 +419,63 @@ describe('builtinNluPlugin', () => {
     }
   });
 });
+
+describe('NaturalLanguageService.executeSequence (multi-comando)', () => {
+  it('frase simples = 1 comando (idêntico ao execute)', async () => {
+    const { plugins, nlu, injector, state, history } = setup();
+    plugins.install(builtinNluPlugin);
+    const before = state.document().root.children.length;
+    const results = await nlu.executeSequence('criar retangulo vermelho', { injector });
+    expect(results.length).toBe(1);
+    expect(results[0].executed).toBe(true);
+    expect(state.document().root.children.length).toBe(before + 1);
+    expect(history.undoStack().length).toBe(1);
+  });
+
+  it('duas formas numa frase → 2 comandos + 2 nós + 2 undos separados', async () => {
+    const { plugins, nlu, injector, state, history } = setup();
+    plugins.install(builtinNluPlugin);
+    const before = state.document().root.children.length;
+    const results = await nlu.executeSequence('crie um circulo preto e um retangulo amarelo', {
+      injector,
+    });
+    expect(results.length).toBe(2);
+    expect(results.every((r) => r.executed)).toBe(true);
+    expect(state.document().root.children.length).toBe(before + 2);
+    // **Undo separado por forma**: 2 commands no histórico.
+    expect(history.undoStack().length).toBe(2);
+    const [a, b] = state.document().root.children.slice(-2);
+    expect(a.type).toBe('ellipse'); // círculo
+    expect(b.type).toBe('rect'); // retângulo
+    expect(b.style?.fill).toBe('#fdd835'); // amarelo
+  });
+
+  it('frase composta complexa do usuário cria as DUAS formas', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const before = state.document().root.children.length;
+    const results = await nlu.executeSequence(
+      'crie um circulo preto 50x50 com borda azul de tamanho 5px na posicao 100x100, e um retangulo amarelo 30 350',
+      { injector },
+    );
+    expect(results.length).toBe(2);
+    expect(results.every((r) => r.executed)).toBe(true);
+    expect(state.document().root.children.length).toBe(before + 2);
+    const circle = state.document().root.children.at(-2)!;
+    const rect = state.document().root.children.at(-1)!;
+    expect(circle.type).toBe('ellipse');
+    expect(circle.style?.stroke).toBe('#1e88e5'); // borda azul
+    expect(circle.style?.strokeWidth).toBe(5);
+    expect(rect.type).toBe('rect');
+  });
+
+  it('NÃO faz over-split de lista de cor: "preto e branco" = 1 comando', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const before = state.document().root.children.length;
+    const results = await nlu.executeSequence('criar retangulo preto e branco', { injector });
+    // "branco" sozinho não é comando (sem forma/verbo) → re-fundido.
+    expect(results.length).toBe(1);
+    expect(state.document().root.children.length).toBe(before + 1);
+  });
+});

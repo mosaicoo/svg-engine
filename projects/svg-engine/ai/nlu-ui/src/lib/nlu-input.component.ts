@@ -668,15 +668,18 @@ export class SvgeNluInput {
   protected async runNow(): Promise<void> {
     const t = this.text().trim();
     if (t.length === 0) return;
-    const result = await this.nlu.execute(
+    // **Multi-comando**: executeSequence divide a frase nos conectores e
+    // executa cada cláusula (cada forma = 1 passo de undo). Frase simples
+    // = 1 resultado, comportamento idêntico ao execute() anterior.
+    const results = await this.nlu.executeSequence(
       t,
       { injector: this.hostInjector },
       this.executeOptions(),
     );
-    this.lastResult.set(result);
-    this.executed.emit(result);
-    // Se executou, limpa o input pra próximo comando.
-    if (result.executed) this.setTextProgrammatically('');
+    for (const r of results) this.executed.emit(r);
+    this.lastResult.set(results[results.length - 1] ?? null);
+    // Se ao menos um comando executou, limpa o input pro próximo.
+    if (results.some((r) => r.executed)) this.setTextProgrammatically('');
   }
 
   /**

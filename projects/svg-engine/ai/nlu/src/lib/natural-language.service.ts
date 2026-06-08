@@ -535,6 +535,101 @@ export class NaturalLanguageService {
   }
 
   /**
+   * Conectores que separam comandos numa frase composta
+   * ("crie X, e um Y"). Split em `,`/`;` + " e "/" depois "/" também ".
+   */
+  private static readonly CLAUSE_SPLIT_RE =
+    /\s*[;,]\s*|\s+e\s+|\s+depois\s+|\s+tamb[eé]m\s+|\s+and\s+|\s+then\s+/i;
+
+  /**
+   * Verbos de comando (criação/edição) que marcam uma cláusula como
+   * comando autônomo. Deaccentuados/lowercase (forma que o tokenizer gera).
+   */
+  private static readonly COMMAND_VERBS: ReadonlySet<string> = new Set([
+    'criar',
+    'crie',
+    'cria',
+    'desenhar',
+    'desenhe',
+    'desenha',
+    'adicionar',
+    'adicione',
+    'adiciona',
+    'fazer',
+    'faca',
+    'inserir',
+    'insira',
+    'create',
+    'draw',
+    'add',
+    'make',
+    'insert',
+  ]);
+
+  /**
+   * **Multi-comando por frase** — divide o texto nos conectores e executa
+   * cada cláusula como um comando independente. Cada `execute()` despacha
+   * seu próprio command no bus, então **cada forma é um passo de undo
+   * separado**.
+   *
+   * **Sem regressão**: quando não há split real (frase simples, ou os
+   * "pedaços" são apenas fragmentos — listas de cor "preto e branco",
+   * números "100 e 200"), recai EXATAMENTE no `execute(text)` de sempre.
+   *
+   * Heurística anti over-split: um pedaço só vira comando separado se
+   * contiver uma **forma** ou um **verbo de comando**; senão é re-fundido
+   * ao anterior.
+   *
+   * @returns um {@link NluExecuteResult} por comando, na ordem da frase.
+   */
+  async executeSequence(
+    text: string,
+    ctx: NluContext,
+    options: NluExecuteOptions = {},
+  ): Promise<readonly NluExecuteResult[]> {
+    const clauses = this.splitIntoClauses(text);
+    // Caminho single-comando IDÊNTICO ao antigo (usa o texto original).
+    if (clauses.length <= 1) {
+      return [await this.execute(text, ctx, options)];
+    }
+    const results: NluExecuteResult[] = [];
+    for (const clause of clauses) {
+      // Sequencial (não paralelo): preserva ordem + 1 undo por comando.
+      results.push(await this.execute(clause, ctx, options));
+    }
+    return results;
+  }
+
+  /**
+   * Divide `text` em cláusulas-comando. Pedaços que não parecem comando
+   * (sem forma nem verbo) são re-fundidos ao anterior. Retorna ≤1 item
+   * quando não há split real.
+   */
+  private splitIntoClauses(text: string): string[] {
+    const raw = text
+      .split(NaturalLanguageService.CLAUSE_SPLIT_RE)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (raw.length <= 1) return raw;
+    const out: string[] = [];
+    for (const piece of raw) {
+      if (out.length === 0 || this.clauseLooksLikeCommand(piece)) {
+        out.push(piece);
+      } else {
+        out[out.length - 1] = `${out[out.length - 1]} ${piece}`;
+      }
+    }
+    return out;
+  }
+
+  /** `true` se a cláusula contém uma forma ou um verbo de comando. */
+  private clauseLooksLikeCommand(clause: string): boolean {
+    return tokenize(clause).some(
+      (t) => resolveShapeKind(t) !== null || NaturalLanguageService.COMMAND_VERBS.has(t),
+    );
+  }
+
+  /**
    * Executa um candidate **específico** (escolhido pelo usuário via UI
    * — e.g., clique numa alternativa) aplicando as mesmas regras de
    * segurança do {@link execute}: destructive sem gate rejeita;
