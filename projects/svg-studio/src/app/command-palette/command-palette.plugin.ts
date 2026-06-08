@@ -6,6 +6,7 @@ import {
   PLUGIN_API_VERSION,
   ShortcutRegistry,
 } from 'svg-engine/edit';
+import { svgeDialogConfig } from 'svg-engine/ui';
 import { CommandPaletteDialog } from './command-palette.dialog';
 
 /**
@@ -58,20 +59,22 @@ export const commandPalettePlugin: EditorPlugin = {
         return;
       }
       const dialog = injector.get(MatDialog);
-      openRef = dialog.open(CommandPaletteDialog, {
-        // **Escopo do editor** — chave de tudo: faz o inject(Injector)
-        // do <svge-nlu-input> resolver os serviços escopados da rota.
-        injector,
-        panelClass: 'studio-command-palette-panel',
-        width: 'min(640px, 92vw)',
-        maxWidth: '92vw',
-        // Posição de "palette" (topo-centro), não diálogo centralizado.
-        position: { top: '12vh' },
-        // Foca o campo de texto do NLU ao abrir (digitar imediato).
-        autoFocus: 'input',
-        restoreFocus: true,
-        ariaLabel: 'Assistente de comandos em linguagem natural',
-      });
+      // Mesmo config padronizado dos diálogos internos (svgeDialogConfig)
+      // — junto com o <svge-dialog-shell> no template, isso dá o MESMO
+      // chrome: arraste pelo cabeçalho + redimensionar no canto, largura/
+      // maxHeight/panelClass consistentes.
+      openRef = dialog.open(
+        CommandPaletteDialog,
+        svgeDialogConfig('md', {
+          // **Escopo do editor** — chave de tudo: faz o inject(Injector)
+          // do <svge-nlu-input> resolver os serviços escopados da rota.
+          injector,
+          // Foca o campo de texto do NLU ao abrir (svgeDialogConfig usa
+          // autoFocus:false por padrão; aqui queremos digitar imediato).
+          autoFocus: 'input',
+          ariaLabel: 'Assistente de comandos em linguagem natural',
+        }),
+      );
       openRef.afterClosed().subscribe(() => {
         openRef = null;
       });
