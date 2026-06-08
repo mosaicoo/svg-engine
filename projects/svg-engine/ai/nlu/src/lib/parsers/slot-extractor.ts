@@ -340,6 +340,103 @@ export function extractSlots(
     }
   }
 
+  // ── Pre-pass: gradiente "gradiente de azul para vermelho" ──
+  // **Gated 100% na palavra-chave**: sem "gradiente"/"degrade"/"gradient"
+  // o bloco nem roda, então cores sólidas ("amarelo", "vermelho") seguem
+  // intactas. Extrai `{kind, direction, colors}` CONSUMINDO a palavra-chave
+  // + tipo/direção + as cores (até a âncora de `stroke`), de modo que o
+  // slot `fill` posicional não capture nenhuma dessas cores.
+  const gradientSchema = schemas['gradient'];
+  if (gradientSchema?.kind === 'gradient') {
+    let keywordIdx = -1;
+    for (let i = 0; i < tokens.length; i++) {
+      if (ctx.consumedIndices.has(i)) continue;
+      const t = tokens[i];
+      if (t === 'gradiente' || t === 'degrade' || t === 'gradient') {
+        keywordIdx = i;
+        break;
+      }
+    }
+    if (keywordIdx !== -1) {
+      ctx.consumedIndices.add(keywordIdx);
+
+      // Fronteira de stroke: cores APÓS uma âncora de cor (ex.: "borda")
+      // pertencem ao `stroke`, não ao gradiente. Deriva os anchors de
+      // QUALQUER slot color ancorado no schema (sem constante mágica).
+      const strokeAnchors = new Set<string>();
+      for (const s of Object.values(schemas)) {
+        if (s.kind === 'color' && s.anchorKeywords) {
+          for (const a of s.anchorKeywords) strokeAnchors.add(a);
+        }
+      }
+      let boundary = tokens.length;
+      for (let i = 0; i < tokens.length; i++) {
+        if (strokeAnchors.has(tokens[i])) {
+          boundary = i;
+          break;
+        }
+      }
+
+      // Tipo (linear/radial) + direção (horizontal/vertical/diagonal) —
+      // match EXATO (zero fuzzy → sem falso-positivo), consumindo o token.
+      let gradKind: 'linear' | 'radial' = 'linear';
+      let direction: 'horizontal' | 'vertical' | 'diagonal' = 'horizontal';
+      for (let i = 0; i < tokens.length; i++) {
+        if (ctx.consumedIndices.has(i)) continue;
+        switch (tokens[i]) {
+          case 'radial':
+            gradKind = 'radial';
+            ctx.consumedIndices.add(i);
+            break;
+          case 'linear':
+            gradKind = 'linear';
+            ctx.consumedIndices.add(i);
+            break;
+          case 'vertical':
+            direction = 'vertical';
+            ctx.consumedIndices.add(i);
+            break;
+          case 'horizontal':
+            direction = 'horizontal';
+            ctx.consumedIndices.add(i);
+            break;
+          case 'diagonal':
+            direction = 'diagonal';
+            ctx.consumedIndices.add(i);
+            break;
+        }
+      }
+
+      // Cores NA ORDEM (antes da fronteira de stroke), consumindo tokens.
+      // parseColorPhrase cobre "azul claro" / "azul marinho" etc.
+      const colors: string[] = [];
+      for (let i = 0; i < boundary; i++) {
+        if (ctx.consumedIndices.has(i)) continue;
+        if (isStopword(tokens[i])) continue;
+        // **Só INICIA uma frase de cor onde o token É cor ou intensificador.**
+        // parseColorPhrase tem janela de 3 tokens e encontraria uma cor À
+        // FRENTE (ex.: a partir de "retangulo" enxergaria "azul" 2 tokens
+        // depois), contando a mesma cor 2×. Gate evita esse double-count.
+        const startsColor =
+          parseColorToken(tokens[i]) !== null ||
+          LIGHTNESS_MODIFIERS[tokens[i]] !== undefined ||
+          LIGHTNESS_MULTIPLIERS[tokens[i]] !== undefined;
+        if (!startsColor) continue;
+        const phrase = parseColorPhrase(tokens, i);
+        if (phrase !== null) {
+          colors.push(phrase.color);
+          for (let k = 0; k < phrase.tokensConsumed; k++) ctx.consumedIndices.add(i + k);
+        }
+      }
+
+      // Só ativa o gradiente se houver ao menos 1 cor; senão deixa o fill
+      // sólido seguir o caminho normal (default da factory).
+      if (colors.length > 0) {
+        result['gradient'] = { kind: gradKind, direction, colors };
+      }
+    }
+  }
+
   // ── Pass 1: ANCHORED slots ──────────────────────────────────
   // Slots que declaram `anchorKeywords` ("borda azul" → stroke=azul).
   // Roda ANTES do positional pra "reservar" valores que pertencem a
@@ -380,6 +477,10 @@ export function extractSlots(
       }
       continue;
     }
+
+    // Slot `gradient` é extraído SÓ pelo pre-pass dedicado; nunca posicional
+    // (não compete com `fill`). Já está em `result` ou ausente.
+    if (schema.kind === 'gradient') continue;
 
     // **D-046 review-6**: slots com `anchorKeywords` são **anchor-only**.
     // Se o anchor falhou (Pass 1 não preencheu), NÃO faz fallback

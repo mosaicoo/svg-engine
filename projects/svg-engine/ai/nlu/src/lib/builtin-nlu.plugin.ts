@@ -1,3 +1,4 @@
+import { type Injector } from '@angular/core';
 import {
   AUTO_PARENT,
   CommandBus,
@@ -9,6 +10,7 @@ import {
   createText,
   DuplicateNodeCommand,
   EditorStateService,
+  generateNodeId,
   InsertNodeCommand,
   MoveNodeCommand,
   ResizeNodeCommand,
@@ -17,12 +19,20 @@ import {
 } from 'svg-engine/core';
 import { type EditorPlugin, MenuContributionRegistry, PLUGIN_API_VERSION } from 'svg-engine/edit';
 import { SelectionService } from 'svg-engine/edit';
+import {
+  buildGradientMarkup,
+  type GradientGeometry,
+  type GradientLibraryItem,
+  type GradientStop,
+  GradientLibraryService,
+} from 'svg-engine/edit';
 import { SHAPE_KEYS } from './dictionaries/shapes';
 import {
   POLYGON_SIDES,
   regularPolygonPoints,
   regularStarPoints,
 } from './dictionaries/shapes-canonical';
+import { adjustHexLightness, HEX_COLOR_RE } from './parsers/color-functions';
 import { registerProfessionalIntents } from './intents/professional-intents';
 import { discoverMenuIntentsReactive } from './menu-intent-discovery';
 import { NaturalLanguageService } from './natural-language.service';
@@ -238,6 +248,77 @@ function computeLayoutPositions(
   return positions;
 }
 
+/**
+ * Spec de gradiente extraído pelo pre-pass do slot-extractor (tipo +
+ * direção + cores na ordem). O handler deriva os stops e a geometria.
+ */
+interface NluGradientSpec {
+  readonly kind: 'linear' | 'radial';
+  readonly direction: 'horizontal' | 'vertical' | 'diagonal';
+  readonly colors: readonly string[];
+}
+
+/**
+ * Deriva os stops do gradiente:
+ * - **1 cor**: clara (offset 0) → escura (offset 1) via adjustHexLightness
+ *   quando hex; cor não-hex (keyword CSS) vira par degenerado (mesma cor).
+ * - **N cores**: distribuídas uniformemente (offset i/(n-1)).
+ */
+function gradientStops(colors: readonly string[]): GradientStop[] {
+  if (colors.length === 1) {
+    const c = colors[0];
+    if (HEX_COLOR_RE.test(c)) {
+      return [
+        { offset: 0, color: adjustHexLightness(c, 0.18) },
+        { offset: 1, color: adjustHexLightness(c, -0.18) },
+      ];
+    }
+    return [
+      { offset: 0, color: c },
+      { offset: 1, color: c },
+    ];
+  }
+  const n = colors.length;
+  return colors.map((color, i) => ({ offset: i / (n - 1), color }));
+}
+
+/**
+ * Geometria (objectBoundingBox 0..1) por tipo/direção:
+ * - radial: centro (0.5, 0.5), raio 0.5 (direção ignorada).
+ * - linear horizontal: (0,0)→(1,0); vertical: (0,0)→(0,1); diagonal: (0,0)→(1,1).
+ */
+function gradientGeometry(spec: NluGradientSpec): GradientGeometry {
+  if (spec.kind === 'radial') return { cx: 0.5, cy: 0.5, r: 0.5 };
+  if (spec.direction === 'vertical') return { x1: 0, y1: 0, x2: 0, y2: 1 };
+  if (spec.direction === 'diagonal') return { x1: 0, y1: 0, x2: 1, y2: 1 };
+  return { x1: 0, y1: 0, x2: 1, y2: 0 }; // horizontal (default)
+}
+
+/**
+ * Cria + registra um {@link GradientLibraryItem} no catálogo (root) e
+ * retorna `url(#id)` p/ usar em `style.fill`. O `ActiveGradientsService`
+ * escopado detecta a referência no documento e injeta o
+ * `<linearGradient>` / `<radialGradient>` nos `defs` do renderer (mesmo
+ * pipeline do editor de gradiente D-058). Não é undoable (o catálogo é
+ * global): ao desfazer a forma, a referência some e o gradiente fica
+ * inativo — não renderiza, mas permanece no catálogo (orfão inofensivo).
+ */
+function buildGradientFill(spec: NluGradientSpec, injector: Injector): string {
+  const id = generateNodeId();
+  const item: GradientLibraryItem = {
+    id,
+    name: 'Gradiente (NLU)',
+    kind: spec.kind,
+    stops: gradientStops(spec.colors),
+    geometry: gradientGeometry(spec),
+    buildMarkup(): string {
+      return buildGradientMarkup(this);
+    },
+  };
+  injector.get(GradientLibraryService).register(item);
+  return `url(#${id})`;
+}
+
 export const builtinNluPlugin: EditorPlugin = {
   id: 'svge.builtin.nlu',
   name: 'Built-in NLU (rule-based, Fase 1)',
@@ -327,6 +408,12 @@ export const builtinNluPlugin: EditorPlugin = {
           // (`fuzzy:false`) p/ não confundir "grande" com "grade". Sem
           // default → resolveLayout() cai em 'diagonal' (legado).
           layout: { kind: 'enum', values: LAYOUT_KEYWORDS, optional: true, fuzzy: false },
+          // **`gradient`** — preenchimento por gradiente. Extraído SÓ pelo
+          // pre-pass dedicado e SÓ quando a palavra-chave ("gradiente"/
+          // "degradê"/"degrade") aparece — cores sólidas seguem intactas.
+          // Suporta tipo (linear/radial), direção (horizontal/vertical/
+          // diagonal) e 1..N cores. Vide buildGradientFill().
+          gradient: { kind: 'gradient', optional: true },
         },
         description:
           'Criar forma (retângulo, círculo, elipse, etc.) — suporta fill/stroke/espessura/posição',
@@ -339,7 +426,17 @@ export const builtinNluPlugin: EditorPlugin = {
           const shape = (slots['shape'] as string | undefined) ?? 'rect';
           const w = (slots['width'] as number | undefined) ?? 100;
           const h = (slots['height'] as number | undefined) ?? 100;
-          const fill = slots['fill'] as string | undefined;
+          // **Gradiente** — quando o slot `gradient` está presente (gated na
+          // palavra-chave no extractor), registra um gradiente e o fill vira
+          // `url(#id)`; senão, o caminho de cor sólida segue 100% intacto.
+          // Construído UMA vez (antes do loop de repetição): as N cópias
+          // compartilham o mesmo gradiente (objectBoundingBox normaliza por
+          // bbox de cada forma).
+          const gradientSpec = slots['gradient'] as NluGradientSpec | undefined;
+          let fill = slots['fill'] as string | undefined;
+          if (gradientSpec !== undefined && gradientSpec.colors.length > 0) {
+            fill = buildGradientFill(gradientSpec, runCtx.injector);
+          }
           const stroke = slots['stroke'] as string | undefined;
           const strokeWidth = slots['strokeWidth'] as number | undefined;
           const position = slots['position'] as { x: number; y: number } | undefined;

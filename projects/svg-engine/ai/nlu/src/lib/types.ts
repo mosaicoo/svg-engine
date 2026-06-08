@@ -120,6 +120,22 @@ export type NluSlotSchema =
       readonly optional?: boolean;
       readonly default?: { readonly x: number; readonly y: number };
       readonly anchorKeywords?: readonly string[];
+    }
+  | {
+      /**
+       * **`gradient`** — preenchimento por gradiente. Extraído **só** por
+       * um pre-pass dedicado e **só quando a palavra-chave** ("gradiente"/
+       * "degradê"/"degrade"/"gradient") aparece — assim cores sólidas
+       * ("amarelo", "vermelho") seguem 100% intactas. O valor extraído é
+       * `{ kind: 'linear'|'radial', direction: 'horizontal'|'vertical'|
+       * 'diagonal', colors: string[] }`: o handler deriva os stops (1 cor
+       * → clara→escura; N cores → distribuídas) e a geometria. Nunca é
+       * posicional (não compete com o slot `fill`).
+       */
+      readonly kind: 'gradient';
+      readonly optional?: boolean;
+      /** Não usado (gradient é só pre-pass) — presente p/ uniformidade do union. */
+      readonly anchorKeywords?: readonly string[];
     };
 
 /**

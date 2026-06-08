@@ -8,10 +8,16 @@ import {
   HistoryService,
   InsertNodeCommand,
 } from 'svg-engine/core';
-import { MenuContributionRegistry, PluginRegistry, SelectionService } from 'svg-engine/edit';
+import {
+  GradientLibraryService,
+  MenuContributionRegistry,
+  PluginRegistry,
+  SelectionService,
+} from 'svg-engine/edit';
 import { describe, expect, it } from 'vitest';
 import { builtinNluPlugin } from './builtin-nlu.plugin';
 import { NaturalLanguageService } from './natural-language.service';
+import { adjustHexLightness } from './parsers/color-functions';
 
 function setup() {
   TestBed.configureTestingModule({});
@@ -636,5 +642,111 @@ describe('create-shape layouts (grade/linha/coluna/diagonal/espalhado)', () => {
     expect(top.intent.id).toBe('svge.builtin.nlu.create-shape');
     // "grande" casaria "grade" por dist 1 SE o enum fizesse fuzzy.
     expect(top.slots['layout']).toBeUndefined();
+  });
+});
+
+/** Extrai o id de gradiente de um `fill="url(#id)"`. */
+function gradIdFromFill(fill: string | undefined): string | null {
+  if (fill === undefined) return null;
+  const m = /^url\(#([^)]+)\)$/.exec(fill);
+  return m === null ? null : m[1];
+}
+
+describe('create-shape gradiente (gradiente/degradê/degrade)', () => {
+  it('GUARD: "criar retangulo amarelo" continua SÓLIDO (sem gradiente)', () => {
+    const { plugins, nlu, injector } = setup();
+    plugins.install(builtinNluPlugin);
+    const top = nlu.parse('criar retangulo amarelo', { injector })[0];
+    expect(top.intent.id).toBe('svge.builtin.nlu.create-shape');
+    expect(top.slots['gradient']).toBeUndefined();
+    expect(top.slots['fill']).toBe('#fdd835'); // amarelo sólido intacto
+  });
+
+  it('"gradiente azul para vermelho" → fill url(#id) + linear horizontal, 2 stops', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const grads = TestBed.inject(GradientLibraryService);
+
+    const top = nlu.parse('criar retangulo gradiente azul para vermelho', { injector })[0];
+    expect(top.slots['fill']).toBeUndefined(); // cores foram p/ o gradiente
+    expect(top.slots['gradient']).toEqual({
+      kind: 'linear',
+      direction: 'horizontal',
+      colors: ['#1e88e5', '#e53935'], // azul, vermelho
+    });
+
+    await nlu.execute('criar retangulo gradiente azul para vermelho', { injector });
+    const node = state.document().root.children.at(-1)!;
+    const id = gradIdFromFill(node.style.fill);
+    expect(id).not.toBeNull();
+    const item = grads.get(id!)!;
+    expect(item.kind).toBe('linear');
+    expect(item.stops.map((s) => s.color)).toEqual(['#1e88e5', '#e53935']);
+    expect(item.stops.map((s) => s.offset)).toEqual([0, 1]);
+    expect(item.geometry).toEqual({ x1: 0, y1: 0, x2: 1, y2: 0 });
+  });
+
+  it('1 cor → clara→escura (derivada via adjustHexLightness)', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const grads = TestBed.inject(GradientLibraryService);
+
+    await nlu.execute('criar circulo gradiente azul', { injector });
+    const node = state.document().root.children.at(-1)!;
+    const item = grads.get(gradIdFromFill(node.style.fill)!)!;
+    expect(item.stops).toHaveLength(2);
+    // clara no offset 0, escura no offset 1 (mesma matiz do azul base).
+    expect(item.stops[0].color).toBe(adjustHexLightness('#1e88e5', 0.18));
+    expect(item.stops[1].color).toBe(adjustHexLightness('#1e88e5', -0.18));
+  });
+
+  it('"gradiente radial" → kind radial + geometria cx/cy/r', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const grads = TestBed.inject(GradientLibraryService);
+
+    await nlu.execute('criar retangulo gradiente radial azul para vermelho', { injector });
+    const node = state.document().root.children.at(-1)!;
+    const item = grads.get(gradIdFromFill(node.style.fill)!)!;
+    expect(item.kind).toBe('radial');
+    expect(item.geometry).toEqual({ cx: 0.5, cy: 0.5, r: 0.5 });
+  });
+
+  it('"gradiente vertical" → eixo (0,0)→(0,1)', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const grads = TestBed.inject(GradientLibraryService);
+
+    await nlu.execute('criar retangulo gradiente vertical azul para vermelho', { injector });
+    const node = state.document().root.children.at(-1)!;
+    const item = grads.get(gradIdFromFill(node.style.fill)!)!;
+    expect(item.kind).toBe('linear');
+    expect(item.geometry).toEqual({ x1: 0, y1: 0, x2: 0, y2: 1 });
+  });
+
+  it('3+ cores → stops distribuídos uniformemente', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const grads = TestBed.inject(GradientLibraryService);
+
+    await nlu.execute('criar retangulo gradiente de vermelho para amarelo e azul', { injector });
+    const node = state.document().root.children.at(-1)!;
+    const item = grads.get(gradIdFromFill(node.style.fill)!)!;
+    expect(item.stops.map((s) => s.color)).toEqual(['#e53935', '#fdd835', '#1e88e5']);
+    expect(item.stops.map((s) => s.offset)).toEqual([0, 0.5, 1]);
+  });
+
+  it('repetição + gradiente → as N formas compartilham UM gradiente', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const grads = TestBed.inject(GradientLibraryService);
+
+    await nlu.execute('crie 3 retangulos com gradiente azul para vermelho', { injector });
+    const [a, b, c] = state.document().root.children.slice(-3);
+    // mesmo url nas 3 formas + apenas 1 gradiente registrado no catálogo.
+    expect(a.style.fill).toBe(b.style.fill);
+    expect(b.style.fill).toBe(c.style.fill);
+    expect(gradIdFromFill(a.style.fill)).not.toBeNull();
+    expect(grads.items()).toHaveLength(1);
   });
 });
