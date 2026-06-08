@@ -25,9 +25,13 @@ import { SvgeEditor } from 'svg-engine/ui';
  * canvas (criar formas, deletar, undo, etc).
  *
  * **Comandos para experimentar** (mostrados como dicas):
- * - PT: "criar retângulo vermelho 100x50", "criar círculo azul",
- *   "undo", "desfazer", "deletar", "selecionar tudo"
- * - EN: "create a blue circle", "delete", "undo", "select all"
+ * - Formas: "criar retângulo vermelho 100x50", "create a blue circle",
+ *   "criar círculo preto 50x50 com borda azul espessura 5 na posição 100 100"
+ * - Repetição: "crie 3 círculos vermelhos" (cada cópia = 1 undo, count 1–50)
+ * - Layout: "crie 4 círculos em grade", "...em linha", "...em coluna",
+ *   "crie 6 círculos espalhados" (distribui pela página)
+ * - Multi-comando: "criar círculo preto 50x50 ..., e um retângulo amarelo 30 350"
+ * - Ações: "undo", "desfazer", "deletar", "selecionar tudo", "select all"
  *
  * **D-042 multi-editor scope**: `provideSvgEngineEditorScope()` garante
  * que esta rota tem seu próprio `EditorStateService` + `CommandBus` +
@@ -64,9 +68,43 @@ import { SvgeEditor } from 'svg-engine/ui';
       <details>
         <summary>Comandos para experimentar</summary>
         <ul>
+          <li><strong>Formas básicas</strong></li>
           <li><code>criar retângulo vermelho 100x50</code> — cria rect com fill #e53935</li>
           <li><code>create a blue circle</code> — cria ellipse circular fill azul</li>
           <li><code>desenhar elipse verde</code> — cria ellipse fill verde</li>
+          <li>
+            <code>criar círculo preto 50x50 com borda azul espessura 5 na posição 100 100</code> —
+            forma com fill + stroke + espessura + posição
+          </li>
+
+          <li><strong>Repetição</strong> (cada cópia é 1 passo de undo; count 1–50)</li>
+          <li><code>crie 3 círculos vermelhos</code> — 3 formas em cascata diagonal (default)</li>
+          <li><code>criar 5 quadrados azuis 40x40</code> — repete preservando dimensão</li>
+
+          <li>
+            <strong>Repetição com layout</strong> (grade / linha / coluna / diagonal / espalhado)
+          </li>
+          <li><code>crie 4 círculos em grade</code> — grade quadrada (2×2, colunas = ⌈√n⌉)</li>
+          <li>
+            <code>criar 3 retângulos amarelos em linha</code> — em linha (mesma altura, X crescente)
+          </li>
+          <li>
+            <code>desenhar 3 círculos verdes em coluna</code> — empilhados (mesmo X, Y crescente)
+          </li>
+          <li>
+            <code>crie 6 círculos vermelhos espalhados</code> — distribuídos pela página inteira
+          </li>
+
+          <li><strong>Multi-comando</strong> (várias formas numa frase, separadas por vírgula)</li>
+          <li>
+            <code
+              >criar círculo preto 50x50 com borda azul espessura 5 na posição 100 100, e um
+              retângulo amarelo 30 350</code
+            >
+            — 2 formas, cada uma com seu próprio undo
+          </li>
+
+          <li><strong>Ações</strong></li>
           <li><code>undo</code> / <code>desfazer</code> — desfaz último comando</li>
           <li><code>select all</code> / <code>selecionar tudo</code></li>
           <li><code>deletar</code> — remove selecionados (destrutivo, pede confirmação)</li>
