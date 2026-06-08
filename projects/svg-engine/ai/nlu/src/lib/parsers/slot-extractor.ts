@@ -459,7 +459,7 @@ export function extractSlots(
           if (values.includes(tok)) {
             found = tok;
             foundIdx = i;
-          } else {
+          } else if (schema.fuzzy !== false) {
             const m = fuzzyMatchToken(tok, values);
             if (m !== null) {
               found = m.term;
@@ -556,8 +556,10 @@ function extractValueForSlot(
       }
       case 'enum': {
         if (schema.values.includes(tok)) return { value: tok, consumedIndices: [j] };
-        const m = fuzzyMatchToken(tok, schema.values);
-        if (m !== null) return { value: m.term, consumedIndices: [j] };
+        if (schema.fuzzy !== false) {
+          const m = fuzzyMatchToken(tok, schema.values);
+          if (m !== null) return { value: m.term, consumedIndices: [j] };
+        }
         return null;
       }
       case 'string': {

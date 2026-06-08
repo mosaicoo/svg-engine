@@ -76,6 +76,168 @@ import { NaturalLanguageService } from './natural-language.service';
  * Plugin do shell que tenha acesso ao SVG ref pode registrar intents
  * `move-to` / `resize-to` absolutos via `nlu.registerIntent`.
  */
+/**
+ * Layouts de repetição do `create-shape` (quando `count > 1`):
+ * - `diagonal` (default) — cascata diagonal (offset x+y), evita empilhar.
+ * - `row` — em linha (mesma y, x crescente).
+ * - `column` — em coluna (mesmo x, y crescente).
+ * - `grid` — em grade quadrada (colunas = ceil(√count)).
+ * - `scatter` — distribuído pela página inteira (células do viewBox).
+ */
+type NluRepeatLayout = 'diagonal' | 'row' | 'column' | 'grid' | 'scatter';
+
+/**
+ * Vocabulário PT/EN → layout. Casado por slot enum com **`fuzzy:false`**
+ * (match exato) pra evitar falso-positivo "grande"→"grade". Por isso
+ * inclui plurais/gêneros explicitamente — sem fuzzy, o 's'/'a' final
+ * não é tolerado.
+ */
+const LAYOUT_KEYWORDS: readonly string[] = Object.freeze([
+  // grid
+  'grade',
+  'grades',
+  'grid',
+  'matriz',
+  'malha',
+  // row
+  'linha',
+  'linhas',
+  'fileira',
+  'fileiras',
+  'row',
+  'horizontal',
+  // column
+  'coluna',
+  'colunas',
+  'column',
+  'columns',
+  'vertical',
+  'pilha',
+  'empilhado',
+  'empilhados',
+  // diagonal
+  'diagonal',
+  'cascata',
+  'cascade',
+  // scatter (distribuído pela página)
+  'espalhado',
+  'espalhados',
+  'espalhada',
+  'espalhadas',
+  'distribuido',
+  'distribuidos',
+  'distribuida',
+  'distribuidas',
+  'disperso',
+  'dispersos',
+  'scatter',
+  'spread',
+]);
+
+/** Normaliza a keyword extraída (PT/EN, plural/gênero) → layout canônico. */
+function resolveLayout(raw: string | undefined): NluRepeatLayout {
+  switch (raw) {
+    case 'linha':
+    case 'linhas':
+    case 'fileira':
+    case 'fileiras':
+    case 'row':
+    case 'horizontal':
+      return 'row';
+    case 'coluna':
+    case 'colunas':
+    case 'column':
+    case 'columns':
+    case 'vertical':
+    case 'pilha':
+    case 'empilhado':
+    case 'empilhados':
+      return 'column';
+    case 'grade':
+    case 'grades':
+    case 'grid':
+    case 'matriz':
+    case 'malha':
+      return 'grid';
+    case 'espalhado':
+    case 'espalhados':
+    case 'espalhada':
+    case 'espalhadas':
+    case 'distribuido':
+    case 'distribuidos':
+    case 'distribuida':
+    case 'distribuidas':
+    case 'disperso':
+    case 'dispersos':
+    case 'scatter':
+    case 'spread':
+      return 'scatter';
+    default:
+      return 'diagonal';
+  }
+}
+
+/**
+ * Calcula `{cx, cy}` por índice conforme o `layout`. `baseCx/baseCy` é o
+ * centro (centro do viewBox ou a `position` explícita). `vb` é o viewBox —
+ * usado só pelo `scatter`, que **ignora a base** e distribui as formas pela
+ * página inteira (células uniformes). `row`/`column`/`grid` usam passo
+ * limpo (tamanho + gap); `diagonal` preserva a cascata legada (meio passo).
+ */
+function computeLayoutPositions(
+  layout: NluRepeatLayout,
+  count: number,
+  baseCx: number,
+  baseCy: number,
+  w: number,
+  h: number,
+  vb: { readonly x: number; readonly y: number; readonly width: number; readonly height: number },
+): { cx: number; cy: number }[] {
+  const positions: { cx: number; cy: number }[] = [];
+  const diagStep = Math.max(w, h) * 0.5 + 20; // cascata diagonal (legado)
+  const cell = Math.max(w, h) + 20; // separação limpa p/ row/column/grid
+
+  if (layout === 'scatter') {
+    const cols = Math.max(1, Math.ceil(Math.sqrt(count)));
+    const rows = Math.max(1, Math.ceil(count / cols));
+    const cellW = vb.width / cols;
+    const cellH = vb.height / rows;
+    for (let i = 0; i < count; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      positions.push({ cx: vb.x + (col + 0.5) * cellW, cy: vb.y + (row + 0.5) * cellH });
+    }
+    return positions;
+  }
+
+  if (layout === 'grid') {
+    const cols = Math.max(1, Math.ceil(Math.sqrt(count)));
+    for (let i = 0; i < count; i++) {
+      positions.push({
+        cx: baseCx + (i % cols) * cell,
+        cy: baseCy + Math.floor(i / cols) * cell,
+      });
+    }
+    return positions;
+  }
+
+  if (layout === 'row') {
+    for (let i = 0; i < count; i++) positions.push({ cx: baseCx + i * cell, cy: baseCy });
+    return positions;
+  }
+
+  if (layout === 'column') {
+    for (let i = 0; i < count; i++) positions.push({ cx: baseCx, cy: baseCy + i * cell });
+    return positions;
+  }
+
+  // diagonal (default) — preserva o comportamento de cascata original.
+  for (let i = 0; i < count; i++) {
+    positions.push({ cx: baseCx + i * diagStep, cy: baseCy + i * diagStep });
+  }
+  return positions;
+}
+
 export const builtinNluPlugin: EditorPlugin = {
   id: 'svge.builtin.nlu',
   name: 'Built-in NLU (rule-based, Fase 1)',
@@ -159,6 +321,12 @@ export const builtinNluPlugin: EditorPlugin = {
           // pelo pre-pass "número imediatamente antes de uma forma"
           // (`positional: false` p/ não colidir com dimensão). Default 1.
           count: { kind: 'number', optional: true, positional: false, default: 1 },
+          // **`layout`** — arranjo da repetição quando count > 1:
+          // "em grade", "em linha", "em coluna", "na diagonal" (default),
+          // "espalhados"/"distribuídos" (pela página). Enum **exato**
+          // (`fuzzy:false`) p/ não confundir "grande" com "grade". Sem
+          // default → resolveLayout() cai em 'diagonal' (legado).
+          layout: { kind: 'enum', values: LAYOUT_KEYWORDS, optional: true, fuzzy: false },
         },
         description:
           'Criar forma (retângulo, círculo, elipse, etc.) — suporta fill/stroke/espessura/posição',
@@ -202,15 +370,17 @@ export const builtinNluPlugin: EditorPlugin = {
 
           // **Repetição** — count vem do pre-pass "N <forma>" (clampado
           // 1..50). Cada iteração despacha seu PRÓPRIO command → **1 passo
-          // de undo por forma**. Cascade diagonal evita empilhar.
+          // de undo por forma**. O `layout` (grade/linha/coluna/diagonal/
+          // espalhado) decide a posição de cada cópia via
+          // {@link computeLayoutPositions}; diagonal é o default (legado).
           const count = Math.max(
             1,
             Math.min(50, Math.round((slots['count'] as number | undefined) ?? 1)),
           );
-          const step = Math.max(w, h) * 0.5 + 20;
+          const layout = resolveLayout(slots['layout'] as string | undefined);
+          const positions = computeLayoutPositions(layout, count, baseCx, baseCy, w, h, vb);
           for (let i = 0; i < count; i++) {
-            const cx = baseCx + i * step;
-            const cy = baseCy + i * step;
+            const { cx, cy } = positions[i];
 
             // **Geometria por shape kind** — D-046 review-5: polygons
             // específicos (triangle/pentagon/hexagon/etc) e line/polyline/

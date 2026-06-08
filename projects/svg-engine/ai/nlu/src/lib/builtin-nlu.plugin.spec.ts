@@ -540,3 +540,101 @@ describe('create-shape repetição (count)', () => {
     expect(state.document().root.children.length).toBe(before + 1);
   });
 });
+
+describe('create-shape layouts (grade/linha/coluna/diagonal/espalhado)', () => {
+  it('"crie 4 circulos em grade" → layout grade + arranjo em grade (2 col)', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+
+    const top = nlu.parse('crie 4 circulos em grade', { injector })[0];
+    expect(top.intent.id).toBe('svge.builtin.nlu.create-shape');
+    expect(top.slots['count']).toBe(4);
+    expect(top.slots['layout']).toBe('grade'); // enum exato
+
+    await nlu.execute('crie 4 circulos em grade', { injector });
+    const [a, b, c, d] = state.document().root.children.slice(-4);
+    // cols = ceil(√4) = 2 → linha 0: [a,b]; linha 1: [c,d]
+    if (
+      a.type === 'ellipse' &&
+      b.type === 'ellipse' &&
+      c.type === 'ellipse' &&
+      d.type === 'ellipse'
+    ) {
+      expect(a.cy).toBe(b.cy); // mesma linha
+      expect(c.cy).toBe(d.cy);
+      expect(c.cy).toBeGreaterThan(a.cy); // 2ª linha abaixo
+      expect(a.cx).toBe(c.cx); // mesma coluna
+      expect(b.cx).toBe(d.cx);
+      expect(b.cx).toBeGreaterThan(a.cx); // 2ª coluna à direita
+    }
+  });
+
+  it('"crie 3 circulos em linha" → mesma y, x crescente', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const top = nlu.parse('crie 3 circulos em linha', { injector })[0];
+    expect(top.slots['layout']).toBe('linha');
+
+    await nlu.execute('crie 3 circulos em linha', { injector });
+    const [a, b, c] = state.document().root.children.slice(-3);
+    if (a.type === 'ellipse' && b.type === 'ellipse' && c.type === 'ellipse') {
+      expect(a.cy).toBe(b.cy);
+      expect(b.cy).toBe(c.cy);
+      expect(b.cx).toBeGreaterThan(a.cx);
+      expect(c.cx).toBeGreaterThan(b.cx);
+    }
+  });
+
+  it('"crie 3 circulos em coluna" → mesmo x, y crescente', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const top = nlu.parse('crie 3 circulos em coluna', { injector })[0];
+    expect(top.slots['layout']).toBe('coluna');
+
+    await nlu.execute('crie 3 circulos em coluna', { injector });
+    const [a, b, c] = state.document().root.children.slice(-3);
+    if (a.type === 'ellipse' && b.type === 'ellipse' && c.type === 'ellipse') {
+      expect(a.cx).toBe(b.cx);
+      expect(b.cx).toBe(c.cx);
+      expect(b.cy).toBeGreaterThan(a.cy);
+      expect(c.cy).toBeGreaterThan(b.cy);
+    }
+  });
+
+  it('sem layout → diagonal (cx E cy crescem juntos)', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    await nlu.execute('crie 3 circulos', { injector });
+    const [a, b, c] = state.document().root.children.slice(-3);
+    if (a.type === 'ellipse' && b.type === 'ellipse' && c.type === 'ellipse') {
+      expect(b.cx).toBeGreaterThan(a.cx);
+      expect(b.cy).toBeGreaterThan(a.cy);
+      expect(c.cx).toBeGreaterThan(b.cx);
+      expect(c.cy).toBeGreaterThan(b.cy);
+    }
+  });
+
+  it('"crie 4 circulos espalhados" → distribui pela página (span largo)', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const top = nlu.parse('crie 4 circulos espalhados', { injector })[0];
+    expect(top.slots['layout']).toBe('espalhados');
+
+    const vb = state.document().viewBox;
+    await nlu.execute('crie 4 circulos espalhados', { injector });
+    const nodes = state.document().root.children.slice(-4);
+    const xs = nodes.map((n) => (n.type === 'ellipse' ? n.cx : 0));
+    const span = Math.max(...xs) - Math.min(...xs);
+    // cols=2 → span horizontal ≈ vb.width/2; muito maior que a cascata.
+    expect(span).toBeGreaterThan(vb.width * 0.25);
+  });
+
+  it('"criar retangulo grande" NÃO vira layout grade (fuzzy:false)', () => {
+    const { plugins, nlu, injector } = setup();
+    plugins.install(builtinNluPlugin);
+    const top = nlu.parse('criar retangulo grande', { injector })[0];
+    expect(top.intent.id).toBe('svge.builtin.nlu.create-shape');
+    // "grande" casaria "grade" por dist 1 SE o enum fizesse fuzzy.
+    expect(top.slots['layout']).toBeUndefined();
+  });
+});

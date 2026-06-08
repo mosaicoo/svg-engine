@@ -94,6 +94,14 @@ export type NluSlotSchema =
       readonly optional?: boolean;
       readonly default?: string;
       readonly anchorKeywords?: readonly string[];
+      /**
+       * Quando `false`, o match do enum é **exato** (apenas
+       * `values.includes(token)`), sem fuzzy Levenshtein. Use para
+       * vocabulários curtos em que o fuzzy geraria falso-positivo
+       * (ex.: layout `'grade'` casaria `'grande'` por distância 1).
+       * Default `true` (fuzzy ligado).
+       */
+      readonly fuzzy?: boolean;
     }
   | {
       readonly kind: 'string';
