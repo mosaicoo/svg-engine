@@ -141,3 +141,9 @@ export * from './lib/pages-panel';
 // playhead). No editing (F5) or transport wiring (F6) yet. Pairs with
 // the edit-side AnimationService + PlaybackService.
 export * from './lib/timeline';
+
+// REFACTOR-1 — Material builtin tier. `provideSvgeUiBuiltins()` bundles
+// the UI-side builtins (tool-options + dialog-bound menu contributions)
+// so apps add the Material tier with one spread. Pairs with
+// `provideSvgEngineEditorBuiltins()` (svg-engine/edit, headless tier).
+export * from './lib/builtins';

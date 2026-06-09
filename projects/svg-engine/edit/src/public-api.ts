@@ -162,3 +162,10 @@ export * from './lib/pages';
 // PlaybackService owns the playhead (play/pause/seek/step/loop/speed).
 // Pairs with the headless core model (F0/F1: AnimationDoc + applyAnimationToTree).
 export * from './lib/animation';
+
+// REFACTOR-1 — one-call builtin tier. `provideSvgEngineEditorBuiltins()`
+// returns the full headless editor plugin set (tools/libraries/io/
+// optimize/effects/keyboard/menus) so apps don't hand-register ~24
+// plugins. Pairs with `provideSvgeUiBuiltins()` (svg-engine/ui) for the
+// Material tier. Individual plugins remain exported for partial setups.
+export * from './lib/builtins';

@@ -1,0 +1,36 @@
+import type { EnvironmentProviders } from '@angular/core';
+import { provideSvgEnginePlugin } from 'svg-engine/edit';
+
+import { builtinUiMenuContributionsPlugin } from '../menu-extras';
+import { provideSvgeBuiltinToolOptions } from '../tool-options';
+
+/**
+ * **`provideSvgeUiBuiltins()`** — tier **controles Material (`ui`)** do
+ * conjunto built-in, num único helper.
+ *
+ * Complementa o `provideSvgEngineEditorBuiltins()` (tier headless, em
+ * `svg-engine/edit`) com as peças que **dependem de `@angular/material`**
+ * e por isso vivem aqui (fronteira D-017):
+ *
+ * - **`builtinUiMenuContributionsPlugin`** — itens de menu que abrem
+ *   diálogos Material (ex.: "View Source…", "About…").
+ * - **`provideSvgeBuiltinToolOptions()`** — registra os componentes de
+ *   opção de ferramenta no `<svge-tool-options>` (Rect/Ellipse/Polygon/
+ *   Pencil/Pen/Text/Gradient/Eyedropper/Knife/Smooth/Width/SymbolSprayer).
+ *
+ * **Ordem de uso no app**: chame **depois** de
+ * `provideSvgEngineEditorBuiltins()` e **antes** de provisionar o NLU
+ * (`builtinNluPlugin`, tier AI) — o NLU faz auto-discovery das
+ * contribuições de menu (edit-side **e** ui-side), então ambas precisam
+ * estar registradas primeiro.
+ *
+ * @returns `EnvironmentProviders[]` — faça spread no array `providers`.
+ */
+export function provideSvgeUiBuiltins(): EnvironmentProviders[] {
+  return [
+    // Itens de menu que precisam de MatDialog (View Source…, About…).
+    provideSvgEnginePlugin(builtinUiMenuContributionsPlugin),
+    // Componentes de opção das ferramentas no <svge-tool-options>.
+    provideSvgeBuiltinToolOptions(),
+  ];
+}
