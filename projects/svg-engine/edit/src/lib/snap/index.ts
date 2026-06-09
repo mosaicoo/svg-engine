@@ -1,5 +1,8 @@
 export {
-  // gridTargetsNear / rectsToSnapTargets: geração interna de alvos de snap. Internos.
+  // gridTargetsNear / rectsToSnapTargets: anunciados na referência pública
+  // (09-api-publica.md) como geradores puros de alvos de snap — mantidos.
+  gridTargetsNear,
+  rectsToSnapTargets,
   resolveSnap,
   type SnapAxis,
   type SnapGuide,

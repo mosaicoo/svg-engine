@@ -1,2 +1,3 @@
-// projectDocumentToRenderer: projeção interna doc→renderer (só testes). Interna.
-export { SvgeRenderer } from './svge-renderer.component';
+// projectDocumentToRenderer: anunciado na referência pública (09-api-publica.md)
+// como helper para extrair tree+viewBox de um SvgDocument — mantido.
+export { projectDocumentToRenderer, SvgeRenderer } from './svge-renderer.component';

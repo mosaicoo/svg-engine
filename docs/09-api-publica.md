@@ -662,7 +662,8 @@ pública em duas categorias:
 ### Categoria A — un-exported (interno mono-entry-point)
 
 Símbolos que eram plumbing puro do motor, consumidos **apenas** dentro do
-próprio entry point via import relativo de arquivo. Removidos dos _barrels_
+próprio entry point via import relativo de arquivo, **e que não constavam
+nas tabelas de referência pública** deste documento. Removidos dos _barrels_
 públicos (continuam `export`ados das fontes, para os importadores relativos
 e specs). Não eram anunciados nem consumidos externamente — **zero break**:
 
@@ -671,15 +672,19 @@ e specs). Não eram anunciados nem consumidos externamente — **zero break**:
 - `edit/effect`: `composeChainFilter`
 - `edit/tool`: `boundsOfDraft`, `simplifySubpath`
 - `edit/marquee`: `rectFromPoints`, `rectContainsRect`, `rectsIntersect`
-- `edit/snap`: `gridTargetsNear`, `rectsToSnapTargets`
-- `edit/shortcut`: `comboMatches`, `parseCombo`, `ParsedCombo`
 - `edit/workspace`: `wheelZoomSensitivityFromSpeed`
-- `render/util`: `renderTransformAttr`
-- `render/renderer`: `projectDocumentToRenderer`
 
-> **Mantidos exportados** (têm consumidor cross-entry-point real, via barrel):
-> `workspace/pageBoundsIn` (playground custom-editor) e
-> `effect/{extract,make,parse}ChainFilterId` (svge-effects-panel em `ui`).
+> **Mantidos exportados** — regra: _se está nas tabelas de referência pública
+> (09/06) ou tem consumidor cross-entry-point real, permanece público_.
+>
+> - `workspace/pageBoundsIn` (consumido pelo playground custom-editor).
+> - `effect/{extract,make,parse}ChainFilterId` (svge-effects-panel em `ui`).
+> - `render/projectDocumentToRenderer`, `render/renderTransformAttr`,
+>   `snap/{gridTargetsNear,rectsToSnapTargets}`,
+>   `shortcut/{parseCombo,comboMatches,ParsedCombo}` — **anunciados** nas tabelas
+>   de referência (09/06). Reavaliados após a pergunta "isso penaliza terceiros?":
+>   estavam documentados como helpers puros públicos, logo foram **restaurados**
+>   no barrel (revertida a remoção inicial).
 
 ### Categoria B — `@internal` (interno cross-entry-point)
 

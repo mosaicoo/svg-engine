@@ -1,6 +1,9 @@
 export {
-  // comboMatches / parseCombo / ParsedCombo: parsing interno de combos de
-  // teclado, consumido só pelo ShortcutService (import relativo). Internos.
+  // parseCombo / comboMatches / ParsedCombo: anunciados na referência pública
+  // (09-api-publica.md) como helpers puros de combo — mantidos exportados.
+  comboMatches,
+  parseCombo,
+  type ParsedCombo,
   type Shortcut,
   type ShortcutContext,
 } from './shortcut';
