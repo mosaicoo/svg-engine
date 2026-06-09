@@ -40,6 +40,10 @@ import { SvgeSvgSourceDialog } from './svg-source-dialog.component';
  * — they don't have Material loaded — so they wouldn't want a Material
  * dialog anyway. They build their own viewer with the same
  * `EditorStateService` + `svgExporter` primitives directly.
+ *
+ * @internal **Wiring interno** do plugin de menu (`builtinUiMenuContributionsPlugin`)
+ * — não faz parte do contrato público estável do svg-engine. Pode mudar sem
+ * major bump; consumidores externos não devem depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class SvgeSvgSourceDialogService {

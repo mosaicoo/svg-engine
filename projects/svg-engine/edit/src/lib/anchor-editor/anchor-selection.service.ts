@@ -32,6 +32,11 @@ function keyOf(ref: AnchorRef): AnchorKey {
  * SelectionService): anchors are SCOPED to a single path; the
  * selection has no meaning across nodes. Keeping it separate keeps
  * SelectionService focused on node-level state.
+ *
+ * @internal **Cross-entry-point**: exportado para os overlays/painéis de
+ * `svg-engine/ui` consumirem do pacote buildado. Fora do contrato público
+ * estável — pode mudar sem major bump; consumidores externos não devem
+ * depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class AnchorSelectionService {

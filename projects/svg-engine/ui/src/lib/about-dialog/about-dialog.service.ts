@@ -23,6 +23,10 @@ import { SvgeAboutDialog } from './about-dialog.component';
  * **Bucket**: `'sm'` (440px). The content is tiny — name + version +
  * tagline + a couple of links. Anything wider would just stretch
  * negative space.
+ *
+ * @internal **Wiring interno** do plugin de menu (`builtinUiMenuContributionsPlugin`)
+ * — não faz parte do contrato público estável do svg-engine. Pode mudar sem
+ * major bump; consumidores externos não devem depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class SvgeAboutDialogService {

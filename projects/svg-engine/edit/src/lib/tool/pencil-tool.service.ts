@@ -24,6 +24,11 @@ import type { Point } from 'svg-engine/core';
  * tool is responsible for converting the points into a path node and
  * dispatching the `InsertNodeCommand` — keeping the service free of
  * any document/command coupling so it stays testable in isolation.
+ *
+ * @internal **Cross-entry-point**: exportado para os overlays/painéis de
+ * `svg-engine/ui` consumirem do pacote buildado. Fora do contrato público
+ * estável — pode mudar sem major bump; consumidores externos não devem
+ * depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class PencilToolService {

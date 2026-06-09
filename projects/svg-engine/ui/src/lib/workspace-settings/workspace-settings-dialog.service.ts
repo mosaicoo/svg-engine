@@ -37,6 +37,10 @@ import { SvgeWorkspaceSettings } from './workspace-settings.component';
  * **Headless boundary (D-017)**: lives in `svg-engine/ui` (needs
  * `MatDialog`). Headless consumers (puro) build their own settings
  * surface against `WorkspaceService` directly — no Material required.
+ *
+ * @internal **Wiring interno** do plugin de menu (`builtinUiMenuContributionsPlugin`)
+ * — não faz parte do contrato público estável do svg-engine. Pode mudar sem
+ * major bump; consumidores externos não devem depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class SvgeWorkspaceSettingsDialogService {

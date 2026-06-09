@@ -68,6 +68,12 @@ interface AssetExportStoragePayload {
   readonly slots: readonly ExportSlot[];
 }
 
+/**
+ * @internal **Cross-entry-point**: exportado para a `<svge-asset-export-panel>`
+ * e o scope provider de `svg-engine/ui`/`edit` consumirem do pacote buildado.
+ * Fora do contrato público estável — pode mudar sem major bump; consumidores
+ * externos não devem depender diretamente.
+ */
 @Injectable()
 export class AssetExportPersistenceService {
   private readonly registry = inject(AssetExportRegistry);

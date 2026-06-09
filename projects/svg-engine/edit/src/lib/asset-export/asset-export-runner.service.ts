@@ -32,6 +32,11 @@ import type { ExportSlot, ExportSlotResult } from './asset-export.types';
  * non-default scales we bypass the `Exporter.export()` call and use
  * `renderPng(doc, scale)` directly — matches D-021's playground
  * "Export PNG with presets" behaviour.
+ *
+ * @internal **Cross-entry-point**: exportado para a `<svge-asset-export-panel>`
+ * de `svg-engine/ui` consumir do pacote buildado. Fora do contrato público
+ * estável — pode mudar sem major bump; consumidores externos não devem
+ * depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class AssetExportRunner {

@@ -21,6 +21,11 @@ import type { NodeId } from 'svg-engine/core';
  * **Lifecycle**: `root`-provided. The editor commits its current text
  * before `editingId` flips (so any pending edits aren't lost when
  * switching to a different text node).
+ *
+ * @internal **Cross-entry-point**: exportado para os overlays/painéis de
+ * `svg-engine/ui` consumirem do pacote buildado. Fora do contrato público
+ * estável — pode mudar sem major bump; consumidores externos não devem
+ * depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class InlineTextEditorService {

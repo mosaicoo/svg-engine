@@ -137,6 +137,11 @@ function hitTestNode(
  *   override (so muscle memory keeps working).
  * - `autoApply`: when `false`, the tool only logs the sample (useful
  *   for inspection without mutating selection).
+ *
+ * @internal **Cross-entry-point**: exportado para os overlays/painéis de
+ * `svg-engine/ui` consumirem do pacote buildado. Fora do contrato público
+ * estável — pode mudar sem major bump; consumidores externos não devem
+ * depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class EyedropperToolService {
@@ -227,6 +232,11 @@ class EyedropperTool implements Tool {
  * **TOOL-OPT-D** — preferences for the Knife tool. `snapTolerance`
  * (px) controls how close to an existing anchor a click needs to land
  * before snapping to it; `snapToNodes` toggles the snapping entirely.
+ *
+ * @internal **Cross-entry-point**: exportado para os overlays/painéis de
+ * `svg-engine/ui` consumirem do pacote buildado. Fora do contrato público
+ * estável — pode mudar sem major bump; consumidores externos não devem
+ * depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class KnifeToolService {
@@ -326,6 +336,11 @@ class KnifeTool implements Tool {
  * `tolerance` (RDP epsilon in doc units). Higher = more aggressive
  * simplification, fewer anchors. Default 1.5 matches the prior
  * hardcoded value.
+ *
+ * @internal **Cross-entry-point**: exportado para os overlays/painéis de
+ * `svg-engine/ui` consumirem do pacote buildado. Fora do contrato público
+ * estável — pode mudar sem major bump; consumidores externos não devem
+ * depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class SmoothToolService {
@@ -386,6 +401,11 @@ class SmoothTool implements Tool {
  * Users rarely need to "activate the Gradient tool" explicitly anymore
  * — selecting the shape is enough. The tool entry remains for the
  * focus-routing affordance and Toolbar discoverability.
+ *
+ * @internal **Cross-entry-point**: exportado para os overlays/painéis de
+ * `svg-engine/ui` consumirem do pacote buildado. Fora do contrato público
+ * estável — pode mudar sem major bump; consumidores externos não devem
+ * depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class GradientToolService {
@@ -519,6 +539,11 @@ export type WidthProfilePreset = 'uniform' | 'tapered' | 'calligraphic';
  * {@link BrushSelectionService} (D-060): a tiny signal-backed
  * service so the tool reads the current preset/baseWidth on each
  * pointer event without an inter-component coupling.
+ *
+ * @internal **Cross-entry-point**: exportado para os overlays/painéis de
+ * `svg-engine/ui` consumirem do pacote buildado. Fora do contrato público
+ * estável — pode mudar sem major bump; consumidores externos não devem
+ * depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class WidthToolService {
@@ -653,6 +678,11 @@ class WidthTool implements Tool {
  * **Picking the rendered DOM symbol**: each instance uses the
  * symbol's natural viewBox dimensions when set; otherwise falls
  * back to `baseSize` × `baseSize`.
+ *
+ * @internal **Cross-entry-point**: exportado para os overlays/painéis de
+ * `svg-engine/ui` consumirem do pacote buildado. Fora do contrato público
+ * estável — pode mudar sem major bump; consumidores externos não devem
+ * depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class SymbolSprayerService {

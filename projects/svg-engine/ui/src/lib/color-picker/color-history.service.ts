@@ -25,6 +25,10 @@ const MAX_HISTORY = 16;
  * - **Safe in SSR / locked-down environments**: `localStorage` access is
  *   guarded by `typeof` checks; quota exceptions are swallowed (the
  *   history is a UX nicety, not critical state).
+ *
+ * @internal **Wiring interno** do color-picker — não faz parte do contrato
+ * público estável do svg-engine. Pode mudar sem major bump; consumidores
+ * externos não devem depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class ColorHistoryService {

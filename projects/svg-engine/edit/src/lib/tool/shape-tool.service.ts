@@ -50,6 +50,11 @@ export interface ShapeDraft {
  * shape tool's `onActivate` / `onDeactivate` doesn't need to touch
  * the service — only the active gesture mutates state, and gestures
  * are bounded by pointerdown/pointerup pairs.
+ *
+ * @internal **Cross-entry-point**: exportado para os overlays/painéis de
+ * `svg-engine/ui` consumirem do pacote buildado. Fora do contrato público
+ * estável — pode mudar sem major bump; consumidores externos não devem
+ * depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class ShapeToolService {

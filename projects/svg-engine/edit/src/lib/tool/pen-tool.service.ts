@@ -23,6 +23,11 @@ import {
  * Angular app). The Pen tool's `onActivate/Deactivate` should call
  * {@link reset} to make sure switching tools mid-gesture doesn't leave
  * stale state visible.
+ *
+ * @internal **Cross-entry-point**: exportado para os overlays/painéis de
+ * `svg-engine/ui` consumirem do pacote buildado. Fora do contrato público
+ * estável — pode mudar sem major bump; consumidores externos não devem
+ * depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class PenToolService {

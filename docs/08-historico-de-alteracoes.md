@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-06-09 — Publish-prep: endurecimento da superfície pública (Cat. A + B) ✅
+
+Preparação para o release no NPM público — encolher a API pública para o que
+é realmente contrato estável, sem quebrar nada. Detalhe completo em
+`09-api-publica.md` › "Superfície interna / fora do contrato".
+
+- **Categoria A — un-export** `17adead`: 14 símbolos que eram plumbing puro,
+  consumidos só dentro do próprio entry point via import relativo de arquivo,
+  removidos dos _barrels_ (continuam exportados das fontes → importadores
+  relativos e specs intactos). Inclui `ai/nlu` `scoring`, os 5 `Active*Service`
+  de `<defs>`, `composeChainFilter`, helpers de marquee/snap/shortcut/tool/
+  workspace e 2 de `render`. **Cross-check por símbolo**: 2 candidatos da lista
+  inicial foram **mantidos** após achar consumidor real via barrel —
+  `workspace/pageBoundsIn` (custom-editor) e `effect/{extract,make,parse}ChainFilterId`
+  (svge-effects-panel/`ui`).
+- **Categoria B — `@internal`**: 21 símbolos que **precisam** ficar exportados
+  (consumidos por `ui`/`nlu-ui` do pacote buildado) mas não são contrato
+  estável — marcados `@internal` na fonte (documental; `stripInternal` está
+  off, então `.d.ts` preserva as declarações). Cobre os serviços-estado das
+  tools, persistência/runner de snapshots+asset-export (`edit`) e
+  `ColorHistoryService` + dialog services internos do plugin de menu (`ui`).
+  `ai/nlu` `tokenize`/`detectLanguage` ficam **públicos** (primitivos úteis).
+- **Premissas preservadas**: embedding, somente-view (render), controles
+  separados (ui), AIs separados (ai/\*), editor completo. Headless boundary
+  (D-017) intacto. Gate verde em ambas as categorias (build:lib todos os
+  entry points + 2187 specs + ng build svg-studio + playground).
+
 ## 2026-06-07 — D-046 voz híbrida — reconhecimento de voz local (Whisper WASM) ✅
 
 Voz **100% offline** opcional ao lado da Web Speech API, com engine

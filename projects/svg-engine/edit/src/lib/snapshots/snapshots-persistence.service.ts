@@ -78,6 +78,12 @@ interface SnapshotsStoragePayload {
   readonly snapshots: readonly SerializedSnapshot[];
 }
 
+/**
+ * @internal **Cross-entry-point**: exportado para a `<svge-snapshots-panel>`
+ * e o scope provider de `svg-engine/ui`/`edit` consumirem do pacote buildado.
+ * Fora do contrato público estável — pode mudar sem major bump; consumidores
+ * externos não devem depender diretamente.
+ */
 @Injectable()
 export class SnapshotsPersistenceService {
   private readonly snapshots = inject(SnapshotsService);

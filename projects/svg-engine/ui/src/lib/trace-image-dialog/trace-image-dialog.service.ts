@@ -22,6 +22,10 @@ import {
  *
  * Returns the `MatDialogRef` so callers can await `afterClosed()` for
  * the user's `TraceImageDialogResult` (or `null` if cancelled).
+ *
+ * @internal **Wiring interno** do plugin de menu (`builtinUiMenuContributionsPlugin`)
+ * — não faz parte do contrato público estável do svg-engine. Pode mudar sem
+ * major bump; consumidores externos não devem depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class SvgeTraceImageDialogService {

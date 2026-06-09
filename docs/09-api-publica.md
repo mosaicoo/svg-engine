@@ -654,6 +654,56 @@ idêntico ao de hoje — o round-trip do AutoSave **não** emite SMIL.
 
 ---
 
+## Superfície interna / fora do contrato estável (publish-prep)
+
+Preparação para o release no NPM público — endurecimento da superfície
+pública em duas categorias:
+
+### Categoria A — un-exported (interno mono-entry-point)
+
+Símbolos que eram plumbing puro do motor, consumidos **apenas** dentro do
+próprio entry point via import relativo de arquivo. Removidos dos _barrels_
+públicos (continuam `export`ados das fontes, para os importadores relativos
+e specs). Não eram anunciados nem consumidos externamente — **zero break**:
+
+- `ai/nlu`: `export * from './scoring'`
+- `edit/library`: `Active{Gradients,Patterns,ClipPaths,Masks,Symbols}Service`
+- `edit/effect`: `composeChainFilter`
+- `edit/tool`: `boundsOfDraft`, `simplifySubpath`
+- `edit/marquee`: `rectFromPoints`, `rectContainsRect`, `rectsIntersect`
+- `edit/snap`: `gridTargetsNear`, `rectsToSnapTargets`
+- `edit/shortcut`: `comboMatches`, `parseCombo`, `ParsedCombo`
+- `edit/workspace`: `wheelZoomSensitivityFromSpeed`
+- `render/util`: `renderTransformAttr`
+- `render/renderer`: `projectDocumentToRenderer`
+
+> **Mantidos exportados** (têm consumidor cross-entry-point real, via barrel):
+> `workspace/pageBoundsIn` (playground custom-editor) e
+> `effect/{extract,make,parse}ChainFilterId` (svge-effects-panel em `ui`).
+
+### Categoria B — `@internal` (interno cross-entry-point)
+
+Símbolos que **precisam** ficar exportados porque `svg-engine/ui`/`nlu-ui`
+os consomem do pacote buildado, mas **não** fazem parte do contrato público
+estável. Marcados com `@internal` na fonte (documental — `stripInternal`
+está desligado, então as declarações `.d.ts` permanecem). Podem mudar sem
+_major bump_; consumidores externos não devem depender diretamente:
+
+- `edit` — serviços-estado das tools: `PenToolService`, `PencilToolService`,
+  `ShapeToolService`, `InlineTextEditorService`, `AnchorSelectionService`,
+  `EyedropperToolService`, `KnifeToolService`, `SmoothToolService`,
+  `GradientToolService`, `WidthToolService`, `SymbolSprayerService`
+  (lidos pelos overlays de `ui`).
+- `edit` — persistência/runner: `SnapshotsPersistenceService`,
+  `AssetExportPersistenceService`, `AssetExportRunner` (painéis de `ui`).
+- `ui` — `ColorHistoryService` + dialog services internos do plugin de menu:
+  `Svge{About,FindReplace,SmartObjectEditor,WorkspaceSettings,SvgSource,TraceImage}DialogService`.
+
+> `ai/nlu` `tokenize` / `detectLanguage` permanecem **públicos** — são
+> primitivos NLU úteis a consumidores, não apenas wiring interno.
+
+---
+
 ## Convenções
 
 - **Nomes**: `PascalCase` para classes/interfaces/tipos; `camelCase` para

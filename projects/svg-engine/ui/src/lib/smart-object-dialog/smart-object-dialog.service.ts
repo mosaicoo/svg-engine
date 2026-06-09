@@ -15,6 +15,10 @@ import {
  * injector wiring (D-042/D-043/D-044). Consumers (built-in UI menu
  * plugin, custom routes) call this single entry point; bug-fixes
  * around dialog config propagate everywhere automatically.
+ *
+ * @internal **Wiring interno** do plugin de menu (`builtinUiMenuContributionsPlugin`)
+ * — não faz parte do contrato público estável do svg-engine. Pode mudar sem
+ * major bump; consumidores externos não devem depender diretamente.
  */
 @Injectable({ providedIn: 'root' })
 export class SvgeSmartObjectEditorDialogService {
