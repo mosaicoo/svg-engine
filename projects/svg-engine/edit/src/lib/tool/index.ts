@@ -23,7 +23,7 @@ export {
   shapeToolsPlugin,
 } from './shape-tools.plugin';
 export {
-  boundsOfDraft,
+  // boundsOfDraft: geometria interna do preview de shape-tools. Interna.
   DEFAULT_POLYGON_SIDES,
   regularPolygonPoints,
   type ShapeDraft,
@@ -60,5 +60,5 @@ export {
   KnifeToolService,
   SmoothToolService,
   extraToolsPlugin,
-  simplifySubpath,
+  // simplifySubpath: simplificação interna do Smooth tool. Interna.
 } from './extra-tools';

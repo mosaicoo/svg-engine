@@ -31,7 +31,9 @@ export {
 export { builtinEffectsPlugin } from './builtin-effects.plugin';
 export {
   ChainFilterRegistry,
-  composeChainFilter,
+  // composeChainFilter: composição interna do filtro de chain (só chain-filter.ts).
+  // extract/make/parseChainFilterId PERMANECEM — consumidos pelo svge-effects-panel
+  // (svg-engine/ui) via barrel público.
   extractChainFilterId,
   makeChainFilterId,
   parseChainFilterId,

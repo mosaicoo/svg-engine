@@ -1,6 +1,6 @@
 export {
   MaskLibraryService,
-  ActiveMasksService,
+  // ActiveMasksService: derivação interna de <defs> (só ActiveDefsService). Interna.
   type MaskLibraryItem,
 } from './mask-library.service';
 export {

@@ -1,5 +1,5 @@
 export {
-  ActiveSymbolsService,
+  // ActiveSymbolsService: derivação interna de <defs> (só ActiveDefsService). Interna.
   buildSymbolMarkup,
   SymbolLibraryService,
   type SymbolLibraryItem,

@@ -1,6 +1,5 @@
 export {
-  gridTargetsNear,
-  rectsToSnapTargets,
+  // gridTargetsNear / rectsToSnapTargets: geração interna de alvos de snap. Internos.
   resolveSnap,
   type SnapAxis,
   type SnapGuide,

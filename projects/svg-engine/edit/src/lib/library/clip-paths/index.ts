@@ -1,6 +1,6 @@
 export {
   ClipPathLibraryService,
-  ActiveClipPathsService,
+  // ActiveClipPathsService: derivação interna de <defs> (só ActiveDefsService). Interna.
   type ClipPathLibraryItem,
 } from './clip-path-library.service';
 export {

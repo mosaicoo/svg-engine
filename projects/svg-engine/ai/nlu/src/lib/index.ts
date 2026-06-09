@@ -27,6 +27,9 @@ export * from './menu-intent-discovery';
 export * from './builtin-nlu.plugin';
 export * from './parsers';
 export * from './dictionaries';
-export * from './scoring';
+// REVISÃO-SUPERFÍCIE: `scoring` (constantes + scorer.types) é plumbing
+// interno do motor — não anunciado, não usado por consumidores
+// (nlu-ui/apps). Removido da superfície pública. parsers/dictionaries
+// permanecem (anunciados no docstring como extensíveis por consumidores).
 export * from './dictionary-registry.service';
 export * from './voice-provider';

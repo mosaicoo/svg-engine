@@ -1,6 +1,6 @@
 export {
   PatternLibraryService,
-  ActivePatternsService,
+  // ActivePatternsService: derivação interna de <defs> (só ActiveDefsService). Interna.
   type PatternLibraryItem,
 } from './pattern-library.service';
 export {

@@ -8,7 +8,8 @@ export {
   type RulersConfig,
   WHEEL_ZOOM_SPEED_MAX,
   WHEEL_ZOOM_SPEED_MIN,
-  wheelZoomSensitivityFromSpeed,
+  // wheelZoomSensitivityFromSpeed: mapeamento interno (só SvgeCanvasGestures,
+  // import relativo). pageBoundsIn permanece — consumido pela app via barrel.
   WorkspaceService,
 } from './workspace.service';
 export { WorkspaceBackground } from './workspace-background.component';

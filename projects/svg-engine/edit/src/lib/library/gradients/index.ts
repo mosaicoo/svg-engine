@@ -1,7 +1,8 @@
 export {
   buildGradientMarkup,
   GradientLibraryService,
-  ActiveGradientsService,
+  // ActiveGradientsService: derivação interna de <defs> — usada só pelo
+  // ActiveDefsService (import relativo). Fora da superfície pública.
   type GradientGeometry,
   type GradientLibraryItem,
   type GradientStop,
