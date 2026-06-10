@@ -16,7 +16,7 @@ import type { GraphicStyleLibraryItem } from './graphic-style-library.service';
  * NOT broken).
  */
 
-/** Filled with a flat green + dark green stroke. Friendly app look. */
+/** @internal Filled with a flat green + dark green stroke. Friendly app look. */
 export const sketchStyle: GraphicStyleLibraryItem = {
   id: 'svge.builtin.graphic-style.sketch',
   name: 'Sketch',
@@ -30,7 +30,7 @@ export const sketchStyle: GraphicStyleLibraryItem = {
   },
 };
 
-/** Bright pink with neon glow effect — 80s cyberpunk. */
+/** @internal Bright pink with neon glow effect — 80s cyberpunk. */
 export const neonStyle: GraphicStyleLibraryItem = {
   id: 'svge.builtin.graphic-style.neon',
   name: 'Neon',
@@ -44,7 +44,7 @@ export const neonStyle: GraphicStyleLibraryItem = {
   },
 };
 
-/** Translucent white with blur backdrop — glassmorphism. */
+/** @internal Translucent white with blur backdrop — glassmorphism. */
 export const glassStyle: GraphicStyleLibraryItem = {
   id: 'svge.builtin.graphic-style.glass',
   name: 'Glass',
@@ -58,7 +58,7 @@ export const glassStyle: GraphicStyleLibraryItem = {
   },
 };
 
-/** Beige fill with embossed 3D look — classic Photoshop bevel. */
+/** @internal Beige fill with embossed 3D look — classic Photoshop bevel. */
 export const embossedStyle: GraphicStyleLibraryItem = {
   id: 'svge.builtin.graphic-style.embossed',
   name: 'Embossed',
@@ -72,7 +72,7 @@ export const embossedStyle: GraphicStyleLibraryItem = {
   },
 };
 
-/** No fill, thick black outline. For technical / wireframe looks. */
+/** @internal No fill, thick black outline. For technical / wireframe looks. */
 export const outlineStyle: GraphicStyleLibraryItem = {
   id: 'svge.builtin.graphic-style.outline',
   name: 'Outline',
@@ -86,7 +86,7 @@ export const outlineStyle: GraphicStyleLibraryItem = {
   },
 };
 
-/** Filled blue with drop-shadow — material design card look. */
+/** @internal Filled blue with drop-shadow — material design card look. */
 export const filled3DStyle: GraphicStyleLibraryItem = {
   id: 'svge.builtin.graphic-style.filled-3d',
   name: 'Filled 3D',

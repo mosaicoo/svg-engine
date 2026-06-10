@@ -24,7 +24,7 @@ import type { ShapeLibraryItem } from './shape-library.service';
 
 const DEFAULT_STYLE = { fill: '#90caf9', stroke: '#1565c0', strokeWidth: 1 } as const;
 
-/** 5-pointed star centered at (50,50), outer radius 48. */
+/** @internal 5-pointed star centered at (50,50), outer radius 48. */
 export const starShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.star',
   name: 'Star',
@@ -37,7 +37,7 @@ export const starShape: ShapeLibraryItem = {
   },
 };
 
-/** Right-pointing arrow with rectangular shaft + triangular head. */
+/** @internal Right-pointing arrow with rectangular shaft + triangular head. */
 export const arrowShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.arrow',
   name: 'Arrow',
@@ -49,7 +49,7 @@ export const arrowShape: ShapeLibraryItem = {
   },
 };
 
-/** Symmetric heart. Two arcs on top, V-shaped point at bottom. */
+/** @internal Symmetric heart. Two arcs on top, V-shaped point at bottom. */
 export const heartShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.heart',
   name: 'Heart',
@@ -62,7 +62,7 @@ export const heartShape: ShapeLibraryItem = {
   },
 };
 
-/** Speech balloon — rounded rectangle with tail at bottom-left. */
+/** @internal Speech balloon — rounded rectangle with tail at bottom-left. */
 export const balloonShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.balloon',
   name: 'Speech balloon',
@@ -75,7 +75,7 @@ export const balloonShape: ShapeLibraryItem = {
   },
 };
 
-/** Lightning bolt. Stylized zigzag. */
+/** @internal Lightning bolt. Stylized zigzag. */
 export const lightningShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.lightning',
   name: 'Lightning',
@@ -87,7 +87,7 @@ export const lightningShape: ShapeLibraryItem = {
   },
 };
 
-/** Cloud — three round bumps on top, flat bottom. */
+/** @internal Cloud — three round bumps on top, flat bottom. */
 export const cloudShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.cloud',
   name: 'Cloud',
@@ -101,6 +101,7 @@ export const cloudShape: ShapeLibraryItem = {
 };
 
 /**
+ * @internal
  * Gear / cog with 8 teeth. v1: no central hole (would need
  * `fill-rule: evenodd` which isn't on `SvgStyle` yet — adding that
  * to core is deferred since the gear is still recognizable without
@@ -119,7 +120,7 @@ export const gearShape: ShapeLibraryItem = {
   },
 };
 
-/** Diamond — 90° rotated square. */
+/** @internal Diamond — 90° rotated square. */
 export const diamondShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.diamond',
   name: 'Diamond',
@@ -129,7 +130,7 @@ export const diamondShape: ShapeLibraryItem = {
   },
 };
 
-/** Regular hexagon (flat-top orientation), inscribed in 100x100. */
+/** @internal Regular hexagon (flat-top orientation), inscribed in 100x100. */
 export const hexagonShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.hexagon',
   name: 'Hexagon',
@@ -139,7 +140,7 @@ export const hexagonShape: ShapeLibraryItem = {
   },
 };
 
-/** Plus / cross (Greek cross — equal arms). */
+/** @internal Plus / cross (Greek cross — equal arms). */
 export const crossShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.cross',
   name: 'Plus',
@@ -152,7 +153,7 @@ export const crossShape: ShapeLibraryItem = {
   },
 };
 
-/** Checkmark — confirmation glyph. */
+/** @internal Checkmark — confirmation glyph. */
 export const checkmarkShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.checkmark',
   name: 'Checkmark',
@@ -164,7 +165,7 @@ export const checkmarkShape: ShapeLibraryItem = {
   },
 };
 
-/** Right triangle (filled), useful for play buttons / pointers. */
+/** @internal Right triangle (filled), useful for play buttons / pointers. */
 export const triangleShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.triangle',
   name: 'Triangle',
@@ -179,7 +180,7 @@ export const triangleShape: ShapeLibraryItem = {
 // neutral DEFAULT_STYLE. Broadens each existing category (more
 // regular polygons, directional arrows, symbol glyphs).
 
-/** Regular pentagon, point-up. Inscribed radius ≈46 around (50,50). */
+/** @internal Regular pentagon, point-up. Inscribed radius ≈46 around (50,50). */
 export const pentagonShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.pentagon',
   name: 'Pentagon',
@@ -189,7 +190,7 @@ export const pentagonShape: ShapeLibraryItem = {
   },
 };
 
-/** Regular octagon (flat-top), corners cut at 30% of the box. */
+/** @internal Regular octagon (flat-top), corners cut at 30% of the box. */
 export const octagonShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.octagon',
   name: 'Octagon',
@@ -201,7 +202,7 @@ export const octagonShape: ShapeLibraryItem = {
   },
 };
 
-/** Parallelogram — top edge shifted right, equal slanted sides. */
+/** @internal Parallelogram — top edge shifted right, equal slanted sides. */
 export const parallelogramShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.parallelogram',
   name: 'Parallelogram',
@@ -211,7 +212,7 @@ export const parallelogramShape: ShapeLibraryItem = {
   },
 };
 
-/** Isosceles trapezoid — narrow top, wide base. */
+/** @internal Isosceles trapezoid — narrow top, wide base. */
 export const trapezoidShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.trapezoid',
   name: 'Trapezoid',
@@ -221,7 +222,7 @@ export const trapezoidShape: ShapeLibraryItem = {
   },
 };
 
-/** Right triangle with the right-angle at the bottom-left corner. */
+/** @internal Right triangle with the right-angle at the bottom-left corner. */
 export const rightTriangleShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.right-triangle',
   name: 'Right triangle',
@@ -231,7 +232,7 @@ export const rightTriangleShape: ShapeLibraryItem = {
   },
 };
 
-/** Rounded rectangle (corner radius ≈12) built from quadratic corners. */
+/** @internal Rounded rectangle (corner radius ≈12) built from quadratic corners. */
 export const roundedRectShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.rounded-rect',
   name: 'Rounded rectangle',
@@ -244,7 +245,7 @@ export const roundedRectShape: ShapeLibraryItem = {
   },
 };
 
-/** Double-headed (bidirectional) horizontal arrow. */
+/** @internal Double-headed (bidirectional) horizontal arrow. */
 export const doubleArrowShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.double-arrow',
   name: 'Double arrow',
@@ -256,7 +257,7 @@ export const doubleArrowShape: ShapeLibraryItem = {
   },
 };
 
-/** Up-pointing arrow (rectangular shaft + triangular head). */
+/** @internal Up-pointing arrow (rectangular shaft + triangular head). */
 export const upArrowShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.up-arrow',
   name: 'Up arrow',
@@ -268,7 +269,7 @@ export const upArrowShape: ShapeLibraryItem = {
   },
 };
 
-/** Chevron — thick right-pointing "›" with a notched back. */
+/** @internal Chevron — thick right-pointing "›" with a notched back. */
 export const chevronShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.chevron',
   name: 'Chevron',
@@ -281,6 +282,7 @@ export const chevronShape: ShapeLibraryItem = {
 };
 
 /**
+ * @internal
  * Crescent moon — canonical two-arc construction (outer r=45, inner
  * rx=35/ry=45 carving the right side). Opens to the right.
  */
@@ -295,7 +297,7 @@ export const crescentMoonShape: ShapeLibraryItem = {
   },
 };
 
-/** Sparkle — slim 4-pointed star (top/right/bottom/left). */
+/** @internal Sparkle — slim 4-pointed star (top/right/bottom/left). */
 export const sparkleShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.sparkle',
   name: 'Sparkle',
@@ -307,7 +309,7 @@ export const sparkleShape: ShapeLibraryItem = {
   },
 };
 
-/** Hexagram — 6-pointed star (outer r=46, inner r=23). */
+/** @internal Hexagram — 6-pointed star (outer r=46, inner r=23). */
 export const hexagramShape: ShapeLibraryItem = {
   id: 'svge.builtin.shape.hexagram',
   name: 'Hexagram',

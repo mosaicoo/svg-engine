@@ -18,7 +18,7 @@ import type { PatternLibraryItem } from './pattern-library.service';
 
 const TILE = 10;
 
-/** Polka dots — 5 evenly spaced dark dots on a transparent tile. */
+/** @internal Polka dots — 5 evenly spaced dark dots on a transparent tile. */
 export const dotsPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.dots',
   name: 'Dots',
@@ -30,7 +30,7 @@ export const dotsPattern: PatternLibraryItem = {
   },
 };
 
-/** Horizontal lines — thin black stripes every 4 units. */
+/** @internal Horizontal lines — thin black stripes every 4 units. */
 export const linesHorizontalPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.lines-horizontal',
   name: 'Lines (horizontal)',
@@ -42,7 +42,7 @@ export const linesHorizontalPattern: PatternLibraryItem = {
   },
 };
 
-/** Diagonal hatching — 45° black lines. */
+/** @internal Diagonal hatching — 45° black lines. */
 export const linesDiagonalPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.lines-diagonal',
   name: 'Lines (diagonal)',
@@ -55,7 +55,7 @@ export const linesDiagonalPattern: PatternLibraryItem = {
   },
 };
 
-/** Grid — black lines forming a 10x10 square grid. */
+/** @internal Grid — black lines forming a 10x10 square grid. */
 export const gridPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.grid',
   name: 'Grid',
@@ -67,7 +67,7 @@ export const gridPattern: PatternLibraryItem = {
   },
 };
 
-/** Checkerboard — alternating black/white 5×5 squares. */
+/** @internal Checkerboard — alternating black/white 5×5 squares. */
 export const checkerboardPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.checkerboard',
   name: 'Checkerboard',
@@ -85,7 +85,7 @@ export const checkerboardPattern: PatternLibraryItem = {
 // transparent ground, every motif tiles seamlessly. Tile sizes vary
 // per design (noted per entry).
 
-/** Vertical lines — thin stripes every 4 units (mirror of horizontal). */
+/** @internal Vertical lines — thin stripes every 4 units (mirror of horizontal). */
 export const linesVerticalPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.lines-vertical',
   name: 'Lines (vertical)',
@@ -97,7 +97,7 @@ export const linesVerticalPattern: PatternLibraryItem = {
   },
 };
 
-/** Cross-hatch — both 45° diagonals (corner-to-corner so they tile). */
+/** @internal Cross-hatch — both 45° diagonals (corner-to-corner so they tile). */
 export const crossHatchPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.cross-hatch',
   name: 'Cross-hatch',
@@ -109,7 +109,7 @@ export const crossHatchPattern: PatternLibraryItem = {
   },
 };
 
-/** Grid (fine) — light 5×5 square grid. */
+/** @internal Grid (fine) — light 5×5 square grid. */
 export const gridFinePattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.grid-fine',
   name: 'Grid (fine)',
@@ -121,7 +121,7 @@ export const gridFinePattern: PatternLibraryItem = {
   },
 };
 
-/** Graph paper — light minor grid (every 5) + stronger major (every 25). */
+/** @internal Graph paper — light minor grid (every 5) + stronger major (every 25). */
 export const graphPaperPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.graph-paper',
   name: 'Graph paper',
@@ -135,7 +135,7 @@ export const graphPaperPattern: PatternLibraryItem = {
   },
 };
 
-/** Dots (large) — bigger, sparser polka dots. */
+/** @internal Dots (large) — bigger, sparser polka dots. */
 export const dotsLargePattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.dots-large',
   name: 'Dots (large)',
@@ -147,7 +147,7 @@ export const dotsLargePattern: PatternLibraryItem = {
   },
 };
 
-/** Dots (dense) — small, tightly packed dots. */
+/** @internal Dots (dense) — small, tightly packed dots. */
 export const dotsDensePattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.dots-dense',
   name: 'Dots (dense)',
@@ -159,7 +159,7 @@ export const dotsDensePattern: PatternLibraryItem = {
   },
 };
 
-/** Dots (offset) — half-drop polka (two diagonal dots per tile). */
+/** @internal Dots (offset) — half-drop polka (two diagonal dots per tile). */
 export const dotsOffsetPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.dots-offset',
   name: 'Dots (offset)',
@@ -172,7 +172,7 @@ export const dotsOffsetPattern: PatternLibraryItem = {
   },
 };
 
-/** Circles — ring (outline) grid. */
+/** @internal Circles — ring (outline) grid. */
 export const circlesPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.circles',
   name: 'Circles',
@@ -184,7 +184,7 @@ export const circlesPattern: PatternLibraryItem = {
   },
 };
 
-/** Zigzag — thin zigzag rows. */
+/** @internal Zigzag — thin zigzag rows. */
 export const zigzagPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.zigzag',
   name: 'Zigzag',
@@ -196,7 +196,7 @@ export const zigzagPattern: PatternLibraryItem = {
   },
 };
 
-/** Chevron — thick chevron rows. */
+/** @internal Chevron — thick chevron rows. */
 export const chevronPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.chevron',
   name: 'Chevron',
@@ -208,7 +208,7 @@ export const chevronPattern: PatternLibraryItem = {
   },
 };
 
-/** Waves — sinusoidal horizontal wave rows. */
+/** @internal Waves — sinusoidal horizontal wave rows. */
 export const wavesPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.waves',
   name: 'Waves',
@@ -220,7 +220,7 @@ export const wavesPattern: PatternLibraryItem = {
   },
 };
 
-/** Fish scales — overlapping scalloped arcs in offset rows. */
+/** @internal Fish scales — overlapping scalloped arcs in offset rows. */
 export const scalesPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.scales',
   name: 'Fish scales',
@@ -234,7 +234,7 @@ export const scalesPattern: PatternLibraryItem = {
   },
 };
 
-/** Bricks — running-bond brick wall (offset rows). */
+/** @internal Bricks — running-bond brick wall (offset rows). */
 export const bricksPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.bricks',
   name: 'Bricks',
@@ -247,7 +247,7 @@ export const bricksPattern: PatternLibraryItem = {
   },
 };
 
-/** Triangles — up-pointing filled triangle tessellation. */
+/** @internal Triangles — up-pointing filled triangle tessellation. */
 export const trianglesPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.triangles',
   name: 'Triangles',
@@ -259,7 +259,7 @@ export const trianglesPattern: PatternLibraryItem = {
   },
 };
 
-/** Diamonds — diamond-grid (rotated-square) outline. */
+/** @internal Diamonds — diamond-grid (rotated-square) outline. */
 export const diamondsPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.diamonds',
   name: 'Diamonds',
@@ -271,7 +271,7 @@ export const diamondsPattern: PatternLibraryItem = {
   },
 };
 
-/** Octagons — octagon-and-square semiregular tiling (outline). */
+/** @internal Octagons — octagon-and-square semiregular tiling (outline). */
 export const octagonsPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.octagons',
   name: 'Octagons',
@@ -284,7 +284,7 @@ export const octagonsPattern: PatternLibraryItem = {
   },
 };
 
-/** Crosses — small plus signs. */
+/** @internal Crosses — small plus signs. */
 export const crossesPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.crosses',
   name: 'Crosses',
@@ -296,7 +296,7 @@ export const crossesPattern: PatternLibraryItem = {
   },
 };
 
-/** Stars — small 5-pointed stars. */
+/** @internal Stars — small 5-pointed stars. */
 export const starsPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.stars',
   name: 'Stars',
@@ -309,7 +309,7 @@ export const starsPattern: PatternLibraryItem = {
   },
 };
 
-/** Hearts — small hearts. */
+/** @internal Hearts — small hearts. */
 export const heartsPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.hearts',
   name: 'Hearts',
@@ -322,7 +322,7 @@ export const heartsPattern: PatternLibraryItem = {
   },
 };
 
-/** Stripes (vertical) — thick alternating vertical bands. */
+/** @internal Stripes (vertical) — thick alternating vertical bands. */
 export const stripesVerticalPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.stripes-vertical',
   name: 'Stripes (vertical)',
@@ -334,7 +334,7 @@ export const stripesVerticalPattern: PatternLibraryItem = {
   },
 };
 
-/** Stripes (diagonal) — thick 45° bands. */
+/** @internal Stripes (diagonal) — thick 45° bands. */
 export const stripesDiagonalPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.stripes-diagonal',
   name: 'Stripes (diagonal)',
@@ -347,7 +347,7 @@ export const stripesDiagonalPattern: PatternLibraryItem = {
   },
 };
 
-/** Checkerboard (small) — finer 3×3 checker. */
+/** @internal Checkerboard (small) — finer 3×3 checker. */
 export const checkerboardSmallPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.checkerboard-small',
   name: 'Checkerboard (small)',
@@ -360,7 +360,7 @@ export const checkerboardSmallPattern: PatternLibraryItem = {
   },
 };
 
-/** Confetti — scattered, rotated little dashes (two greys). */
+/** @internal Confetti — scattered, rotated little dashes (two greys). */
 export const confettiPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.confetti',
   name: 'Confetti',
@@ -376,7 +376,7 @@ export const confettiPattern: PatternLibraryItem = {
   },
 };
 
-/** Basket weave — interlocking horizontal/vertical bundles. */
+/** @internal Basket weave — interlocking horizontal/vertical bundles. */
 export const basketweavePattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.basketweave',
   name: 'Basket weave',
@@ -393,7 +393,7 @@ export const basketweavePattern: PatternLibraryItem = {
   },
 };
 
-/** Plaid — overlapping translucent bands (tartan look). */
+/** @internal Plaid — overlapping translucent bands (tartan look). */
 export const plaidPattern: PatternLibraryItem = {
   id: 'svge.builtin.pattern.plaid',
   name: 'Plaid',

@@ -37,7 +37,7 @@ function stopMarkup(stop: GradientStop): string {
   return `<stop offset="${(stop.offset * 100).toFixed(0)}%" stop-color="${stop.color}"${opAttr} />`;
 }
 
-/** Linear left → right: light gray → dark gray. Workhorse base. */
+/** @internal Linear left → right: light gray → dark gray. Workhorse base. */
 export const linearGreyGradient: GradientLibraryItem = {
   id: 'svge.builtin.gradient.linear-grey',
   name: 'Grey (horizontal)',
@@ -52,7 +52,7 @@ export const linearGreyGradient: GradientLibraryItem = {
   },
 };
 
-/** Linear top → bottom: bright blue sky → deep navy. */
+/** @internal Linear top → bottom: bright blue sky → deep navy. */
 export const linearBlueSkyGradient: GradientLibraryItem = {
   id: 'svge.builtin.gradient.linear-blue-sky',
   name: 'Blue sky (vertical)',
@@ -67,7 +67,7 @@ export const linearBlueSkyGradient: GradientLibraryItem = {
   },
 };
 
-/** Sunset: warm 3-stop horizontal (yellow → orange → magenta). */
+/** @internal Sunset: warm 3-stop horizontal (yellow → orange → magenta). */
 export const linearSunsetGradient: GradientLibraryItem = {
   id: 'svge.builtin.gradient.linear-sunset',
   name: 'Sunset',
@@ -83,7 +83,7 @@ export const linearSunsetGradient: GradientLibraryItem = {
   },
 };
 
-/** Ocean: cool 3-stop horizontal (cyan → teal → deep blue). */
+/** @internal Ocean: cool 3-stop horizontal (cyan → teal → deep blue). */
 export const linearOceanGradient: GradientLibraryItem = {
   id: 'svge.builtin.gradient.linear-ocean',
   name: 'Ocean',
@@ -99,7 +99,7 @@ export const linearOceanGradient: GradientLibraryItem = {
   },
 };
 
-/** Radial: white center → transparent edge. "Spotlight" effect. */
+/** @internal Radial: white center → transparent edge. "Spotlight" effect. */
 export const radialSpotlightGradient: GradientLibraryItem = {
   id: 'svge.builtin.gradient.radial-spotlight',
   name: 'Spotlight',
@@ -114,7 +114,7 @@ export const radialSpotlightGradient: GradientLibraryItem = {
   },
 };
 
-/** Radial: hot pink center → deep purple edge. Neon glow effect. */
+/** @internal Radial: hot pink center → deep purple edge. Neon glow effect. */
 export const radialNeonGradient: GradientLibraryItem = {
   id: 'svge.builtin.gradient.radial-neon',
   name: 'Neon glow',
@@ -174,32 +174,32 @@ function linearItem(
 
 // ── 5 horizontal (left → right) ──────────────────────────────────────
 
-/** Warm peach → gold, horizontal. */
+/** @internal Warm peach → gold, horizontal. */
 export const linearSunriseGradient = linearItem('sunrise', 'Sunrise (horizontal)', HORIZONTAL, [
   { offset: 0, color: '#ffd194' },
   { offset: 1, color: '#d1913c' },
 ]);
 
-/** Fresh mint → teal, horizontal. */
+/** @internal Fresh mint → teal, horizontal. */
 export const linearMintGradient = linearItem('mint', 'Mint (horizontal)', HORIZONTAL, [
   { offset: 0, color: '#a8e6cf' },
   { offset: 1, color: '#00897b' },
 ]);
 
-/** Lavender → deep purple, horizontal. */
+/** @internal Lavender → deep purple, horizontal. */
 export const linearGrapeGradient = linearItem('grape', 'Grape (horizontal)', HORIZONTAL, [
   { offset: 0, color: '#c5a3ff' },
   { offset: 1, color: '#4a148c' },
 ]);
 
-/** Hot red → orange ember, horizontal. */
+/** @internal Hot red → orange ember, horizontal. */
 export const linearEmberGradient = linearItem('ember', 'Ember (horizontal)', HORIZONTAL, [
   { offset: 0, color: '#ff5252' },
   { offset: 0.5, color: '#ff7043' },
   { offset: 1, color: '#ffab40' },
 ]);
 
-/** Cool steel: light blue-grey → slate, horizontal. */
+/** @internal Cool steel: light blue-grey → slate, horizontal. */
 export const linearSteelGradient = linearItem('steel', 'Steel (horizontal)', HORIZONTAL, [
   { offset: 0, color: '#cfd8dc' },
   { offset: 1, color: '#455a64' },
@@ -207,32 +207,32 @@ export const linearSteelGradient = linearItem('steel', 'Steel (horizontal)', HOR
 
 // ── 5 vertical (top → bottom) ────────────────────────────────────────
 
-/** Sunset dusk: warm orange → deep indigo, vertical. */
+/** @internal Sunset dusk: warm orange → deep indigo, vertical. */
 export const linearDuskGradient = linearItem('dusk', 'Dusk (vertical)', VERTICAL, [
   { offset: 0, color: '#ff9e57' },
   { offset: 0.5, color: '#a64f9c' },
   { offset: 1, color: '#1a237e' },
 ]);
 
-/** Light green → forest green, vertical. */
+/** @internal Light green → forest green, vertical. */
 export const linearForestGradient = linearItem('forest', 'Forest (vertical)', VERTICAL, [
   { offset: 0, color: '#aed581' },
   { offset: 1, color: '#1b5e20' },
 ]);
 
-/** Soft sky: white → light blue, vertical fade. */
+/** @internal Soft sky: white → light blue, vertical fade. */
 export const linearSkyFadeGradient = linearItem('sky-fade', 'Sky fade (vertical)', VERTICAL, [
   { offset: 0, color: '#ffffff' },
   { offset: 1, color: '#64b5f6' },
 ]);
 
-/** Pink → crimson, vertical. */
+/** @internal Pink → crimson, vertical. */
 export const linearRoseGradient = linearItem('rose', 'Rose (vertical)', VERTICAL, [
   { offset: 0, color: '#f8bbd0' },
   { offset: 1, color: '#ad1457' },
 ]);
 
-/** Graphite: mid grey → near-black, vertical. */
+/** @internal Graphite: mid grey → near-black, vertical. */
 export const linearGraphiteGradient = linearItem('graphite', 'Graphite (vertical)', VERTICAL, [
   { offset: 0, color: '#9e9e9e' },
   { offset: 1, color: '#212121' },
@@ -240,33 +240,33 @@ export const linearGraphiteGradient = linearItem('graphite', 'Graphite (vertical
 
 // ── 5 diagonal (top-left → bottom-right) ─────────────────────────────
 
-/** Aurora: teal → purple, diagonal. */
+/** @internal Aurora: teal → purple, diagonal. */
 export const linearAuroraGradient = linearItem('aurora', 'Aurora (diagonal)', DIAGONAL, [
   { offset: 0, color: '#1de9b6' },
   { offset: 1, color: '#6a1b9a' },
 ]);
 
-/** Peachy: yellow → pink, diagonal. */
+/** @internal Peachy: yellow → pink, diagonal. */
 export const linearPeachyGradient = linearItem('peachy', 'Peachy (diagonal)', DIAGONAL, [
   { offset: 0, color: '#fff59d' },
   { offset: 1, color: '#ec407a' },
 ]);
 
-/** Deep sea: cyan → navy, diagonal. */
+/** @internal Deep sea: cyan → navy, diagonal. */
 export const linearDeepSeaGradient = linearItem('deep-sea', 'Deep sea (diagonal)', DIAGONAL, [
   { offset: 0, color: '#26c6da' },
   { offset: 0.5, color: '#1565c0' },
   { offset: 1, color: '#0d1b4c' },
 ]);
 
-/** Lava: bright yellow → deep red, diagonal. */
+/** @internal Lava: bright yellow → deep red, diagonal. */
 export const linearLavaGradient = linearItem('lava', 'Lava (diagonal)', DIAGONAL, [
   { offset: 0, color: '#ffee58' },
   { offset: 0.5, color: '#f4511e' },
   { offset: 1, color: '#b71c1c' },
 ]);
 
-/** Twilight: blue → magenta, diagonal. */
+/** @internal Twilight: blue → magenta, diagonal. */
 export const linearTwilightGradient = linearItem('twilight', 'Twilight (diagonal)', DIAGONAL, [
   { offset: 0, color: '#3949ab' },
   { offset: 1, color: '#d500f9' },

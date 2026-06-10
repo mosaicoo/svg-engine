@@ -17,7 +17,7 @@ import type { TemplateLibraryItem } from './template-library.service';
  * 1080×1920, YouTube thumbnail 1280×720).
  */
 
-/** A4 portrait — 595×842 (standard print). */
+/** @internal A4 portrait — 595×842 (standard print). */
 export const a4PortraitTemplate: TemplateLibraryItem = {
   id: 'svge.builtin.template.a4-portrait',
   name: 'A4 (portrait)',
@@ -32,7 +32,7 @@ export const a4PortraitTemplate: TemplateLibraryItem = {
   },
 };
 
-/** Instagram square — 1080×1080. */
+/** @internal Instagram square — 1080×1080. */
 export const instagramSquareTemplate: TemplateLibraryItem = {
   id: 'svge.builtin.template.instagram-square',
   name: 'Instagram square',
@@ -47,7 +47,7 @@ export const instagramSquareTemplate: TemplateLibraryItem = {
   },
 };
 
-/** Twitter / X card — 1200×675 (1.78:1 ratio). */
+/** @internal Twitter / X card — 1200×675 (1.78:1 ratio). */
 export const twitterCardTemplate: TemplateLibraryItem = {
   id: 'svge.builtin.template.twitter-card',
   name: 'Twitter / X card',
@@ -62,7 +62,7 @@ export const twitterCardTemplate: TemplateLibraryItem = {
   },
 };
 
-/** Business card — 350×200 (US standard 3.5"×2" at 100 DPI). */
+/** @internal Business card — 350×200 (US standard 3.5"×2" at 100 DPI). */
 export const businessCardTemplate: TemplateLibraryItem = {
   id: 'svge.builtin.template.business-card',
   name: 'Business card',
@@ -82,7 +82,7 @@ export const businessCardTemplate: TemplateLibraryItem = {
 // keep the same point (72-DPI) convention as A4 portrait above; social
 // /video sizes use each platform's documented pixel spec.
 
-/** A4 landscape — 842×595 (rotated A4; the landscape companion). */
+/** @internal A4 landscape — 842×595 (rotated A4; the landscape companion). */
 export const a4LandscapeTemplate: TemplateLibraryItem = {
   id: 'svge.builtin.template.a4-landscape',
   name: 'A4 (landscape)',
@@ -93,7 +93,7 @@ export const a4LandscapeTemplate: TemplateLibraryItem = {
   },
 };
 
-/** US Letter portrait — 612×792 (8.5×11" in points, matches A4 convention). */
+/** @internal US Letter portrait — 612×792 (8.5×11" in points, matches A4 convention). */
 export const letterPortraitTemplate: TemplateLibraryItem = {
   id: 'svge.builtin.template.letter-portrait',
   name: 'Letter (portrait)',
@@ -104,7 +104,7 @@ export const letterPortraitTemplate: TemplateLibraryItem = {
   },
 };
 
-/** Instagram story / Reel — 1080×1920 (9:16; also TikTok / YT Shorts). */
+/** @internal Instagram story / Reel — 1080×1920 (9:16; also TikTok / YT Shorts). */
 export const instagramStoryTemplate: TemplateLibraryItem = {
   id: 'svge.builtin.template.instagram-story',
   name: 'Instagram story',
@@ -115,7 +115,7 @@ export const instagramStoryTemplate: TemplateLibraryItem = {
   },
 };
 
-/** Instagram portrait post — 1080×1350 (4:5, the tallest allowed feed post). */
+/** @internal Instagram portrait post — 1080×1350 (4:5, the tallest allowed feed post). */
 export const instagramPortraitTemplate: TemplateLibraryItem = {
   id: 'svge.builtin.template.instagram-portrait',
   name: 'Instagram portrait',
@@ -126,7 +126,7 @@ export const instagramPortraitTemplate: TemplateLibraryItem = {
   },
 };
 
-/** YouTube thumbnail — 1280×720 (16:9). */
+/** @internal YouTube thumbnail — 1280×720 (16:9). */
 export const youtubeThumbnailTemplate: TemplateLibraryItem = {
   id: 'svge.builtin.template.youtube-thumbnail',
   name: 'YouTube thumbnail',
@@ -137,7 +137,7 @@ export const youtubeThumbnailTemplate: TemplateLibraryItem = {
   },
 };
 
-/** Presentation 16:9 — 1920×1080 (Full HD slide / desktop wallpaper). */
+/** @internal Presentation 16:9 — 1920×1080 (Full HD slide / desktop wallpaper). */
 export const presentation169Template: TemplateLibraryItem = {
   id: 'svge.builtin.template.presentation-16-9',
   name: 'Presentation 16:9',
@@ -148,7 +148,7 @@ export const presentation169Template: TemplateLibraryItem = {
   },
 };
 
-/** Pinterest pin — 1000×1500 (2:3, the recommended pin ratio). */
+/** @internal Pinterest pin — 1000×1500 (2:3, the recommended pin ratio). */
 export const pinterestPinTemplate: TemplateLibraryItem = {
   id: 'svge.builtin.template.pinterest-pin',
   name: 'Pinterest pin',
@@ -159,7 +159,7 @@ export const pinterestPinTemplate: TemplateLibraryItem = {
   },
 };
 
-/** Facebook cover — 820×312 (page cover photo). */
+/** @internal Facebook cover — 820×312 (page cover photo). */
 export const facebookCoverTemplate: TemplateLibraryItem = {
   id: 'svge.builtin.template.facebook-cover',
   name: 'Facebook cover',

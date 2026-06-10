@@ -54,6 +54,16 @@ Preparação para o release no NPM público — encolher a API pública para o q
   inexistente, estendi o guard-rail com um check **"sem exports duplicados"**
   (mesmo nome alcançável por dois `barrels` → falha listando origens). Validado
   contra canário que recriou exatamente o cenário imaginado. Suíte: **2206 specs**.
+- **Categoria C — presets builtin marcados `@internal` (decisão do usuário)**:
+  os 121 presets builtin individuais (`edit`: 21 gradientes, 30 patterns, 24
+  shapes, 12 templates, 6 graphic-styles, 5 clip-paths, 4 masks, 19 effects)
+  foram **mantidos exportados** (intenção "for direct import / customization" +
+  tree-shaking) mas **marcados `@internal`** na fonte, sinalizando tier
+  avançado/secundário — o contrato primário é o array `BUILTIN_*` + service +
+  plugin. Codemod TS-AST determinístico (injeta `@internal` no JSDoc de cada
+  preset; 101 single-line, 20 multi-line). **100% doc-only**: nenhum nome
+  removido → guard-rail passa sem regen (superfície idêntica). Encerra a
+  sequência publish-prep (A·B·C·D + guard-rail).
 
 ## 2026-06-07 — D-046 voz híbrida — reconhecimento de voz local (Whisper WASM) ✅
 

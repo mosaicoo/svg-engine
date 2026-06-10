@@ -15,7 +15,7 @@ import type { MaskLibraryItem } from './mask-library.service';
  * is self-contained and doesn't depend on the gradient registry.
  */
 
-/** Left-to-right horizontal fade: opaque on the right, transparent on the left. */
+/** @internal Left-to-right horizontal fade: opaque on the right, transparent on the left. */
 export const fadeLeftMask: MaskLibraryItem = {
   id: 'svge.builtin.mask.fade-left',
   name: 'Fade from left',
@@ -31,7 +31,7 @@ export const fadeLeftMask: MaskLibraryItem = {
   },
 };
 
-/** Top-to-bottom fade: useful for "sinking into background" effects. */
+/** @internal Top-to-bottom fade: useful for "sinking into background" effects. */
 export const fadeBottomMask: MaskLibraryItem = {
   id: 'svge.builtin.mask.fade-bottom',
   name: 'Fade to bottom',
@@ -47,7 +47,7 @@ export const fadeBottomMask: MaskLibraryItem = {
   },
 };
 
-/** Radial spotlight: bright center, dark edges. Vignette-like. */
+/** @internal Radial spotlight: bright center, dark edges. Vignette-like. */
 export const spotlightMask: MaskLibraryItem = {
   id: 'svge.builtin.mask.spotlight',
   name: 'Spotlight (vignette)',
@@ -64,7 +64,7 @@ export const spotlightMask: MaskLibraryItem = {
   },
 };
 
-/** Soft circle: hard center, gentle fade to fully transparent. */
+/** @internal Soft circle: hard center, gentle fade to fully transparent. */
 export const softCircleMask: MaskLibraryItem = {
   id: 'svge.builtin.mask.soft-circle',
   name: 'Soft circle',

@@ -28,7 +28,7 @@ import type { Effect } from './effect';
 
 // ── BLUR ─────────────────────────────────────────────────────────────
 
-/** Soft Gaussian blur. stdDeviation tuned for "noticeable but not destroying detail". */
+/** @internal Soft Gaussian blur. stdDeviation tuned for "noticeable but not destroying detail". */
 export const blurEffect: Effect = {
   id: 'svge.builtin.effect.blur',
   name: 'Blur',
@@ -45,6 +45,7 @@ export const blurEffect: Effect = {
 // ── SHADOWS ─────────────────────────────────────────────────────────
 
 /**
+ * @internal
  * Drop shadow at 4px offset, 4px blur, semi-transparent black. Default
  * direction matches most design tools (light from top-left).
  */
@@ -66,6 +67,7 @@ export const dropShadowEffect: Effect = {
 };
 
 /**
+ * @internal
  * Inner shadow — shadow CAST INTO the shape (Photoshop-style "inner
  * shadow" layer effect). Technique: invert alpha, blur, offset, then
  * intersect with original source so the shadow only appears inside the
@@ -90,6 +92,7 @@ export const innerShadowEffect: Effect = {
 // ── GLOWS ───────────────────────────────────────────────────────────
 
 /**
+ * @internal
  * Outer glow — soft white halo around the shape (UI hover hint style).
  * Technique: blur the alpha, flood with glow color, composite on top of
  * the original source.
@@ -112,6 +115,7 @@ export const outerGlowEffect: Effect = {
 };
 
 /**
+ * @internal
  * Inner glow — soft white halo on the INSIDE edges of the shape (the
  * "lit from within" look). Mirrors innerShadow's technique but with a
  * bright flood instead of dark.
@@ -134,6 +138,7 @@ export const innerGlowEffect: Effect = {
 // ── 3D / STYLIZE ────────────────────────────────────────────────────
 
 /**
+ * @internal
  * Bevel — illusion of raised edges via light + shadow casting on the
  * inside boundary. Uses feSpecularLighting + a blurred alpha as the
  * height map (classic Photoshop "Bevel and Emboss" technique).
@@ -157,6 +162,7 @@ export const bevelEffect: Effect = {
 };
 
 /**
+ * @internal
  * Emboss — flatter, grayscale "engraved" look. Convolves the source
  * with a diagonal kernel that emphasises NW→SE edges. Final result is
  * neutral gray with highlights/shadows on the relief edges.
@@ -178,6 +184,7 @@ export const embossEffect: Effect = {
 // ── COLOR (re-color in place) ───────────────────────────────────────
 
 /**
+ * @internal
  * Convert to grayscale via standard luminance weights (CIE 1931).
  * Identity on alpha (preserves transparency).
  */
@@ -197,6 +204,7 @@ export const grayscaleEffect: Effect = {
 };
 
 /**
+ * @internal
  * Sepia tone — classic vintage filter. Standard matrix from the W3C
  * SVG filters note.
  */
@@ -215,6 +223,7 @@ export const sepiaEffect: Effect = {
 };
 
 /**
+ * @internal
  * Invert colors — RGB inverted, alpha untouched. `1 - channel` via
  * negative slope + intercept on each feFuncRGB.
  */
@@ -236,6 +245,7 @@ export const invertEffect: Effect = {
 // ── ADJUSTMENTS (color correction primitives) ───────────────────────
 
 /**
+ * @internal
  * Brightness +30% — additive lift on each RGB channel via feFuncRGB
  * `intercept`. Caps at 1.0 automatically (filter clamps).
  */
@@ -255,6 +265,7 @@ export const brightnessEffect: Effect = {
 };
 
 /**
+ * @internal
  * Contrast +50% — multiplicative slope (1.5) centered on mid-gray
  * (intercept = -(slope-1)/2 = -0.25). Above mid gets brighter, below
  * gets darker.
@@ -275,6 +286,7 @@ export const contrastEffect: Effect = {
 };
 
 /**
+ * @internal
  * Saturate 200% — boost color saturation via feColorMatrix
  * `type="saturate"` (built-in shortcut, no manual matrix math).
  */
@@ -290,6 +302,7 @@ export const saturateEffect: Effect = {
 };
 
 /**
+ * @internal
  * Hue rotate 90° — shift hue by quarter-turn around the color wheel
  * via feColorMatrix `type="hueRotate"`. Useful for chromatic theming.
  */
@@ -307,6 +320,7 @@ export const hueRotateEffect: Effect = {
 // ── DISTORTION ──────────────────────────────────────────────────────
 
 /**
+ * @internal
  * Noise / turbulence — Perlin noise texture composited on top of the
  * source via "in" (texture only appears where the source is opaque).
  * Subtle film-grain look.
@@ -334,6 +348,7 @@ export const noiseEffect: Effect = {
 };
 
 /**
+ * @internal
  * Displacement map — uses a turbulence noise texture as the displacement
  * source to warp the original graphic (wavy/distorted look). Scale
  * controls intensity of the warp.
@@ -353,6 +368,7 @@ export const displacementMapEffect: Effect = {
 };
 
 /**
+ * @internal
  * Chromatic aberration — RGB split (classic glitch / lo-fi look).
  * Splits each channel via feColorMatrix and offsets them slightly in
  * different directions, then merges.
@@ -389,6 +405,7 @@ export const chromaticAberrationEffect: Effect = {
 // ── PIXEL ART ───────────────────────────────────────────────────────
 
 /**
+ * @internal
  * Pixelate — downsamples to ~8px blocks via feFlood + feComposite
  * trickery. Technically uses `feImage` would be cleaner but requires
  * data URIs; here we use a turbulence trick that gives a chunky look.
@@ -420,6 +437,7 @@ export const pixelateEffect: Effect = {
 };
 
 /**
+ * @internal
  * Posterize — quantizes RGB into 4 discrete levels per channel
  * (classic poster art look). Pure feComponentTransfer, no blur.
  * Distinct from pixelate (which adds blur to fake low-res).

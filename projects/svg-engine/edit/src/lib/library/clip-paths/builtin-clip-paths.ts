@@ -16,7 +16,7 @@ import type { ClipPathLibraryItem } from './clip-path-library.service';
  * clip-path shape via the (future) clip-path editor tool.
  */
 
-/** Big circle in the upper-left quadrant — generic "round it off". */
+/** @internal Big circle in the upper-left quadrant — generic "round it off". */
 export const circleClipPath: ClipPathLibraryItem = {
   id: 'svge.builtin.clip-path.circle-200',
   name: 'Circle (200px)',
@@ -28,7 +28,7 @@ export const circleClipPath: ClipPathLibraryItem = {
   },
 };
 
-/** Big ellipse — wider than tall, "letterbox" effect when applied to a square. */
+/** @internal Big ellipse — wider than tall, "letterbox" effect when applied to a square. */
 export const ellipseClipPath: ClipPathLibraryItem = {
   id: 'svge.builtin.clip-path.ellipse-wide',
   name: 'Ellipse (wide)',
@@ -40,7 +40,7 @@ export const ellipseClipPath: ClipPathLibraryItem = {
   },
 };
 
-/** Rounded rectangle — softens a sharp-cornered photo into a card shape. */
+/** @internal Rounded rectangle — softens a sharp-cornered photo into a card shape. */
 export const roundedRectClipPath: ClipPathLibraryItem = {
   id: 'svge.builtin.clip-path.rounded-rect',
   name: 'Rounded rectangle',
@@ -52,7 +52,7 @@ export const roundedRectClipPath: ClipPathLibraryItem = {
   },
 };
 
-/** Five-pointed star — playful crop, useful for badges / stickers. */
+/** @internal Five-pointed star — playful crop, useful for badges / stickers. */
 export const starClipPath: ClipPathLibraryItem = {
   id: 'svge.builtin.clip-path.star',
   name: 'Star',
@@ -64,7 +64,7 @@ export const starClipPath: ClipPathLibraryItem = {
   },
 };
 
-/** Heart shape — single bezier path. Useful for emotive design. */
+/** @internal Heart shape — single bezier path. Useful for emotive design. */
 export const heartClipPath: ClipPathLibraryItem = {
   id: 'svge.builtin.clip-path.heart',
   name: 'Heart',

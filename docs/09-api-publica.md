@@ -707,6 +707,24 @@ _major bump_; consumidores externos não devem depender diretamente:
 > `ai/nlu` `tokenize` / `detectLanguage` permanecem **públicos** — são
 > primitivos NLU úteis a consumidores, não apenas wiring interno.
 
+### Categoria C — presets builtin (tier `@internal` / avançado)
+
+`edit` exporta **121 constantes de preset builtin** individuais (21 gradientes,
+30 patterns, 24 shapes, 12 templates, 6 graphic-styles, 5 clip-paths, 4 masks,
+19 effects). Foram oferecidas de propósito "for direct import / customization"
+e são **tree-shakeable** uma a uma — então **não foram removidas** (remover
+reverteria intenção e pioraria o tree-shaking de 1 preset).
+
+Em vez disso, cada preset foi marcado **`@internal`** na fonte (documental;
+`stripInternal` off → `.d.ts` preserva, zero break). Isso sinaliza que são
+**tier avançado/secundário**: o **contrato primário** de cada categoria é o
+array `BUILTIN_*` + a `*LibraryService`/registry + o `builtin*Plugin`. Os
+presets individuais podem mudar sem _major bump_; quem precisa de um preset
+específico pode importá-lo (tree-shake), ciente de que é tier secundário.
+
+Como nada foi removido, a **superfície de nomes é idêntica** — o guard-rail
+abaixo passa sem regen (mudança 100% doc-only).
+
 ### Guard-rail — snapshot da superfície pública
 
 `projects/svg-engine/api-surface/public-api-surface.spec.ts` **trava** o
