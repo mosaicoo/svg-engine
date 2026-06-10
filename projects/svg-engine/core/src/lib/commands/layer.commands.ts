@@ -132,11 +132,26 @@ export class CreateLayerCommand implements Command {
   /** Id of the layer this command created — exposed so callers (UI) can select it. */
   private createdLayerId: NodeId | null = null;
 
+  /**
+   * @param parentId target parent for the new layer (front of its
+   * children). Defaults to the document root. With the Pages model
+   * (D-079) the layers panel is rooted at the **active page**, so the UI
+   * passes the active page id — otherwise the layer would be created at
+   * `doc.root` as a sibling of the pages and never show up in the
+   * page-rooted panel (the "+ does nothing" symptom).
+   */
+  constructor(private readonly parentId: NodeId | null = null) {}
+
   execute(ctx: CommandContext): CommandResult {
     const doc = ctx.state.document();
-    // Count current layers to pick the next default name.
+    const parentId = this.parentId ?? doc.root.id;
+    const parent = findNodeById(doc.root, parentId);
+    if (parent === null || parent.type !== 'group') {
+      return fail(`${this.label}: parent "${parentId}" not found or not a group`);
+    }
+    // Count current layers in the target parent to pick the next default name.
     let layerCount = 0;
-    for (const child of doc.root.children) {
+    for (const child of parent.children) {
       if (isLayer(child)) layerCount += 1;
     }
     const baseLayer = createGroup([], {
@@ -144,7 +159,7 @@ export class CreateLayerCommand implements Command {
     });
     const layer = withLayerFlag(baseLayer);
     this.createdLayerId = layer.id;
-    const nextRoot = insertNode(doc.root, doc.root.id, layer, 0);
+    const nextRoot = insertNode(doc.root, parentId, layer, 0);
     ctx.state.setDocument({ ...doc, root: nextRoot });
     return ok();
   }

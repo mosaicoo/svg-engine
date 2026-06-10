@@ -1352,7 +1352,11 @@ export class LayersPanel {
    * it. Bound to the "+" button in the panel header.
    */
   protected createNewLayer(): void {
-    const cmd = new CreateLayerCommand();
+    // Insert into the panel's display root. With the Pages model the panel
+    // is rooted at the active page ([root] input), so the new layer must
+    // land inside that page — otherwise it would be created at doc.root
+    // (sibling of the pages) and never appear here ("+ does nothing").
+    const cmd = new CreateLayerCommand(this.root()?.id ?? null);
     this.bus.dispatch(cmd);
     const newId = cmd.getCreatedLayerId();
     if (newId !== null) this.selection.select(newId);

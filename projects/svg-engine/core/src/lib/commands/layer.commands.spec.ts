@@ -176,5 +176,27 @@ describe('D-072 — Layer commands', () => {
       expect(root.children.length).toBe(1);
       expect(root.children[0]!.id).toBe(existing.id);
     });
+
+    it('inserts into the given parentId (Pages: active page), not the root', () => {
+      const { state, bus } = setup();
+      // Pages model: root holds a page group; content lives inside it.
+      const page = createGroup([createRect({ x: 0, y: 0, width: 10, height: 10 })], {
+        metadata: { name: 'Page 1' },
+      });
+      seed(state, [page]);
+      const cmd = new CreateLayerCommand(page.id);
+      bus.dispatch(cmd);
+      const root = state.document().root;
+      // No stray layer at root — the page is still root's only child.
+      expect(root.children.length).toBe(1);
+      expect(root.children[0]!.id).toBe(page.id);
+      // The new layer is the page's FIRST child.
+      const pageAfter = findNodeById(root, page.id) as GroupNode;
+      expect(pageAfter.children.length).toBe(2);
+      expect(isLayer(pageAfter.children[0]!)).toBe(true);
+      // Auto-numbering counts layers within the page (none yet) → "Layer 1".
+      expect(pageAfter.children[0]!.metadata.name).toBe('Layer 1');
+      expect(cmd.getCreatedLayerId()).toBe(pageAfter.children[0]!.id);
+    });
   });
 });

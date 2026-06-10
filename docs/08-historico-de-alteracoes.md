@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-06-10 — Bug fix: botão "+" (New Layer) não funcionava com Pages ✅
+
+O botão "+" do painel de Layers parecia não fazer nada no svg-studio.
+**Causa-raiz**: com o modelo de Pages (D-079) o `<svge-layers-panel>` é
+**enraizado na página ativa** (`shell-pro` passa `[root]="layersPanelRoot()"`
+= a página), mas `CreateLayerCommand` inseria a nova layer em **`doc.root`**,
+como irmã das páginas — fora da página ativa. A layer era criada, mas não
+aparecia no painel (que mostra os filhos da página) nem no canvas.
+
+**Fix**: `CreateLayerCommand` ganhou um parâmetro opcional `parentId`
+(default = `doc.root`, mantém compat) e passa a contar layers / inserir no
+parent informado. O painel (`createNewLayer()`) passa `this.root()?.id` —
+seu root de exibição, i.e. a página ativa. Core continua page-agnóstico (só
+recebe um id); a UI fornece o parent. Regressão travada por spec
+(`new CreateLayerCommand(pageId)` insere dentro da página, não no root).
+Suíte: **2207 specs**.
+
+> **Nota** (mesma causa-raiz, não corrigido aqui): `convertToLayer` no painel
+> ainda checa `parent.id === document.root.id`, então "Convert to Layer" num
+> grupo dentro da página também falha. Candidato a follow-up.
+
 ## 2026-06-09 — Publish-prep: endurecimento da superfície pública (Cat. A + B) ✅
 
 Preparação para o release no NPM público — encolher a API pública para o que
