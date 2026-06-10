@@ -707,6 +707,27 @@ _major bump_; consumidores externos não devem depender diretamente:
 > `ai/nlu` `tokenize` / `detectLanguage` permanecem **públicos** — são
 > primitivos NLU úteis a consumidores, não apenas wiring interno.
 
+### Guard-rail — snapshot da superfície pública
+
+`projects/svg-engine/api-surface/public-api-surface.spec.ts` **trava** o
+conjunto de nomes exportados por cada um dos 9 entry points contra um
+_golden file_ versionado (`api-surface/public-api.snapshot.json`). Qualquer
+adição/remoção na superfície pública — re-exposição acidental de plumbing
+interno **ou** remoção de um símbolo anunciado (exatamente o deslize da
+Cat. A) — **quebra o teste**, forçando a mudança a ser deliberada.
+
+O teste resolve estaticamente `export *` / `export {…} from` recursivamente
+(via TypeScript API), então reflete o `.d.ts` publicado sem precisar de build.
+Roda dentro de `npm run test:lib`. Mudança intencional:
+
+```
+UPDATE_API_SNAPSHOT=1 npm run test:lib   # regenera o snapshot
+```
+
+Depois revise o diff, atualize esta seção/tabelas se o **contrato** mudou, e
+commite o `.json` junto. Validado contra um canário (export aditivo →
+falha esperada).
+
 ---
 
 ## Convenções

@@ -32,6 +32,20 @@ Preparação para o release no NPM público — encolher a API pública para o q
   separados (ui), AIs separados (ai/\*), editor completo. Headless boundary
   (D-017) intacto. Gate verde em ambas as categorias (build:lib todos os
   entry points + 2187 specs + ng build svg-studio + playground).
+- **Fix Cat. A** `61b5952` (após "isso penaliza terceiros?"): 6 helpers
+  removidos na Cat. A **estavam anunciados** nas tabelas de referência
+  (`09`/`06`) — `projectDocumentToRenderer`, `renderTransformAttr`,
+  `gridTargetsNear`, `rectsToSnapTargets`, `parseCombo`, `comboMatches`
+  (+ `ParsedCombo`). **Restaurados** no barrel (regra: anunciado = público).
+  Os demais removidos seguem internos (só em changelog/roadmap, não na
+  referência). Caminho de plugin de terceiros intacto (`provideSvgEnginePlugin`,
+  `EditorPlugin`, registries, scope — nada tocado).
+- **Guard-rail de superfície** (publish-prep): novo spec
+  `api-surface/public-api-surface.spec.ts` trava os nomes exportados dos 9
+  entry points contra `public-api.snapshot.json` (golden versionado). Resolve
+  `export *`/`export {…} from` recursivamente via TS API; quebra em qualquer
+  add/remove. Regen: `UPDATE_API_SNAPSHOT=1 npm run test:lib`. Teria pego o
+  deslize da Cat. A sozinho; validado contra canário. Suíte: **2197 specs**.
 
 ## 2026-06-07 — D-046 voz híbrida — reconhecimento de voz local (Whisper WASM) ✅
 
