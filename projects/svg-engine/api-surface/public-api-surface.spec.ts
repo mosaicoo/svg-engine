@@ -144,9 +144,54 @@ function surfaceOf(entryRelPath: string): string[] {
   return [...collectExports(abs, new Set())].sort((a, b) => a.localeCompare(b));
 }
 
-// Superfície atual, computada uma vez.
+/**
+ * Mapeia cada nome exportado pelo `public-api.ts` → _barrels_ de origem
+ * distintos. Detecta **export duplicado** (mesmo nome alcançável por dois
+ * `export * from` diferentes) — o "smell" da Categoria D do publish-prep.
+ */
+function duplicateExportsOf(entryRelPath: string): Record<string, string[]> {
+  const abs = path.join(ROOT, entryRelPath);
+  const src = ts.createSourceFile(abs, fs.readFileSync(abs, 'utf8'), ts.ScriptTarget.Latest, true);
+  const provenance = new Map<string, Set<string>>();
+  const add = (name: string, label: string): void => {
+    const s = provenance.get(name) ?? new Set<string>();
+    s.add(label);
+    provenance.set(name, s);
+  };
+  src.forEachChild((node) => {
+    if (!ts.isExportDeclaration(node)) return;
+    const clause = node.exportClause;
+    const label =
+      node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)
+        ? node.moduleSpecifier.text
+        : '(local)';
+    if (!clause) {
+      if (node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+        const target = resolveModule(abs, node.moduleSpecifier.text);
+        if (target) for (const n of collectExports(target, new Set())) add(n, label);
+      }
+      return;
+    }
+    if (ts.isNamespaceExport(clause)) {
+      add(clause.name.text, label);
+      return;
+    }
+    for (const el of clause.elements) add(el.name.text, label);
+  });
+  const dupes: Record<string, string[]> = {};
+  for (const [name, sources] of provenance) {
+    if (sources.size > 1) dupes[name] = [...sources].sort((a, b) => a.localeCompare(b));
+  }
+  return dupes;
+}
+
+// Superfície atual + duplicatas, computadas uma vez.
 const current: Record<string, string[]> = {};
-for (const [name, rel] of Object.entries(ENTRY_POINTS)) current[name] = surfaceOf(rel);
+const duplicates: Record<string, Record<string, string[]>> = {};
+for (const [name, rel] of Object.entries(ENTRY_POINTS)) {
+  current[name] = surfaceOf(rel);
+  duplicates[name] = duplicateExportsOf(rel);
+}
 
 // Modo update: reescreve o golden ANTES do describe lê-lo.
 if (process.env['UPDATE_API_SNAPSHOT']) {
@@ -184,6 +229,22 @@ describe('API surface guard-rail (publish-prep)', () => {
         );
       }
       expect(cur).toEqual(exp);
+    });
+  }
+});
+
+describe('API surface — sem exports duplicados (Categoria D)', () => {
+  for (const name of Object.keys(ENTRY_POINTS)) {
+    it(`${name} não re-exporta o mesmo nome por dois barrels`, () => {
+      const offenders = Object.entries(duplicates[name]);
+      if (offenders.length) {
+        throw new Error(
+          `${name} tem export(s) duplicado(s) — mesmo nome vindo de >1 barrel:\n` +
+            offenders.map(([n, srcs]) => `  ${n}  <=  ${srcs.join('  |  ')}`).join('\n') +
+            `\nRemova a re-exportação redundante de um dos barrels.`,
+        );
+      }
+      expect(offenders).toEqual([]);
     });
   }
 });

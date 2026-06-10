@@ -45,7 +45,15 @@ Preparação para o release no NPM público — encolher a API pública para o q
   entry points contra `public-api.snapshot.json` (golden versionado). Resolve
   `export *`/`export {…} from` recursivamente via TS API; quebra em qualquer
   add/remove. Regen: `UPDATE_API_SNAPSHOT=1 npm run test:lib`. Teria pego o
-  deslize da Cat. A sozinho; validado contra canário. Suíte: **2197 specs**.
+  deslize da Cat. A sozinho; validado contra canário.
+- **Categoria D — falso positivo + guard durável**: a análise apontou
+  `SnapshotsPersistenceService` exportado em dois barris (`snapshots` e
+  `asset-export`), mas auditoria do código mostrou **zero** duplicatas reais —
+  o `asset-export/index.ts` só **comenta** `// Mirror of SnapshotsPersistenceService`
+  (lido como export na análise pré-compactação). Em vez de "consertar" algo
+  inexistente, estendi o guard-rail com um check **"sem exports duplicados"**
+  (mesmo nome alcançável por dois `barrels` → falha listando origens). Validado
+  contra canário que recriou exatamente o cenário imaginado. Suíte: **2206 specs**.
 
 ## 2026-06-07 — D-046 voz híbrida — reconhecimento de voz local (Whisper WASM) ✅
 

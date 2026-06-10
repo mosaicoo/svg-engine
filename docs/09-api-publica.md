@@ -728,6 +728,14 @@ Depois revise o diff, atualize esta seção/tabelas se o **contrato** mudou, e
 commite o `.json` junto. Validado contra um canário (export aditivo →
 falha esperada).
 
+O mesmo spec inclui um check **"sem exports duplicados" (Categoria D)**: para
+cada entry point, detecta se um mesmo nome é alcançável por **dois `barrels`
+diferentes** (`export *` de duas pastas) e falha listando as origens. É a
+forma durável da Cat. D — a auditoria pontual achou **zero** duplicatas reais
+hoje (a Cat. D original era um falso positivo: leu o comentário
+`// Mirror of SnapshotsPersistenceService` em `asset-export/index.ts` como se
+fosse um export). Validado contra canário (re-export redundante → falha).
+
 ---
 
 ## Convenções
