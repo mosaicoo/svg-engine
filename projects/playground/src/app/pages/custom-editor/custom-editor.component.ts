@@ -497,6 +497,15 @@ export class CustomEditor implements OnDestroy {
       }
     });
 
+    // Grid-snap ↔ workspace-grid sync. Keep the SnapService grid spacing
+    // reading the live Workspace ▸ Grid spacing so "snap to grid" lands on
+    // the drawn grid (no hard-coded snap lattice). custom-editor anchors the
+    // page at the origin (pageBoundsIn → {x:0,y:0}), so the default snap
+    // gridOrigin (0,0) already matches — only the spacing needs syncing.
+    effect(() => {
+      this.snap.setGridSize(this.workspace.grid().spacing);
+    });
+
     // Default tool: Select (passthrough — keeps native canvas behavior).
     // Activated after construction so the tool registry has had a chance
     // to receive the bootstrap-provided plugin entries.

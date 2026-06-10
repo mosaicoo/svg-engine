@@ -102,6 +102,21 @@ describe('SnapService — resolveForMove', () => {
     expect(r.delta.x).toBe(-1);
   });
 
+  it('snaps to the page-anchored grid when gridOrigin is set', () => {
+    const svc = setup();
+    svc.setMode('grid');
+    svc.setGridSize(10);
+    svc.setThresholdPx(5);
+    svc.setGridOrigin({ x: 5, y: 5 });
+    // Lattice = 5 + k·10 (...,5,15,25,...) — a grid drawn from page origin 5.
+    // Moving low x=16 → nearest page-anchored line is 15 (delta -1). With the
+    // old origin-0 lattice (10,20) it would have snapped to 20 instead, so the
+    // 15 guide proves the snap follows the drawn (page-anchored) grid.
+    const r = svc.resolveForMove(bbox(16, 0, 4, 4), [], 1);
+    expect(r.delta.x).toBe(-1);
+    expect(r.guides.some((g) => g.axis === 'x' && g.value === 15)).toBe(true);
+  });
+
   it('snaps to objects in objects mode (excludes grid)', () => {
     const svc = setup();
     svc.setMode('objects');

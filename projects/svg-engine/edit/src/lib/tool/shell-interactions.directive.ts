@@ -1,10 +1,11 @@
 import { DOCUMENT } from '@angular/common';
-import { Directive, ElementRef, inject, type OnDestroy } from '@angular/core';
+import { Directive, effect, ElementRef, inject, type OnDestroy } from '@angular/core';
 import {
   type BoundingBox,
   CommandBus,
   EditorStateService,
   findNodeById,
+  getPageViewBox,
   isPage,
   type NodeId,
   type Point,
@@ -23,7 +24,7 @@ import { SelectionService } from '../selection/selection.service';
 import { ShortcutService } from '../shortcut/shortcut.service';
 import { SnapService } from '../snap/snap.service';
 import { TransformService } from '../transform/transform.service';
-import { WorkspaceService } from '../workspace/workspace.service';
+import { resolvePageBounds, WorkspaceService } from '../workspace/workspace.service';
 import { DIRECT_SELECT_TOOL_ID, SELECT_TOOL_ID } from './builtin-tools';
 import { ToolHostService } from './tool-host.service';
 import type { ToolPointerEvent } from './tool';
@@ -122,6 +123,33 @@ export class SvgeShellInteractions implements OnDestroy {
    * for free.
    */
   private readonly workspace = inject(WorkspaceService);
+
+  /**
+   * **Grid-snap ↔ workspace-grid sync.** Mirrors the WORKSPACE grid the
+   * user sees/edits (Workspace Settings ▸ Grid) into the SnapService so
+   * "snap to grid" lands exactly on the drawn grid — same **spacing** and
+   * same page-anchored **origin**. Reactive: re-runs whenever the grid
+   * spacing or the active page's geometry changes, so the move always
+   * reads the current settings (no hard-coded snap grid). Fixes the bug
+   * where the snap used a fixed 10-unit lattice anchored at the document
+   * origin while the visible grid used `spacing` (default 20) anchored at
+   * the page — so dragging never matched the drawn grid.
+   *
+   * During a shape move there is no page-tool drag in flight, so we pass
+   * `null` for the drag preview (page moves aren't shape moves).
+   */
+  private readonly _syncSnapGrid = effect(() => {
+    this.snap.setGridSize(this.workspace.grid().spacing); // ignores ≤0 internally
+    const active = this.activePage.activePage();
+    const activeViewBox = active !== null ? getPageViewBox(active) : null;
+    const pb = resolvePageBounds(
+      activeViewBox,
+      null,
+      this.workspace.page(),
+      this.viewport.contentBox(),
+    );
+    this.snap.setGridOrigin(pb !== null ? { x: pb.x, y: pb.y } : { x: 0, y: 0 });
+  });
 
   /**
    * Pending drag bookkeeping. Set on pointer-down over a node; cleared

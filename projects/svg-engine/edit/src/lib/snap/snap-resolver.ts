@@ -69,20 +69,27 @@ export function rectsToSnapTargets(
  * possibly happen, and it keeps target counts bounded regardless of
  * document size (essential when grid is fine, e.g. 1-unit lines on a
  * 10000×10000 doc would otherwise produce 10001 targets).
+ *
+ * @param origin where the grid lattice is anchored on this axis (doc
+ *   units) — the page's top-left, matching the **rendered** grid (lines
+ *   at `origin + k·gridSize`). Defaults to `0` (document origin). Passing
+ *   the page origin is what keeps the snap lattice glued to the drawn
+ *   grid when the page doesn't start on a grid multiple.
  */
 export function gridTargetsNear(
   moving: BoundingBox,
   gridSize: number,
   axis: SnapAxis,
+  origin = 0,
 ): readonly SnapTarget[] {
   if (!(gridSize > 0)) return [];
   const lo = (axis === 'x' ? moving.x : moving.y) - gridSize;
   const hi = (axis === 'x' ? moving.x + moving.width : moving.y + moving.height) + gridSize;
-  const startK = Math.floor(lo / gridSize);
-  const endK = Math.ceil(hi / gridSize);
+  const startK = Math.floor((lo - origin) / gridSize);
+  const endK = Math.ceil((hi - origin) / gridSize);
   const out: SnapTarget[] = [];
   for (let k = startK; k <= endK; k++) {
-    out.push({ axis, value: k * gridSize, source: 'grid' });
+    out.push({ axis, value: origin + k * gridSize, source: 'grid' });
   }
   return out;
 }

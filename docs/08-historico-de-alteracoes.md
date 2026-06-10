@@ -6,6 +6,35 @@
 
 ---
 
+## 2026-06-10 — Bug fix: snap de grid não correspondia à grade desenhada ✅
+
+Ao arrastar com SNAP em "grid"/"both", o shape não grudava na grade exibida.
+**Causa-raiz**: dois mundos desconectados. (1) A grade é desenhada com
+`WorkspaceService.grid().spacing` (default **20**); o snap usava
+`SnapService.gridSize`, um valor **separado** preso no default **10** —
+`setGridSize` nunca era chamado fora dos testes. (2) A grade é ancorada na
+**origem da página** (`pb.x/pb.y`), mas os alvos do snap eram múltiplos a
+partir de **(0,0)**. Logo o snap grudava numa lattice de 10 ancorada em 0,
+"entre" as linhas visíveis de 20.
+
+**Fix** ("a config de grade é a fonte; o movimento lê ao vivo, sem valores
+fixos"):
+
+- `gridTargetsNear(moving, gridSize, axis, origin=0)` passa a ancorar a
+  lattice em `origin + k·gridSize` (origem da página), casando com a grade
+  desenhada.
+- `SnapService` ganha `gridOrigin` (signal) + `setGridOrigin`; `resolveForMove`
+  usa `gridSize` **e** `gridOrigin` por eixo.
+- `[svgeShellInteractions]` (shells `svge-editor`/`svge-shell-pro` → svg-studio):
+  `effect` reativo que espelha `workspace.grid().spacing` → `snap.setGridSize`
+  e a `resolvePageBounds(...)` da página ativa → `snap.setGridOrigin`. Re-roda
+  sempre que o espaçamento ou a geometria da página muda.
+- `custom-editor` (playground, gesture próprio, sem a directiva): mesmo sync de
+  espaçamento via `effect` (página legada ancorada em 0 → origem já casa).
+
+Specs: `gridTargetsNear` com origin + `resolveForMove` page-anchored. Suíte:
+**2209 specs**. Gate: build:lib + ng build svg-studio + playground verdes.
+
 ## 2026-06-10 — Bug fix: botão "+" (New Layer) não funcionava com Pages ✅
 
 O botão "+" do painel de Layers parecia não fazer nada no svg-studio.

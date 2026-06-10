@@ -42,11 +42,16 @@ export class SnapService {
   private readonly _enabled = signal(true);
   private readonly _mode = signal<SnapMode>('both');
   private readonly _gridSize = signal(DEFAULT_GRID_SIZE);
+  // Where the grid lattice is anchored (doc units) — the page's top-left.
+  // Kept in sync with the rendered grid so "snap to grid" lands exactly on
+  // the drawn lines even when the page doesn't start on a grid multiple.
+  private readonly _gridOrigin = signal<Point>({ x: 0, y: 0 });
   private readonly _thresholdPx = signal(DEFAULT_THRESHOLD_PX);
 
   readonly enabled = this._enabled.asReadonly();
   readonly mode = this._mode.asReadonly();
   readonly gridSize = this._gridSize.asReadonly();
+  readonly gridOrigin = this._gridOrigin.asReadonly();
   readonly thresholdPx = this._thresholdPx.asReadonly();
 
   // ── Live guides (set by consumer during a gesture, read by overlay) ─
@@ -67,6 +72,16 @@ export class SnapService {
   setGridSize(size: number): void {
     if (!Number.isFinite(size) || size <= 0) return;
     this._gridSize.set(size);
+  }
+
+  /**
+   * Set the grid lattice origin (doc units) — typically the active page's
+   * top-left, so the snap lattice matches the rendered grid. Ignores
+   * non-finite values.
+   */
+  setGridOrigin(origin: Point): void {
+    if (!Number.isFinite(origin.x) || !Number.isFinite(origin.y)) return;
+    this._gridOrigin.set({ x: origin.x, y: origin.y });
   }
 
   setThresholdPx(px: number): void {
@@ -114,7 +129,11 @@ export class SnapService {
     }
     if (mode === 'grid' || mode === 'both') {
       const g = this._gridSize();
-      targets.push(...gridTargetsNear(moving, g, 'x'), ...gridTargetsNear(moving, g, 'y'));
+      const o = this._gridOrigin();
+      targets.push(
+        ...gridTargetsNear(moving, g, 'x', o.x),
+        ...gridTargetsNear(moving, g, 'y', o.y),
+      );
     }
     return resolveSnap(moving, targets, thresholdDoc);
   }

@@ -41,6 +41,13 @@ describe('gridTargetsNear', () => {
     expect(gridTargetsNear(bbox(0, 0, 10, 10), -5, 'x')).toEqual([]);
     expect(gridTargetsNear(bbox(0, 0, 10, 10), Number.NaN, 'x')).toEqual([]);
   });
+
+  it('anchors the lattice at `origin` (page-anchored grid)', () => {
+    // Same rect/gridSize as the first test, but the page starts at x=5, so
+    // the lattice is 5 + k·10 — matching a grid drawn from the page origin.
+    const t = gridTargetsNear(bbox(15, 0, 25, 10), 10, 'x', 5);
+    expect(t.map((x) => x.value)).toEqual([5, 15, 25, 35, 45, 55]);
+  });
 });
 
 describe('resolveSnap', () => {
