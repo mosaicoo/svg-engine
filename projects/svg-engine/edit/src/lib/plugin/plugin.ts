@@ -85,6 +85,22 @@ export interface EditorPlugin {
   readonly name: string;
   readonly apiVersion: string;
   readonly dependencies?: readonly string[];
+  /**
+   * **Display metadata (optional, additive).** Consumed by the plugin
+   * manager UI ({@link PluginManifest}) — never by the engine itself.
+   * Omitting any of these is fine; the manager falls back to sensible
+   * defaults (`category` → `'other'`, no description/author/icon).
+   *
+   * - `description`: one-line human summary shown in the manager.
+   * - `author`: publisher / vendor string (e.g., `"Acme Corp"`).
+   * - `icon`: a Material icon name (coherent with tools/menus icons).
+   * - `category`: which {@link PluginCategory} this plugin contributes to,
+   *   used to group the manager list.
+   */
+  readonly description?: string;
+  readonly author?: string;
+  readonly icon?: string;
+  readonly category?: PluginCategory;
   install(ctx: PluginContext): void;
   uninstall?(ctx: PluginContext): void;
 }
@@ -97,4 +113,67 @@ export interface EditorPlugin {
 export interface InstalledPlugin {
   readonly plugin: EditorPlugin;
   readonly installedAt: number;
+}
+
+/**
+ * Coarse classification of what a plugin contributes, mirroring the
+ * D-023 capability-registry categories. Purely a **display/grouping**
+ * hint for the plugin manager — the engine never branches on it.
+ * `'other'` is the fallback for anything not declaring a category.
+ */
+export type PluginCategory =
+  | 'tool'
+  | 'library'
+  | 'io'
+  | 'optimizer'
+  | 'effect'
+  | 'menu'
+  | 'shortcut'
+  | 'renderer'
+  | 'palette'
+  | 'nlu'
+  | 'other';
+
+/**
+ * Where a plugin came from, from the manager's point of view:
+ * - `'internal'`: shipped/bundled and provided at build time (via
+ *   {@link provideSvgEnginePlugin}). Can be **disabled** but never
+ *   **uninstalled** (its code is in the bundle regardless).
+ * - `'external'`: third-party, brought in at runtime through the
+ *   manager. Can be both disabled and uninstalled. (Runtime loading of
+ *   external code is a later phase — the `'external'` source exists now
+ *   so the catalog/UI model is forward-compatible.)
+ */
+export type PluginSource = 'internal' | 'external';
+
+/**
+ * Flattened, display-ready view of a known plugin — what the plugin
+ * manager UI renders. Computed by `PluginManagerService` from three
+ * sources: the {@link PluginCatalog} entry (the plugin + its source),
+ * the live {@link PluginRegistry} (is it installed right now?), and
+ * the `PluginStateStore` (did the user disable it?).
+ *
+ * **`enabled` vs `installed`** — usually identical, but they diverge on
+ * failure: a plugin the user wants on (`enabled: true`) whose
+ * `install()` threw ends up `installed: false` with `error` set. The UI
+ * uses the pair to show an "enabled but errored" state instead of
+ * silently looking off.
+ */
+export interface PluginManifest {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly apiVersion: string;
+  readonly description?: string;
+  readonly author?: string;
+  readonly icon?: string;
+  readonly category: PluginCategory;
+  readonly dependencies: readonly string[];
+  readonly source: PluginSource;
+  /** User preference — `false` when the user has disabled the plugin. */
+  readonly enabled: boolean;
+  /** Whether the plugin is currently live in the {@link PluginRegistry}. */
+  readonly installed: boolean;
+  /** Last install error message, when an enabled plugin failed to install. */
+  readonly error: string | null;
 }

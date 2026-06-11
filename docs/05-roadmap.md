@@ -520,6 +520,28 @@ entry points `core`/`edit`/`ui` (sem novo `svg-engine/animate`).
 
 ---
 
+## Gerenciamento de plugins (D-083)
+
+Camada de **produto** sobre o motor de plugins (D-020). Decisão e raciocínio
+em **D-083** + [`docs/12-gerenciamento-de-plugins.md`](12-gerenciamento-de-plugins.md).
+Princípio: a library entrega **mecanismo, não política** (sem login/papéis; o
+consumer controla acesso).
+
+- [x] **Fase 1 — Plugin Manager (plugins bundlados)** (2026-06-11): metadata
+      aditiva em `EditorPlugin`; `PluginCatalog` + `PluginStateStore`
+      (persistência encapsulada) + `PluginManagerService` (enable/disable =
+      uninstall+lembrar; `PluginRegistry` intacto); `provideSvgEnginePlugin`
+      ciente do catálogo (pula install se desabilitado); `<svge-plugin-manager>`
+      (ui) + rota `/plugins` no playground; +28 specs.
+- [ ] **Fase 2 — Carregamento runtime de origem confiável**: `import()` de
+      ESM + manifesto + SRI + allowlist de origens **do consumer** (sem
+      marketplace público). Não iniciada.
+- [ ] **Fase 3 — Repositório online**: (3a) scripts **sandboxed** sobre o
+      `ScriptRuntimePlugin` (D-024 / Bloco 6e) — o canal aberto seguro; (3b)
+      marketplace curado de plugins compilados, só sob demanda. Não iniciada.
+
+---
+
 ## Princípios de evolução
 
 - Toda fase termina com **documentação atualizada** e build verde.

@@ -6,6 +6,66 @@
 
 ---
 
+## 2026-06-11 — Gerenciamento de plugins — Fase 1 (D-083) ✅
+
+Camada de **produto** sobre o motor de plugins existente — sem mexer no que
+funciona, só ajustando para o gerenciador. **Decisão-chave de público:** a
+library entrega **mecanismo, não política** — há _dev_ e _usuário_, mas sem
+login/papéis na lib; o consumer monta o `<svge-plugin-manager>` onde sua
+própria autorização permitir.
+
+**Entregue** (`projects/svg-engine/edit/src/lib/plugin/`):
+
+- `EditorPlugin` ganha metadata opcional aditiva (`description`/`author`/
+  `icon`/`category`) + tipos `PluginCategory`/`PluginSource`/`PluginManifest`.
+  `PLUGIN_API_VERSION` mantido em `1.0.0` (mudança não-quebrante).
+- **`PluginCatalog`** (universo conhecido, internos+externos), **`PluginStateStore`**
+  (persistência encapsulada do set desabilitado, localStorage app-wide,
+  defensiva) e **`PluginManagerService`** (façade: `plugins()`/`internalPlugins`/
+  `externalPlugins`, `enable`/`disable`/`uninstall`/`installExternal`, bloqueio
+  por dependentes ativos, estado de erro resiliente).
+- **`provideSvgEnginePlugin` ciente do catálogo**: registra como `'internal'` +
+  **pula `install()` se desabilitado** no boot. `PluginRegistry` permanece
+  **intacto** (enable/disable = uninstall+lembrar — Abordagem A; D-020 preservado).
+- **`<svge-plugin-manager>`** (`svg-engine/ui`): lista por tipo, toggle, uninstall
+  (external only), a11y. Playground: rota **`/plugins`** (showcase + plugin
+  externo demo).
+
+**Verificação**: build lib (edit+ui) + **2237 specs** (28 novos) + build do
+playground + lint, tudo verde; snapshot da API regenerado. Fases 2 (loader de
+origem confiável) e 3 (repositório de scripts sandboxed / marketplace curado)
+seguem planejadas. Detalhes:
+[D-083](04-decisoes-tecnicas.md#d-083--gerenciamento-e-distribuição-de-plugins) +
+[doc 12](12-gerenciamento-de-plugins.md).
+
+---
+
+## 2026-06-10 — Documento de decisão: Gerenciamento de plugins (D-083 PROPOSTA) 📋
+
+Investigação read-only do sistema de plugins (ancorada no código:
+`edit/lib/plugin/*`, D-020/D-023/D-024, guia 10) + novo documento de decisão
+[`12-gerenciamento-de-plugins.md`](12-gerenciamento-de-plugins.md) e a entrada
+[D-083](04-decisoes-tecnicas.md#d-083--gerenciamento-e-distribuição-de-plugins)
+(status **PROPOSTA**). **Nenhum código alterado** — entregável é o material
+para decidir _como_ gerenciar/instalar/desinstalar/ativar/desativar plugins e
+_se/como_ ter "repositório online".
+
+**Achados:** o motor de ciclo de vida runtime já existe e é sólido
+(`PluginRegistry.install/uninstall/has/get/list` + `installed` signal + gate
+`apiVersion` + deps + disposal LIFO/rollback); **faltam** ativar/desativar
+(só há install/uninstall), persistência, metadata de exibição, UI (nada
+consome `installed`) e distribuição.
+
+**Tese central:** existem **dois canais**. Plugins (D-020) = TS compilado
+_full-trust_ (`injector` cru) → distribuição por npm/build-time; runtime só de
+origem confiável do consumer (SRI). Scripts (D-024) = sandbox WebWorker → **é o
+canal correto para um repositório online aberto/comunitário**. Marketplace de
+plugins compilados = supply-chain risk, só como plataforma curada à parte.
+Recomendação faseada (Fase 1: Plugin Manager dos plugins já bundlados, sem
+superfície de segurança nova). 4 perguntas em aberto para fechar a decisão.
+
+---
+
 ## 2026-06-10 — Bug fix: snap de grid não correspondia à grade desenhada ✅
 
 Ao arrastar com SNAP em "grid"/"both", o shape não grudava na grade exibida.

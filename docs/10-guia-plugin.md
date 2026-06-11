@@ -410,6 +410,48 @@ A library exemplifica todos os padrões — verifique:
 
 ---
 
+## Gerência de plugins (D-083 — Fase 1)
+
+Plugins providos via `provideSvgEnginePlugin` agora são **gerenciáveis** em
+runtime: o `<svge-plugin-manager>` (`svg-engine/ui`) lista todos, agrupados
+por tipo (Internal/External), e permite **ativar/desativar** (a preferência
+persiste) + **desinstalar** (external only). Você não faz nada de especial —
+todo plugin provido entra no catálogo automaticamente.
+
+**Metadata de exibição (opcional, aditiva)** — declare para a UI ficar rica:
+
+```ts
+export const myPlugin: EditorPlugin = {
+  id: 'com.acme.my-plugin',
+  name: 'My plugin',
+  version: '1.0.0',
+  apiVersion: PLUGIN_API_VERSION,
+  description: 'O que ele faz, em uma linha.', // opcional
+  author: 'Acme Corp', // opcional
+  icon: 'extension', // opcional — Material icon name
+  category: 'tool', // opcional — agrupa na UI; default 'other'
+  install(ctx) {
+    /* ... */
+  },
+};
+```
+
+**Modelo de ativar/desativar** = _uninstall + lembrar_: desabilitar chama
+`PluginRegistry.uninstall` e grava a preferência; reabilitar re-instala. Um
+plugin desabilitado **nunca roda `install()`** (nem no boot). O
+`PluginRegistry` em si **não mudou** — quem orquestra é o
+`PluginManagerService` (`enable`/`disable`/`uninstall`/`installExternal`).
+Mantenha seu `install()` **idempotente e stateless** (já é a regra) para que
+o ciclo disable→enable seja limpo.
+
+**Acesso é do consumer**: a library entrega o mecanismo (serviço + UI), não
+política. Monte o `<svge-plugin-manager>` onde a autorização do seu app
+permitir. Detalhes + roadmap (Fases 2–3): [D-083](04-decisoes-tecnicas.md#d-083--gerenciamento-e-distribuição-de-plugins)
+
+- [doc 12](12-gerenciamento-de-plugins.md).
+
+---
+
 ## Referências
 
 - [D-020 — Plugin extensibility via TypeScript](04-decisoes-tecnicas.md#d-020--plugin-extensibility-via-typescript-d-020)

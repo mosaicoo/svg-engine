@@ -383,17 +383,31 @@ nó. Multi-seleção: pivot é transient e reseta na mudança de composição
 
 #### Plugin scaffolding (Bloco 5a — `./lib/plugin/`)
 
-| Símbolo                                    | Descrição                                                                                 |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `EditorPlugin` (interface)                 | `id`, `name`, `version`, `apiVersion`, `dependencies?`, `install(ctx)`, `uninstall?(ctx)` |
-| `PluginContext` (interface)                | `pluginId`, `injector: Injector`, `track<T>(d: T): T`                                     |
-| `Disposable` (interface)                   | `dispose(): void` — devolvido por todo `register()` de registry                           |
-| `InstalledPlugin` (interface)              | `plugin`, `installedAt` — snapshot lido via `PluginRegistry.list/get`                     |
-| `PLUGIN_API_VERSION` (constante)           | `'1.0.0'` no momento. Plugin throws se major não bater                                    |
-| `PluginRegistry` (`@Injectable({ root })`) | `install(plugin)`, `uninstall(id)`, `has(id)`, `get(id)`, `list()`, signal `installed`    |
-| `provideSvgEnginePlugin(plugin)`           | provider `ENVIRONMENT_INITIALIZER multi:true` — install no boot                           |
+| Símbolo                                    | Descrição                                                                                                                                                              |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EditorPlugin` (interface)                 | `id`, `name`, `version`, `apiVersion`, `dependencies?`, `install(ctx)`, `uninstall?(ctx)` + metadata opcional (D-083): `description?`, `author?`, `icon?`, `category?` |
+| `PluginContext` (interface)                | `pluginId`, `injector: Injector`, `track<T>(d: T): T`                                                                                                                  |
+| `Disposable` (interface)                   | `dispose(): void` — devolvido por todo `register()` de registry                                                                                                        |
+| `InstalledPlugin` (interface)              | `plugin`, `installedAt` — snapshot lido via `PluginRegistry.list/get`                                                                                                  |
+| `PLUGIN_API_VERSION` (constante)           | `'1.0.0'` no momento. Plugin throws se major não bater                                                                                                                 |
+| `PluginRegistry` (`@Injectable({ root })`) | `install(plugin)`, `uninstall(id)`, `has(id)`, `get(id)`, `list()`, signal `installed`                                                                                 |
+| `provideSvgEnginePlugin(plugin)`           | provider `ENVIRONMENT_INITIALIZER multi:true` — registra no catálogo + install no boot (pula se desabilitado)                                                          |
 
 Ver [`docs/10-guia-plugin.md`](10-guia-plugin.md) para receitas práticas.
+
+#### Gerência de plugins (D-083 Fase 1 — `./lib/plugin/`)
+
+| Símbolo                                          | Descrição                                                                                                                                                  |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PluginCategory` / `PluginSource` (type)         | `'tool'\|'library'\|…\|'other'` / `'internal'\|'external'`                                                                                                 |
+| `PluginManifest` (interface)                     | View de exibição: id/name/version/apiVersion/description?/author?/icon?/category/dependencies/source/`enabled`/`installed`/`error`                         |
+| `CatalogEntry` (interface)                       | `plugin`, `source` — entrada do catálogo                                                                                                                   |
+| `PluginCatalog` (`@Injectable({ root })`)        | universo de plugins conhecidos: `register(p, source)`, `unregister(id)`, `has/get`, signal `entries`                                                       |
+| `PluginStateStore` (`@Injectable({ root })`)     | persistência encapsulada (localStorage) do set desabilitado: `isDisabled`, `setDisabled`, `disabled` signal                                                |
+| `PluginManagerService` (`@Injectable({ root })`) | façade: `plugins`/`internalPlugins`/`externalPlugins` (manifests), `enable`/`disable`/`uninstall`/`installExternal`, `canUninstall`, `enabledDependentsOf` |
+| `PluginActionResult` (interface)                 | `{ ok, error? }` — retorno de enable/disable/uninstall                                                                                                     |
+
+UI: `<svge-plugin-manager>` em `svg-engine/ui` (lista por tipo + toggle + uninstall).
 
 #### Input helpers (`./lib/pointer/`) — D-036
 

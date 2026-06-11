@@ -39,6 +39,11 @@ export * from './lib/layers-panel';
 // (edit) — both already scoped via provideSvgEngineEditorScope().
 export * from './lib/snapshots-panel';
 
+// Plugin manager panel (D-083 Fase 1) — list/enable/disable/uninstall
+// plugins grouped by type (internal/external). Reads PluginManagerService
+// (edit, root-provided). Mechanism only — access policy is the consumer's.
+export * from './lib/plugin-manager';
+
 // Property inspector (Bloco 4c)
 export * from './lib/inspector';
 

@@ -62,6 +62,10 @@ export const routes: Routes = [
     path: 'nlu-test',
     loadComponent: () => import('./pages/nlu-test/nlu-test.component').then((m) => m.NluTest),
   },
+  {
+    path: 'plugins',
+    loadComponent: () => import('./pages/plugins/plugins.component').then((m) => m.PluginsPage),
+  },
 
   // ── Redirects de URLs antigas (D-041 rename) ───────────────────
   // Mantidos para preservar bookmarks/screenshots/links externos.

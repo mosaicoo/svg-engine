@@ -2430,3 +2430,89 @@ sampleAnimation(anim, playhead))`. **Única fiação cross-cutting**, atrás
 - 1 fiação cross-cutting no shell (`animatedTree` + dock inferior) —
   pequena e atrás de flag, mas é a parte que **não** é "puro plugin"
   (não há registry genérico de dock/painel hoje).
+
+---
+
+## D-083 — Gerenciamento e distribuição de plugins
+
+- **Data**: 2026-06-10 (proposta); 2026-06-11 (decidida + Fase 1 implementada)
+- **Status**: **Aceita — Fase 1 implementada.** Material de decisão completo
+  em [`12-gerenciamento-de-plugins.md`](12-gerenciamento-de-plugins.md). Fases
+  2 (carregamento runtime de origem confiável) e 3 (repositório online —
+  scripts sandboxed / marketplace curado) seguem **planejadas, não iniciadas**.
+- **Contexto**: O motor de plugins (D-020/D-023) já tem ciclo de vida runtime
+  completo (`PluginRegistry.install/uninstall/has/get/list` + `installed`
+  signal + gate de `apiVersion` + checagem de `dependencies` + disposal LIFO
+  com rollback). Falta a **camada de produto**: ativar/desativar como conceito
+  (hoje só há install/uninstall), persistência do estado, metadata de
+  exibição, **UI de gerência** (nenhum componente consome `installed`), e um
+  modelo de **distribuição** ("repositório online?"). O usuário pediu o
+  material para decidir.
+
+### Achados-chave (resumo; detalhe no doc 12)
+
+1. **Dois canais distintos, não um.** **Plugins (D-020)** = TypeScript
+   compilado com `ctx.injector` cru → rodam **full-trust** (privilégio do
+   host); não sandboxáveis como estão. **Scripts (D-024)** = código do
+   usuário final em **WebWorker sandboxed** com API curada. O "repositório
+   online aberto onde qualquer um instala" pertence ao canal de **scripts**
+   (seguro por construção), **não** ao de plugins compilados.
+2. **Ativar/desativar** recomendado como **uninstall + lembrar** (persistir o
+   set de ids desativados; reativar = re-`install`) — **zero mudança no motor**
+   D-020/D-023, reusa o disposal já provado. Alternativa (flag `enabled` no
+   registry) vaza o conceito para todas as 10+ capability registries; rejeitada.
+3. **Distribuição**: default permanece **npm + build-time**
+   (`provideSvgEnginePlugin`). Evolução opcional: `import()` dinâmico de
+   **origem confiável configurada pelo consumer** + SRI + gate de `apiVersion`.
+   **Marketplace público de plugins compilados é supply-chain risk** — só como
+   produto-plataforma à parte, com identidade de publisher + assinatura +
+   curadoria.
+4. **Roadmap faseado**: Fase 1 (Plugin Manager dos plugins já bundlados —
+   metadata aditiva + catálogo + ativar/desativar persistido + UI
+   `<svge-plugin-manager>`; alto valor, **sem superfície de segurança nova**);
+   Fase 2 (`import()` de origem confiável, gated); Fase 3 (3a: repositório de
+   **scripts** sandboxed sobre D-024 — o canal aberto seguro; 3b: marketplace
+   de plugins curado, só sob demanda real).
+
+### Decisões tomadas (2026-06-11)
+
+1. **Público = mecanismo, não papéis.** Há **dev** (nós/terceiros que
+   embarcam a lib e criam plugins internos) e **usuário** (opera a aplicação
+   final), mas a library **não modela papéis nem login** — ela entrega o
+   **mecanismo** (`PluginManagerService` + `<svge-plugin-manager>`); **o
+   controle de acesso é do consumer** (monta o manager onde sua própria
+   autorização permitir). Coerente com headless (D-017) e D-041.
+2. **Começar pela Fase 1** (gerenciar os plugins já bundlados). ✅
+3. **Enable/disable = uninstall + lembrar** (Abordagem A): o
+   `PluginManagerService` orquestra `install`/`uninstall` no `PluginRegistry`
+   conforme o `PluginStateStore`; **o `PluginRegistry` permanece intacto**
+   (sem estado enabled/disabled — zero breaking change, D-020 preservado).
+4. **`permissions` é metadado informativo, não enforced** para plugins
+   compilados (full-trust). Permissão real só no canal de scripts (D-024).
+5. **Repositório online aberto** pertence ao canal de **scripts sandboxed**
+   (Fase 3a / D-024); marketplace de plugins compilados (3b) fica adiado.
+
+### Fase 1 — entregue (2026-06-11)
+
+Camada de produto sobre o motor existente (`edit/lib/plugin/`):
+
+- **Metadata de exibição** opcional e aditiva em `EditorPlugin`
+  (`description`/`author`/`icon`/`category`) + tipos `PluginCategory`,
+  `PluginSource`, `PluginManifest` (no máximo minor bump — `1.0.0` mantido).
+- **`PluginCatalog`** (root): universo de plugins conhecidos (instalados ou
+  não), com `source: 'internal' | 'external'`.
+- **`PluginStateStore`** (root): persistência **encapsulada** (localStorage,
+  app-wide, defensiva) do conjunto de ids desabilitados.
+- **`PluginManagerService`** (root): façade reativa — `plugins()` (manifests),
+  `internalPlugins`/`externalPlugins`, `enable`/`disable`/`uninstall`
+  (bloqueia desabilitar quando há dependentes ativos), `installExternal`,
+  `enabledDependentsOf`. Resiliente em runtime (erro de install vira estado de
+  manifest, não crash; boot continua fail-fast por D-020).
+- **`provideSvgEnginePlugin` ciente do catálogo**: todo plugin provido se
+  registra como `'internal'` e **pula `install()` se desabilitado** no boot
+  ("desabilitado nunca roda install()"). Sem reescrever os ~24 builtins.
+- **`<svge-plugin-manager>`** (`svg-engine/ui`): lista por tipo (Internal /
+  External), toggle enable/disable, uninstall (external only), estados de erro
+  - a11y. Mostrado no playground em `/plugins` (showcase + plugin externo demo).
+- **+28 specs** (state-store/catalog/manager/UI) — suíte 2237 verde; snapshot
+  da superfície pública regenerado.
