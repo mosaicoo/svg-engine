@@ -82,6 +82,27 @@ para **terceiros** (fora do monorepo) o engine **terá** que ser um pacote npm p
 (`@mosaicoo/svg-engine`) com `requiredVersion`/semver no `shared`. Isso reforça o **Pilar 1
 (contrato + versão estáveis)** como pré-requisito.
 
+## 🟡 Progresso — pacotização do svg-engine (2ª rodada)
+
+Atacando o veredito (engine precisa ser pacote): `svg-engine` adicionado como
+dependência **`file:dist/svg-engine`** + **`paths: {}`** nos `tsconfig.app` do
+**svg-studio** e do **stamp-plugin** (resolvem o engine via node_modules em vez do
+path-mapping `dist/`). `tsconfig` raiz, lib e playground **intactos**.
+
+**Resultado (headless):**
+
+- ✅ Host (svg-studio) **builda** e o `svg-engine` agora entra no `importmap.json`
+  como pacote compartilhado (`"svg-engine": "svg_engine.js"`) — **antes não entrava**.
+  Isso deve fazer o svg-studio **voltar a abrir** sob federation (re-testar no browser).
+- 🟡 **Pendente:** os **entry-points secundários** (`svg-engine/edit`, `svg-engine/core`)
+  ainda não aparecem compartilhados no **remote** (o `plugin.js` dev segue 848 KB e o
+  `svg-engine` não aparece no `shared` do `remoteEntry.json`). Falta acertar o sharing
+  de secundários (provável `includeSecondaries` no `shareAll`) — necessário para a
+  cópia ÚNICA host↔remote (DI do STAMP). Exige re-verificação no browser.
+
+**Próximo:** (1) re-serve do svg-studio → confirmar que abre; (2) tunar sharing de
+secundários no remote; (3) fiar `loadRemoteModule` + verificar o STAMP carimbando.
+
 ## Como retomar
 
 ```powershell

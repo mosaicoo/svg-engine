@@ -4,7 +4,11 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "../../out-tsc/app",
-    "types": []
+    "types": [],
+    // Fase 3 (Native Federation): {} sobrescreve os paths svg-engine->dist do raiz
+    // para resolver via node_modules (file:dist/svg-engine) e o federation
+    // compartilhar o engine como PACOTE (import map correto).
+    "paths": {}
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.spec.ts"]

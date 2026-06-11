@@ -41,6 +41,7 @@
     "es-module-shims": "^1.5.12",
     "polygon-clipping": "^0.15.7",
     "rxjs": "~7.8.0",
+    "svg-engine": "file:dist/svg-engine",
     "tslib": "^2.3.0"
   },
   "devDependencies": {
