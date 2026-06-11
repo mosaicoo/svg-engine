@@ -137,6 +137,40 @@
       "prefix": "studio",
       "architect": {
         "build": {
+          "builder": "@angular-architects/native-federation:build",
+          "options": {},
+          "configurations": {
+            "production": {
+              "target": "svg-studio:esbuild:production"
+            },
+            "development": {
+              "target": "svg-studio:esbuild:development",
+              "dev": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular-architects/native-federation:build",
+          "options": {
+            "target": "svg-studio:serve-original:development",
+            "rebuildDelay": 500,
+            "dev": true,
+            "cacheExternalArtifacts": false,
+            "port": 0
+          }
+        },
+        "test": {
+          "builder": "@angular/build:unit-test"
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": ["projects/svg-studio/**/*.ts", "projects/svg-studio/**/*.html"],
+            "eslintConfig": "projects/svg-studio/eslint.config.js"
+          }
+        },
+        "esbuild": {
           "builder": "@angular/build:application",
           "options": {
             "browser": "projects/svg-studio/src/main.ts",
@@ -149,7 +183,8 @@
               }
             ],
             "styles": ["projects/svg-studio/src/styles.scss"],
-            "allowedCommonJsDependencies": ["polygon-clipping"]
+            "allowedCommonJsDependencies": ["polygon-clipping"],
+            "polyfills": ["es-module-shims"]
           },
           "configurations": {
             "production": {
@@ -175,26 +210,19 @@
           },
           "defaultConfiguration": "production"
         },
-        "serve": {
+        "serve-original": {
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "svg-studio:build:production"
+              "buildTarget": "svg-studio:esbuild:production"
             },
             "development": {
-              "buildTarget": "svg-studio:build:development"
+              "buildTarget": "svg-studio:esbuild:development"
             }
           },
-          "defaultConfiguration": "development"
-        },
-        "test": {
-          "builder": "@angular/build:unit-test"
-        },
-        "lint": {
-          "builder": "@angular-eslint/builder:lint",
+          "defaultConfiguration": "development",
           "options": {
-            "lintFilePatterns": ["projects/svg-studio/**/*.ts", "projects/svg-studio/**/*.html"],
-            "eslintConfig": "projects/svg-studio/eslint.config.js"
+            "port": 4200
           }
         }
       }
