@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-06-11 — Plugins: acesso via menu/diálogo (D-083 Fase 1 follow-up) ✅
+
+Para tornar o gerenciador acessível no **svg-studio** (e no pro-editor do
+playground) sem rota dedicada: `<svge-plugin-manager-dialog>` (wrapper Material
+do painel via `<svge-dialog-shell>`) + `SvgePluginManagerDialogService.open()`,
+e item de menu **File ▸ Manage Plugins…** registrado no
+`builtinUiMenuContributionsPlugin`. Entra automaticamente em qualquer app que
+use `provideSvgeUiBuiltins()` — nenhuma mudança nos `app.config` foi necessária.
++1 spec (dialog service); suíte **2238** verde; build do svg-studio + dist
+regenerados; snapshot da API atualizado (2 exports novos no `svg-engine/ui`).
+
+---
+
 ## 2026-06-11 — Gerenciamento de plugins — Fase 1 (D-083) ✅
 
 Camada de **produto** sobre o motor de plugins existente — sem mexer no que

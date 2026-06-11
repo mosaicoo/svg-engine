@@ -756,6 +756,8 @@
     "SvgePencilToolOptions",
     "SvgePenToolOptions",
     "SvgePluginManager",
+    "SvgePluginManagerDialog",
+    "SvgePluginManagerDialogService",
     "SvgePolygonOptions",
     "SvgeRectangleOptions",
     "SvgeRulers",

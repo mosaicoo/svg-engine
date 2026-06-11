@@ -2513,6 +2513,11 @@ Camada de produto sobre o motor existente (`edit/lib/plugin/`):
   ("desabilitado nunca roda install()"). Sem reescrever os ~24 builtins.
 - **`<svge-plugin-manager>`** (`svg-engine/ui`): lista por tipo (Internal /
   External), toggle enable/disable, uninstall (external only), estados de erro
-  - a11y. Mostrado no playground em `/plugins` (showcase + plugin externo demo).
-- **+28 specs** (state-store/catalog/manager/UI) — suíte 2237 verde; snapshot
-  da superfície pública regenerado.
+  e a11y. Mostrado no playground em `/plugins` (showcase + plugin externo demo).
+- **Acesso via menu (svg-studio + shell-pro)**: `<svge-plugin-manager-dialog>`
+  (wrapper Material do painel) + `SvgePluginManagerDialogService`; item **File ▸
+  Manage Plugins…** no `builtinUiMenuContributionsPlugin` — entra automaticamente
+  em qualquer app que use `provideSvgeUiBuiltins()` (incl. svg-studio e o
+  pro-editor do playground).
+- **+29 specs** (state-store/catalog/manager/UI + dialog service) — suíte 2238
+  verde; snapshot da superfície pública regenerado.

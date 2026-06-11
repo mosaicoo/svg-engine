@@ -407,7 +407,10 @@ Ver [`docs/10-guia-plugin.md`](10-guia-plugin.md) para receitas práticas.
 | `PluginManagerService` (`@Injectable({ root })`) | façade: `plugins`/`internalPlugins`/`externalPlugins` (manifests), `enable`/`disable`/`uninstall`/`installExternal`, `canUninstall`, `enabledDependentsOf` |
 | `PluginActionResult` (interface)                 | `{ ok, error? }` — retorno de enable/disable/uninstall                                                                                                     |
 
-UI: `<svge-plugin-manager>` em `svg-engine/ui` (lista por tipo + toggle + uninstall).
+UI (`svg-engine/ui`): `<svge-plugin-manager>` (painel — lista por tipo + toggle +
+uninstall); `SvgePluginManagerDialog` + `SvgePluginManagerDialogService` (wrapper
+Material aberto pelo item **File ▸ Manage Plugins…** do
+`builtinUiMenuContributionsPlugin`).
 
 #### Input helpers (`./lib/pointer/`) — D-036
 

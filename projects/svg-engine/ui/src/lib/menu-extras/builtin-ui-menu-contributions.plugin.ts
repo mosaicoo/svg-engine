@@ -24,6 +24,7 @@ import {
 
 import { SvgeAboutDialogService } from '../about-dialog';
 import { SvgeFindReplaceDialogService } from '../find-replace-dialog';
+import { SvgePluginManagerDialogService } from '../plugin-manager-dialog';
 import { SvgeSmartObjectEditorDialogService } from '../smart-object-dialog';
 import { SvgeSvgSourceDialogService } from '../svg-source-dialog';
 import { SvgeTraceImageDialogService, type TraceImageDialogResult } from '../trace-image-dialog';
@@ -133,6 +134,33 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
           // scope-aware injector wiring live in one place so every
           // call site stays aligned automatically.
           const service = fromCtx(SvgeWorkspaceSettingsDialogService, runCtx);
+          service.open(runCtx?.injector ?? ctx.injector);
+        },
+      }),
+    );
+
+    // ── File ▸ Manage Plugins… (D-083 Fase 1) ────────────────────
+    //
+    // Opens <svge-plugin-manager-dialog> — the Material dialog wrapper
+    // around <svge-plugin-manager>. Lives here (not edit-side) because it
+    // needs MatDialog (D-017). Grouped with Workspace Settings at the
+    // bottom of File: both are global, cross-cutting app concerns rather
+    // than document-scoped actions. Order 95 sits just after Workspace
+    // Settings (90). Always enabled — managing plugins never depends on
+    // selection or document state.
+    //
+    // **Mechanism, not policy** (D-083): this just surfaces the manager.
+    // A consumer that wants to restrict who sees it omits this plugin (or
+    // overrides the entry) and mounts the manager behind its own auth.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.ui.file.manage-plugins',
+        slot: MENU_SLOT.FILE,
+        label: 'Manage Plugins…',
+        icon: 'extension',
+        order: 95,
+        run(runCtx) {
+          const service = fromCtx(SvgePluginManagerDialogService, runCtx);
           service.open(runCtx?.injector ?? ctx.injector);
         },
       }),

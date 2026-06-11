@@ -44,6 +44,11 @@ export * from './lib/snapshots-panel';
 // (edit, root-provided). Mechanism only — access policy is the consumer's.
 export * from './lib/plugin-manager';
 
+// Plugin manager dialog (D-083 Fase 1) — Material dialog wrapper around
+// <svge-plugin-manager>, opened from the File ▸ Manage Plugins… menu item
+// (builtinUiMenuContributionsPlugin). Service mirrors the other dialog openers.
+export * from './lib/plugin-manager-dialog';
+
 // Property inspector (Bloco 4c)
 export * from './lib/inspector';
 
