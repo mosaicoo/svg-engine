@@ -103,6 +103,42 @@ path-mapping `dist/`). `tsconfig` raiz, lib e playground **intactos**.
 **Próximo:** (1) re-serve do svg-studio → confirmar que abre; (2) tunar sharing de
 secundários no remote; (3) fiar `loadRemoteModule` + verificar o STAMP carimbando.
 
+## 🔚 Conclusão executiva + recomendação (mudança de rota)
+
+Tentei fechar o sharing dos **secundários** por 4 caminhos — todos esbarraram em
+fricções estruturais do Native Federation com ESTE projeto:
+
+1. `shareAll` default → compartilha só o `svg-engine` **primário**.
+2. Pacotizar (`file:dist/svg-engine`) + `paths:{}` nos apps → primário entra no
+   import map, mas os secundários (`svg-engine/edit`/`core`) **não**.
+3. `share()` explícito dos secundários → **`ignoreUnusedDeps:true` os descarta**
+   (não detecta uso via `file:` link).
+4. `ignoreUnusedDeps:false` → o build **quebra** ao processar a stack ML nativa
+   (`@huggingface/transformers` → `onnxruntime-node`, arquivos `.node`). Essa
+   feature existe justamente p/ evitar isso.
+
+**Veredito:** NF é viável como mecanismo, mas com **custo de integração alto e
+incerto** dada a arquitetura do `svg-engine` (9 entry-points secundários) somada
+às deps nativas de ML. Fechar exigiria brigar com várias heurísticas do NF.
+
+**Recomendação — adotar o contrato host-API (factory)** para plugins compilados,
+em vez de Native Federation:
+
+- O plugin **não importa `svg-engine`** — recebe uma fachada `host` curada do
+  Studio. **Zero** problema de shared-package / DI / secundários / ML.
+- **Reaproveita o `PluginLoader` da Fase 2** (já provado ponta a ponta com o
+  `mosaicoo-hello`): o `moduleLoader` chama `mod.default(hostApi)` e entrega o
+  `EditorPlugin` ao gerenciador.
+- Custo: desenhar/manter a fachada `SvgeHostApi` — que **vira o contrato estável
+  do Pilar 1** (benefício, não custo extra).
+
+**Próximo passo proposto:** PoC do host-API factory — estender `PluginModuleLoader`
+p/ aceitar `default` como `(host) => EditorPlugin`, expor um `SvgeHostApi` mínimo
+(tools + commands), reescrever o STAMP contra ele, carregado pelo loader da Fase 2.
+
+> O trabalho de NF fica **preservado nesta branch** para referência; **não foi
+> mergeado** no `main`.
+
 ## Como retomar
 
 ```powershell
