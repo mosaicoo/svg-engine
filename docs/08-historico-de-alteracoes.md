@@ -6,6 +6,34 @@
 
 ---
 
+## 2026-06-11 — Plugins Fase 2: loader de externos de origem confiável (D-083) ✅
+
+Carregamento **runtime** de plugin de terceiro, **seguro por design** (fail-closed
+em cada etapa). Tudo headless em `svg-engine/edit` (`edit/lib/plugin/`):
+
+- **`ExternalPluginManifest`** + `validateExternalPluginManifest()` — contrato
+  do manifesto (id/name/version/apiVersion/`entry`/`integrity?`/deps + metadata)
+  validado como **input não-confiável** (puro, testável).
+- **`PluginLoader`** (`root`): `load(manifest)` encadeia guardas baratas antes de
+  buscar código — valida manifesto → **gate de `apiVersion`** (major) → **allowlist
+  de origens** do consumer → módulo carregado → shape-check do `default` export
+  (id/apiVersion batem) → `installExternal`. **Nunca lança** (retorna
+  `PluginActionResult`). `isEnabled`/`isOriginTrusted` para a UI consultar.
+- **`providePluginLoader({ trustedOrigins, moduleLoader })`** — opt-in: o consumer
+  fornece as origens confiáveis **e** o `moduleLoader` (onde o `import()` real + SRI
+  vivem). A **library não embute `import()` de URL arbitrária** — sem isso o loader
+  recusa tudo. **Não é marketplace aberto**: não há "cole URL e rode" para usuário final.
+- **+18 specs** (manifest validator + loader: sucesso, origem não-permitida, mismatch
+  de apiVersion antes do fetch, manifesto inválido, id divergente, loader que lança,
+  fail-closed). Suíte **2259** verde; build lib + dist OK; snapshot da API atualizado.
+
+Detalhes: [D-083](04-decisoes-tecnicas.md#d-083--gerenciamento-e-distribuição-de-plugins)
+
+- [doc 12](12-gerenciamento-de-plugins.md). Falta a Fase 3 (repositório online —
+  scripts sandboxed D-024 / marketplace curado).
+
+---
+
 ## 2026-06-11 — Plugins: metadata de exibição dos builtins (D-083 Fase 1 follow-up) ✅
 
 Os ~29 plugins builtin agora aparecem no gerenciador **bonitos** — com

@@ -414,6 +414,18 @@ uninstall); `SvgePluginManagerDialog` + `SvgePluginManagerDialogService` (wrappe
 Material aberto pelo item **File ▸ Manage Plugins…** do
 `builtinUiMenuContributionsPlugin`).
 
+#### Carregamento de externos (D-083 Fase 2 — `./lib/plugin/`)
+
+| Símbolo                                                     | Descrição                                                                                                                                        |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ExternalPluginManifest` (interface)                        | id/name/version/apiVersion/`entry`/`integrity?`/dependencies? + metadata de exibição                                                             |
+| `validateExternalPluginManifest(input)`                     | valida input não-confiável → `string` (erro) ou `null` (válido)                                                                                  |
+| `PluginLoader` (`@Injectable({ root })`)                    | `load(manifest)`: valida → apiVersion gate → allowlist de origem → módulo → shape-check → `installExternal`; `isEnabled`, `isOriginTrusted(url)` |
+| `PluginModuleLoader` (type)                                 | `(manifest) => Promise<unknown>` — fornecido pelo consumer (onde vive o `import()` + SRI)                                                        |
+| `SVGE_PLUGIN_TRUSTED_ORIGINS` / `SVGE_PLUGIN_MODULE_LOADER` | tokens (default `[]` / `null` — **fail-closed**)                                                                                                 |
+| `providePluginLoader({ trustedOrigins, moduleLoader })`     | opt-in do carregamento runtime (configura allowlist + loader)                                                                                    |
+| `PluginLoaderConfig` (interface)                            | shape da config de `providePluginLoader`                                                                                                         |
+
 #### Input helpers (`./lib/pointer/`) — D-036
 
 > Consolidados em 2026-05-20 para eliminar 7+ duplicatas inline. Funções puras importáveis por plugins de tools/overlays.

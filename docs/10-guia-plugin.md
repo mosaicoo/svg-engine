@@ -461,9 +461,38 @@ o ciclo disable→enable seja limpo.
 
 **Acesso é do consumer**: a library entrega o mecanismo (serviço + UI), não
 política. Monte o `<svge-plugin-manager>` onde a autorização do seu app
-permitir. Detalhes + roadmap (Fases 2–3): [D-083](04-decisoes-tecnicas.md#d-083--gerenciamento-e-distribuição-de-plugins)
+permitir. Detalhes + roadmap: [D-083](04-decisoes-tecnicas.md#d-083--gerenciamento-e-distribuição-de-plugins)
 
 - [doc 12](12-gerenciamento-de-plugins.md).
+
+### Carregar um plugin externo em runtime (Fase 2)
+
+Carregamento de plugin de terceiro é **opt-in e fail-closed**: você configura
+as origens confiáveis **e** fornece o `moduleLoader` (onde mora o `import()` —
+a library não embute "carregar URL arbitrária"). No `app.config`:
+
+```ts
+import { providePluginLoader } from 'svg-engine/edit';
+
+providePluginLoader({
+  trustedOrigins: ['https://plugins.my-cdn.com'], // só estas origens
+  moduleLoader: (m) => import(/* @vite-ignore */ m.entry), // + SRI opcional
+});
+```
+
+Depois, com um manifesto (`ExternalPluginManifest`) vindo do seu registry:
+
+```ts
+const res = await inject(PluginLoader).load(manifest);
+// res.ok === false se: manifesto inválido, apiVersion incompatível,
+// origem fora da allowlist, ou o default export não for um EditorPlugin.
+```
+
+O `PluginLoader` valida o manifesto, checa `apiVersion` e a origem **antes** de
+chamar seu `moduleLoader`, e instala o plugin como `'external'` (gerenciável no
+manager). Para SRI, faça `fetch` + verificação do `m.integrity` dentro do
+`moduleLoader` antes de importar. **Não há marketplace aberto** — isso é
+infraestrutura para o consumer, não um "cole URL e rode" para o usuário final.
 
 ---
 

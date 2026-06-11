@@ -307,10 +307,12 @@ a seguinte:
     **Resolveu exatamente o que foi pedido** (gerenciar/instalar/desinstalar/
     ativar/desativar) para o set de plugins que o editor já carrega. **Nenhuma
     superfície de segurança nova.**
-- **Fase 2 — `import()` dinâmico de origem confiável (médio, gated).**
-  `PluginLoader` + manifesto + SRI + allowlist de origens **configurada
-  pelo consumer**. Permite catálogo dinâmico sem rebuild, mantendo a
-  confiança no consumer. Sem marketplace público.
+- **Fase 2 — carregamento runtime de origem confiável. ✅ IMPLEMENTADA
+  (2026-06-11).** `ExternalPluginManifest` + validator; `PluginLoader`
+  fail-closed (allowlist de origens **do consumer** + gate de `apiVersion` +
+  shape-check) → `installExternal`; `providePluginLoader({ trustedOrigins,
+moduleLoader })` opt-in — o `import()` real + SRI vivem no `moduleLoader` do
+  consumer (a lib não embute "carregar URL arbitrária"). Sem marketplace público.
 - **Fase 3 — Canais de distribuição "online" (o real "repositório").**
   Dois sub-tracks, independentes:
   - **3a. Script repository (sandboxed, comunitário)** — implementar D-024

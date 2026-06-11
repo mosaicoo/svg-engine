@@ -533,9 +533,12 @@ consumer controla acesso).
       uninstall+lembrar; `PluginRegistry` intacto); `provideSvgEnginePlugin`
       ciente do catálogo (pula install se desabilitado); `<svge-plugin-manager>`
       (ui) + rota `/plugins` no playground; +28 specs.
-- [ ] **Fase 2 — Carregamento runtime de origem confiável**: `import()` de
-      ESM + manifesto + SRI + allowlist de origens **do consumer** (sem
-      marketplace público). Não iniciada.
+- [x] **Fase 2 — Carregamento runtime de origem confiável** (2026-06-11):
+      `ExternalPluginManifest` + validator; `PluginLoader` fail-closed
+      (allowlist de origens + gate de apiVersion + shape-check) →
+      `installExternal`; `providePluginLoader({ trustedOrigins, moduleLoader })`
+      opt-in (o `import()` real + SRI ficam no `moduleLoader` do consumer —
+      a lib não embute "carregar URL arbitrária"). +18 specs. Sem marketplace.
 - [ ] **Fase 3 — Repositório online**: (3a) scripts **sandboxed** sobre o
       `ScriptRuntimePlugin` (D-024 / Bloco 6e) — o canal aberto seguro; (3b)
       marketplace curado de plugins compilados, só sob demanda. Não iniciada.

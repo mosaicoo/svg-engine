@@ -18,3 +18,18 @@ export { provideSvgEnginePlugin } from './provide-plugin';
 export { type CatalogEntry, PluginCatalog } from './plugin-catalog.service';
 export { PluginStateStore } from './plugin-state-store.service';
 export { type PluginActionResult, PluginManagerService } from './plugin-manager.service';
+// Fase 2 — runtime loading of external (third-party) plugins from
+// consumer-trusted origins (D-083): manifest contract + validator, the
+// fail-closed PluginLoader (allowlist + apiVersion gate), and the opt-in
+// providePluginLoader (the consumer supplies origins + the module loader).
+export {
+  type ExternalPluginManifest,
+  validateExternalPluginManifest,
+} from './external-plugin-manifest';
+export {
+  PluginLoader,
+  type PluginModuleLoader,
+  SVGE_PLUGIN_MODULE_LOADER,
+  SVGE_PLUGIN_TRUSTED_ORIGINS,
+} from './plugin-loader.service';
+export { type PluginLoaderConfig, providePluginLoader } from './provide-plugin-loader';

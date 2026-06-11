@@ -2435,11 +2435,11 @@ sampleAnimation(anim, playhead))`. **Única fiação cross-cutting**, atrás
 
 ## D-083 — Gerenciamento e distribuição de plugins
 
-- **Data**: 2026-06-10 (proposta); 2026-06-11 (decidida + Fase 1 implementada)
-- **Status**: **Aceita — Fase 1 implementada.** Material de decisão completo
-  em [`12-gerenciamento-de-plugins.md`](12-gerenciamento-de-plugins.md). Fases
-  2 (carregamento runtime de origem confiável) e 3 (repositório online —
-  scripts sandboxed / marketplace curado) seguem **planejadas, não iniciadas**.
+- **Data**: 2026-06-10 (proposta); 2026-06-11 (decidida + Fases 1 e 2 implementadas)
+- **Status**: **Aceita — Fases 1 e 2 implementadas.** Material de decisão completo
+  em [`12-gerenciamento-de-plugins.md`](12-gerenciamento-de-plugins.md). Fase 3
+  (repositório online — scripts sandboxed / marketplace curado) segue
+  **planejada, não iniciada**.
 - **Contexto**: O motor de plugins (D-020/D-023) já tem ciclo de vida runtime
   completo (`PluginRegistry.install/uninstall/has/get/list` + `installed`
   signal + gate de `apiVersion` + checagem de `dependencies` + disposal LIFO
@@ -2525,3 +2525,28 @@ Camada de produto sobre o motor existente (`edit/lib/plugin/`):
   pro-editor do playground).
 - **+29 specs** (state-store/catalog/manager/UI + dialog service) — suíte 2238
   verde; snapshot da superfície pública regenerado.
+
+### Fase 2 — entregue (2026-06-11)
+
+Carregamento **runtime** de plugin externo de **origem confiável do consumer**,
+**fail-closed por design** (headless, `edit/lib/plugin/`):
+
+- **`ExternalPluginManifest`** + `validateExternalPluginManifest()` — contrato do
+  manifesto (id/name/version/apiVersion/`entry`/`integrity?`/deps + metadata),
+  validado como input não-confiável (puro).
+- **`PluginLoader`** (`root`): `load(manifest)` com guardas baratas antes de buscar
+  código — valida manifesto → **gate de `apiVersion`** (major) → **allowlist de
+  origens** → carrega módulo → shape-check do `default` export (id/apiVersion) →
+  `installExternal`. Nunca lança (`PluginActionResult`). `isEnabled`/`isOriginTrusted`.
+- **`providePluginLoader({ trustedOrigins, moduleLoader })`** — **opt-in**: o consumer
+  fornece as origens **e** o `moduleLoader` (onde o `import()` real + SRI vivem). A
+  library **não embute `import()` de URL arbitrária**; sem config, recusa tudo.
+  **Não é marketplace aberto** — não há "cole URL e rode" para usuário final.
+- **+18 specs**; suíte **2259** verde; build lib + dist OK; snapshot regenerado.
+
+**SRI**: o `integrity` (SRI bem-formado) faz parte do contrato e é validado; a
+**verificação** (fetch + hash) é responsabilidade do `moduleLoader` do consumer
+(documentada), pois exige `fetch`/`crypto` específicos do ambiente.
+
+**Pendente da Fase 3**: repositório online — (3a) scripts sandboxed sobre o
+`ScriptRuntimePlugin` (D-024); (3b) marketplace curado de plugins compilados.
