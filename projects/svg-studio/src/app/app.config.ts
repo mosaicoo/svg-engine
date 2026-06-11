@@ -1,11 +1,20 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter } from '@angular/router';
-import { provideSvgEngineEditorBuiltins, provideSvgEnginePlugin } from 'svg-engine/edit';
+import {
+  providePluginLoader,
+  provideSvgEngineEditorBuiltins,
+  provideSvgEnginePlugin,
+} from 'svg-engine/edit';
 import { provideSvgeUiBuiltins } from 'svg-engine/ui';
 import { builtinNluPlugin } from 'svg-engine/ai/nlu';
 
 import { commandPalettePlugin } from './command-palette/command-palette.plugin';
+import {
+  MOSAICOO_ORIGIN,
+  mosaicooLoaderDemoPlugin,
+  mosaicooModuleLoader,
+} from './plugins/mosaicoo-loader-demo';
 import { routes } from './app.routes';
 
 /**
@@ -46,5 +55,16 @@ export const appConfig: ApplicationConfig = {
     // <svge-nlu-input> num MatDialog escopado ao editor. App-level (não
     // no shell) p/ preservar o desacoplamento ui↛ai.
     provideSvgEnginePlugin(commandPalettePlugin),
+
+    // ── D-083 Fase 2 — loader de plugins externos (origem REAL) ────
+    // Mecanismo, não política: o app escolhe as origens confiáveis e o
+    // transporte (import() nativo). Teste real ponta a ponta em
+    // File ▸ "Carregar plugin externo (Mosaicoo)…", que carrega de
+    // https://mosaicoo.tech/plugins/mosaicoo-hello.plugin.js.
+    providePluginLoader({
+      trustedOrigins: [MOSAICOO_ORIGIN],
+      moduleLoader: mosaicooModuleLoader,
+    }),
+    provideSvgEnginePlugin(mosaicooLoaderDemoPlugin),
   ],
 };

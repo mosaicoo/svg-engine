@@ -1,0 +1,11 @@
+{
+  "id": "tech.mosaicoo.hello",
+  "name": "Mosaicoo Hello (remote)",
+  "version": "1.0.0",
+  "apiVersion": "1.0.0",
+  "entry": "https://mosaicoo.tech/plugins/mosaicoo-hello.plugin.js",
+  "description": "Plugin real carregado de mosaicoo.tech via PluginLoader (Fase 2 — D-083).",
+  "author": "Mosaicoo",
+  "icon": "cloud_done",
+  "category": "other"
+}
