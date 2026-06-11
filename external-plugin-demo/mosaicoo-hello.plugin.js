@@ -1,8 +1,10 @@
 // mosaicoo-hello.plugin.js
 //
 // **Plugin externo REAL** para o teste end-to-end da Fase 2 (D-083).
-// Hospede este arquivo em https://mosaicoo.tech/plugins/ e carregue-o no
-// SVG Studio pelo menu File ▸ "Carregar plugin externo (Mosaicoo)…".
+// Hospede este arquivo em https://svgstudio.mosaicoo.tech/plugins/mosaicoo-hello/
+// e carregue-o no SVG Studio pelo menu File ▸ "Carregar plugin externo
+// (Mosaicoo)…". Como é o MESMO domínio do Studio, em produção o import() é
+// same-origin (sem CORS); só no dev (localhost) o servidor precisa de CORS.
 //
 // É um ES module **autônomo de propósito**: NÃO importa `svg-engine`. Isso
 // é deliberado — um plugin compilado que importasse o engine traria uma
@@ -24,7 +26,7 @@ const plugin = {
   version: '1.0.0',
   // Deve casar (major) com PLUGIN_API_VERSION do host ('1.0.0').
   apiVersion: '1.0.0',
-  description: 'Plugin real carregado de mosaicoo.tech via PluginLoader (Fase 2 — D-083).',
+  description: 'Plugin real carregado de svgstudio.mosaicoo.tech via PluginLoader (Fase 2 — D-083).',
   author: 'Mosaicoo',
   icon: 'cloud_done',
   category: 'other',
@@ -32,7 +34,7 @@ const plugin = {
     // Prova visível no console de que o módulo remoto foi importado e
     // instalado pelo host (e não simulado).
     console.info(
-      '[mosaicoo-hello] install() executou — carregado de https://mosaicoo.tech/plugins via PluginLoader (Fase 2).',
+      '[mosaicoo-hello] install() executou — carregado de https://svgstudio.mosaicoo.tech/plugins via PluginLoader (Fase 2).',
     );
   },
 };

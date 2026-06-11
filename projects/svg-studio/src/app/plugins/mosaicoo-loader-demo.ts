@@ -18,8 +18,8 @@ import { SvgePluginManagerDialogService } from 'svg-engine/ui';
  * A Fase 2 é **mecanismo, não política**: a biblioteca nunca embute um
  * primitivo "carregue qualquer URL". É o **consumidor** (este app) que
  * decide as origens confiáveis e fornece o `moduleLoader`. Aqui o Studio
- * confia em `https://mosaicoo.tech` e usa um `import()` nativo como
- * transporte — exatamente o que um produto faria.
+ * confia no **próprio domínio** (`https://svgstudio.mosaicoo.tech`) e usa
+ * um `import()` nativo como transporte — exatamente o que um produto faria.
  *
  * Fluxo provado de ponta a ponta pelo `PluginLoader`:
  * validar manifesto → gate de `apiVersion` → **allowlist de origem** →
@@ -34,8 +34,14 @@ import { SvgePluginManagerDialogService } from 'svg-engine/ui';
  * Federation / import-map) — planejada para a Fase 3.
  */
 
-/** Origem confiável (apenas `scheme://host`) — casada com a allowlist. */
-export const MOSAICOO_ORIGIN = 'https://mosaicoo.tech';
+/**
+ * Origem confiável (apenas `scheme://host`) da allowlist — o **mesmo
+ * domínio do Studio**. Em produção (Studio servido daqui) o `import()` do
+ * plugin é **same-origin → sem CORS**. A allowlist é por **origem, não por
+ * caminho**: esta única entrada cobre `/plugins/` e todas as subpastas
+ * (`/plugins/<plugin>/…`) — cada plugin só aponta seu próprio `entry`.
+ */
+export const STUDIO_PLUGINS_ORIGIN = 'https://svgstudio.mosaicoo.tech';
 
 /**
  * `moduleLoader` do consumidor: `import()` nativo do `entry` já validado.
@@ -50,17 +56,20 @@ export const mosaicooModuleLoader: PluginModuleLoader = (manifest) =>
   import(/* @vite-ignore */ /* webpackIgnore: true */ manifest.entry) as Promise<unknown>;
 
 /**
- * Manifesto do plugin de demonstração servido por mosaicoo.tech. Num
- * produto real viria do registro/CDN; aqui está embutido para o teste ter
- * o mínimo de partes móveis (só o `.js` precisa estar hospedado + CORS).
+ * Manifesto do plugin de demonstração, servido de uma subpasta própria sob
+ * `/plugins/` no domínio do Studio. Num produto real viria do registro;
+ * aqui está embutido para o teste ter o mínimo de partes móveis. O `entry`
+ * pode apontar para qualquer caminho — só a **origem** precisa bater com a
+ * allowlist (`STUDIO_PLUGINS_ORIGIN`).
  */
 export const MOSAICOO_HELLO_MANIFEST: ExternalPluginManifest = {
   id: 'tech.mosaicoo.hello',
   name: 'Mosaicoo Hello (remote)',
   version: '1.0.0',
   apiVersion: PLUGIN_API_VERSION,
-  entry: `${MOSAICOO_ORIGIN}/plugins/mosaicoo-hello.plugin.js`,
-  description: 'Plugin real carregado de mosaicoo.tech via PluginLoader (Fase 2 — D-083).',
+  entry: `${STUDIO_PLUGINS_ORIGIN}/plugins/mosaicoo-hello/mosaicoo-hello.plugin.js`,
+  description:
+    'Plugin real carregado de svgstudio.mosaicoo.tech via PluginLoader (Fase 2 — D-083).',
   author: 'Mosaicoo',
   icon: 'cloud_done',
   category: 'other',
@@ -74,14 +83,14 @@ export const MOSAICOO_HELLO_MANIFEST: ExternalPluginManifest = {
  * (File ▸ Manage Plugins) onde o plugin aparece na aba **External**.
  *
  * **Por que mora no app, não na lib**: a allowlist e a oferta de "carregar
- * do nosso CDN" são política do consumidor. A lib só expõe o mecanismo.
+ * do nosso domínio" são política do consumidor. A lib só expõe o mecanismo.
  */
 export const mosaicooLoaderDemoPlugin: EditorPlugin = {
   id: 'studio.mosaicoo-loader-demo',
   name: 'SVG Studio — Carregar plugin externo (Mosaicoo)',
   version: '1.0.0',
   apiVersion: PLUGIN_API_VERSION,
-  description: 'Carrega um plugin externo real de mosaicoo.tech (teste da Fase 2).',
+  description: 'Carrega um plugin externo real de svgstudio.mosaicoo.tech (teste da Fase 2).',
   author: 'SVG Studio',
   icon: 'cloud_download',
   category: 'other',
@@ -103,7 +112,7 @@ export const mosaicooLoaderDemoPlugin: EditorPlugin = {
         slot: MENU_SLOT.FILE,
         label: 'Carregar plugin externo (Mosaicoo)…',
         icon: 'cloud_download',
-        tooltip: 'Carrega um plugin externo real de mosaicoo.tech (Fase 2)',
+        tooltip: 'Carrega um plugin externo real de svgstudio.mosaicoo.tech (Fase 2)',
         // 96: logo após "Manage Plugins…" (95), agrupado com as ações globais.
         order: 96,
         disabled: disabledFactory,
@@ -125,7 +134,7 @@ async function loadAndReport(injector: Injector): Promise<void> {
 
   if (res.ok) {
     const ref = snack.open(
-      'Plugin externo carregado de mosaicoo.tech — veja na aba External.',
+      'Plugin externo carregado de svgstudio.mosaicoo.tech — veja na aba External.',
       'Abrir',
       { duration: 6000 },
     );

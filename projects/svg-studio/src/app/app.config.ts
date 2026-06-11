@@ -11,9 +11,9 @@ import { builtinNluPlugin } from 'svg-engine/ai/nlu';
 
 import { commandPalettePlugin } from './command-palette/command-palette.plugin';
 import {
-  MOSAICOO_ORIGIN,
   mosaicooLoaderDemoPlugin,
   mosaicooModuleLoader,
+  STUDIO_PLUGINS_ORIGIN,
 } from './plugins/mosaicoo-loader-demo';
 import { routes } from './app.routes';
 
@@ -58,11 +58,12 @@ export const appConfig: ApplicationConfig = {
 
     // ── D-083 Fase 2 — loader de plugins externos (origem REAL) ────
     // Mecanismo, não política: o app escolhe as origens confiáveis e o
-    // transporte (import() nativo). Teste real ponta a ponta em
-    // File ▸ "Carregar plugin externo (Mosaicoo)…", que carrega de
-    // https://mosaicoo.tech/plugins/mosaicoo-hello.plugin.js.
+    // transporte (import() nativo). Origem = o PRÓPRIO domínio do Studio
+    // (svgstudio.mosaicoo.tech) → em produção o import() é same-origin
+    // (sem CORS). Allowlist é por origem: cobre todas as subpastas em
+    // /plugins/. Teste real em File ▸ "Carregar plugin externo (Mosaicoo)…".
     providePluginLoader({
-      trustedOrigins: [MOSAICOO_ORIGIN],
+      trustedOrigins: [STUDIO_PLUGINS_ORIGIN],
       moduleLoader: mosaicooModuleLoader,
     }),
     provideSvgEnginePlugin(mosaicooLoaderDemoPlugin),
