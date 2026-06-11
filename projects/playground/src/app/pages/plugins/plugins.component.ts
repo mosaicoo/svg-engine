@@ -1,6 +1,13 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { type EditorPlugin, PLUGIN_API_VERSION, PluginManagerService } from 'svg-engine/edit';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import {
+  type EditorPlugin,
+  PLUGIN_API_VERSION,
+  PluginLoader,
+  PluginManagerService,
+} from 'svg-engine/edit';
 import { SvgePluginManager } from 'svg-engine/ui';
+
+import { LOADER_DEMO_ORIGIN, trustedManifest, untrustedManifest } from './loader-demo';
 
 /**
  * **D-083 Fase 1 — showcase do gerenciador de plugins.**
@@ -43,6 +50,27 @@ const DEMO_EXTERNAL_PLUGIN: EditorPlugin = {
         <button type="button" class="demo-btn" (click)="installDemo()">
           Instalar plugin externo de demonstração
         </button>
+
+        <h3>Fase 2 — carregar via PluginLoader (origem confiável)</h3>
+        <p class="small">
+          O playground configurou <code>providePluginLoader</code> com uma origem confiável fake
+          (<code>{{ trustedOrigin }}</code
+          >) e um <code>moduleLoader</code> em memória (simula um CDN, sem rede). Clique para
+          exercitar o loader real de ponta a ponta.
+        </p>
+        <div class="loader-row">
+          <button type="button" class="demo-btn" (click)="loadTrusted()">
+            Carregar (confiável)
+          </button>
+          <button type="button" class="demo-btn danger" (click)="loadUntrusted()">
+            Tentar origem NÃO-confiável
+          </button>
+        </div>
+        @if (loaderResult(); as r) {
+          <p class="loader-result" [class.err]="!r.ok" role="status">
+            {{ r.ok ? '✓ ' : '✗ ' }}{{ r.message }}
+          </p>
+        }
       </div>
       <div class="manager-host">
         <svge-plugin-manager />
@@ -80,6 +108,36 @@ const DEMO_EXTERNAL_PLUGIN: EditorPlugin = {
     .demo-btn:hover {
       background: var(--mat-sys-surface-container-high, #e6e6e6);
     }
+    .demo-btn.danger {
+      border-color: var(--mat-sys-error, #ba1a1a);
+      color: var(--mat-sys-error, #ba1a1a);
+    }
+    .intro h3 {
+      margin: 20px 0 4px;
+      font-size: 14px;
+    }
+    .intro .small {
+      font-size: 12px;
+    }
+    .intro code {
+      font-size: 11px;
+      background: var(--mat-sys-surface-container-high, #eee);
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+    .loader-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .loader-result {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--mat-sys-primary, #1976d2);
+    }
+    .loader-result.err {
+      color: var(--mat-sys-error, #ba1a1a);
+    }
     .manager-host {
       height: 100%;
       min-height: 400px;
@@ -92,10 +150,32 @@ const DEMO_EXTERNAL_PLUGIN: EditorPlugin = {
 })
 export class PluginsPage {
   private readonly manager = inject(PluginManagerService);
+  private readonly loader = inject(PluginLoader);
+
+  protected readonly trustedOrigin = LOADER_DEMO_ORIGIN;
+  protected readonly loaderResult = signal<{ ok: boolean; message: string } | null>(null);
 
   protected installDemo(): void {
     // Idempotent for the demo: installExternal returns ok:false if it's
     // already in the catalog — fine, the row is already shown.
     this.manager.installExternal(DEMO_EXTERNAL_PLUGIN);
+  }
+
+  /** Fase 2: load from the trusted origin → should succeed + appear in the list. */
+  protected async loadTrusted(): Promise<void> {
+    const res = await this.loader.load(trustedManifest());
+    this.loaderResult.set({
+      ok: res.ok,
+      message: res.ok ? 'Carregado e instalado (veja em External).' : (res.error ?? 'Falhou'),
+    });
+  }
+
+  /** Fase 2: load from an off-allowlist origin → should be refused by the loader. */
+  protected async loadUntrusted(): Promise<void> {
+    const res = await this.loader.load(untrustedManifest());
+    this.loaderResult.set({
+      ok: res.ok,
+      message: res.ok ? 'Carregado (inesperado!)' : (res.error ?? 'Recusado'),
+    });
   }
 }

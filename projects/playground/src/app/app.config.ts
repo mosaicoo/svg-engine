@@ -1,11 +1,16 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter } from '@angular/router';
-import { provideSvgEngineEditorBuiltins, provideSvgEnginePlugin } from 'svg-engine/edit';
+import {
+  providePluginLoader,
+  provideSvgEngineEditorBuiltins,
+  provideSvgEnginePlugin,
+} from 'svg-engine/edit';
 import { provideSvgeUiBuiltins } from 'svg-engine/ui';
 import { builtinNluPlugin } from 'svg-engine/ai/nlu';
 import { provideWhisperVoiceEngine } from 'svg-engine/ai/nlu-voice-wasm';
 
+import { LOADER_DEMO_ORIGIN, loaderDemoModuleLoader } from './pages/plugins/loader-demo';
 import { stampToolPlugin } from './plugins/stamp-tool.plugin';
 import { routes } from './app.routes';
 
@@ -48,5 +53,14 @@ export const appConfig: ApplicationConfig = {
 
     // ── Demo-only — Stamp tool (D-038 Phase 3 showcase). Press K. ──
     provideSvgEnginePlugin(stampToolPlugin),
+
+    // ── D-083 Fase 2 — loader de plugins externos (demo, sem rede) ──
+    // O consumer configura as origens confiáveis E o moduleLoader (aqui
+    // um mapa em memória que simula um CDN). Em produção seria
+    // `moduleLoader: (m) => import(m.entry)`.
+    providePluginLoader({
+      trustedOrigins: [LOADER_DEMO_ORIGIN],
+      moduleLoader: loaderDemoModuleLoader,
+    }),
   ],
 };
