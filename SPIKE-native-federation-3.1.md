@@ -45,6 +45,35 @@ do host em runtime → os tokens de DI (`ToolRegistry`, `CommandBus`) batem.
      _(Não consigo validar no browser por aqui — o preview do harness está enraizado em outro
      projeto.)_
 
+## 🔴 Verificação no browser — veredito final
+
+Servindo `ng serve svg-studio` (nesta branch) e abrindo no navegador:
+
+- ✅ Após esvaziar o `federation.manifest.json`, os erros do remote-fantasma
+  (`localhost:4200`) sumiram.
+- 🔴 **Persiste:** `Unable to resolve specifier 'svg-engine/edit' imported from
+chunk-*.js`. O **svg-studio não inicializa** (tela em branco).
+
+**Causa raiz (confirmada):** o federation **externaliza** o `svg-engine/edit`
+(vira import "bare"), mas o **path-mapping do tsconfig que aponta para
+`dist/svg-engine` NÃO é registrado no import map** em runtime. O dedup no build
+(847 KB → 47 KB) é real, porém o runtime não tem como resolver o specifier.
+
+**Conclusão:** o sharing via **mapped-path de `dist/`** funciona no **build** mas
+**quebra no runtime**. Para o federation compartilhar o engine de verdade, o
+`svg-engine` precisa ser um **pacote instalável/publicado** (`@mosaicoo/svg-engine`),
+**não** um caminho de `dist`. Isso **promove o Pilar 1 (engine como pacote +
+contrato/semver) de fundação a pré-requisito imediato** — sem ele, nem o monorepo
+federa em runtime.
+
+**Estado da branch:** experimental — o svg-studio **não roda sob federation** até o
+engine virar pacote. `main` intacto e funcional.
+
+**Próximo passo (deliberado, fora deste spike):** Pilar 1 — transformar o
+`svg-engine` em pacote publicável, remover o path-mapping `dist/` do tsconfig,
+reconfigurar o `shared`/`requiredVersion`; então retomar a fiação do host
+(`loadRemoteModule`) e a verificação do STAMP.
+
 ## Implicação para a Fase 3 (D-084)
 
 Native Federation está **validado** como o mecanismo de sharing (Pilar 2 do plano). Os
