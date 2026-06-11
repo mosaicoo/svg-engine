@@ -1,5 +1,5 @@
 import type { EnvironmentProviders } from '@angular/core';
-import { provideSvgEnginePlugin } from 'svg-engine/edit';
+import { provideSvgEnginePlugin, withPluginMeta } from 'svg-engine/edit';
 
 import { builtinUiMenuContributionsPlugin } from '../menu-extras';
 import { provideSvgeBuiltinToolOptions } from '../tool-options';
@@ -28,8 +28,18 @@ import { provideSvgeBuiltinToolOptions } from '../tool-options';
  */
 export function provideSvgeUiBuiltins(): EnvironmentProviders[] {
   return [
-    // Itens de menu que precisam de MatDialog (View Source…, About…).
-    provideSvgEnginePlugin(builtinUiMenuContributionsPlugin),
+    // Itens de menu que precisam de MatDialog (View Source…, Settings,
+    // Find & Replace…, Manage Plugins…, About…). Metadata de exibição
+    // (D-083) coerente, igual ao tier headless.
+    provideSvgEnginePlugin(
+      withPluginMeta(builtinUiMenuContributionsPlugin, {
+        description:
+          'Menu items that open dialogs (View Source, Settings, Find & Replace, Manage Plugins).',
+        author: 'SVGEngine',
+        icon: 'menu_open',
+        category: 'menu',
+      }),
+    ),
     // Componentes de opção das ferramentas no <svge-tool-options>.
     provideSvgeBuiltinToolOptions(),
   ];

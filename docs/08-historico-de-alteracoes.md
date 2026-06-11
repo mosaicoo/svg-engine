@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-06-11 — Plugins: metadata de exibição dos builtins (D-083 Fase 1 follow-up) ✅
+
+Os ~29 plugins builtin agora aparecem no gerenciador **bonitos** — com
+`description`/`author`/`icon`/`category` coerentes por item, em vez de
+"category: other" sem descrição.
+
+- Novo helper exportado **`withPluginMeta(plugin, meta)`** (`svg-engine/edit`):
+  retorna uma cópia do plugin com a metadata de exibição anexada, sem mutar o
+  original (preserva `install`/id). Mais o tipo `PluginDisplayMeta`.
+- **Aplicado no bundle**, não espalhado em ~25 arquivos: `provideSvgEngineEditorBuiltins()`
+  embrulha cada builtin via um helper local `builtin(plugin, description, icon,
+category)` (author `SVGEngine`); `provideSvgeUiBuiltins()` embrulha o menu UI.
+  Terceiros declaram os mesmos campos inline no próprio `EditorPlugin` (guia 10).
+- **Na fonte** onde o plugin é provido direto (não via bundle): `builtinNluPlugin`
+  (`smart_toy`/`nlu`) e o `commandPalettePlugin` do svg-studio (`bolt`/`nlu`).
+- **+3 specs** (`withPluginMeta`); suíte **2241** verde; build svg-studio + dist
+  OK; snapshot da API atualizado (+`withPluginMeta`, +`PluginDisplayMeta`).
+
+---
+
 ## 2026-06-11 — Plugins: acesso via menu/diálogo (D-083 Fase 1 follow-up) ✅
 
 Para tornar o gerenciador acessível no **svg-studio** (e no pro-editor do

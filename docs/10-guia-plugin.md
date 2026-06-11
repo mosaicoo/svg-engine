@@ -436,6 +436,21 @@ export const myPlugin: EditorPlugin = {
 };
 ```
 
+**Declarar inline (acima) é o recomendado para plugins de terceiros.** Para
+um **bundle** de muitos plugins (como os builtins da lib), dá pra manter a
+metadata junto da lista ordenada usando o helper `withPluginMeta(plugin, meta)`
+em vez de editar cada objeto:
+
+```ts
+provideSvgEnginePlugin(
+  withPluginMeta(myPlugin, { description: '…', author: 'Acme', icon: 'star', category: 'tool' }),
+);
+```
+
+`withPluginMeta` devolve uma **cópia** com a metadata anexada (não muta o
+original; preserva `install`/`id`). É exatamente como `provideSvgEngineEditorBuiltins()`
+enriquece os ~24 builtins.
+
 **Modelo de ativar/desativar** = _uninstall + lembrar_: desabilitar chama
 `PluginRegistry.uninstall` e grava a preferência; reabilitar re-instala. Um
 plugin desabilitado **nunca roda `install()`** (nem no boot). O

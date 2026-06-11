@@ -43,6 +43,10 @@ export const commandPalettePlugin: EditorPlugin = {
   name: 'SVG Studio — Command Palette (NLU)',
   version: '1.0.0',
   apiVersion: PLUGIN_API_VERSION,
+  description: 'Ctrl+K command palette powered by natural language.',
+  author: 'SVG Studio',
+  icon: 'bolt',
+  category: 'nlu',
 
   install(ctx) {
     const shortcuts = ctx.injector.get(ShortcutRegistry);

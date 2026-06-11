@@ -2499,6 +2499,10 @@ Camada de produto sobre o motor existente (`edit/lib/plugin/`):
 - **Metadata de exibição** opcional e aditiva em `EditorPlugin`
   (`description`/`author`/`icon`/`category`) + tipos `PluginCategory`,
   `PluginSource`, `PluginManifest` (no máximo minor bump — `1.0.0` mantido).
+  Os ~29 builtins ganham metadata coerente por item via o helper exportado
+  **`withPluginMeta(plugin, meta)`** aplicado nos bundles
+  (`provideSvgEngineEditorBuiltins`/`provideSvgeUiBuiltins`) — terceiros
+  declaram inline. Sem mutar o objeto original (preserva `install`/id).
 - **`PluginCatalog`** (root): universo de plugins conhecidos (instalados ou
   não), com `source: 'internal' | 'external'`.
 - **`PluginStateStore`** (root): persistência **encapsulada** (localStorage,

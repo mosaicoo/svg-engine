@@ -392,6 +392,8 @@ nó. Multi-seleção: pivot é transient e reseta na mudança de composição
 | `PLUGIN_API_VERSION` (constante)           | `'1.0.0'` no momento. Plugin throws se major não bater                                                                                                                 |
 | `PluginRegistry` (`@Injectable({ root })`) | `install(plugin)`, `uninstall(id)`, `has(id)`, `get(id)`, `list()`, signal `installed`                                                                                 |
 | `provideSvgEnginePlugin(plugin)`           | provider `ENVIRONMENT_INITIALIZER multi:true` — registra no catálogo + install no boot (pula se desabilitado)                                                          |
+| `withPluginMeta(plugin, meta)`             | retorna cópia do plugin com metadata de exibição (`PluginDisplayMeta`) anexada, sem mutar o original — usado para enriquecer builtins no bundle (D-083)                |
+| `PluginDisplayMeta` (type)                 | `Pick<EditorPlugin, 'description' \| 'author' \| 'icon' \| 'category'>` — subconjunto de metadata aceito por `withPluginMeta`                                          |
 
 Ver [`docs/10-guia-plugin.md`](10-guia-plugin.md) para receitas práticas.
 

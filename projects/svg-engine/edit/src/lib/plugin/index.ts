@@ -4,9 +4,11 @@ export {
   type InstalledPlugin,
   type PluginCategory,
   type PluginContext,
+  type PluginDisplayMeta,
   type PluginManifest,
   type PluginSource,
   PLUGIN_API_VERSION,
+  withPluginMeta,
 } from './plugin';
 export { PluginRegistry } from './plugin-registry.service';
 export { provideSvgEnginePlugin } from './provide-plugin';

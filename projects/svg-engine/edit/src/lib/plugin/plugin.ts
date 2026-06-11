@@ -177,3 +177,24 @@ export interface PluginManifest {
   /** Last install error message, when an enabled plugin failed to install. */
   readonly error: string | null;
 }
+
+/** The optional display-metadata subset of {@link EditorPlugin}. */
+export type PluginDisplayMeta = Pick<EditorPlugin, 'description' | 'author' | 'icon' | 'category'>;
+
+/**
+ * Return a copy of `plugin` with display metadata attached, **without
+ * mutating** the original. Sugar for `{ ...plugin, ...meta }` —
+ * `install`/`uninstall` are preserved by reference and the id/version
+ * are untouched.
+ *
+ * Two equally-valid ways to give a plugin its manager metadata:
+ * 1. declare `description`/`author`/`icon`/`category` inline on the
+ *    `EditorPlugin` object (recommended for third-party plugins), or
+ * 2. apply them here while assembling a bundle — how the built-in tiers
+ *    ({@link provideSvgEnginePlugin} via `provideSvgEngineEditorBuiltins` /
+ *    `provideSvgeUiBuiltins`) keep the metadata next to the ordered
+ *    plugin list instead of scattered across ~25 files.
+ */
+export function withPluginMeta(plugin: EditorPlugin, meta: PluginDisplayMeta): EditorPlugin {
+  return { ...plugin, ...meta };
+}
