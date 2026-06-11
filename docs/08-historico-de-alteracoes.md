@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-06-12 — D-084: arquitetura da Plataforma de Plugins (Fase 3 redesenhada)
+
+Análise de negócio completa do sistema de plugins (svg-engine + svg-studio +
+playground + stamp-plugin) consolidada em **`docs/13-plataforma-de-plugins.md`**:
+
+- **Teste real da Fase 2 em produção**: `mosaicoo-hello` carregado de
+  `https://svgstudio.mosaicoo.tech/plugins/...` no Studio publicado — snackbar,
+  console e aba External confirmados. Transporte/guardas/lifecycle provados.
+- **Spike Native Federation** (branch `spike/native-federation-3.1`, NÃO
+  mergeada): host+remote buildam, Angular compartilha, mas os entry-points
+  secundários do svg-engine não fecham (shareAll/ignoreUnusedDeps/stack ML).
+  **Rejeitada para o marketplace**; doc do spike na branch.
+- **Decisão D-084 — três canais**: (1) build-time/npm full-power p/ interno +
+  embedding (inalterado); (2) **marketplace via Host-API factory** — módulo
+  exporta `default(host: SvgeHostApi) => EditorPlugin`, fachada estreita e
+  versionada construída sobre o injector, reusando o `PluginLoader` da Fase 2;
+  (3) scripts sandboxed (D-024) p/ não-confiável. Lib = mecanismo, app = política.
+- **Gaps mapeados**: persistência de externos no boot, catálogo remoto + UI
+  Browse, update, assinatura, SDK `@mosaicoo/svge-plugin-sdk` (types-only).
+- Roadmap: **D-084a** (Host-API + STAMP por URL como aceite) → **b** (SDK) →
+  **c** (marketplace) → **d** (sandbox). Registrado em doc 04 (D-084).
+
 ## 2026-06-11 — Plugins Fase 2: loader de externos de origem confiável (D-083) ✅
 
 Carregamento **runtime** de plugin de terceiro, **seguro por design** (fail-closed

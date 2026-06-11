@@ -357,5 +357,13 @@ As perguntas em aberto foram respondidas e registradas em
    de scripts sandboxed** (Fase 3a / D-024); marketplace de plugins compilados
    (3b) só sob demanda real.
 
-> A **Fase 1** está implementada e verde (ver D-083 → "Fase 1 — entregue" e o
-> histórico 2026-06-11). As Fases 2–3 permanecem planejadas.
+> A **Fase 1** está implementada e verde, e a **Fase 2** foi entregue **e
+> provada em produção** (plugin real carregado de
+> `svgstudio.mosaicoo.tech/plugins/...` no Studio publicado) — ver D-083 e o
+> histórico 2026-06-11.
+>
+> A **Fase 3 foi redesenhada como [D-084]** após o spike de Native Federation:
+> a arquitetura definitiva da plataforma (três canais: build-time/npm,
+> **marketplace via Host-API factory** e scripts sandboxed) está em
+> **[13-plataforma-de-plugins.md](13-plataforma-de-plugins.md)** — este
+> documento (12) permanece como registro histórico das decisões das Fases 1–2.

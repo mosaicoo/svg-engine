@@ -2550,3 +2550,45 @@ Carregamento **runtime** de plugin externo de **origem confiável do consumer**,
 
 **Pendente da Fase 3**: repositório online — (3a) scripts sandboxed sobre o
 `ScriptRuntimePlugin` (D-024); (3b) marketplace curado de plugins compilados.
+**→ A Fase 3 foi redesenhada como D-084 (abaixo) após o spike de Native
+Federation.**
+
+## D-084 — Plataforma de plugins: três canais + Host-API factory (Fase 3)
+
+- **Status**: Aceita (arquitetura) — implementação faseada (D-084a..d)
+- **Contexto**: o SVG Studio vai ser produto de mercado com **ecossistema de
+  terceiros** (marketplace), e o svg-engine precisa dar o suporte de
+  plataforma para três públicos: interno (builtins), **embedders** (npm) e
+  **autores de marketplace** (runtime). A Fase 2 (D-083) provou o transporte
+  em produção (`svgstudio.mosaicoo.tech/plugins/...`), mas só para plugins
+  **autônomos** — um plugin que importa `svg-engine` carrega uma 2ª cópia e o
+  DI não casa.
+- **Alternativa avaliada e rejeitada**: **Native Federation** (spike real na
+  branch `spike/native-federation-3.1`). Host/remote buildam e o Angular
+  compartilha, mas os **entry-points secundários** (`svg-engine/edit`/`core`…)
+  não fecham (shareAll só cobre o primário; `share()` explícito é descartado
+  por `ignoreUnusedDeps:true`; desligar a feature quebra o build na stack ML
+  nativa). Custo de integração alto/incerto com 9 entry-points + ML. Detalhes
+  em `SPIKE-native-federation-3.1.md` (na branch).
+- **Decisão**: três canais com um princípio comum (lib = mecanismo, app =
+  política):
+  1. **Build-time/npm** (interno + embedding) — `EditorPlugin` +
+     `ctx.injector`, poder total. Inalterado.
+  2. **Marketplace runtime — Host-API factory**: o módulo exporta
+     `default(host: SvgeHostApi) => EditorPlugin`; a fachada `SvgeHostApi`
+     (estreita, versionada por `hostApiVersion`) é construída pelo host sobre
+     o injector escopado. **Reusa o `PluginLoader` da Fase 2 integral**
+     (extensão única: aceitar `default` função além de objeto). Plugin não
+     importa `svg-engine` → sem 2ª cópia, sem federation, qualquer bundler.
+     A fachada é o **contrato público estável** da plataforma (Pilar 1).
+  3. **Scripts sandboxed** (D-024) — único canal com isolamento técnico real;
+     para código de usuário não-confiável.
+- **Segurança (honesta)**: canal 2 é full-trust tecnicamente (JS é JS) — a
+  confiança vem de **curadoria** (registro próprio + SRI verificado +
+  assinatura + review), nunca "cole URL". Isolamento de verdade = canal 3.
+- **Gaps mapeados p/ marketplace**: persistência de externos instalados
+  (re-load no boot), catálogo remoto + UI Browse, fluxo de update, assinatura,
+  SDK types-only (`@mosaicoo/svge-plugin-sdk`).
+- **Aceite do D-084a**: o STAMP reescrito contra a fachada, carregado por URL
+  no Studio, ferramenta funcionando — fecha a pergunta que originou a Fase 3.
+- **Referência completa**: `docs/13-plataforma-de-plugins.md`.
