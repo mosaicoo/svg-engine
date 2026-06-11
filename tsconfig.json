@@ -52,6 +52,9 @@
     },
     {
       "path": "./projects/svg-studio/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/stamp-plugin/tsconfig.app.json"
     }
   ]
 }
