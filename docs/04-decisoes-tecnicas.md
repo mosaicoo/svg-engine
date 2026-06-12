@@ -2592,3 +2592,44 @@ Federation.**
 - **Aceite do D-084a**: o STAMP reescrito contra a fachada, carregado por URL
   no Studio, ferramenta funcionando — fecha a pergunta que originou a Fase 3.
 - **Referência completa**: `docs/13-plataforma-de-plugins.md`.
+
+## D-085 — Reorganização do menubar (Opção B + roadmap visível)
+
+- **Contexto**: o menubar tinha 6 menus (File/Edit/View/Insert/Object/Help)
+  montados data-driven via `MenuContributionRegistry`. Avaliamos duas
+  propostas de layout profissional (Opção A e B). **B venceu**: corrige um
+  conflito real de atalho (`Ctrl+Shift+S` duplicado em A), não duplica painéis
+  em 3 lugares, e agrupa de forma mais convencional (Group/Ungroup em Object,
+  menu **Path** próprio, **Plugins** em Tools, **Workspace** em Window).
+- **Decisão**: adotar a **estrutura da Opção B (9 menus)** —
+  `File / Edit / View / Insert / Object / Path / Tools / Window / Help` —
+  preservando **100% dos recursos existentes** e expondo o que ainda não
+  existe como **roadmap visível** (item desabilitado + ícone de relógio),
+  para o menu funcionar também como roadmap público.
+- **Mecanismo do roadmap**: campo `MenuContribution.comingSoon`. Folhas
+  roadmap são `disabled` + marcadas; submenus 100% roadmap (ex.: Object ▸
+  Mask) ficam abríveis. A descoberta de intents NLU **pula** `comingSoon`
+  (evita comando de voz no-op). Novo `builtinRoadmapMenuPlugin` (edit)
+  concentra os menus novos (Path/Tools/Window), o submenu Mask e os
+  placeholders; entra no `provideSvgEngineEditorBuiltins()`.
+- **Restrição assumida**: o `<svge-menu-bar>` renderiza **2 níveis**
+  (menu → submenu → folhas). Os casos de 3º nível da Opção B foram
+  **achatados**: Boolean ▸ Live ▸ ops → folhas "Make Live …" sob Boolean;
+  Align ▸ Align To → placeholder único. (Recursão de 3 níveis fica como
+  evolução futura do componente, se necessário.)
+- **Ids preservados**: itens realocados (Group/Ungroup → Object, New Layer →
+  Insert, Workspace/Plugins → Window/Tools, etc.) **mantêm seus ids** para não
+  quebrar atalhos, NLU e overrides de consumidores — só `slot`/`parentId`/
+  `order`/`label` mudam.
+- **Recursos reais novos** com casa na nova estrutura: Path ▸ Convert to Path
+  (`BatchConvertToPathCommand`), View ▸ Zoom ▸ Fit Canvas (`fit()`) e Actual
+  Size 100% (`setZoom(1)`).
+- **Sugestões SVG-nativas incorporadas** (parcial/roadmap): **Object ▸ Mask**
+  (clip/opacity — comando ainda não existe), **Apply Filter…** (o editor
+  visual de filtros já existe como painel D-047), **Document Settings**
+  (viewBox/preserveAspectRatio) como roadmap em File. Gerenciador de `<defs>`
+  fica coberto por enquanto pelo _View Source_ + bibliotecas (D-048).
+- **Garantia "nenhum recurso perdido"**: spec anti-órfão prova que toda
+  contribuição com `parentId` resolve para um pai no **mesmo slot** (zero
+  órfãos), além de specs de relocação e de Convert-to-Path real. Suíte 2270
+  verde; snapshot de API atualizado (novo export `builtinRoadmapMenuPlugin`).

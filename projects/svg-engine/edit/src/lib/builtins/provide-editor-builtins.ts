@@ -18,6 +18,7 @@ import {
   builtinAdvancedEditMenuPlugin,
   builtinInsertMenuPlugin,
   builtinMenuContributionsPlugin,
+  builtinRoadmapMenuPlugin,
 } from '../menu';
 import { builtinOptimizersPlugin } from '../optimize';
 import { builtinPalettesPlugin } from '../palette';
@@ -220,6 +221,17 @@ export function provideSvgEngineEditorBuiltins(): EnvironmentProviders[] {
       builtinAdvancedEditMenuPlugin,
       'Advanced Edit menu (compound paths, live boolean).',
       'account_tree',
+      'menu',
+    ),
+    // D-085 — completes the 9-menu Option B layout: the new Path/Tools/
+    // Window menus + Object ▸ Mask + every "coming soon" roadmap item.
+    // Installed AFTER the core menu plugins so its cross-plugin children
+    // (e.g. Transform ▸ Rotate under the Object Flip parent) attach to
+    // already-registered parents.
+    builtin(
+      builtinRoadmapMenuPlugin,
+      'Option B menubar: Path/Tools/Window menus, Mask, and roadmap items.',
+      'schedule',
       'menu',
     ),
   ];

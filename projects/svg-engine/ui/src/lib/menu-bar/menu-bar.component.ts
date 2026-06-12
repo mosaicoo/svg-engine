@@ -20,12 +20,18 @@ import {
 } from 'svg-engine/edit';
 
 /**
- * Top-level menu bar — Sprint Pro-Editor (2026-05-20). Renders a row of
- * Material dropdown menus (File / Edit / View / Object / Help) from
- * `MenuContributionRegistry` using the convention that **each top-level
- * menu owns its own slot**: `menu.file`, `menu.edit`, `menu.view`,
- * `menu.object`, `menu.help`. The menu bar reads the **slots input**
- * (default = the 5 canonical menus) and renders one dropdown per slot.
+ * Top-level menu bar — Sprint Pro-Editor (2026-05-20); reorganized into
+ * the 9-menu Option B layout in **D-085**. Renders a row of Material
+ * dropdown menus (File / Edit / View / Insert / Object / Path / Tools /
+ * Window / Help) from `MenuContributionRegistry` using the convention
+ * that **each top-level menu owns its own slot**: `menu.file`,
+ * `menu.edit`, … `menu.help`. The menu bar reads the **slots input**
+ * (default = the 9 canonical menus) and renders one dropdown per slot.
+ *
+ * **Roadmap items (D-085)**: contributions flagged `comingSoon: true`
+ * render with a distinct trailing roadmap icon (and, for leaves, a
+ * disabled state set by the contribution itself) so the menu doubles as
+ * a visible roadmap of planned-but-unshipped features.
  *
  * **Submenus** are supported via the new `parentId` field on
  * `MenuContribution` (D-038). A child contribution with `parentId`
@@ -100,6 +106,11 @@ import {
                 <mat-icon>{{ item.icon }}</mat-icon>
               }
               <span>{{ item.label }}</span>
+              @if (item.comingSoon) {
+                <mat-icon class="soon-badge" title="Coming soon" aria-hidden="true"
+                  >schedule</mat-icon
+                >
+              }
             </button>
             <mat-menu #sub="matMenu">
               @for (child of childrenOf(item.id, menu.slot); track child.id) {
@@ -119,6 +130,11 @@ import {
                     @if (child.shortcut) {
                       <span class="shortcut">{{ child.shortcut }}</span>
                     }
+                    @if (child.comingSoon) {
+                      <mat-icon class="soon-badge" title="Coming soon" aria-hidden="true"
+                        >schedule</mat-icon
+                      >
+                    }
                   </button>
                 }
               }
@@ -136,6 +152,11 @@ import {
               <span>{{ item.label }}</span>
               @if (item.shortcut) {
                 <span class="shortcut">{{ item.shortcut }}</span>
+              }
+              @if (item.comingSoon) {
+                <mat-icon class="soon-badge" title="Coming soon" aria-hidden="true"
+                  >schedule</mat-icon
+                >
               }
             </button>
           }
@@ -163,6 +184,17 @@ import {
       font-size: 11px;
       font-variant-numeric: tabular-nums;
     }
+    /* D-085 — roadmap ("coming soon") marker. Pushed to the trailing edge
+       (margin-left:auto) when the item has no shortcut; sits after the
+       shortcut otherwise. Muted + small so it reads as metadata, not an
+       action. */
+    .soon-badge {
+      margin-left: auto;
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      opacity: 0.45;
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -171,9 +203,12 @@ export class SvgeMenuBar {
 
   /**
    * Slots to render as top-level menus, in order. Each slot becomes one
-   * dropdown button on the bar. Default = the 6 canonical menus that
-   * Figma / Sketch / PowerPoint / Google Drawings all share (Insert
-   * sits between View and Object — D-052).
+   * dropdown button on the bar. Default = the **9 canonical menus**
+   * (D-085 reorg, Option B): File / Edit / View / Insert / Object /
+   * Path / Tools / Window / Help. Mirrors the layout of Illustrator /
+   * Inkscape / Affinity (Path + Window menus) while keeping Figma's
+   * Insert between View and Object (D-052). Consumers wanting a leaner
+   * bar pass a subset via `[slots]`.
    */
   readonly slots = input<readonly string[]>([
     'menu.file',
@@ -181,6 +216,9 @@ export class SvgeMenuBar {
     'menu.view',
     'menu.insert',
     'menu.object',
+    'menu.path',
+    'menu.tools',
+    'menu.window',
     'menu.help',
   ]);
 
@@ -195,6 +233,9 @@ export class SvgeMenuBar {
     'menu.view': 'View',
     'menu.insert': 'Insert',
     'menu.object': 'Object',
+    'menu.path': 'Path',
+    'menu.tools': 'Tools',
+    'menu.window': 'Window',
     'menu.help': 'Help',
   });
 

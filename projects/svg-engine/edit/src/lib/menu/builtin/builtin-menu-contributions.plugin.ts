@@ -209,50 +209,87 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+    // **D-085** — order 12/14 (Open…, Open Recent…) are roadmap items
+    // registered by `builtinRoadmapMenuPlugin`; this divider sits after
+    // them, before the Import submenu.
     ctx.track(
       reg.register({
         id: 'svge.builtin.file.divider1',
         slot: MENU_SLOT.FILE,
         label: '',
-        order: 20,
+        order: 18,
         divider: true,
         run() {
           /* divider */
+        },
+      }),
+    );
+    // ── File ▸ Import ▶ submenu (D-085) ─────────────────────────────
+    // The existing real "Import SVG" becomes the first child ("SVG…").
+    // Image / Smart Object / External Asset are roadmap children added
+    // by `builtinRoadmapMenuPlugin`.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.import-menu',
+        slot: MENU_SLOT.FILE,
+        label: 'Import',
+        icon: 'folder_open',
+        order: 20,
+        run() {
+          /* submenu parent — children drive the actual imports */
         },
       }),
     );
     ctx.track(
       reg.register({
         id: 'svge.builtin.file.import',
+        parentId: 'svge.builtin.file.import-menu',
         slot: MENU_SLOT.FILE,
-        label: 'Import SVG…',
-        icon: 'folder_open',
+        label: 'SVG…',
+        icon: 'description',
         shortcut: 'Ctrl+O',
-        order: 30,
+        order: 10,
         run(runCtx) {
           importSvgFromFile(runCtx, fromCtx);
         },
       }),
     );
+    // **D-085** — divider after the (roadmap) Save / Save As… items.
     ctx.track(
       reg.register({
         id: 'svge.builtin.file.divider2',
         slot: MENU_SLOT.FILE,
         label: '',
-        order: 40,
+        order: 38,
         divider: true,
         run() {
           /* divider */
         },
       }),
     );
+    // ── File ▸ Export ▶ submenu (D-085) ─────────────────────────────
+    // SVG / Animated SVG (SMIL) / PNG are real; Export Selection /
+    // Artboard / Batch are roadmap children added by the roadmap plugin.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.export-menu',
+        slot: MENU_SLOT.FILE,
+        label: 'Export',
+        icon: 'download',
+        order: 40,
+        run() {
+          /* submenu parent — children drive the actual exports */
+        },
+      }),
+    );
     ctx.track(
       reg.register({
         id: 'svge.builtin.file.export-svg',
+        parentId: 'svge.builtin.file.export-menu',
         slot: MENU_SLOT.FILE,
-        label: 'Export SVG…',
+        label: 'SVG…',
         icon: 'download',
-        order: 50,
+        order: 10,
         run(runCtx) {
           void exportAndDownload(runCtx, fromCtx, 'svg');
         },
@@ -264,10 +301,11 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     ctx.track(
       reg.register({
         id: 'svge.builtin.file.export-svg-animated',
+        parentId: 'svge.builtin.file.export-menu',
         slot: MENU_SLOT.FILE,
-        label: 'Export Animated SVG (SMIL)…',
+        label: 'Animated SVG (SMIL)…',
         icon: 'animation',
-        order: 55,
+        order: 20,
         run(runCtx) {
           void exportAndDownload(runCtx, fromCtx, 'svg', true);
         },
@@ -276,15 +314,33 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     ctx.track(
       reg.register({
         id: 'svge.builtin.file.export-png',
+        parentId: 'svge.builtin.file.export-menu',
         slot: MENU_SLOT.FILE,
-        label: 'Export PNG…',
+        label: 'PNG…',
         icon: 'image',
-        order: 60,
+        order: 30,
         run(runCtx) {
           void exportAndDownload(runCtx, fromCtx, 'png');
         },
       }),
     );
+    // D-044: Optimize current document via the OptimizerRegistry pipeline.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.optimize',
+        slot: MENU_SLOT.FILE,
+        label: 'Optimize…',
+        icon: 'auto_fix_high',
+        order: 60,
+        run(runCtx) {
+          const bus = fromCtx(CommandBus, runCtx);
+          const registry = fromCtx(OptimizerRegistry, runCtx);
+          bus.dispatch(new OptimizeCommand(registry));
+        },
+      }),
+    );
+    // **D-085** — divider before Document Settings… (roadmap, order 72)
+    // and Exit (roadmap, order 90), both added by the roadmap plugin.
     ctx.track(
       reg.register({
         id: 'svge.builtin.file.divider3',
@@ -294,21 +350,6 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         divider: true,
         run() {
           /* divider */
-        },
-      }),
-    );
-    // D-044: Optimize current document via the OptimizerRegistry pipeline.
-    ctx.track(
-      reg.register({
-        id: 'svge.builtin.file.optimize',
-        slot: MENU_SLOT.FILE,
-        label: 'Optimize',
-        icon: 'auto_fix_high',
-        order: 80,
-        run(runCtx) {
-          const bus = fromCtx(CommandBus, runCtx);
-          const registry = fromCtx(OptimizerRegistry, runCtx);
-          bus.dispatch(new OptimizeCommand(registry));
         },
       }),
     );
@@ -361,21 +402,40 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         label: 'Delete',
         icon: 'delete',
         shortcut: 'Delete',
-        order: 40,
+        // **D-085** — after the clipboard cluster (Cut/Copy/Paste/
+        // Duplicate, orders 40–48), before the Select submenu (60).
+        order: 50,
         disabled: noSelectionFactory,
         run(runCtx) {
           deleteSelected(runCtx, fromCtx);
         },
       }),
     );
+
+    // ── Edit ▸ Select ▶ submenu (D-085) ─────────────────────────────
+    // Wraps Select All + the D-071a "Select Same" trio. "Invert
+    // Selection" is a roadmap child added by `builtinRoadmapMenuPlugin`.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.select-menu',
+        slot: MENU_SLOT.EDIT,
+        label: 'Select',
+        icon: 'select_all',
+        order: 60,
+        run() {
+          /* submenu parent — children drive the actual selection ops */
+        },
+      }),
+    );
     ctx.track(
       reg.register({
         id: 'svge.builtin.edit.select-all',
+        parentId: 'svge.builtin.edit.select-menu',
         slot: MENU_SLOT.EDIT,
         label: 'Select All',
         icon: 'select_all',
         shortcut: 'Ctrl+A',
-        order: 50,
+        order: 10,
         run(runCtx) {
           selectAllTopLevel(runCtx, fromCtx);
         },
@@ -410,10 +470,11 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     ctx.track(
       reg.register({
         id: 'svge.builtin.edit.select-same-fill',
+        parentId: 'svge.builtin.edit.select-menu',
         slot: MENU_SLOT.EDIT,
         label: 'Select Same Fill',
         icon: 'palette',
-        order: 50.1,
+        order: 20,
         disabled: noFocusFactory,
         run(runCtx) {
           fromCtx(SelectSameService, runCtx).selectSameFill();
@@ -423,10 +484,11 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     ctx.track(
       reg.register({
         id: 'svge.builtin.edit.select-same-stroke',
+        parentId: 'svge.builtin.edit.select-menu',
         slot: MENU_SLOT.EDIT,
         label: 'Select Same Stroke',
         icon: 'border_color',
-        order: 50.2,
+        order: 30,
         disabled: noFocusFactory,
         run(runCtx) {
           fromCtx(SelectSameService, runCtx).selectSameStroke();
@@ -436,10 +498,11 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     ctx.track(
       reg.register({
         id: 'svge.builtin.edit.select-same-font-family',
+        parentId: 'svge.builtin.edit.select-menu',
         slot: MENU_SLOT.EDIT,
         label: 'Select Same Font Family',
         icon: 'text_format',
-        order: 50.3,
+        order: 40,
         disabled: noFontFamilyFocusFactory,
         run(runCtx) {
           fromCtx(SelectSameService, runCtx).selectSameFontFamily();
@@ -447,7 +510,11 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
       }),
     );
 
-    // D-044: Cut/Copy/Paste/Duplicate — clipboard + duplicate handlers
+    // D-044: Cut/Copy/Paste/Duplicate — clipboard + duplicate handlers.
+    // **D-085** — reordered to 40–48 so the clipboard cluster sits
+    // directly under the Undo/Redo divider, before Delete (Option B).
+    // "Paste In Place" (order 46) is a roadmap item added by the roadmap
+    // plugin between Paste and Duplicate.
     ctx.track(
       reg.register({
         id: 'svge.builtin.edit.cut',
@@ -455,7 +522,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         label: 'Cut',
         icon: 'content_cut',
         shortcut: 'Ctrl+X',
-        order: 51,
+        order: 40,
         disabled: noSelectionFactory,
         run(runCtx) {
           cutSelected(runCtx, fromCtx);
@@ -469,7 +536,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         label: 'Copy',
         icon: 'content_copy',
         shortcut: 'Ctrl+C',
-        order: 52,
+        order: 42,
         disabled: noSelectionFactory,
         run(runCtx) {
           copySelected(runCtx, fromCtx);
@@ -483,7 +550,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         label: 'Paste',
         icon: 'content_paste',
         shortcut: 'Ctrl+V',
-        order: 53,
+        order: 44,
         disabled: noClipboardFactory,
         run(runCtx) {
           pasteFromClipboard(runCtx, fromCtx);
@@ -497,7 +564,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         label: 'Duplicate',
         icon: 'control_point_duplicate',
         shortcut: 'Ctrl+D',
-        order: 54,
+        order: 48,
         disabled: noSelectionFactory,
         run(runCtx) {
           duplicateSelected(runCtx, fromCtx);
@@ -527,7 +594,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         slot: MENU_SLOT.EDIT,
         label: 'History',
         icon: 'history',
-        order: 55,
+        // **D-085** — after the Select submenu (60); Find & Replace…
+        // (ui plugin, order 80) follows. Group/Ungroup moved to Object.
+        order: 70,
         run() {
           /* submenu parent — children drive the actual actions */
         },
@@ -604,51 +673,39 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
       }),
     );
 
-    ctx.track(
-      reg.register({
-        id: 'svge.builtin.edit.divider2',
-        slot: MENU_SLOT.EDIT,
-        label: '',
-        order: 60,
-        divider: true,
-        run() {
-          /* divider */
-        },
-      }),
-    );
-    ctx.track(
-      reg.register({
-        id: 'svge.builtin.edit.group',
-        slot: MENU_SLOT.EDIT,
-        label: 'Group',
-        icon: 'group_work',
-        shortcut: 'Ctrl+G',
-        order: 70,
-        disabled: cantGroupFactory,
-        run(runCtx) {
-          groupSelection(runCtx, fromCtx);
-        },
-      }),
-    );
-    ctx.track(
-      reg.register({
-        id: 'svge.builtin.edit.ungroup',
-        slot: MENU_SLOT.EDIT,
-        label: 'Ungroup',
-        icon: 'call_split',
-        shortcut: 'Ctrl+Shift+G',
-        order: 80,
-        disabled: cantUngroupFactory,
-        run(runCtx) {
-          ungroupFocus(runCtx, fromCtx);
-        },
-      }),
-    );
+    // **D-085** — Group / Ungroup MOVED from the Edit menu to the top of
+    // the Object menu (Option B convention: object-lifecycle ops live in
+    // Object, matching Illustrator). Their ids
+    // (`svge.builtin.edit.group` / `…ungroup`) are kept for backward
+    // compatibility (shortcuts, NLU, consumer overrides) even though they
+    // now register in `MENU_SLOT.OBJECT` — see the Object menu section.
 
-    // ── View menu ──────────────────────────────────────────────────
+    // ── View menu (D-085 — Zoom ▶ / Display ▶ / Show ▶ submenus) ────
+    //
+    // The existing flat Zoom/Grid/Rulers/Outline/Timeline toggles become
+    // children of three submenus (Option B). Fit Canvas + Actual Size are
+    // **real** new entries (ViewportService.fit() / setZoom(1)); Fit
+    // Selection / Preview / Pixel Preview / Full Screen / Guides-visibility
+    // / Selection Bounds / Artboard Labels are roadmap children added by
+    // `builtinRoadmapMenuPlugin`.
+
+    // ── View ▸ Zoom ▶ ──────────────────────────────────────────────
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.zoom-menu',
+        slot: MENU_SLOT.VIEW,
+        label: 'Zoom',
+        icon: 'zoom_in',
+        order: 10,
+        run() {
+          /* submenu parent */
+        },
+      }),
+    );
     ctx.track(
       reg.register({
         id: 'svge.builtin.view.zoom-in',
+        parentId: 'svge.builtin.view.zoom-menu',
         slot: MENU_SLOT.VIEW,
         label: 'Zoom In',
         icon: 'zoom_in',
@@ -661,6 +718,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     ctx.track(
       reg.register({
         id: 'svge.builtin.view.zoom-out',
+        parentId: 'svge.builtin.view.zoom-menu',
         slot: MENU_SLOT.VIEW,
         label: 'Zoom Out',
         icon: 'zoom_out',
@@ -673,6 +731,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     ctx.track(
       reg.register({
         id: 'svge.builtin.view.zoom-reset',
+        parentId: 'svge.builtin.view.zoom-menu',
         slot: MENU_SLOT.VIEW,
         label: 'Reset Zoom',
         icon: 'fit_screen',
@@ -682,25 +741,95 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+    // **D-085** — Fit Canvas: ViewportService.fit() recenters + resets
+    // zoom to 100% (currently identical to Reset; kept distinct so a
+    // future "fit content bounds" implementation has its menu slot).
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.zoom-fit-canvas',
+        parentId: 'svge.builtin.view.zoom-menu',
+        slot: MENU_SLOT.VIEW,
+        label: 'Fit Canvas',
+        icon: 'crop_free',
+        order: 40,
+        run(runCtx) {
+          fromCtx(ViewportService, runCtx).fit();
+        },
+      }),
+    );
+    // **D-085** — Actual Size: pin zoom to exactly 100%.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.zoom-actual-size',
+        parentId: 'svge.builtin.view.zoom-menu',
+        slot: MENU_SLOT.VIEW,
+        label: 'Actual Size (100%)',
+        icon: 'aspect_ratio',
+        order: 60,
+        run(runCtx) {
+          fromCtx(ViewportService, runCtx).setZoom(1);
+        },
+      }),
+    );
     ctx.track(
       reg.register({
         id: 'svge.builtin.view.divider1',
         slot: MENU_SLOT.VIEW,
         label: '',
-        order: 40,
+        order: 20,
         divider: true,
         run() {
           /* divider */
         },
       }),
     );
+    // ── View ▸ Display ▶ ───────────────────────────────────────────
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.display-menu',
+        slot: MENU_SLOT.VIEW,
+        label: 'Display',
+        icon: 'visibility',
+        order: 30,
+        run() {
+          /* submenu parent */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.toggle-outline',
+        parentId: 'svge.builtin.view.display-menu',
+        slot: MENU_SLOT.VIEW,
+        label: 'Outline Mode',
+        icon: 'gesture',
+        order: 20,
+        run(runCtx) {
+          fromCtx(WorkspaceService, runCtx).toggleOutlineMode();
+        },
+      }),
+    );
+    // ── View ▸ Show ▶ ──────────────────────────────────────────────
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.show-menu',
+        slot: MENU_SLOT.VIEW,
+        label: 'Show',
+        icon: 'visibility',
+        order: 40,
+        run() {
+          /* submenu parent */
+        },
+      }),
+    );
     ctx.track(
       reg.register({
         id: 'svge.builtin.view.toggle-grid',
+        parentId: 'svge.builtin.view.show-menu',
         slot: MENU_SLOT.VIEW,
-        label: 'Show Grid',
+        label: 'Grid',
         icon: 'grid_on',
-        order: 50,
+        order: 10,
         run(runCtx) {
           fromCtx(WorkspaceService, runCtx).toggleGrid();
         },
@@ -709,24 +838,13 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     ctx.track(
       reg.register({
         id: 'svge.builtin.view.toggle-rulers',
+        parentId: 'svge.builtin.view.show-menu',
         slot: MENU_SLOT.VIEW,
-        label: 'Show Rulers',
+        label: 'Rulers',
         icon: 'straighten',
-        order: 60,
+        order: 20,
         run(runCtx) {
           fromCtx(WorkspaceService, runCtx).toggleRulers();
-        },
-      }),
-    );
-    ctx.track(
-      reg.register({
-        id: 'svge.builtin.view.toggle-outline',
-        slot: MENU_SLOT.VIEW,
-        label: 'Outline Mode',
-        icon: 'gesture',
-        order: 70,
-        run(runCtx) {
-          fromCtx(WorkspaceService, runCtx).toggleOutlineMode();
         },
       }),
     );
@@ -736,10 +854,11 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     ctx.track(
       reg.register({
         id: 'svge.builtin.view.toggle-timeline',
+        parentId: 'svge.builtin.view.show-menu',
         slot: MENU_SLOT.VIEW,
-        label: 'Show Timeline',
+        label: 'Timeline',
         icon: 'timeline',
-        order: 72,
+        order: 30,
         run(runCtx) {
           fromCtx(WorkspaceService, runCtx).toggleTimeline();
         },
@@ -968,6 +1087,52 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     );
 
     // ── Object menu ────────────────────────────────────────────────
+    // **D-085** — Group / Ungroup moved here from the Edit menu (top of
+    // Object, before Arrange), matching Illustrator / Option B. Ids kept
+    // as `svge.builtin.edit.group` / `…ungroup` for backward compat
+    // (shortcuts, NLU, consumer overrides) — only the slot changed.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.group',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Group',
+        icon: 'group_work',
+        shortcut: 'Ctrl+G',
+        order: 5,
+        disabled: cantGroupFactory,
+        run(runCtx) {
+          groupSelection(runCtx, fromCtx);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.ungroup',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Ungroup',
+        icon: 'call_split',
+        shortcut: 'Ctrl+Shift+G',
+        order: 7,
+        disabled: cantUngroupFactory,
+        run(runCtx) {
+          ungroupFocus(runCtx, fromCtx);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.divider-arrange',
+        slot: MENU_SLOT.OBJECT,
+        label: '',
+        order: 8,
+        divider: true,
+        run() {
+          /* divider */
+        },
+      }),
+    );
+
+    // ── Object ▸ Arrange ▶ (z-order) ───────────────────────────────
     const reorder = (direction: ReorderDirection, runCtx?: MenuContributionContext): void => {
       const sel = fromCtx(SelectionService, runCtx);
       const ids = Array.from(sel.selectedIds());
@@ -977,7 +1142,21 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     };
     ctx.track(
       reg.register({
+        id: 'svge.builtin.object.arrange',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Arrange',
+        icon: 'layers',
+        order: 20,
+        disabled: noSelectionFactory,
+        run() {
+          /* submenu parent — children drive the actual reorder */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
         id: 'svge.builtin.object.bring-to-front',
+        parentId: 'svge.builtin.object.arrange',
         slot: MENU_SLOT.OBJECT,
         label: 'Bring to Front',
         icon: 'flip_to_front',
@@ -992,6 +1171,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     ctx.track(
       reg.register({
         id: 'svge.builtin.object.bring-forward',
+        parentId: 'svge.builtin.object.arrange',
         slot: MENU_SLOT.OBJECT,
         label: 'Bring Forward',
         icon: 'arrow_upward',
@@ -1006,6 +1186,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     ctx.track(
       reg.register({
         id: 'svge.builtin.object.send-backward',
+        parentId: 'svge.builtin.object.arrange',
         slot: MENU_SLOT.OBJECT,
         label: 'Send Backward',
         icon: 'arrow_downward',
@@ -1020,6 +1201,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     ctx.track(
       reg.register({
         id: 'svge.builtin.object.send-to-back',
+        parentId: 'svge.builtin.object.arrange',
         slot: MENU_SLOT.OBJECT,
         label: 'Send to Back',
         icon: 'flip_to_back',
@@ -1056,16 +1238,20 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     // mount the same way collectSelectedBBoxes does below (proven
     // pattern from D-065 align/distribute). If no SVG is mounted
     // (headless / SSR), the handler no-ops gracefully.
+    // **D-085** — relabeled "Flip" → "Transform" (Option B). Keeps id
+    // `svge.builtin.object.flip` so the real Flip H/V children stay
+    // attached; Rotate / Scale / Skew / Reset Transform are roadmap
+    // children added by `builtinRoadmapMenuPlugin` under this same id.
     ctx.track(
       reg.register({
         id: 'svge.builtin.object.flip',
         slot: MENU_SLOT.OBJECT,
-        label: 'Flip',
-        icon: 'flip',
-        order: 45,
+        label: 'Transform',
+        icon: 'transform',
+        order: 30,
         disabled: noSelectionFactory,
         run() {
-          /* submenu parent — children drive the actual flip */
+          /* submenu parent — children drive the actual transform */
         },
       }),
     );
@@ -1288,12 +1474,20 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
       'vertical',
     );
 
-    // ── Pathfinder ▶ parent ────────────────────────────────────────
+    // ── Boolean ▶ parent (D-085, ex-"Pathfinder") ──────────────────
+    // **D-085** — relabeled "Pathfinder" → "Boolean (Pathfinder)" per
+    // Option B. Id kept (`svge.builtin.object.pathfinder`) so the 5
+    // destructive ops below stay attached. The non-destructive **Live
+    // Boolean** ops (Make Live Union/Intersect/Subtract/Exclude +
+    // Refresh + Release) from `builtinAdvancedEditMenuPlugin` also
+    // re-parent here as flat leaves (the menu bar renders 2 levels only,
+    // so they're siblings of Union/Intersect/… rather than a nested
+    // "Live ▶" sub-submenu).
     ctx.track(
       reg.register({
         id: 'svge.builtin.object.pathfinder',
         slot: MENU_SLOT.OBJECT,
-        label: 'Pathfinder',
+        label: 'Boolean (Pathfinder)',
         icon: 'join_inner',
         order: 70,
         disabled: cantPathfinderFactory,
@@ -1456,13 +1650,17 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         return node === null || !isLayer(node);
       });
     };
+    // **D-085** — "New Layer" relocated to the **Insert** menu (Option B
+    // groups node-creation under Insert: Layer/Artboard/Symbol/…). Slot
+    // changed to INSERT; id kept (`svge.builtin.object.new-layer`) for
+    // backward compatibility. Order 50 places it after Image (40).
     ctx.track(
       reg.register({
         id: 'svge.builtin.object.new-layer',
-        slot: MENU_SLOT.OBJECT,
-        label: 'New Layer',
-        icon: 'add_box',
-        order: 80,
+        slot: MENU_SLOT.INSERT,
+        label: 'Layer',
+        icon: 'layers',
+        order: 50,
         run(runCtx) {
           const bus = fromCtx(CommandBus, runCtx);
           const sel = fromCtx(SelectionService, runCtx);
@@ -1473,13 +1671,33 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+
+    // ── Object ▸ Convert ▶ submenu (D-085) ──────────────────────────
+    // Hosts the group↔layer converters. Trace Image (ui plugin) and
+    // Outline Stroke (roadmap) are NOT here — per Option B, Convert to
+    // Path + Outline Stroke live in the new top-level **Path** menu, and
+    // Trace Image stays a real entry contributed by the ui plugin under
+    // this same parent id (`svge.builtin.object.convert`).
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.convert',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Convert',
+        icon: 'transform',
+        order: 80,
+        run() {
+          /* submenu parent */
+        },
+      }),
+    );
     ctx.track(
       reg.register({
         id: 'svge.builtin.object.convert-to-layer',
+        parentId: 'svge.builtin.object.convert',
         slot: MENU_SLOT.OBJECT,
         label: 'Convert to Layer',
         icon: 'folder_special',
-        order: 81,
+        order: 20,
         disabled: cantConvertToLayerFactory,
         run(runCtx) {
           const sel = fromCtx(SelectionService, runCtx);
@@ -1492,10 +1710,11 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     ctx.track(
       reg.register({
         id: 'svge.builtin.object.convert-to-group',
+        parentId: 'svge.builtin.object.convert',
         slot: MENU_SLOT.OBJECT,
         label: 'Convert Layer to Group',
         icon: 'folder',
-        order: 82,
+        order: 30,
         disabled: cantConvertToGroupFactory,
         run(runCtx) {
           const sel = fromCtx(SelectionService, runCtx);

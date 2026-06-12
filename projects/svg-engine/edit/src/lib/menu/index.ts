@@ -18,4 +18,5 @@ export {
   builtinAdvancedEditMenuPlugin,
   builtinInsertMenuPlugin,
   builtinMenuContributionsPlugin,
+  builtinRoadmapMenuPlugin,
 } from './builtin';

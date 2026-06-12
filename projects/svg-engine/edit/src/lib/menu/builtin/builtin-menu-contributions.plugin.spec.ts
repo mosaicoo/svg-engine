@@ -48,7 +48,7 @@ function setupRoot() {
 }
 
 describe('builtinMenuContributionsPlugin — registers canonical items', () => {
-  it('populates Edit slot with Undo/Redo/Delete/Select All/Group/Ungroup + dividers', () => {
+  it('populates Edit slot with Undo/Redo/Delete/Select All/Cut/Copy/Paste/Duplicate', () => {
     const { reg } = setupRoot();
     const ids = reg
       .bySlot(MENU_SLOT.EDIT)()
@@ -56,9 +56,17 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(ids).toContain('svge.builtin.edit.undo');
     expect(ids).toContain('svge.builtin.edit.redo');
     expect(ids).toContain('svge.builtin.edit.delete');
+    // Select All is now nested under the "Select" submenu but still lives
+    // in the EDIT slot (parentId only affects rendering, not the slot).
     expect(ids).toContain('svge.builtin.edit.select-all');
-    expect(ids).toContain('svge.builtin.edit.group');
-    expect(ids).toContain('svge.builtin.edit.ungroup');
+    expect(ids).toContain('svge.builtin.edit.cut');
+    expect(ids).toContain('svge.builtin.edit.copy');
+    expect(ids).toContain('svge.builtin.edit.paste');
+    expect(ids).toContain('svge.builtin.edit.duplicate');
+    // **D-085** — Group / Ungroup MOVED to the Object slot (Option B);
+    // they keep their ids but no longer appear in the Edit slot.
+    expect(ids).not.toContain('svge.builtin.edit.group');
+    expect(ids).not.toContain('svge.builtin.edit.ungroup');
   });
 
   it('populates View slot with Zoom + Toggle Grid/Rulers/Outline/Timeline', () => {
@@ -87,7 +95,7 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(ws.timeline()).toBe(true);
   });
 
-  it('populates Object slot with reorder items', () => {
+  it('populates Object slot with reorder items + relocated Group/Ungroup (D-085)', () => {
     const { reg } = setupRoot();
     const ids = reg
       .bySlot(MENU_SLOT.OBJECT)()
@@ -96,6 +104,9 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(ids).toContain('svge.builtin.object.bring-forward');
     expect(ids).toContain('svge.builtin.object.send-backward');
     expect(ids).toContain('svge.builtin.object.send-to-back');
+    // **D-085** — Group / Ungroup relocated from Edit to the top of Object.
+    expect(ids).toContain('svge.builtin.edit.group');
+    expect(ids).toContain('svge.builtin.edit.ungroup');
   });
 
   it('populates File slot with Export SVG / Export Animated SVG (SMIL) / Export PNG (D-082 F9d)', () => {

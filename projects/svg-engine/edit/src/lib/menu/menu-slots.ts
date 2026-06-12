@@ -48,6 +48,26 @@ export const MENU_SLOT = {
    */
   INSERT: 'menu.insert',
   OBJECT: 'menu.object',
+  /**
+   * **D-085** — "Path" menu: path-level operations (Convert to Path,
+   * Outline Stroke, Join, Split, Simplify, Offset, Smooth, Clean Up).
+   * Distinct from `menu.object` (whole-node ops) — these reshape the
+   * geometry of the selected path(s). Mirrors Inkscape's "Path" menu.
+   */
+  PATH: 'menu.path',
+  /**
+   * **D-085** — "Tools" menu: app-level utilities (Command Palette,
+   * Quick Search, Plugins submenu, Plugin Console, Developer Tools).
+   * Distinct from the canvas `toolbar.main` drawing tools — these are
+   * editor/IDE-style commands, not shape tools.
+   */
+  TOOLS: 'menu.tools',
+  /**
+   * **D-085** — "Window" menu: workspace + panel visibility (Workspace
+   * submenu, Panels submenu). Panel show/hide + workspace settings live
+   * here, matching Illustrator/Affinity's "Window" menu convention.
+   */
+  WINDOW: 'menu.window',
   HELP: 'menu.help',
 } as const;
 

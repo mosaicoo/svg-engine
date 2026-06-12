@@ -350,6 +350,7 @@
     "builtinOptimizersPlugin",
     "builtinPalettesPlugin",
     "builtinPatternsPlugin",
+    "builtinRoadmapMenuPlugin",
     "builtinShapesPlugin",
     "builtinSymbolsPlugin",
     "builtinTemplatesPlugin",

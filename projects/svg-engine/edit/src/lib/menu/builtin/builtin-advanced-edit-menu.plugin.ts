@@ -83,44 +83,46 @@ export const builtinAdvancedEditMenuPlugin: EditorPlugin = {
       });
     };
 
-    // ── Compound Path (Object menu) ────────────────────────────────
-
+    // ── Object ▸ Compound Path ▶ submenu (D-085) ───────────────────
+    // Was two flat Object items; now a submenu (Option B). Ids kept for
+    // shortcut/NLU backward compat (Ctrl+8 / Ctrl+Alt+8). Order 90 sits
+    // after Smart Object (85), before the Boolean ops.
     ctx.track(
       reg.register({
-        id: 'svge.advanced.compound.divider',
+        id: 'svge.advanced.compound',
         slot: MENU_SLOT.OBJECT,
-        label: '',
-        order: 100,
-        divider: true,
+        label: 'Compound Path',
+        icon: 'merge',
+        order: 90,
         run() {
-          /* divider */
+          /* submenu parent */
         },
       }),
     );
-
     ctx.track(
       reg.register({
         id: 'svge.advanced.compound.make',
+        parentId: 'svge.advanced.compound',
         slot: MENU_SLOT.OBJECT,
         label: 'Make Compound Path',
         icon: 'merge',
         shortcut: 'Ctrl+8',
-        order: 110,
+        order: 10,
         disabled: needTwoOrMoreFactory,
         run(runCtx) {
           runMakeCompound(runCtx);
         },
       }),
     );
-
     ctx.track(
       reg.register({
         id: 'svge.advanced.compound.release',
+        parentId: 'svge.advanced.compound',
         slot: MENU_SLOT.OBJECT,
         label: 'Release Compound Path',
         icon: 'call_split',
         shortcut: 'Ctrl+Alt+8',
-        order: 120,
+        order: 20,
         disabled: needPathFactory,
         run(runCtx) {
           runReleaseCompound(runCtx);
@@ -128,34 +130,26 @@ export const builtinAdvancedEditMenuPlugin: EditorPlugin = {
       }),
     );
 
-    // ── Boolean Live (Object menu, with parent submenu) ────────────
-
+    // ── Live Boolean folded into Object ▸ Boolean (D-085) ──────────
+    // Previously its own "Live Boolean ▶" submenu. The menu bar renders
+    // only 2 levels, so a "Boolean ▶ Live ▶ …" sub-submenu can't render;
+    // instead the live ops are FLAT leaves under the shared Boolean
+    // parent (`svge.builtin.object.pathfinder`), grouped by a divider
+    // after the 5 destructive ops (orders 10–50). Leaf ids preserved.
+    const BOOLEAN_PARENT = 'svge.builtin.object.pathfinder';
     ctx.track(
       reg.register({
-        id: 'svge.advanced.live-boolean.divider',
+        id: 'svge.advanced.live-boolean.head-divider',
+        parentId: BOOLEAN_PARENT,
         slot: MENU_SLOT.OBJECT,
         label: '',
-        order: 200,
+        order: 60,
         divider: true,
         run() {
           /* divider */
         },
       }),
     );
-
-    ctx.track(
-      reg.register({
-        id: 'svge.advanced.live-boolean',
-        slot: MENU_SLOT.OBJECT,
-        label: 'Live Boolean',
-        icon: 'auto_awesome_motion',
-        order: 210,
-        run() {
-          /* submenu parent — children drive the work */
-        },
-      }),
-    );
-
     const opEntries: { id: string; label: string; icon: string; op: LiveBooleanOp }[] = [
       { id: 'union', label: 'Make Live Union', icon: 'join_full', op: 'union' },
       { id: 'intersect', label: 'Make Live Intersect', icon: 'join_inner', op: 'intersect' },
@@ -167,11 +161,11 @@ export const builtinAdvancedEditMenuPlugin: EditorPlugin = {
       ctx.track(
         reg.register({
           id: `svge.advanced.live-boolean.make.${e.id}`,
-          parentId: 'svge.advanced.live-boolean',
+          parentId: BOOLEAN_PARENT,
           slot: MENU_SLOT.OBJECT,
           label: e.label,
           icon: e.icon,
-          order: 10 + i * 10,
+          order: 70 + i * 10,
           disabled: needTwoOrMoreFactory,
           run(runCtx) {
             runMakeLiveBoolean(runCtx, e.op);
@@ -179,44 +173,41 @@ export const builtinAdvancedEditMenuPlugin: EditorPlugin = {
         }),
       );
     }
-
     ctx.track(
       reg.register({
         id: 'svge.advanced.live-boolean.refresh-divider',
-        parentId: 'svge.advanced.live-boolean',
+        parentId: BOOLEAN_PARENT,
         slot: MENU_SLOT.OBJECT,
         label: '',
-        order: 100,
+        order: 115,
         divider: true,
         run() {
           /* divider */
         },
       }),
     );
-
     ctx.track(
       reg.register({
         id: 'svge.advanced.live-boolean.refresh',
-        parentId: 'svge.advanced.live-boolean',
+        parentId: BOOLEAN_PARENT,
         slot: MENU_SLOT.OBJECT,
-        label: 'Refresh',
+        label: 'Refresh Live Boolean',
         icon: 'refresh',
-        order: 110,
+        order: 120,
         disabled: needLiveBooleanFactory,
         run(runCtx) {
           runRefreshLiveBoolean(runCtx);
         },
       }),
     );
-
     ctx.track(
       reg.register({
         id: 'svge.advanced.live-boolean.release',
-        parentId: 'svge.advanced.live-boolean',
+        parentId: BOOLEAN_PARENT,
         slot: MENU_SLOT.OBJECT,
-        label: 'Release',
+        label: 'Release Live Boolean',
         icon: 'lock_open',
-        order: 120,
+        order: 130,
         disabled: needLiveBooleanFactory,
         run(runCtx) {
           runReleaseLiveBoolean(runCtx);

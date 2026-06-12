@@ -97,15 +97,15 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
       (runCtx?.injector ?? ctx.injector).get(token);
 
     // ── File ▸ View Source… ──────────────────────────────────────
+    // **D-085** — order 50: after the Export submenu (40), before
+    // Optimize… (60).
     ctx.track(
       reg.register({
         id: 'svge.builtin.ui.file.view-source',
         slot: MENU_SLOT.FILE,
         label: 'View Source…',
         icon: 'code',
-        // Order higher than Export PNG (60) so it appears after exports.
-        // Lower than Optimize (80) so it groups with view actions.
-        order: 65,
+        order: 50,
         run(runCtx) {
           // Delegate to SvgeSvgSourceDialogService — single source of
           // truth for "how to open the source dialog" (config +
@@ -117,17 +117,20 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
       }),
     );
 
-    // ── File ▸ Workspace Settings… ───────────────────────────────
+    // ── Window ▸ Workspace ▸ Workspace Settings… (D-085) ─────────
+    // **Relocated** from the File menu to Window ▸ Workspace (Option B —
+    // workspace/panel concerns live under Window). The "Workspace ▶"
+    // parent + its roadmap siblings (Keyboard Shortcuts…, Reset
+    // Workspace) are registered by `builtinRoadmapMenuPlugin`. Id kept
+    // for backward compat.
     ctx.track(
       reg.register({
         id: 'svge.builtin.ui.file.workspace-settings',
-        slot: MENU_SLOT.FILE,
+        parentId: 'svge.window.workspace',
+        slot: MENU_SLOT.WINDOW,
         label: 'Workspace Settings…',
         icon: 'tune',
-        // Lowest order in File group so it sits at the bottom — settings
-        // are global / cross-cutting, distinct from the document-scoped
-        // actions above.
-        order: 90,
+        order: 10,
         run(runCtx) {
           // Delegate to SvgeWorkspaceSettingsDialogService — same
           // centralization rationale as View Source: dialog config +
@@ -139,15 +142,15 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
       }),
     );
 
-    // ── File ▸ Manage Plugins… (D-083 Fase 1) ────────────────────
+    // ── Tools ▸ Plugins ▸ Manage Plugins… (D-083 / D-085) ─────────
     //
     // Opens <svge-plugin-manager-dialog> — the Material dialog wrapper
     // around <svge-plugin-manager>. Lives here (not edit-side) because it
-    // needs MatDialog (D-017). Grouped with Workspace Settings at the
-    // bottom of File: both are global, cross-cutting app concerns rather
-    // than document-scoped actions. Order 95 sits just after Workspace
-    // Settings (90). Always enabled — managing plugins never depends on
-    // selection or document state.
+    // needs MatDialog (D-017). **Relocated** from File to Tools ▸ Plugins
+    // (Option B). The "Plugins ▶" parent + roadmap siblings (Install
+    // Plugin…, Enable / Disable, Developer Mode) are registered by
+    // `builtinRoadmapMenuPlugin`. Id kept for backward compat. Always
+    // enabled — managing plugins never depends on selection/document.
     //
     // **Mechanism, not policy** (D-083): this just surfaces the manager.
     // A consumer that wants to restrict who sees it omits this plugin (or
@@ -155,10 +158,11 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
     ctx.track(
       reg.register({
         id: 'svge.builtin.ui.file.manage-plugins',
-        slot: MENU_SLOT.FILE,
+        parentId: 'svge.tools.plugins',
+        slot: MENU_SLOT.TOOLS,
         label: 'Manage Plugins…',
         icon: 'extension',
-        order: 95,
+        order: 10,
         run(runCtx) {
           const service = fromCtx(SvgePluginManagerDialogService, runCtx);
           service.open(runCtx?.injector ?? ctx.injector);
@@ -166,7 +170,7 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
       }),
     );
 
-    // ── Help ▸ About SVGEngine ───────────────────────────────────
+    // ── Help ▸ About SVG Studio ──────────────────────────────────
     //
     // **Moved here from the edit-side plugin** — that one could only
     // call `alert()` because D-017 blocks Material in edit. Now opens
@@ -175,15 +179,16 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
     // every other dialog in the editor. Uses the 'sm' bucket because
     // the content is tiny (version + tagline + GitHub link).
     //
-    // **Same id as the deprecated edit-side entry** (`svge.builtin.help.about`)
-    // so consumers that wired their own About via id override still
-    // match — they just need to install this plugin AFTER the
-    // edit-side one (default order in playground/svg-studio app.config).
+    // **D-085** — label "About SVGEngine" → "About SVG Studio" (engine is
+    // the library; Studio is the product). **Same id**
+    // (`svge.builtin.help.about`) so consumers that wired their own About
+    // via id override still match — they just need to install this plugin
+    // AFTER the edit-side one (default order in playground/svg-studio).
     ctx.track(
       reg.register({
         id: 'svge.builtin.help.about',
         slot: MENU_SLOT.HELP,
-        label: 'About SVGEngine',
+        label: 'About SVG Studio',
         icon: 'info',
         order: 10,
         run(runCtx) {
@@ -285,15 +290,20 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
         selection.select(groupId);
       }
     };
+    // **D-085** — Trace Image nested under the Object ▸ Convert submenu
+    // (parent registered by the edit-side menu plugin as
+    // `svge.builtin.object.convert`). First child (order 10), above the
+    // Convert to Layer / Convert Layer to Group items (20 / 30).
     ctx.track(
       reg.register({
         id: 'svge.builtin.ui.object.trace-image',
+        parentId: 'svge.builtin.object.convert',
         slot: MENU_SLOT.OBJECT,
         label: 'Trace Image…',
         icon: 'auto_fix_normal',
         tooltip: 'Convert the selected image to vector paths',
         shortcut: 'Ctrl+Alt+T',
-        order: 80,
+        order: 10,
         disabled: noImageSelectionFactory,
         run(runCtx) {
           void openTraceImageDialog(runCtx?.injector ?? ctx.injector);

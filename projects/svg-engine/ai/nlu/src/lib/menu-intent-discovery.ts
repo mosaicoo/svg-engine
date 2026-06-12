@@ -26,8 +26,9 @@ import type { NluIntent } from './types';
  * podem registrar intents customizados via
  * {@link NaturalLanguageService.registerIntent} sem conflito.
  *
- * **Skip de dividers + items sem label**: `divider: true` ou label
- * vazio não produz intent (não é ação executável).
+ * **Skip de dividers + items sem label + roadmap**: `divider: true`,
+ * label vazio, ou `comingSoon: true` (D-085) não produzem intent — não
+ * são ações executáveis (o `run()` de um item roadmap é no-op).
  *
  * **Destrutivos**: items cujo label contém "delete"/"remove"/"clear"/
  * "deletar"/"excluir"/"remover"/"apagar" são marcados `destructive: true`
@@ -170,6 +171,12 @@ function buildIntentId(contribId: string): string {
  */
 export function menuContributionToIntent(contrib: MenuContribution): NluIntent | null {
   if (contrib.divider === true) return null;
+  // **D-085** — skip roadmap ("coming soon") items. Their `run()` is a
+  // no-op placeholder; promoting them to voice intents would let a user
+  // say "outline stroke" and have nothing happen (worse: a confident
+  // "done" with no effect). They re-enter discovery automatically once
+  // the flag is removed and a real handler is wired.
+  if (contrib.comingSoon === true) return null;
   if (typeof contrib.label !== 'string' || contrib.label.trim().length === 0) return null;
 
   const keywords = deriveKeywords(contrib.label);

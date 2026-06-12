@@ -6,6 +6,44 @@
 
 ---
 
+## 2026-06-12 — D-085: Reorganização do menubar (Opção B + roadmap visível) ✅
+
+Remapeamento completo do menubar para o layout **Opção B** (9 menus),
+preservando **todos** os recursos existentes e expondo o que ainda não
+existe como **roadmap visível** (item desabilitado + ícone de relógio).
+
+- **9 menus** (antes 6): `File / Edit / View / Insert / Object / **Path** /
+**Tools** / **Window** / Help`. Novos slots `MENU_SLOT.PATH/TOOLS/WINDOW`;
+  `<svge-menu-bar>` passa a renderizar os 9 por padrão.
+- **Marcador roadmap**: novo campo `MenuContribution.comingSoon`. O
+  menu-bar renderiza um ícone `schedule` à direita; folhas roadmap também
+  vêm `disabled`. A **descoberta NLU pula** `comingSoon` (senão virariam
+  comandos de voz no-op). Submenus 100% roadmap (ex.: **Object ▸ Mask**)
+  permanecem abríveis para manter a visibilidade do roadmap.
+- **Reorganização (ids preservados p/ compat de atalhos/NLU)**: Group/
+  Ungroup `Edit → Object` (topo); New Layer `Object → Insert`; Zoom/
+  Display/Show viram submenus em View; Select vira submenu em Edit;
+  Arrange/Transform(ex-Flip)/Boolean(ex-Pathfinder)/Convert/Compound Path
+  como submenus em Object; Live Boolean **achatado** dentro de Boolean
+  (o menu-bar só renderiza 2 níveis). Import/Export viram submenus em File.
+  Workspace Settings `File → Window ▸ Workspace`; Manage Plugins
+  `File → Tools ▸ Plugins`; Trace Image → `Object ▸ Convert`; About
+  "SVGEngine" → "SVG Studio".
+- **Recursos reais NOVOS** que ganharam casa: **Path ▸ Convert to Path**
+  (`BatchConvertToPathCommand`), **View ▸ Zoom ▸ Fit Canvas** (`fit()`) e
+  **Actual Size (100%)** (`setZoom(1)`).
+- **Sugestões de ouro incorporadas**: **Object ▸ Mask** (Make/Release
+  Clipping Path, Make Opacity Mask — roadmap, comando ainda inexistente);
+  **Apply Filter…** (o painel de efeitos/filtros já existe — D-047); o
+  Document Settings (viewBox/preserveAspectRatio) entra como roadmap em File.
+- **Novo plugin** `builtinRoadmapMenuPlugin` (edit) concentra os menus
+  novos + Mask + ~60 placeholders roadmap; wired em
+  `provideSvgEngineEditorBuiltins()`.
+- **Garantia "nenhum recurso perdido"**: spec anti-órfão prova que **toda**
+  contribuição com `parentId` resolve para um pai no **mesmo slot** (zero
+  órfãos), + specs de relocação e de Convert-to-Path real. Suíte **2270**
+  verde; lint OK; snapshot de API atualizado (novo export). Decisão em doc 04.
+
 ## 2026-06-12 — Fix: 2º clique-direito vazava o menu nativo do navegador ✅
 
 Abrir o menu de contexto da app no canvas funcionava, mas um **segundo**

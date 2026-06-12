@@ -63,6 +63,21 @@ describe('NLU › menu-intent-discovery', () => {
       expect(intent).toBeNull();
     });
 
+    it('returns null for roadmap (comingSoon) items — D-085', () => {
+      // A "coming soon" item has a real label but a no-op run(); promoting
+      // it to a voice intent would let a user trigger a do-nothing handler.
+      const intent = menuContributionToIntent({
+        id: 'svge.roadmap.path.outline-stroke',
+        slot: 'menu.path',
+        label: 'Outline Stroke',
+        comingSoon: true,
+        run() {
+          /* roadmap no-op */
+        },
+      });
+      expect(intent).toBeNull();
+    });
+
     it('returns null for items with empty / whitespace-only label', () => {
       expect(
         menuContributionToIntent({

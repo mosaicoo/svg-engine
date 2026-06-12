@@ -143,6 +143,27 @@ export interface MenuContribution {
    */
   readonly divider?: boolean;
   /**
+   * **D-085** — "coming soon" / roadmap marker. When `true`, the item
+   * represents a feature that is **planned but not yet implemented**.
+   * UIs (`<svge-menu-bar>`) render it **visible but disabled** with a
+   * distinct roadmap icon so the menu doubles as a public roadmap —
+   * users can see what's coming without the action doing anything.
+   *
+   * **Contract**:
+   * - The item's `run()` is a no-op (never dispatches a command).
+   * - Leaf roadmap items also carry `disabled` (the menu-bar shows them
+   *   greyed out). Submenu **parents** marked `comingSoon` stay openable
+   *   (so the roadmap children inside remain visible) but show the
+   *   marker icon.
+   * - **NLU auto-discovery skips `comingSoon` items** (see
+   *   `menuContributionToIntent`) so a voice command never triggers a
+   *   no-op handler.
+   *
+   * Removing the flag (and wiring a real `run()` + `disabled`) is the
+   * single edit that "ships" a roadmap item.
+   */
+  readonly comingSoon?: boolean;
+  /**
    * Activated by the UI (click / keyboard). MUST NOT throw. NOT called
    * for dividers. The optional {@link MenuContributionContext} carries
    * the dispatching component's injector — use it to resolve services
