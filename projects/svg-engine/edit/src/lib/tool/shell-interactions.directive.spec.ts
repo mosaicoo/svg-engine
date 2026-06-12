@@ -1,7 +1,10 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
+import { generateNodeId } from 'svg-engine/core';
+import { MarqueeService } from '../marquee/marquee.service';
 import { provideSvgEngineEditorScope } from '../scope/editor-scope.providers';
+import { SelectionService } from '../selection/selection.service';
 import { WorkspaceService } from '../workspace/workspace.service';
 import { SvgeShellInteractions } from './shell-interactions.directive';
 
@@ -34,13 +37,20 @@ function mount() {
   const fixture = TestBed.createComponent(Host);
   fixture.detectChanges();
   const ws = TestBed.inject(WorkspaceService);
+  const selection = TestBed.inject(SelectionService);
+  const marquee = TestBed.inject(MarqueeService);
   const hostEl = fixture.nativeElement.firstElementChild as HTMLElement;
-  return { ws, hostEl };
+  return { ws, selection, marquee, hostEl };
 }
 
 /** Dispatch a real `pointerdown` on the directive host (fires the host binding). */
 function firePointerDown(el: HTMLElement, button = 0): void {
   el.dispatchEvent(new MouseEvent('pointerdown', { button, bubbles: true }));
+}
+
+/** Dispatch a real `pointermove` on the directive host (fires the host binding). */
+function firePointerMove(el: HTMLElement): void {
+  el.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }));
 }
 
 describe('SvgeShellInteractions — guide deselection on canvas/shape click', () => {
@@ -64,5 +74,51 @@ describe('SvgeShellInteractions — guide deselection on canvas/shape click', ()
     firePointerDown(hostEl, 1); // middle button → early return before the clear
 
     expect(ws.selectedGuideId()).toBe(id); // unchanged
+  });
+});
+
+/**
+ * Hover-outline wiring parity. The dashed `.hover-outline` drawn by
+ * `<svge-selection-overlay>` is driven by `SelectionService.hoverId`. That
+ * signal was only ever fed by the custom-editor playground's inline
+ * `onCanvasPointerMove`/`Leave`; the shared directive (used by svg-studio,
+ * `<svge-editor>`, `<svge-shell-pro>`) never set it, so those canvases had no
+ * hover feedback. These guard the ported wiring.
+ *
+ * The host is a bare `<div>` (no SVG): `resolveSelectableNodeId` resolves to
+ * "nothing under the cursor" (null), so the *positive* "outline the hovered
+ * node" path needs a rendered SVG and is covered by browser/E2E. Here we lock
+ * down the deterministic parts: clear-on-leave and suppress-during-gesture.
+ */
+describe('SvgeShellInteractions — hover outline wiring', () => {
+  it('clears the hover outline when the pointer leaves the canvas', () => {
+    const { selection, hostEl } = mount();
+    const id = generateNodeId();
+    selection.setHover(id);
+    expect(selection.hoverId()).toBe(id);
+
+    hostEl.dispatchEvent(new MouseEvent('pointerleave', { bubbles: true }));
+
+    expect(selection.hoverId()).toBeNull();
+  });
+
+  it('suppresses hover while a marquee gesture is in progress', () => {
+    const { selection, marquee, hostEl } = mount();
+    const id = generateNodeId();
+    selection.setHover(id);
+    // Start a marquee → updateHover must clear the stale outline on the next move.
+    marquee.start({ x: 0, y: 0 }, 'replace', new Set());
+    expect(marquee.isActive()).toBe(true);
+
+    firePointerMove(hostEl);
+
+    expect(selection.hoverId()).toBeNull();
+  });
+
+  it('runs the idle hover path without throwing on empty canvas (no SVG)', () => {
+    const { selection, hostEl } = mount();
+    expect(() => firePointerMove(hostEl)).not.toThrow();
+    // No node under the cursor (no SVG) → hover stays cleared.
+    expect(selection.hoverId()).toBeNull();
   });
 });

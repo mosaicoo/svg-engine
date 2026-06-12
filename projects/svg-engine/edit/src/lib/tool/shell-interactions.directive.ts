@@ -316,6 +316,14 @@ export class SvgeShellInteractions implements OnDestroy {
     const cursorPoint = this.toDocPoint(event);
     this.workspace.setRulerCursor(cursorPoint);
 
+    // Hover highlight: feed `SelectionService.hoverId` so the
+    // `<svge-selection-overlay>` draws the dashed `.hover-outline` of the node
+    // under the cursor. Runs every move; `updateHover` itself suppresses the
+    // outline during drawing tools and active gestures. Previously only
+    // `custom-editor` wired this inline — the shells (svg-studio,
+    // `<svge-editor>`/`<svge-shell-pro>`) had no hover feedback at all.
+    this.updateHover(event);
+
     // Drawing tool active → forward.
     const activeId = this.toolHost.activeId();
     const isDrawingTool =
@@ -382,6 +390,43 @@ export class SvgeShellInteractions implements OnDestroy {
         if (newDs !== null && newDs.kind === 'move') this.applySnappedMove(newDs, point);
       }
     }
+  }
+
+  /**
+   * **Hover outline wiring (select mode).** Feeds {@link SelectionService.setHover}
+   * from the node under the cursor so `<svge-selection-overlay>` draws its
+   * dashed `.hover-outline`. Uses the SAME {@link resolveSelectableNodeId} as
+   * click-select (group mode, isolation/page aware), so the highlight always
+   * matches what a click would pick.
+   *
+   * **Suppressed** while a drawing tool is active or any gesture (move /
+   * marquee / armed potential-drag) is in progress — an outline trailing the
+   * cursor mid-gesture is noise. The active **page** is never outlined (it has
+   * its own paper/brackets treatment; mirrors `SelectionOverlay`'s own
+   * page-hover suppression).
+   *
+   * Before this, only `custom-editor` wired hover inline; the shared shells
+   * (svg-studio, `<svge-editor>`, `<svge-shell-pro>`) had no hover feedback.
+   */
+  private updateHover(event: PointerEvent): void {
+    const activeId = this.toolHost.activeId();
+    const isDrawingTool =
+      activeId !== null && activeId !== SELECT_TOOL_ID && activeId !== DIRECT_SELECT_TOOL_ID;
+    if (
+      isDrawingTool ||
+      this.transform.dragState() !== null ||
+      this.marquee.isActive() ||
+      this.potentialDrag !== null
+    ) {
+      this.selection.setHover(null);
+      return;
+    }
+    const hoverId = resolveSelectableNodeId(event, {
+      mode: 'group',
+      rootId: this.state.document().root.id,
+      isolationRootId: this.isolation.isolationRootId() ?? this.activePage.activePageId(),
+    });
+    this.selection.setHover(hoverId === this.activePage.activePageId() ? null : hoverId);
   }
 
   // ── Pointer-up (commit gestures) ────────────────────────────────
@@ -451,6 +496,8 @@ export class SvgeShellInteractions implements OnDestroy {
     // section reverts to "—" when the pointer leaves (matches user
     // intuition that the readout follows the pointer's presence).
     this.workspace.setRulerCursor(null);
+    // Clear the hover outline when the pointer leaves the canvas.
+    this.selection.setHover(null);
   }
 
   // ── Click (manual dblclick detection → isolation) ───────────────

@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-06-12 — Fix: hover-outline ausente nos shells (svg-studio/`<svge-editor>`) ✅
+
+O contorno pontilhado azul do nó sob o cursor (`.hover-outline` do
+`<svge-selection-overlay>`, dirigido por `SelectionService.hoverId`) só
+aparecia no **custom-editor** do playground, que fiava `selection.setHover`
+inline no próprio componente. A infra compartilhada — diretiva
+**`[svgeShellInteractions]`** usada por svg-studio, `<svge-editor>` e
+`<svge-shell-pro>` — tinha `onPointerMove`/`onPointerLeave` mas **nunca**
+chamava `setHover`, então `hoverId()` ficava sempre `null` e o realce não
+aparecia. **Não** era overlay faltando nem camada errada — era fiação.
+
+- Adicionado `updateHover(event)` no `onPointerMove` da diretiva: resolve o nó
+  via o **mesmo** `resolveSelectableNodeId` da seleção (modo `group`,
+  isolation/página aware), suprimindo o realce durante tools de desenho e
+  gestos (move/marquee/drag-armado) e nunca destacando a página ativa.
+- `onPointerLeave` limpa o hover. Liga o recurso **de uma vez** em todos os
+  shells e embedders, com paridade total à seleção.
+- **+3 specs** (clear-on-leave, suppress-on-marquee, idle sem throw); suíte
+  **2262** verde; lint OK. A fiação inline do custom-editor fica redundante
+  (cleanup opcional futuro).
+
 ## 2026-06-12 — D-084: arquitetura da Plataforma de Plugins (Fase 3 redesenhada)
 
 Análise de negócio completa do sistema de plugins (svg-engine + svg-studio +
