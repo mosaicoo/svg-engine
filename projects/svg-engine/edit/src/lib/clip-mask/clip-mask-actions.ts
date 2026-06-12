@@ -6,6 +6,7 @@ import {
   extractDefById,
   findNodeById,
   generateNodeId,
+  type GroupNode,
   MakeClipMaskCommand,
   type NodeId,
   ReleaseClipMaskCommand,
@@ -43,6 +44,21 @@ function paintOrder(root: SvgNode): NodeId[] {
 }
 
 /**
+ * The topmost (paint-order-last) node among `ids` — i.e. the one that
+ * `makeClipMask` would consume as the clipper. Returns `null` when `ids`
+ * is empty or the resolved id is missing. Exported as the **single source
+ * of truth** for "who is the clipper", so the menu's `disabled` factory can
+ * inspect the clipper (e.g. to forbid an `<image>` clipper for clipPath —
+ * D-086 follow-up) without duplicating the paint-order logic.
+ */
+export function topmostSelected(root: GroupNode, ids: NodeId[]): SvgNode | null {
+  if (ids.length === 0) return null;
+  const order = paintOrder(root);
+  const inOrder = [...ids].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  return findNodeById(root, inOrder[inOrder.length - 1]!);
+}
+
+/**
  * Make a clipping path / opacity mask from the current selection. The
  * topmost selected node becomes the clip/mask def; the rest are clipped.
  * No-op when fewer than 2 nodes are selected.
@@ -54,13 +70,17 @@ export function makeClipMask(injector: Injector, kind: ClipMaskKind): void {
   if (ids.length < 2) return;
 
   const root = state.document().root;
-  const order = paintOrder(root);
-  const inOrder = [...ids].sort((a, b) => order.indexOf(a) - order.indexOf(b));
-  const clipperId = inOrder[inOrder.length - 1]!;
-  const targetIds = inOrder.slice(0, -1);
-
-  const clipper = findNodeById(root, clipperId);
+  const clipper = topmostSelected(root, ids);
   if (clipper === null) return;
+  // An `<image>` can't be a clipping path — SVG ignores it inside
+  // `<clipPath>`, which would crop the targets to nothing. The menu
+  // disables this combo (`cantMakeClipFactory`), but guard here too so
+  // other surfaces that call `run()` directly without honouring the
+  // disabled signal (NLU voice intents, context menus) can't produce a
+  // broken clip. Opacity masks accept any content, images included.
+  if (kind === 'clipPath' && clipper.type === 'image') return;
+  const clipperId = clipper.id;
+  const targetIds = ids.filter((id) => id !== clipperId);
   const inner = nodeToSvgMarkup(clipper);
   if (inner.trim().length === 0) return;
 

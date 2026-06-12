@@ -4,6 +4,7 @@ import {
   CommandBus,
   createEllipse,
   createGroup,
+  createImage,
   createRect,
   EditorStateService,
   HistoryService,
@@ -314,5 +315,43 @@ describe('builtinMenuContributionsPlugin — multi-editor scope isolation (D-042
 
     expect(sigA()).toBe(false); // A has history now
     expect(sigB()).toBe(true); // B untouched
+  });
+});
+
+// ── D-086 follow-up — image clipper guard on Make Clipping Path ───
+// SVG ignores `<image>` inside `<clipPath>`, so an image clipper would
+// crop the targets to nothing. `cantMakeClipFactory` forbids it; Make
+// Opacity Mask keeps the looser threshold (a `<mask>` renders images).
+
+describe('builtinMenuContributionsPlugin — Make Clipping Path forbids an image clipper', () => {
+  it('disables when the topmost selected node is an <image>, enables for a vector clipper', () => {
+    const { reg, bus, state, selection, injector } = setupRoot();
+    const makeClip = reg.get('svge.builtin.object.mask.make-clip')!;
+    const sig = resolveDisabledSignal(makeClip, injector);
+
+    // The item carries the explanatory tooltip that the menu-bar surfaces
+    // on hover (the "why is this greyed?" hint).
+    expect(makeClip.tooltip).toMatch(/Opacity Mask/);
+
+    expect(sig()).toBe(true); // < 2 selected → disabled (Group threshold)
+
+    const target = createRect({ x: 0, y: 0, width: 40, height: 40 });
+    const imageClipper = createImage({ x: 5, y: 5, width: 20, height: 20, href: 'data:,' });
+    bus.dispatch(new InsertNodeCommand(state.document().root.id, target));
+    bus.dispatch(new InsertNodeCommand(state.document().root.id, imageClipper)); // topmost
+    selection.selectMany([target.id, imageClipper.id]);
+
+    // 2 selected, but the clipper (topmost) is an image → still disabled.
+    expect(sig()).toBe(true);
+
+    // Make Opacity Mask has NO such restriction — a `<mask>` renders images.
+    const makeMask = reg.get('svge.builtin.object.mask.make-opacity')!;
+    expect(resolveDisabledSignal(makeMask, injector)()).toBe(false);
+
+    // Swap the clipper for a vector shape (new topmost) → clip enables.
+    const vectorClipper = createEllipse({ cx: 10, cy: 10, rx: 8, ry: 8 });
+    bus.dispatch(new InsertNodeCommand(state.document().root.id, vectorClipper));
+    selection.selectMany([target.id, vectorClipper.id]);
+    expect(sig()).toBe(false);
   });
 });

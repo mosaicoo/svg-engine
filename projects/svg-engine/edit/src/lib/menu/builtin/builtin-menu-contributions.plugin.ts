@@ -46,7 +46,7 @@ import {
 } from '../../alignment';
 import { AnimationService } from '../../animation/animation.service';
 import { ClipboardService } from '../../clipboard/clipboard.service';
-import { makeClipMask, releaseClipMask } from '../../clip-mask/clip-mask-actions';
+import { makeClipMask, releaseClipMask, topmostSelected } from '../../clip-mask/clip-mask-actions';
 import { SelectSameService } from '../../find-replace/select-same.service';
 import { getRenderedNodeBBox } from '../../geometry/node-bbox';
 import { LayersService } from '../../layers/layers.service';
@@ -1698,6 +1698,26 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         return node === null || node.style.mask === undefined;
       });
     };
+    // **D-086 follow-up** — Make Clipping Path needs ≥ 2 selected (one
+    // clipper + ≥ 1 target, like Group) AND the clipper (the topmost
+    // selected node) must be vector geometry: SVG **ignores `<image>`
+    // inside `<clipPath>`**, so an image clipper would silently crop the
+    // targets to nothing. We forbid that combination here; the item's
+    // tooltip points users to Make Opacity Mask (a `<mask>` renders any
+    // content, images included) or Trace Image (vectorize first). The
+    // clipper resolution reuses `topmostSelected` — the single source of
+    // truth shared with `makeClipMask`, so the disabled rule can never
+    // drift from which node actually becomes the clip.
+    const cantMakeClipFactory = (injector: Injector): Signal<boolean> => {
+      const selection = injector.get(SelectionService);
+      const state = injector.get(EditorStateService);
+      return computed(() => {
+        const ids = Array.from(selection.selectedIds()) as NodeId[];
+        if (ids.length < 2) return true;
+        const clipper = topmostSelected(state.document().root, ids);
+        return clipper === null || clipper.type === 'image';
+      });
+    };
     const releaseFromFocus = (
       runCtx: MenuContributionContext | undefined,
       kind: 'clipPath' | 'mask',
@@ -1728,8 +1748,14 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'crop',
         shortcut: 'Ctrl+7',
         order: 10,
-        // ≥ 2 selected (one clipper + ≥ 1 target) — same threshold as Group.
-        disabled: cantGroupFactory,
+        tooltip:
+          'O objeto de cima recorta os de baixo. Requer 2+ objetos, e o de cima ' +
+          'não pode ser uma imagem — para mascarar com imagem use Make Opacity ' +
+          'Mask, ou vetorize antes com Trace Image.',
+        // ≥ 2 selected AND the clipper must be vector geometry (not an
+        // <image> — see `cantMakeClipFactory`). Opacity Mask keeps the
+        // looser `cantGroupFactory` (images are valid mask content).
+        disabled: cantMakeClipFactory,
         run(runCtx) {
           makeClipMask(runCtx?.injector ?? ctx.injector, 'clipPath');
         },

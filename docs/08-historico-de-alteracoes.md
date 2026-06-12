@@ -28,6 +28,16 @@ cima** vira o recorte.
   selecionado e pode ser trocado/removido pelo painel.
 - **Limitação v1**: assume recorte e alvo no mesmo nível (caso comum); aninhado
   com transform de ancestrais fica como refino futuro.
+- **Refino (mesmo dia) — guard de clipper imagem**: o SVG **ignora `<image>`
+  dentro de `<clipPath>`**, então uma imagem como recorte de clipping path
+  cropparia o alvo a nada. **Make Clipping Path** agora **desabilita** quando o
+  objeto do topo é imagem (`cantMakeClipFactory`, via o novo helper compartilhado
+  `topmostSelected`), com **tooltip** apontando a saída (Make Opacity Mask ou
+  vetorizar com Trace Image); `makeClipMask` também faz no-op por dentro (defesa
+  contra NLU/context-menu). `<svge-menu-bar>` ganhou `[attr.title]` nas folhas +
+  `pointer-events:auto` em itens `[disabled]` (p/ o tooltip aparecer) + guard em
+  `runItem`. **Opacity Mask** segue aceitando imagem (`<mask>` renderiza
+  qualquer conteúdo). +3 specs (menu + ação ×2); suíte **2286** verde, lint OK.
 - Specs: core (helpers + comandos + undo) + edit (round-trip io). Suíte **2279+**
   verde; lint OK; snapshot de API atualizado. Fix paralelo: `pages.spec` limpa
   localStorage no setup (isolamento entre arquivos). Decisão em doc 04.

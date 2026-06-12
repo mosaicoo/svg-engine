@@ -121,6 +121,7 @@ import {
                     mat-menu-item
                     type="button"
                     [disabled]="isDisabled(child)"
+                    [attr.title]="child.tooltip || null"
                     (click)="runItem(child)"
                   >
                     @if (child.icon) {
@@ -144,6 +145,7 @@ import {
               mat-menu-item
               type="button"
               [disabled]="isDisabled(item)"
+              [attr.title]="item.tooltip || null"
               (click)="runItem(item)"
             >
               @if (item.icon) {
@@ -194,6 +196,17 @@ import {
       width: 16px;
       height: 16px;
       opacity: 0.45;
+    }
+    /* D-086 follow-up — keep DISABLED leaves hoverable so their native
+       \`title\` tooltip (the "why is this greyed?" hint, e.g. Make Clipping
+       Path disabled because the top object is an image) still appears.
+       A native [disabled] button makes browsers drop pointer events — and
+       with them the tooltip; re-enabling pointer-events restores hover.
+       Activation stays blocked both by [disabled] and by the runItem
+       guard, so this is strictly hover-only. */
+    button.mat-mdc-menu-item[disabled] {
+      pointer-events: auto;
+      cursor: not-allowed;
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -286,6 +299,13 @@ export class SvgeMenuBar {
   }
 
   protected runItem(item: MenuContribution): void {
+    // Defensive: a disabled item must never run. The native `disabled`
+    // attribute already blocks the click, but disabled leaves are kept
+    // hoverable (CSS `pointer-events: auto`, below) so their `title`
+    // tooltip shows on hover — this guard guarantees a stray click on a
+    // greyed item (e.g. Make Clipping Path with an image clipper) stays a
+    // no-op regardless of browser pointer-event quirks.
+    if (this.isDisabled(item)) return;
     runContribution(item, this.injector);
   }
 

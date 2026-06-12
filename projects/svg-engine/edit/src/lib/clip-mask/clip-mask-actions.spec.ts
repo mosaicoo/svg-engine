@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import {
   CommandBus,
   createEmptyDocument,
+  createImage,
   createRect,
   EditorStateService,
   findNodeById,
@@ -87,6 +88,40 @@ describe('clip-mask edit actions (D-086)', () => {
     expect(state.document().defs ?? '').not.toContain('<clipPath');
     // Illustrator parity: the clip shape comes back as an object.
     expect((state.document().root as GroupNode).children.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('makeClipMask("clipPath") is a no-op when the topmost node is an <image>', () => {
+    const { state, sel, injector } = setup();
+    const target = createRect({ x: 0, y: 0, width: 40, height: 40 });
+    const imageClipper = createImage({ x: 5, y: 5, width: 20, height: 20, href: 'data:,' });
+    state.setDocument({
+      ...state.document(),
+      root: { ...state.document().root, children: [target, imageClipper] },
+    });
+    sel.selectMany([target.id, imageClipper.id]);
+
+    makeClipMask(injector, 'clipPath');
+
+    // Forbidden combo (SVG ignores <image> in <clipPath>) → nothing happens.
+    expect(state.document().defs ?? '').not.toContain('<clipPath');
+    expect(findNodeById(state.document().root, target.id)?.style.clipPath).toBeUndefined();
+    expect(findNodeById(state.document().root, imageClipper.id)).not.toBeNull();
+  });
+
+  it('makeClipMask("mask") DOES accept an <image> clipper (luminance mask)', () => {
+    const { state, sel, injector } = setup();
+    const target = createRect({ x: 0, y: 0, width: 40, height: 40 });
+    const imageClipper = createImage({ x: 5, y: 5, width: 20, height: 20, href: 'data:,' });
+    state.setDocument({
+      ...state.document(),
+      root: { ...state.document().root, children: [target, imageClipper] },
+    });
+    sel.selectMany([target.id, imageClipper.id]);
+
+    makeClipMask(injector, 'mask');
+
+    expect(findNodeById(state.document().root, target.id)?.style.mask).toMatch(/^url\(#svge-mask-/);
+    expect(state.document().defs ?? '').toContain('<mask');
   });
 
   it('makeClipMask is a no-op with a single selected node', () => {

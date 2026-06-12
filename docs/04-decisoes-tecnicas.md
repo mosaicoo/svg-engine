@@ -2658,6 +2658,20 @@ Federation.**
 - **Limitação v1 (documentada)**: assume recorte e alvo no mesmo nível (caso
   comum). Recorte aninhado em grupos com transform próprio pode desalinhar —
   baking de matriz de ancestrais fica como refino futuro.
+- **Refino (guard de clipper = imagem)**: o SVG **ignora `<image>` dentro de
+  `<clipPath>`** — então usar uma imagem como recorte de clipping path cropparia
+  o alvo a nada. Decisão: **Make Clipping Path fica desabilitado** quando o nó do
+  topo (clipper) é uma imagem (`cantMakeClipFactory`, mesma fonte de verdade do
+  clipper que o `makeClipMask` via `topmostSelected`), com **tooltip** apontando
+  a saída (Make Opacity Mask — `<mask>` aceita imagem — ou vetorizar via Trace
+  Image). `makeClipMask` também faz o no-op por dentro (defesa contra NLU/menu de
+  contexto que chamam `run()` sem honrar o `disabled`). Para o tooltip aparecer
+  em item desabilitado, o `<svge-menu-bar>` ganhou `[attr.title]` nas folhas +
+  `pointer-events:auto` nos itens `[disabled]` + um guard em `runItem` (clique em
+  item greyed nunca executa). **Opacity Mask** mantém o limiar frouxo (imagem é
+  conteúdo válido de máscara).
 - **Verificação**: specs de core (helpers + comandos + undo) + edit (round-trip
-  io completo). Suíte verde; snapshot de API atualizado (`nodeToSvgMarkup` +
-  comandos exportados). Referência: histórico 08 (2026-06-12, D-086).
+  io completo + guard de imagem: clipPath no-op, mask aceita) + menu
+  (`cantMakeClipFactory` desabilita com clipper imagem, habilita com vetor).
+  Suíte verde (2286); snapshot de API atualizado (`nodeToSvgMarkup` + comandos
+  exportados). Referência: histórico 08 (2026-06-12, D-086).
