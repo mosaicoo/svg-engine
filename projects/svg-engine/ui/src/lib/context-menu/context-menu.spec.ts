@@ -162,4 +162,19 @@ describe('SvgeContextMenuTrigger — directive', () => {
     expect(service.isOpen()).toBe(true);
     expect(document.querySelectorAll('svge-context-menu').length).toBe(1);
   });
+
+  // Regression: a transparent backdrop swallowed the SECOND right-click,
+  // leaking the browser's native context menu and not repositioning. The
+  // fix opens WITHOUT a backdrop so the re-right-click reaches the canvas
+  // trigger (which preventDefaults + reopens). These guard that contract.
+  it('opens WITHOUT a backdrop (so a second right-click reaches the canvas)', () => {
+    const service = TestBed.inject(SvgeContextMenuService);
+    service.open(CONTEXT_MENU_SLOT.CANVAS, { x: 0, y: 0 });
+    expect(service.isOpen()).toBe(true);
+    expect(document.querySelector('.cdk-overlay-backdrop')).toBeNull();
+  });
+  // Outside dismissal now rides on CDK's `outsidePointerEvents()` (replaces
+  // the removed backdrop click). It's CDK-internal behavior that jsdom does
+  // not simulate from a synthetic pointerdown, so it's verified in the browser
+  // rather than unit-tested here; `service.close()` + Escape coverage remain.
 });

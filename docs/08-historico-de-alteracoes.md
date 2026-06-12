@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-06-12 — Fix: 2º clique-direito vazava o menu nativo do navegador ✅
+
+Abrir o menu de contexto da app no canvas funcionava, mas um **segundo**
+clique-direito (menu já aberto) **não reposicionava** o popup e ainda exibia o
+**menu nativo do navegador** por cima. Causa: o overlay do
+`SvgeContextMenuService` era criado com `hasBackdrop: true`. O backdrop
+transparente cobre o canvas inteiro, e seu `backdropClick()` **só dispara no
+clique esquerdo** — então o segundo clique-direito caía no backdrop, que (a) não
+tem `[svgeContextMenu]`, logo `preventDefault()` nunca rodava e o menu nativo
+vazava, e (b) não fechava nosso menu.
+
+- **`hasBackdrop: false`** + dismissal externo migrado de `backdropClick()` →
+  **`outsidePointerEvents()`** (fecha em qualquer pointer-down fora do painel,
+  esquerdo **ou** direito). Sem backdrop, o re-clique-direito passa direto ao
+  trigger do canvas, que dá `preventDefault()` (sem menu nativo) e reabre o menu
+  na nova posição. Docstring do serviço atualizada com o racional completo.
+- **+1 spec** (`opens WITHOUT a backdrop`) trava a regressão. O dismissal por
+  `outsidePointerEvents` é comportamento interno do CDK que o jsdom não simula a
+  partir de um `pointerdown` sintético → verificado no browser; `close()` +
+  Escape seguem cobertos. Suíte **2263** verde; lint OK.
+
 ## 2026-06-12 — Fix: hover-outline ausente nos shells (svg-studio/`<svge-editor>`) ✅
 
 O contorno pontilhado azul do nó sob o cursor (`.hover-outline` do

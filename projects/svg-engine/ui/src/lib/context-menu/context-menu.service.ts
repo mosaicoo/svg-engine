@@ -20,7 +20,11 @@ import { SvgeContextMenu } from './context-menu.component';
  * **Lifecycle**:
  *
  * - Only ONE menu open at a time — `open()` dismisses any previous menu.
- * - Closes on outside click (transparent backdrop captures all clicks).
+ * - Closes on outside pointer-down (`outsidePointerEvents`) — LEFT or RIGHT.
+ *   **No backdrop** (deliberate): a backdrop would swallow a second
+ *   right-click (leaking the browser's native menu and not repositioning);
+ *   without it the re-right-click reaches the canvas trigger, which
+ *   reopens the menu at the new spot. See `open()` for the full rationale.
  * - Closes on `Escape` keydown.
  * - Closes when an item runs (the component emits `dismiss`).
  * - Closes on `ngOnDestroy` (service is `providedIn: 'root'` so this
@@ -73,10 +77,17 @@ export class SvgeContextMenuService implements OnDestroy {
       // open while the page scrolls leaves it visually disconnected
       // from whatever the user right-clicked on.
       scrollStrategy: this.overlay.scrollStrategies.close(),
-      // Transparent backdrop captures outside clicks for dismiss
-      // without dimming the canvas (which would feel modal-heavy).
-      hasBackdrop: true,
-      backdropClass: 'cdk-overlay-transparent-backdrop',
+      // **No backdrop (bug fix).** A transparent backdrop covers the whole
+      // viewport on top of the canvas. Its `backdropClick()` only fires on a
+      // LEFT click, so a SECOND RIGHT-click while the menu is open landed on
+      // the backdrop instead — which (a) has no `[svgeContextMenu]` trigger,
+      // so `preventDefault()` never ran and the BROWSER's native context menu
+      // leaked through, and (b) did not dismiss our menu. Without a backdrop
+      // the second right-click passes straight to the canvas, whose
+      // `[svgeContextMenu]` calls `preventDefault()` (no native menu) and
+      // reopens the menu at the new position (with the slot re-resolved).
+      // Outside dismissal is handled by `outsidePointerEvents()` below.
+      hasBackdrop: false,
       panelClass: 'svge-context-menu-panel',
     });
 
@@ -92,7 +103,11 @@ export class SvgeContextMenuService implements OnDestroy {
 
     // Wire up the dismiss outputs / dismissal sources.
     const dismissSub = componentRef.instance.dismiss.subscribe(() => this.close());
-    const backdropSub = overlayRef.backdropClick().subscribe(() => this.close());
+    // Outside dismissal without a backdrop: closes on any pointer-down
+    // outside the menu panel (LEFT or RIGHT). On a re-right-click this fires
+    // on the pointerdown; the canvas trigger's `contextmenu` then reopens at
+    // the new position — net effect: the menu repositions, no native menu.
+    const outsideSub = overlayRef.outsidePointerEvents().subscribe(() => this.close());
     const keydownSub = overlayRef.keydownEvents().subscribe((event) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
@@ -104,7 +119,7 @@ export class SvgeContextMenuService implements OnDestroy {
     // when the menu closes via any of the dismissal paths).
     overlayRef.detachments().subscribe(() => {
       dismissSub.unsubscribe();
-      backdropSub.unsubscribe();
+      outsideSub.unsubscribe();
       keydownSub.unsubscribe();
     });
 
