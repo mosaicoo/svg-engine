@@ -4,6 +4,7 @@ import { CommandBus } from '../command-bus/command-bus.service';
 import { EditorStateService } from '../state/editor-state.service';
 import { createGroup, createRect } from '../model/node-factory';
 import { isLayer, withLayerFlag } from '../model/layer';
+import { withPageFlag } from '../model/page';
 import type { SvgDocument } from '../document/svg-document';
 import type { GroupNode } from '../model/group-node';
 import type { SvgNode } from '../model/svg-node';
@@ -49,6 +50,41 @@ describe('D-072 — Layer commands', () => {
       bus.dispatch(new MakeLayerCommand(inner.id));
       // No mutation — inner remains a plain group.
       const after = findNodeById(state.document().root, inner.id);
+      expect(after).not.toBeNull();
+      expect(isLayer(after!)).toBe(false);
+    });
+
+    // **D-079 regression** — under the Pages model a "top-level" group is a
+    // direct child of the active PAGE, not of the root (the root holds only
+    // page groups). The old root-only invariant left Convert to Layer
+    // permanently failing inside pages.
+    it('converts a group nested directly in a PAGE into a layer', () => {
+      const { state, bus } = setup();
+      const group = createGroup([createRect({ x: 0, y: 0, width: 10, height: 10 })]);
+      const page = withPageFlag(createGroup([group], { id: 'page' as NodeId }), {
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+      });
+      seed(state, [page]);
+      bus.dispatch(new MakeLayerCommand(group.id));
+      const after = findNodeById(state.document().root, group.id);
+      expect(after).not.toBeNull();
+      expect(isLayer(after!)).toBe(true);
+    });
+
+    it('rejects a page itself (a page is a group, but not a convertible one)', () => {
+      const { state, bus } = setup();
+      const page = withPageFlag(createGroup([], { id: 'page' as NodeId }), {
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+      });
+      seed(state, [page]);
+      bus.dispatch(new MakeLayerCommand(page.id));
+      const after = findNodeById(state.document().root, page.id);
       expect(after).not.toBeNull();
       expect(isLayer(after!)).toBe(false);
     });

@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-06-12 — Fix: Convert to Layer quebrado sob Pages (regressão D-079) ✅
+
+**Sintoma (reportado):** `Object ▸ Convert ▸ Convert to Layer` ficava
+**sempre desabilitado**, mesmo selecionando um grupo — impossível testar.
+
+**Causa raiz:** o invariante "layer só no topo" checava `parent.id ===
+root.id`. Com o modelo de **Pages** (D-079) o `root` contém **só páginas**
+e um grupo de topo é filho da **página ativa**, não do root — então o
+predicado nunca passava. O `CreateLayerCommand` ("New Layer") já tinha sido
+ajustado para Pages, mas o `MakeLayerCommand` + os gates de UI ficaram para
+trás.
+
+**Correção (3 superfícies, mesma regra):** "top-level" = filho de um **layer
+container** = o **root OU uma página**. Aplicado em:
+
+- `core/MakeLayerCommand`: aceita parent root-ou-página; rejeita uma página
+  como alvo (uma página é um group, mas não conversível).
+- `edit` menu gate `cantConvertToLayerFactory` (`Object ▸ Convert to Layer`).
+- `ui` Layers Panel: `convertToLayer` (context-menu) **e** `isDropAllowed`
+  (drag/drop — uma layer pode pousar no root **ou** numa página; senão não
+  daria pra reordenar layer dentro da página).
+
+**Verificação:** +3 specs (core: grupo-em-página → layer; página rejeitada /
+menu: gate habilita só p/ grupo de topo da página, segue desabilitado p/
+aninhado e p/ página). Suíte **2289** verde; lint OK; specs antigas (docs
+sem-página) intactas. Sem mudança de API pública.
+
 ## 2026-06-12 — D-086: Object ▸ Mask real (clipping path + opacity mask) ✅
 
 Recurso **SVG-nativo de máscara por gesto** (padrão Illustrator), distinto do

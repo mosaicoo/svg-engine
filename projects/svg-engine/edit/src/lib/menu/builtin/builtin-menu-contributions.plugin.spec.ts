@@ -9,6 +9,7 @@ import {
   EditorStateService,
   HistoryService,
   InsertNodeCommand,
+  withPageFlag,
 } from 'svg-engine/core';
 import { describe, expect, it } from 'vitest';
 
@@ -315,6 +316,47 @@ describe('builtinMenuContributionsPlugin — multi-editor scope isolation (D-042
 
     expect(sigA()).toBe(false); // A has history now
     expect(sigB()).toBe(true); // B untouched
+  });
+});
+
+// ── D-079 regression — Convert to Layer must work inside Pages ────
+// Under the Pages model a top-level group is a direct child of the active
+// PAGE, not of the document root. The disabled gate used to require the
+// parent to be the root, so the menu item stayed permanently disabled
+// (the user couldn't even test it). It now treats both root and a page as
+// valid "layer containers".
+
+describe('builtinMenuContributionsPlugin — Convert to Layer under Pages (D-079 regression)', () => {
+  it('enables for a group inside a page; stays disabled for nested groups and pages', () => {
+    const { reg, state, selection, injector } = setupRoot();
+    const item = reg.get('svge.builtin.object.convert-to-layer')!;
+    const disabled = resolveDisabledSignal(item, injector);
+
+    const topGroup = createGroup([createRect({ x: 0, y: 0, width: 10, height: 10 })]);
+    const nested = createGroup([createRect({ x: 0, y: 0, width: 5, height: 5 })]);
+    const holder = createGroup([nested]); // plain group holding the nested one
+    const page = withPageFlag(createGroup([topGroup, holder]), {
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+    });
+    state.setDocument({
+      ...state.document(),
+      root: { ...state.document().root, children: [page] },
+    });
+
+    // Group directly under the page → ENABLED (this was the bug).
+    selection.select(topGroup.id);
+    expect(disabled()).toBe(false);
+
+    // Group nested inside another (plain) group → still disabled.
+    selection.select(nested.id);
+    expect(disabled()).toBe(true);
+
+    // The page itself → disabled (a page is not a convertible group).
+    selection.select(page.id);
+    expect(disabled()).toBe(true);
   });
 });
 

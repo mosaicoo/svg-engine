@@ -18,6 +18,7 @@ import {
   InsertNodeCommand,
   IntersectCommand,
   isLayer,
+  isPage,
   isSmartObject,
   MakeLayerCommand,
   MakeSmartObjectCommand,
@@ -1637,8 +1638,13 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         const node = findNodeById(root, id);
         if (node === null || node.type !== 'group') return true;
         if (isLayer(node)) return true; // already a layer
+        if (isPage(node)) return true; // a page is not a convertible group
         const parent = findParent(root, id);
-        return parent === null || parent.id !== root.id; // must be top-level
+        // Top-level = direct child of a **layer container**: the document
+        // root (legacy, page-less docs) OR a page (D-079). The old
+        // root-only check left this permanently disabled under Pages,
+        // where a top-level group is a child of the active page.
+        return parent === null || (parent.id !== root.id && !isPage(parent));
       });
     };
     const cantConvertToGroupFactory = (injector: Injector): Signal<boolean> => {

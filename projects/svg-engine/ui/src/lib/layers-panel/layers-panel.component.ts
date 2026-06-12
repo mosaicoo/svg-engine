@@ -24,6 +24,7 @@ import {
   type GroupNode,
   isGroupNode,
   isLayer,
+  isPage,
   isSmartObject,
   MakeLayerCommand,
   MoveNodeInTreeCommand,
@@ -1376,8 +1377,12 @@ export class LayersPanel {
     const node = findNodeById(root, id);
     if (node === null || node.type !== 'group') return false;
     if (isLayer(node)) return false;
+    if (isPage(node)) return false; // a page is not a convertible group
     const parent = findParent(root, id);
-    if (parent === null || parent.id !== root.id) return false;
+    // Top-level = direct child of a layer container: the document root OR a
+    // page (D-079). The old root-only check left this broken under Pages,
+    // where a top-level group is a child of the active page.
+    if (parent === null || (parent.id !== root.id && !isPage(parent))) return false;
     this.bus.dispatch(new MakeLayerCommand(id));
     return true;
   }
@@ -1543,7 +1548,8 @@ export class LayersPanel {
    * data model permits. Two rules:
    *
    * 1. **Layers stay top-level**: when source is a layer, the
-   *    resolved parent of the drop MUST be the document root.
+   *    resolved parent of the drop MUST be a **layer container** — the
+   *    document root or a page (D-079).
    * 2. **Layer's slot is the front of itself or the root**: any
    *    drop is allowed `inside` a layer (layers hold content); but
    *    a layer itself cannot be dropped `inside` anything.
@@ -1565,8 +1571,17 @@ export class LayersPanel {
       if (targetParent === null) return false;
       resolvedParentId = targetParent.id;
     }
-    // Rule 1: layers can only live at the document root.
-    if (isLayer(source) && resolvedParentId !== root.id) return false;
+    // Rule 1: layers can only live in a "layer container" — the document
+    // root OR a page (D-079). Pre-Pages this required the root; under Pages
+    // a layer lives directly under a page, so a layer drop must resolve to
+    // a root- or page-parented slot (otherwise reordering a layer within a
+    // page would be rejected outright).
+    if (isLayer(source)) {
+      const resolvedParent = findNodeById(root, resolvedParentId);
+      const isContainer =
+        resolvedParentId === root.id || (resolvedParent !== null && isPage(resolvedParent));
+      if (!isContainer) return false;
+    }
     return true;
   }
 

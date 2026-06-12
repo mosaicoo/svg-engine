@@ -1,6 +1,7 @@
 import type { GroupNode } from '../model/group-node';
 import { createGroup } from '../model/node-factory';
 import { isLayer, withLayerFlag, withoutLayerFlag } from '../model/layer';
+import { isPage } from '../model/page';
 import type { SvgNode } from '../model/svg-node';
 import { findNodeById, findParent, insertNode, removeNode, updateNode } from '../tree/tree-ops';
 import { generateNodeId, type NodeId } from '../types/node-id';
@@ -11,11 +12,12 @@ import { type Command, type CommandContext, type CommandResult, fail, ok } from 
  * release layers back into plain groups, and create fresh empty
  * layers at the top of the document.
  *
- * **Top-level invariant**: layers may ONLY live as direct children of
- * the document root. The UI enforces this on drag/drop, but the
- * commands also reject illegal placements at dispatch time as a last
- * line of defense — a misconfigured plugin or programmatic caller
- * cannot bypass the rule.
+ * **Top-level invariant**: layers may ONLY live as direct children of a
+ * **layer container** — the document root (legacy, page-less docs) or a
+ * **page** (D-079, where the root holds only page groups). The UI
+ * enforces this on drag/drop, but the commands also reject illegal
+ * placements at dispatch time as a last line of defense — a
+ * misconfigured plugin or programmatic caller cannot bypass the rule.
  *
  * **Undo model**: commands snapshot the prior root before mutating.
  * `undo()` restores the snapshot. Memory cost is one root reference
@@ -30,9 +32,9 @@ import { type Command, type CommandContext, type CommandResult, fail, ok } from 
 
 /**
  * Convert an existing group into a Layer. The target group MUST be a
- * direct child of the document root — otherwise the command fails
- * (the UI prevents this gesture, but a programmatic caller could try
- * it).
+ * direct child of a **layer container** — the document root or a page
+ * (D-079) — otherwise the command fails (the UI prevents this gesture,
+ * but a programmatic caller could try it).
  *
  * Idempotent: converting an already-layer group is a no-op (returns
  * ok without dispatching).
@@ -53,9 +55,16 @@ export class MakeLayerCommand implements Command {
       return fail(`${this.label}: node "${this.nodeId}" is "${node.type}", not a group`);
     }
     if (isLayer(node)) return ok(); // idempotent — no history entry needed
-    // Enforce top-level invariant: parent must be the document root.
+    if (isPage(node)) {
+      return fail(`${this.label}: node "${this.nodeId}" is a page, not a convertible group`);
+    }
+    // Enforce top-level invariant: the parent must be a "layer container",
+    // i.e. the document root OR a page (D-079). Pre-Pages, layers lived
+    // directly under root; with Pages, the root holds only page groups and
+    // a top-level layer is a direct child of the active page. Accepting
+    // both keeps legacy (page-less) documents working too.
     const parent = findParent(doc.root, this.nodeId);
-    if (parent === null || parent.id !== doc.root.id) {
+    if (parent === null || (parent.id !== doc.root.id && !isPage(parent))) {
       return fail(
         `${this.label}: only top-level groups can become layers (node "${this.nodeId}" is nested)`,
       );
