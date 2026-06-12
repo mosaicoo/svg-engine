@@ -1615,11 +1615,11 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
                   <mat-label>clip path</mat-label>
                   <mat-select
                     [value]="compositionRefValue('clipPath') ?? ''"
-                    [disabled]="isLocked() || clipPathItems().length === 0"
+                    [disabled]="isLocked() || clipPathOptions().length === 0"
                     (selectionChange)="setCompositionRef('clipPath', $event.value)"
                   >
                     <mat-option [value]="''">(none)</mat-option>
-                    @for (cp of clipPathItems(); track cp.id) {
+                    @for (cp of clipPathOptions(); track cp.id) {
                       <mat-option [value]="cp.id">{{ cp.name }}</mat-option>
                     }
                   </mat-select>
@@ -1629,11 +1629,11 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
                   <mat-label>mask</mat-label>
                   <mat-select
                     [value]="compositionRefValue('mask') ?? ''"
-                    [disabled]="isLocked() || maskItems().length === 0"
+                    [disabled]="isLocked() || maskOptions().length === 0"
                     (selectionChange)="setCompositionRef('mask', $event.value)"
                   >
                     <mat-option [value]="''">(none)</mat-option>
-                    @for (m of maskItems(); track m.id) {
+                    @for (m of maskOptions(); track m.id) {
                       <mat-option [value]="m.id">{{ m.name }}</mat-option>
                     }
                   </mat-select>
@@ -3736,11 +3736,46 @@ export class SvgeInspector {
   private readonly clipPathCatalog = inject(ClipPathLibraryService);
   private readonly maskCatalog = inject(MaskLibraryService);
 
-  /** Live signal of registered clipPath items — drives the dropdown. */
+  /** Live signal of registered clipPath items — library presets (catalog). */
   protected readonly clipPathItems = this.clipPathCatalog.items;
 
-  /** Live signal of registered mask items — drives the dropdown. */
+  /** Live signal of registered mask items — library presets (catalog). */
   protected readonly maskItems = this.maskCatalog.items;
+
+  /**
+   * **D-086** — parse `<clipPath>`/`<mask>` ids straight out of
+   * `document.defs`. The Object ▸ Mask gesture writes its generated def
+   * THERE (not into the library catalog), so without this the dropdown
+   * couldn't reflect a clip/mask made via the menu. Reading the document
+   * signal makes the derived options reactive to document mutations.
+   */
+  private parseDocDefOptions(tag: 'clipPath' | 'mask'): readonly { id: string; name: string }[] {
+    const defs = this.state.document().defs ?? '';
+    if (defs.length === 0) return [];
+    const re = new RegExp(`<${tag}\\b[^>]*\\bid=["']([^"'\\s>]+)["']`, 'gi');
+    const out: { id: string; name: string }[] = [];
+    let m: RegExpExecArray | null;
+    let n = 0;
+    while ((m = re.exec(defs)) !== null) {
+      n += 1;
+      out.push({ id: m[1]!, name: `${tag === 'clipPath' ? 'Clip' : 'Mask'} ${n} (document)` });
+    }
+    return out;
+  }
+
+  /** Library presets + document-defs clips, deduped (library wins). */
+  protected readonly clipPathOptions = computed<readonly { id: string; name: string }[]>(() => {
+    const lib = this.clipPathItems().map((i) => ({ id: i.id, name: i.name }));
+    const seen = new Set(lib.map((o) => o.id));
+    return [...lib, ...this.parseDocDefOptions('clipPath').filter((o) => !seen.has(o.id))];
+  });
+
+  /** Library presets + document-defs masks, deduped (library wins). */
+  protected readonly maskOptions = computed<readonly { id: string; name: string }[]>(() => {
+    const lib = this.maskItems().map((i) => ({ id: i.id, name: i.name }));
+    const seen = new Set(lib.map((o) => o.id));
+    return [...lib, ...this.parseDocDefOptions('mask').filter((o) => !seen.has(o.id))];
+  });
 
   /**
    * Whitelist of CSS `mix-blend-mode` values exposed in the picker.

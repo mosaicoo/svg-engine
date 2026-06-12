@@ -46,6 +46,7 @@ import {
 } from '../../alignment';
 import { AnimationService } from '../../animation/animation.service';
 import { ClipboardService } from '../../clipboard/clipboard.service';
+import { makeClipMask, releaseClipMask } from '../../clip-mask/clip-mask-actions';
 import { SelectSameService } from '../../find-replace/select-same.service';
 import { getRenderedNodeBBox } from '../../geometry/node-bbox';
 import { LayersService } from '../../layers/layers.service';
@@ -1668,6 +1669,124 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
           bus.dispatch(cmd);
           const newId = cmd.getCreatedLayerId();
           if (newId !== null) sel.select(newId);
+        },
+      }),
+    );
+
+    // ── Object ▸ Mask ▶ submenu (D-086) — REAL clip/mask by gesture ─
+    // Topmost selected node → `<clipPath>`/`<mask>` def (consumed); the
+    // rest get the reference. Release restores the clip shape (Illustrator
+    // parity). io-aware logic lives in `clip-mask-actions`; the commands
+    // (MakeClipMaskCommand / ReleaseClipMaskCommand) are pure-core.
+    const noClipRefFactory = (injector: Injector): Signal<boolean> => {
+      const sel = injector.get(SelectionService);
+      const state = injector.get(EditorStateService);
+      return computed(() => {
+        const id = sel.focusId();
+        if (id === null) return true;
+        const node = findNodeById(state.document().root, id);
+        return node === null || node.style.clipPath === undefined;
+      });
+    };
+    const noMaskRefFactory = (injector: Injector): Signal<boolean> => {
+      const sel = injector.get(SelectionService);
+      const state = injector.get(EditorStateService);
+      return computed(() => {
+        const id = sel.focusId();
+        if (id === null) return true;
+        const node = findNodeById(state.document().root, id);
+        return node === null || node.style.mask === undefined;
+      });
+    };
+    const releaseFromFocus = (
+      runCtx: MenuContributionContext | undefined,
+      kind: 'clipPath' | 'mask',
+    ): void => {
+      const injector = runCtx?.injector ?? ctx.injector;
+      const id = injector.get(SelectionService).focusId();
+      if (id !== null) releaseClipMask(injector, id, kind);
+    };
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.mask',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Mask',
+        icon: 'masks',
+        order: 75,
+        disabled: noSelectionFactory,
+        run() {
+          /* submenu parent */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.mask.make-clip',
+        parentId: 'svge.builtin.object.mask',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Make Clipping Path',
+        icon: 'crop',
+        shortcut: 'Ctrl+7',
+        order: 10,
+        // ≥ 2 selected (one clipper + ≥ 1 target) — same threshold as Group.
+        disabled: cantGroupFactory,
+        run(runCtx) {
+          makeClipMask(runCtx?.injector ?? ctx.injector, 'clipPath');
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.mask.release-clip',
+        parentId: 'svge.builtin.object.mask',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Release Clipping Path',
+        icon: 'crop_free',
+        order: 20,
+        disabled: noClipRefFactory,
+        run(runCtx) {
+          releaseFromFocus(runCtx, 'clipPath');
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.mask.divider',
+        parentId: 'svge.builtin.object.mask',
+        slot: MENU_SLOT.OBJECT,
+        label: '',
+        order: 25,
+        divider: true,
+        run() {
+          /* divider */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.mask.make-opacity',
+        parentId: 'svge.builtin.object.mask',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Make Opacity Mask',
+        icon: 'opacity',
+        order: 30,
+        disabled: cantGroupFactory,
+        run(runCtx) {
+          makeClipMask(runCtx?.injector ?? ctx.injector, 'mask');
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.mask.release-mask',
+        parentId: 'svge.builtin.object.mask',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Release Mask',
+        icon: 'layers_clear',
+        order: 40,
+        disabled: noMaskRefFactory,
+        run(runCtx) {
+          releaseFromFocus(runCtx, 'mask');
         },
       }),
     );

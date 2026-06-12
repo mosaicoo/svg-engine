@@ -2633,3 +2633,31 @@ Federation.**
   contribuição com `parentId` resolve para um pai no **mesmo slot** (zero
   órfãos), além de specs de relocação e de Convert-to-Path real. Suíte 2270
   verde; snapshot de API atualizado (novo export `builtinRoadmapMenuPlugin`).
+
+## D-086 — Object ▸ Mask real (clipping path + opacity mask por gesto)
+
+- **Contexto**: o painel COMPOSITION (D-049) só permite **referenciar** um clip/
+  mask de uma **biblioteca de presets** (geometria fixa). Faltava o fluxo padrão
+  Illustrator: selecionar 2+ objetos e o **de cima** virar o recorte do(s) de
+  baixo ("foto dentro do círculo"). Era o maior gap real (nem Opção A nem B do
+  menubar previam um submenu Mask).
+- **Decisão — onde mora o def**: `document.defs` (string XML do documento).
+  Motivos: é **undoable** (comando muda defs + nó, reversível por snapshot),
+  **round-trip** automático no export/import, e mantém os comandos **puros no
+  `core`** (sem acoplar a serviços do `edit` nem criar lixo de catálogo no undo).
+- **Decisão — camadas**: serialização de nó → markup vive no `io`
+  (`nodeToSvgMarkup`, reusa o `renderNode` do exporter). Por isso a cola
+  (`makeClipMask`/`releaseClipMask`) fica no **`edit`** (pode importar `io`);
+  os comandos `MakeClipMaskCommand`/`ReleaseClipMaskCommand` são **puros no
+  `core`** (recebem markup/nó já prontos). Precedente: `TraceImageCommand` no edit.
+- **Release com paridade Illustrator**: re-parseia o `<clipPath>`/`<mask>` de
+  volta para um nó via `svgImporter` e o reinsere — inverso completo do Make.
+- **Painel reflete o gesto**: o dropdown do Inspector passa a enumerar também os
+  ids parseados de `document.defs` (não só o catálogo), então um clip criado
+  pelo menu aparece selecionado e pode ser trocado/removido pelo painel.
+- **Limitação v1 (documentada)**: assume recorte e alvo no mesmo nível (caso
+  comum). Recorte aninhado em grupos com transform próprio pode desalinhar —
+  baking de matriz de ancestrais fica como refino futuro.
+- **Verificação**: specs de core (helpers + comandos + undo) + edit (round-trip
+  io completo). Suíte verde; snapshot de API atualizado (`nodeToSvgMarkup` +
+  comandos exportados). Referência: histórico 08 (2026-06-12, D-086).

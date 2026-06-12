@@ -82,31 +82,6 @@ function roadmapLeaf(opts: {
 }
 
 /**
- * Build a roadmap submenu **parent**. Unlike a leaf it stays **openable**
- * (no `disabled`) so the roadmap children inside remain visible; it only
- * carries the `comingSoon` marker icon.
- */
-function roadmapParent(opts: {
-  id: string;
-  slot: string;
-  label: string;
-  icon: string;
-  order: number;
-}): MenuContribution {
-  return {
-    id: opts.id,
-    slot: opts.slot,
-    label: opts.label,
-    icon: opts.icon,
-    order: opts.order,
-    comingSoon: true,
-    run() {
-      /* submenu parent — children drive (mostly roadmap) actions */
-    },
-  };
-}
-
-/**
  * Build a structural submenu **parent** that hosts a mix of real +
  * roadmap children (e.g. Tools ▸ Plugins, Window ▸ Workspace/Panels). NOT
  * marked `comingSoon` because at least one child is real and the parent
@@ -520,57 +495,11 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
         order: 30,
       }),
     );
-    // ── Object ▸ Mask ▶ (NEW — suggestion #2; all roadmap for now) ──
-    track(
-      roadmapParent({
-        id: 'svge.roadmap.object.mask',
-        slot: MENU_SLOT.OBJECT,
-        label: 'Mask',
-        icon: 'masks',
-        order: 75,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.object.mask.make-clip',
-        parentId: 'svge.roadmap.object.mask',
-        slot: MENU_SLOT.OBJECT,
-        label: 'Make Clipping Path',
-        icon: 'crop',
-        order: 10,
-        shortcut: 'Ctrl+7',
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.object.mask.release-clip',
-        parentId: 'svge.roadmap.object.mask',
-        slot: MENU_SLOT.OBJECT,
-        label: 'Release Clipping Path',
-        icon: 'crop_free',
-        order: 20,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.object.mask.make-opacity',
-        parentId: 'svge.roadmap.object.mask',
-        slot: MENU_SLOT.OBJECT,
-        label: 'Make Opacity Mask',
-        icon: 'opacity',
-        order: 30,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.object.mask.release-mask',
-        parentId: 'svge.roadmap.object.mask',
-        slot: MENU_SLOT.OBJECT,
-        label: 'Release Mask',
-        icon: 'layers_clear',
-        order: 40,
-      }),
-    );
+    // ── Object ▸ Mask ▶ — SHIPPED (D-086) ──────────────────────────
+    // The Mask submenu (Make/Release Clipping Path + Make/Release Opacity
+    // Mask) is now REAL — registered with working handlers by
+    // `builtinMenuContributionsPlugin` (it needs io serialization, which
+    // this roadmap plugin deliberately avoids). No longer a placeholder.
     // ── Object ▸ Apply Filter… (NEW — suggestion #3) ───────────────
     // The visual SVG-filter editor already exists as the Effects panel
     // (D-047); this menu-driven "apply a filter" flow is the roadmap part.

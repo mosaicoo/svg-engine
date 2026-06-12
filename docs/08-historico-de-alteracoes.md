@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-06-12 — D-086: Object ▸ Mask real (clipping path + opacity mask) ✅
+
+Recurso **SVG-nativo de máscara por gesto** (padrão Illustrator), distinto do
+painel COMPOSITION (D-049, que só **referencia** presets): aqui o **objeto de
+cima** vira o recorte.
+
+- **`io`**: helper público `nodeToSvgMarkup(node)` (serializa um nó, reusando o
+  `renderNode` do exporter).
+- **`core`**: `MakeClipMaskCommand` / `ReleaseClipMaskCommand` (puros, undo por
+  snapshot) + helpers de string (`appendDef`/`removeDefById`/`extractDefById`/
+  `unwrapUrlRef`). O def vive em `document.defs` → round-trip no export/import.
+- **`edit`**: `clip-mask-actions` (`makeClipMask`/`releaseClipMask`) — cola io:
+  serializa o recorte no Make e **re-parseia o def via `svgImporter`** no
+  Release (devolve a forma como objeto, paridade Illustrator).
+- **Menu**: `Object ▸ Mask ▶` agora REAL (Make/Release Clipping Path + Make/
+  Release Opacity Mask), gates de disabled (≥2 p/ Make; ref presente p/ Release)
+  e `Ctrl+7`. Placeholder roadmap removido.
+- **Inspector**: o dropdown `clip path`/`mask` da seção COMPOSITION agora
+  **enumera também os ids do `document.defs`** — o recorte do gesto aparece
+  selecionado e pode ser trocado/removido pelo painel.
+- **Limitação v1**: assume recorte e alvo no mesmo nível (caso comum); aninhado
+  com transform de ancestrais fica como refino futuro.
+- Specs: core (helpers + comandos + undo) + edit (round-trip io). Suíte **2279+**
+  verde; lint OK; snapshot de API atualizado. Fix paralelo: `pages.spec` limpa
+  localStorage no setup (isolamento entre arquivos). Decisão em doc 04.
+
 ## 2026-06-12 — D-085: Reorganização do menubar (Opção B + roadmap visível) ✅
 
 Remapeamento completo do menubar para o layout **Opção B** (9 menus),

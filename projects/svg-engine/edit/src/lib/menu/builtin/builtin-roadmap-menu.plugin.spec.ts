@@ -97,10 +97,13 @@ describe('D-085 menubar reorg — no orphaned contributions', () => {
     expect(reg.bySlot(MENU_SLOT.PATH)().length).toBeGreaterThan(0);
     expect(reg.bySlot(MENU_SLOT.TOOLS)().length).toBeGreaterThan(0);
     expect(reg.bySlot(MENU_SLOT.WINDOW)().length).toBeGreaterThan(0);
-    const maskChildren = reg
+    // **D-086** — the Mask submenu is now REAL (Make/Release Clipping Path +
+    // Make/Release Opacity Mask), registered by builtinMenuContributionsPlugin
+    // under `svge.builtin.object.mask` (no longer the roadmap placeholder).
+    const maskActions = reg
       .bySlot(MENU_SLOT.OBJECT)()
-      .filter((c) => c.parentId === 'svge.roadmap.object.mask');
-    expect(maskChildren.length).toBe(4);
+      .filter((c) => c.parentId === 'svge.builtin.object.mask' && c.divider !== true);
+    expect(maskActions.length).toBe(4);
   });
 });
 
@@ -114,7 +117,7 @@ describe('D-085 roadmap items — visible but disabled', () => {
 
   it('roadmap leaves never throw when activated (no-op run)', () => {
     const { reg, injector } = setupAllEditMenus();
-    const item = reg.get('svge.roadmap.object.mask.make-clip')!;
+    const item = reg.get('svge.roadmap.path.outline-stroke')!;
     expect(() => runContribution(item, injector)).not.toThrow();
   });
 });
