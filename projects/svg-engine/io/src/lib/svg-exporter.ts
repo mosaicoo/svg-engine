@@ -143,6 +143,37 @@ export function collectReferencedPathIds(root: GroupNode): ReadonlySet<NodeId> {
 // ── Export context (shared across pre-scan + render) ────────────────
 
 /**
+ * **D-086** — Serialize a SINGLE node to its SVG element markup, in
+ * isolation (no document wrapper, no `<defs>`). Reuses the exporter's
+ * `renderNode` so a node's geometry/attributes/transform serialize
+ * exactly as they would inside a full export.
+ *
+ * **Primary use**: building `<clipPath>` / `<mask>` definitions from a
+ * "clipper" shape for the Object ▸ Mask commands (D-086) — the returned
+ * markup is the inner geometry placed inside a `<clipPath>` / `<mask>`
+ * element. Titles and SMIL are intentionally OFF (a clip/mask def needs
+ * pure geometry, not authored names or animation).
+ *
+ * **Coordinate space**: the node's own `transform` IS emitted, so the
+ * markup paints in the same place the node was on the canvas — exactly
+ * what `clipPathUnits="userSpaceOnUse"` / `maskUnits="userSpaceOnUse"`
+ * expect. Ancestor-group transforms are NOT baked in (caller's
+ * responsibility when the node is nested).
+ *
+ * @returns the element markup (possibly multi-line/indented), or `''`
+ *   when the node is doc-hidden (`metadata.visible === false`).
+ */
+export function nodeToSvgMarkup(node: SvgNode): string {
+  const ctx: ExportContext = {
+    referencedIds: new Set<NodeId>(),
+    emitTitles: false,
+    emitSmil: false,
+    animDocByNode: new Map<NodeId, AnimationDoc>(),
+  };
+  return renderNode(node, 0, ctx);
+}
+
+/**
  * Per-export bundle threaded through every `render*` function:
  *
  * - `referencedIds`: paths that some `<text textPathRef>` points at

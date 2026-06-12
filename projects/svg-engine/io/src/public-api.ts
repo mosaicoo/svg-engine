@@ -26,5 +26,5 @@
 export { type Exporter, type Importer, type ImportResult } from './lib/io-types';
 export { ExporterRegistry, ImporterRegistry } from './lib/io-registries.service';
 export { svgImporter } from './lib/svg-importer';
-export { svgExporter } from './lib/svg-exporter';
+export { svgExporter, nodeToSvgMarkup } from './lib/svg-exporter';
 export { pngExporter, renderPng } from './lib/png-exporter';

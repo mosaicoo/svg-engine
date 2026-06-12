@@ -27,6 +27,13 @@ import { PagesService } from './pages.service';
 const VB = { x: 0, y: 0, width: 800, height: 600 };
 
 function setup() {
+  // **Test isolation (D-086 fix)** — `ActivePageService` recovers the active
+  // page id from `localStorage` (default key `'svge:activePage'`) on init.
+  // jsdom's `localStorage` is SHARED across spec files in the same vitest
+  // worker, so a page-creating test in ANOTHER file can leave a stale id that
+  // makes "starts with activePageId=null" read non-null. Clearing here (before
+  // ActivePageService is injected) guarantees a clean slate per test.
+  if (typeof localStorage !== 'undefined') localStorage.clear();
   TestBed.configureTestingModule({});
   const state = TestBed.inject(EditorStateService);
   state.resetDocument(createEmptyDocument());
