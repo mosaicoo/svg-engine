@@ -544,10 +544,19 @@ export class SvgeDialogShell implements AfterViewInit {
     const startW = rect.width;
     const startH = rect.height;
 
-    // Once the user starts resizing, the config-imposed max budget
-    // becomes a floor for "default size", not a ceiling — clear it so
-    // future moves can grow freely. Persist this for the rest of the
-    // dialog's lifetime, even after the gesture ends.
+    // **Pin the current size BEFORE lifting the max constraints.** The
+    // pane is auto-sized (content height, capped by maxHeight: 85vh).
+    // Clearing maxWidth/maxHeight on a bare pointerdown would let the
+    // pane snap to its natural content size — a visible grow/shrink
+    // "jump" the instant you click the grabber, before any drag. Writing
+    // the measured width/height first freezes the box, so removing the
+    // caps is a no-op visually; the drag then grows/shrinks from here.
+    pane.style.width = `${startW}px`;
+    pane.style.height = `${startH}px`;
+    // Now the config-imposed max budget becomes a floor for "default
+    // size", not a ceiling — clear it so future moves can grow freely.
+    // Persists for the rest of the dialog's lifetime, even after the
+    // gesture ends.
     pane.style.maxWidth = 'none';
     pane.style.maxHeight = 'none';
 
