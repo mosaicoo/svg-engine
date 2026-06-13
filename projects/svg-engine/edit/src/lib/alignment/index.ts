@@ -1,6 +1,7 @@
 export {
   type AlignAxis,
   computeAlignDeltas,
+  computeAlignToReferenceDeltas,
   computeDistributeDeltas,
   type DistributeAxis,
   type NodeBBox,

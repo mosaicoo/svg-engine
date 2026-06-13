@@ -98,6 +98,48 @@ describe('AlignmentService.align', () => {
   });
 });
 
+describe('AlignmentService.alignToReference (align to page)', () => {
+  it('aligns a single node to the page and dispatches one undoable command', () => {
+    const { align, state, history } = setup();
+    const a = createRect({ x: 100, y: 0, width: 10, height: 10 });
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([a], { id: state.document().root.id }),
+    });
+
+    // Page reference 800×600 at origin; align the lone node's left edge.
+    const ok = align.alignToReference(
+      [{ id: a.id, bbox: bbox(100, 0, 10, 10) }],
+      'left',
+      bbox(0, 0, 800, 600),
+    );
+    expect(ok).toBe(true);
+    expect(history.canUndo()).toBe(true);
+
+    // a.x = 100 → page left = 0 → translate -100 on x.
+    const moved = findNodeById(state.document().root, a.id);
+    const p = applyTransform(moved!.transform, 0, 0);
+    expect(p.x).toBe(-100);
+    expect(p.y).toBe(0);
+  });
+
+  it('returns false (no dispatch) when the node is already on the reference edge', () => {
+    const { align, state, history } = setup();
+    const a = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([a], { id: state.document().root.id }),
+    });
+    const ok = align.alignToReference(
+      [{ id: a.id, bbox: bbox(0, 0, 10, 10) }],
+      'left',
+      bbox(0, 0, 800, 600),
+    );
+    expect(ok).toBe(false);
+    expect(history.canUndo()).toBe(false);
+  });
+});
+
 describe('AlignmentService.distribute', () => {
   it('returns false when fewer than 3 items', () => {
     const { align } = setup();

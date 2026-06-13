@@ -1,6 +1,7 @@
 import { bbox, generateNodeId, type NodeId } from 'svg-engine/core';
 import {
   computeAlignDeltas,
+  computeAlignToReferenceDeltas,
   computeDistributeDeltas,
   type NodeBBox,
   unionBBox,
@@ -77,6 +78,59 @@ describe('computeAlignDeltas', () => {
     const a = nb(0, 0, 10, 10);
     const b = nb(0, 50, 10, 10); // already at left=0
     const deltas = computeAlignDeltas([a, b], 'left');
+    expect(deltas.size).toBe(0);
+  });
+});
+
+describe('computeAlignToReferenceDeltas (align to page)', () => {
+  // A typical "page" reference: 800×600 artboard at the origin.
+  const PAGE = bbox(0, 0, 800, 600);
+
+  it('returns empty map for empty input', () => {
+    expect(computeAlignToReferenceDeltas([], 'left', PAGE).size).toBe(0);
+  });
+
+  it('aligns a single node to the page left edge', () => {
+    const a = nb(100, 50, 40, 30);
+    const deltas = computeAlignToReferenceDeltas([a], 'left', PAGE);
+    // Reference left = 0. a.x = 100 → dx = -100.
+    expect(deltas.get(a.id)).toEqual({ x: -100, y: 0 });
+  });
+
+  it('centres a single node horizontally on the page', () => {
+    const a = nb(100, 50, 40, 30); // center-x = 120
+    const deltas = computeAlignToReferenceDeltas([a], 'center-x', PAGE);
+    // Page center-x = 400. dx = 400 - 120 = 280.
+    expect(deltas.get(a.id)).toEqual({ x: 280, y: 0 });
+  });
+
+  it('aligns a single node to the page bottom edge', () => {
+    const a = nb(100, 50, 40, 30); // bottom = 80
+    const deltas = computeAlignToReferenceDeltas([a], 'bottom', PAGE);
+    // Page bottom = 600. dy = 600 - 80 = 520.
+    expect(deltas.get(a.id)).toEqual({ x: 0, y: 520 });
+  });
+
+  it('honours a non-zero-origin reference (page offset)', () => {
+    const offsetPage = bbox(200, 100, 400, 300); // right edge = 600
+    const a = nb(0, 0, 50, 50); // right = 50
+    const deltas = computeAlignToReferenceDeltas([a], 'right', offsetPage);
+    // dx = 600 - 50 = 550.
+    expect(deltas.get(a.id)).toEqual({ x: 550, y: 0 });
+  });
+
+  it('aligns every item to the reference (not to each other) for ≥ 2', () => {
+    const a = nb(100, 0, 10, 10);
+    const b = nb(300, 0, 20, 10);
+    const deltas = computeAlignToReferenceDeltas([a, b], 'left', PAGE);
+    // Both snap to page left (0), independent of one another.
+    expect(deltas.get(a.id)).toEqual({ x: -100, y: 0 });
+    expect(deltas.get(b.id)).toEqual({ x: -300, y: 0 });
+  });
+
+  it('omits zero-deltas (already on the reference edge)', () => {
+    const a = nb(0, 200, 10, 10); // already at left = 0
+    const deltas = computeAlignToReferenceDeltas([a], 'left', PAGE);
     expect(deltas.size).toBe(0);
   });
 });

@@ -18,6 +18,7 @@ import {
   UnionCommand,
 } from 'svg-engine/core';
 import {
+  ActivePageService,
   type AlignAxis,
   AlignmentService,
   type DistributeAxis,
@@ -286,6 +287,7 @@ export class SvgeSelectToolOptions {
   private readonly layers = inject(LayersService);
   private readonly alignment = inject(AlignmentService);
   private readonly state = inject(EditorStateService);
+  private readonly activePage = inject(ActivePageService);
   private readonly bus = inject(CommandBus);
 
   /** Convertible leaf types — same set the Inspector + Pathfinder use. */
@@ -294,7 +296,10 @@ export class SvgeSelectToolOptions {
   // ── Enablement (mirrors menu disabled factories) ─────────────────
 
   protected readonly hasSelection = computed(() => this.selection.selectedIds().size >= 1);
-  protected readonly canAlign = computed(() => this.selection.selectedIds().size >= 2);
+  // Align is enabled with ≥ 1 node: a single node aligns to the active
+  // page; ≥ 2 align relative to the selection. (Distribute/Pathfinder
+  // still need ≥ 3 / ≥ 2.)
+  protected readonly canAlign = computed(() => this.selection.selectedIds().size >= 1);
   protected readonly canDistribute = computed(() => this.selection.selectedIds().size >= 3);
   protected readonly canPathfinder = computed(() => this.selection.selectedIds().size >= 2);
   protected readonly canConvertToPath = computed(() => this.convertibleIds().length > 0);
@@ -317,7 +322,13 @@ export class SvgeSelectToolOptions {
 
   protected align(axis: AlignAxis): void {
     const items = this.collectSelectedBBoxes();
-    if (items.length < 2) return;
+    if (items.length === 0) return;
+    if (items.length === 1) {
+      // Single node → align to the active page (fallback: document viewBox).
+      const reference = this.activePage.activePageViewBox() ?? this.state.document().viewBox;
+      this.alignment.alignToReference(items, axis, reference);
+      return;
+    }
     this.alignment.align(items, axis);
   }
 

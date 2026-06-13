@@ -6,6 +6,34 @@
 
 ---
 
+## 2026-06-13 — Align: objeto único alinha à página ("Align to Page") ✅
+
+Antes, com **1 objeto** selecionado os botões de Align ficavam desabilitados
+(o alinhamento era sempre relativo à união da seleção, exigindo ≥ 2 nós). Agora,
+seguindo o padrão profissional (Illustrator "Align to Artboard", Figma/Affinity
+"Align to Page"):
+
+- **1 nó** → Align habilitado; alinha o objeto relativo à **página ativa**
+  (`ActivePageService.activePageViewBox()`, fallback à viewBox do documento).
+  Ex.: `center-x` centraliza na página, `left` encosta na borda esquerda.
+- **≥ 2 nós** → comportamento atual (relativo à união da seleção). Sem mudança.
+- **Distribute** segue exigindo ≥ 3 (não há semântica para 1 nó vs página).
+
+Aplicado de forma consistente em **todas as superfícies de Align**:
+
+- Inspector ▸ aba Align (`canAlign` ≥ 1, `alignSelection` ramifica).
+- Barra de opções da tool Select (`<svge-select-tool-options>`).
+- Menu/toolbar `Object ▸ Align` (`cantAlignFactory` ≥ 1, run handler ramifica).
+
+Implementação (núcleo): nova `computeAlignToReferenceDeltas(items, axis, reference)`
+em `alignment-math` (extrai o cálculo do alvo por bbox, reutilizado pela versão
+ancorada na união) + `AlignmentService.alignToReference(items, axis, reference)`
+— um único `TranslateManyCommand` (undo unificado). Snapshot de API regenerado
+(+ `computeAlignToReferenceDeltas`). Specs novos (math + service + tool-options);
+suíte (2318) e lint verdes.
+
+---
+
 ## 2026-06-13 — Layers Panel: polimento de UX (rodapé unificado + alinhamento eye/lock + busca compacta) ✅
 
 Ajustes visuais no `<svge-layers-panel>` a partir de feedback de uso:

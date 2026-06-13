@@ -1,8 +1,15 @@
 import { inject, Injectable } from '@angular/core';
-import { CommandBus, type NodeId, type Point, TranslateManyCommand } from 'svg-engine/core';
+import {
+  type BoundingBox,
+  CommandBus,
+  type NodeId,
+  type Point,
+  TranslateManyCommand,
+} from 'svg-engine/core';
 import {
   type AlignAxis,
   computeAlignDeltas,
+  computeAlignToReferenceDeltas,
   computeDistributeDeltas,
   type DistributeAxis,
   type NodeBBox,
@@ -46,6 +53,22 @@ export class AlignmentService {
   align(items: readonly NodeBBox[], axis: AlignAxis): boolean {
     const deltas = computeAlignDeltas(items, axis);
     return this.dispatch(deltas, `Align ${axis}`);
+  }
+
+  /**
+   * Align `items` to a fixed `reference` bbox rather than to the
+   * selection's union — the "Align to Page / Artboard" mode. The
+   * canonical caller passes a single selected node + the active page's
+   * viewBox, so e.g. `center-x` centres the object on the page and
+   * `left` snaps it to the page's left edge.
+   *
+   * Works for any non-empty `items` (single-object align to page is the
+   * primary use; ≥ 2 items aligns each to the reference). No-op (returns
+   * `false`) when nothing would move.
+   */
+  alignToReference(items: readonly NodeBBox[], axis: AlignAxis, reference: BoundingBox): boolean {
+    const deltas = computeAlignToReferenceDeltas(items, axis, reference);
+    return this.dispatch(deltas, `Align ${axis} to page`);
   }
 
   /**

@@ -70,6 +70,41 @@ export function computeAlignDeltas(
 }
 
 /**
+ * Compute the per-node `(dx, dy)` translation needed to align every
+ * item to the chosen axis **relative to an explicit `reference` bbox**
+ * (instead of the selection's union bbox). This is the "align to key
+ * object / artboard" variant: the reference is fixed and never moves —
+ * every item is shifted so its chosen edge/center matches the
+ * reference's.
+ *
+ * The canonical use is **single-object align to the active page**: pass
+ * `[theObject]` as `items` and the page's viewBox as `reference`, so
+ * e.g. `center-x` centres the object horizontally on the page and
+ * `left` snaps it to the page's left edge. It also works for ≥ 2 items
+ * (aligns each to the reference rather than to each other), which is the
+ * "Align to Page" mode pro tools expose for multi-selection.
+ *
+ * Returns an empty map when `items` is empty, or when every computed
+ * delta is `(0, 0)` (already aligned — omitted for a clean no-op undo).
+ *
+ * **Pure**: no DOM, no signals.
+ */
+export function computeAlignToReferenceDeltas(
+  items: readonly NodeBBox[],
+  axis: AlignAxis,
+  reference: BoundingBox,
+): ReadonlyMap<NodeId, Point> {
+  if (items.length === 0) return new Map();
+  const target = alignTargetForBBox(reference, axis);
+  const out = new Map<NodeId, Point>();
+  for (const { id, bbox } of items) {
+    const delta = deltaForAlign(bbox, axis, target);
+    if (delta.x !== 0 || delta.y !== 0) out.set(id, delta);
+  }
+  return out;
+}
+
+/**
  * Compute the per-node `(dx, dy)` to evenly distribute centers along
  * the chosen axis. Returns an empty map when:
  * - `items.length < 3` (distribute needs an "inner" item to space).
@@ -129,20 +164,29 @@ export function unionBBox(items: readonly NodeBBox[]): BoundingBox {
 }
 
 function computeAlignTarget(items: readonly NodeBBox[], axis: AlignAxis): number {
-  const u = unionBBox(items);
+  return alignTargetForBBox(unionBBox(items), axis);
+}
+
+/**
+ * The single target coordinate (on the axis's relevant dimension) that
+ * every aligned item's chosen edge/center must reach, derived from a
+ * given bbox. Shared by union-anchored alignment (`computeAlignDeltas`)
+ * and reference-anchored alignment (`computeAlignToReferenceDeltas`).
+ */
+function alignTargetForBBox(b: BoundingBox, axis: AlignAxis): number {
   switch (axis) {
     case 'left':
-      return u.x;
+      return b.x;
     case 'right':
-      return u.x + u.width;
+      return b.x + b.width;
     case 'center-x':
-      return u.x + u.width / 2;
+      return b.x + b.width / 2;
     case 'top':
-      return u.y;
+      return b.y;
     case 'bottom':
-      return u.y + u.height;
+      return b.y + b.height;
     case 'center-y':
-      return u.y + u.height / 2;
+      return b.y + b.height / 2;
   }
 }
 

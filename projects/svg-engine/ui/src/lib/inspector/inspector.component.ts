@@ -54,6 +54,7 @@ import {
   walk,
 } from 'svg-engine/core';
 import {
+  ActivePageService,
   type AlignAxis,
   AlignmentService,
   type BBoxAnchor,
@@ -2503,6 +2504,11 @@ export class SvgeInspector {
   // in the Inspector and one tap in the menu produce identical results
   // (and identical undo entries).
   private readonly alignment = inject(AlignmentService);
+  // Reference frame for single-object align: a lone selection aligns to
+  // the active **page** (Illustrator "Align to Artboard" / Figma "Align
+  // to Page"), not to itself. `null` (no page) falls back to the
+  // document's own viewBox.
+  private readonly activePage = inject(ActivePageService);
 
   /**
    * The 8 anchors of the bbox, in the order shown by the 3×3 pivot
@@ -3409,11 +3415,12 @@ export class SvgeInspector {
   }
 
   /**
-   * **D-078** — true when ≥ 2 nodes are selected (alignment requires
-   * a relative position, single-selection has no meaningful axis to
-   * align to). Drives the Align tab's disabled state.
+   * **D-078** — true when ≥ 1 node is selected. A single node aligns
+   * relative to the active **page** ("Align to Page"); ≥ 2 nodes align
+   * relative to their selection. Either way there's a meaningful axis,
+   * so the only disabled case is an empty selection.
    */
-  protected readonly canAlign = computed(() => this.selection.selectedIds().size >= 2);
+  protected readonly canAlign = computed(() => this.selection.selectedIds().size >= 1);
 
   /**
    * Distribution semantically requires ≥ 3 nodes (need at least one
@@ -3424,13 +3431,23 @@ export class SvgeInspector {
 
   /**
    * Resolve bboxes for every selected id from the rendered DOM, then
-   * delegate to {@link AlignmentService.align}. Shares the same
-   * call path as the Object ▸ Align menu submenu — single source of
-   * truth for "align selection".
+   * delegate to the {@link AlignmentService}. Shares the same call path
+   * as the Object ▸ Align menu submenu — single source of truth for
+   * "align".
+   *
+   * - **1 node** → align to the active page (Illustrator "Align to
+   *   Artboard"): reference = the page's viewBox, fallback the document
+   *   viewBox.
+   * - **≥ 2 nodes** → align relative to the selection (union bbox).
    */
   protected alignSelection(axis: AlignAxis): void {
     const items = this.collectSelectedBBoxes();
-    if (items.length < 2) return;
+    if (items.length === 0) return;
+    if (items.length === 1) {
+      const reference = this.activePage.activePageViewBox() ?? this.state.document().viewBox;
+      this.alignment.alignToReference(items, axis, reference);
+      return;
+    }
     this.alignment.align(items, axis);
   }
 

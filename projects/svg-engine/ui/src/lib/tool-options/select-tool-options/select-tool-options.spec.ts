@@ -87,21 +87,30 @@ describe('SvgeSelectToolOptions — no snap controls (snap lives in the status b
 });
 
 describe('SvgeSelectToolOptions — action enablement mirrors selection count', () => {
-  it('align disabled < 2, distribute disabled < 3, pathfinder disabled < 2', () => {
+  it('align enabled ≥ 1 (single → page), distribute ≥ 3, pathfinder ≥ 2', () => {
     const { fixture, state, selection } = setup();
     const a = createRect({ x: 0, y: 0, width: 10, height: 10 });
     const b = createRect({ x: 20, y: 0, width: 10, height: 10 });
     setChildren(state, [a, b]);
-    selection.selectMany([a.id, b.id]);
-    fixture.detectChanges();
     const inst = fixture.componentInstance as unknown as {
       canAlign(): boolean;
       canDistribute(): boolean;
       canPathfinder(): boolean;
       hasSelection(): boolean;
     };
-    // 2 selected: align + pathfinder enabled; distribute needs 3.
+
+    // 1 selected: align enabled (aligns the lone node to the active
+    // page), but pathfinder (≥ 2) and distribute (≥ 3) stay disabled.
+    selection.select(a.id);
+    fixture.detectChanges();
     expect(inst.hasSelection()).toBe(true);
+    expect(inst.canAlign()).toBe(true);
+    expect(inst.canPathfinder()).toBe(false);
+    expect(inst.canDistribute()).toBe(false);
+
+    // 2 selected: align + pathfinder enabled; distribute needs 3.
+    selection.selectMany([a.id, b.id]);
+    fixture.detectChanges();
     expect(inst.canAlign()).toBe(true);
     expect(inst.canPathfinder()).toBe(true);
     expect(inst.canDistribute()).toBe(false);

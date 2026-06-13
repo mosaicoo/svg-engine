@@ -169,14 +169,13 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
       const clipboard = injector.get(ClipboardService);
       return computed(() => !clipboard.hasContent());
     };
-    // D-065 — Align needs ≥ 2 selected nodes (otherwise there's
-    // nothing to align against). Same threshold as Group, but kept
-    // as a distinct factory so the disabled signal's reactivity
-    // tracks the same source-of-truth signal (no chance of drift if
-    // requirements ever diverge).
+    // Align needs ≥ 1 selected node. A single node aligns to the active
+    // page ("Align to Page" — Illustrator's "Align to Artboard"); ≥ 2
+    // align relative to the selection. The only disabled case is an
+    // empty selection. The run handler branches on count.
     const cantAlignFactory = (injector: Injector): Signal<boolean> => {
       const selection = injector.get(SelectionService);
-      return computed(() => selection.selectedIds().size < 2);
+      return computed(() => selection.selectedIds().size < 1);
     };
     // D-065 — Distribute needs ≥ 3 nodes (2 nodes have nothing
     // "between" them to space; 3+ have at least one inner node to
@@ -1380,7 +1379,17 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
           disabled: cantAlignFactory,
           run(runCtx) {
             const items = collectSelectedBBoxes(runCtx);
-            if (items.length < 2) return;
+            if (items.length === 0) return;
+            if (items.length === 1) {
+              // Single node → align to the active page (Illustrator
+              // "Align to Artboard"). Reference = page viewBox, fallback
+              // the document viewBox when there's no active page.
+              const reference =
+                fromCtx(ActivePageService, runCtx).activePageViewBox() ??
+                fromCtx(EditorStateService, runCtx).document().viewBox;
+              fromCtx(AlignmentService, runCtx).alignToReference(items, axis, reference);
+              return;
+            }
             fromCtx(AlignmentService, runCtx).align(items, axis);
           },
         }),

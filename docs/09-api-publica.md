@@ -451,20 +451,21 @@ Material aberto pelo item **File ▸ Manage Plugins…** do
 
 #### Marquee / Snap / Alignment (Bloco 4a-4c)
 
-| Símbolo                                          | Descrição                                                                                           |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| `MarqueeService` (`@Injectable({ root })`)       | `state()` signal, `rect()` computed, `start/update/end/cancel`. Normaliza w/h ≥ 0                   |
-| `Marquee` (`g[svgeMarquee]`)                     | Overlay dashed visual                                                                               |
-| `MarqueeCandidate` (interface)                   | `{ id, bbox }` para `nodesInsideMarquee(rect, candidates, mode)`                                    |
-| `nodesInsideMarquee(rect, candidates, mode)`     | Hit-test puro — modos `'intersect'` (Illustrator) e `'contain'` (AutoCAD)                           |
-| `SnapService` (`@Injectable({ root })`)          | config (`enabled`, `mode`, `gridSize`, `thresholdPx`), signal `activeGuides`, `resolveForMove(...)` |
-| `SnapGuides` (`g[svgeSnapGuides]`)               | Overlay magenta (dashed = grid; sólido = objetos)                                                   |
-| `resolveSnap(moving, targets, threshold)`        | Resolver puro (matemática); usado por `SnapService.resolveForMove`                                  |
-| `rectsToSnapTargets(rects)`                      | Gerador puro — 6 features por rect (low/center/high × 2 eixos)                                      |
-| `gridTargetsNear(area, gridSize)`                | Targets de grid limitados à área do moving (bounded mesmo em docs grandes)                          |
-| `AlignmentService.align(items, axis)`            | 6 axes: `left/center-x/right/top/center-y/bottom`                                                   |
-| `AlignmentService.distribute(items, axis)`       | `horizontal` / `vertical` — ≥3 nós, edges mantêm posição                                            |
-| `computeAlignDeltas` / `computeDistributeDeltas` | Math puro (testáveis sem DI)                                                                        |
+| Símbolo                                                                            | Descrição                                                                                           |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `MarqueeService` (`@Injectable({ root })`)                                         | `state()` signal, `rect()` computed, `start/update/end/cancel`. Normaliza w/h ≥ 0                   |
+| `Marquee` (`g[svgeMarquee]`)                                                       | Overlay dashed visual                                                                               |
+| `MarqueeCandidate` (interface)                                                     | `{ id, bbox }` para `nodesInsideMarquee(rect, candidates, mode)`                                    |
+| `nodesInsideMarquee(rect, candidates, mode)`                                       | Hit-test puro — modos `'intersect'` (Illustrator) e `'contain'` (AutoCAD)                           |
+| `SnapService` (`@Injectable({ root })`)                                            | config (`enabled`, `mode`, `gridSize`, `thresholdPx`), signal `activeGuides`, `resolveForMove(...)` |
+| `SnapGuides` (`g[svgeSnapGuides]`)                                                 | Overlay magenta (dashed = grid; sólido = objetos)                                                   |
+| `resolveSnap(moving, targets, threshold)`                                          | Resolver puro (matemática); usado por `SnapService.resolveForMove`                                  |
+| `rectsToSnapTargets(rects)`                                                        | Gerador puro — 6 features por rect (low/center/high × 2 eixos)                                      |
+| `gridTargetsNear(area, gridSize)`                                                  | Targets de grid limitados à área do moving (bounded mesmo em docs grandes)                          |
+| `AlignmentService.align(items, axis)`                                              | 6 axes: `left/center-x/right/top/center-y/bottom` — relativo à união da seleção (≥2 nós)            |
+| `AlignmentService.alignToReference(items, axis, reference)`                        | Alinha à `reference` (BoundingBox) fixa — "Align to Page": 1 nó alinha à página ativa               |
+| `AlignmentService.distribute(items, axis)`                                         | `horizontal` / `vertical` — ≥3 nós, edges mantêm posição                                            |
+| `computeAlignDeltas` / `computeAlignToReferenceDeltas` / `computeDistributeDeltas` | Math puro (testáveis sem DI)                                                                        |
 
 #### Workspace / Layers / Palette / Menu / Shortcut (Fase 4)
 

@@ -383,6 +383,7 @@
     "collectNodeAncestorIds",
     "comboMatches",
     "computeAlignDeltas",
+    "computeAlignToReferenceDeltas",
     "computeDistributeDeltas",
     "confettiPattern",
     "CONTEXT_MENU_SLOT",
