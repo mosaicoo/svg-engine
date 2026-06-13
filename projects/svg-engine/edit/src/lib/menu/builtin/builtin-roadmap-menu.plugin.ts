@@ -696,21 +696,11 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
         order: 10,
       }),
     );
-    // **D-087 — SHIPPED.** "Keyboard Shortcuts…" is now a real command
-    // (the keyboard-shortcuts manager dialog) registered by
-    // `builtinUiMenuContributionsPlugin` under this same parent at order
-    // 20. The roadmap placeholder was removed per the "ship = delete the
+    // **D-087 / D-088 — SHIPPED.** Both "Keyboard Shortcuts…" (order 20)
+    // and "Reset Workspace" (order 30) are now real commands registered by
+    // `builtinUiMenuContributionsPlugin` under this same parent. Their
+    // roadmap placeholders were removed per the "ship = delete the
     // placeholder" convention.
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.window.workspace.reset',
-        parentId: 'svge.window.workspace',
-        slot: MENU_SLOT.WINDOW,
-        label: 'Reset Workspace',
-        icon: 'restart_alt',
-        order: 30,
-      }),
-    );
     // Panels ▶ — every existing panel listed as a roadmap show/hide toggle.
     // The panels themselves exist (mounted in the shells); per-panel
     // menu-driven visibility is the roadmap part.

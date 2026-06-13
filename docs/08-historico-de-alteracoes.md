@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-06-13 — D-088: Reset Workspace (resetar o layout dos painéis) ✅
+
+Implementado o item de menu **Window ▸ Workspace ▸ Reset Workspace** (antes
+um placeholder de roadmap desabilitado). Resets the **panel LAYOUT** to its
+defaults — distinto do "Reset defaults" do diálogo Workspace Settings (que
+reverte as **configurações**: background/página/grid/rulers) e do documento
+(intocado).
+
+**O que é "layout"** (estado persistido em localStorage):
+
+- lado do tab strip de cada `<svge-panel-group>` (D-081,
+  `svge-panel-group-tabside-<id>`)
+- rails colapsados do shell-pro (`svge-shell-pro-*-collapsed`)
+
+**Arquitetura:** novo `WorkspaceLayoutService` (ui, root). `reset()` limpa
+essas chaves do localStorage e emite um `resetEpoch` (signal). Como limpar o
+storage não muda a sessão viva (os componentes já leram seu estado em signals
+na construção), os donos do layout **observam** o epoch e revertem o estado
+**vivo** sem reload:
+
+- `panel-group`: o effect de restore (D-081) passa a depender do `resetEpoch`
+  → ao resetar, lê a chave já limpa (null) e volta ao lado default.
+- `shell-pro`: effect no construtor un-colapsa ambos os rails (pulando o run
+  inicial via guarda de epoch, para não desfazer o estado restaurado no load
+  normal).
+
+Placeholder de roadmap (`svge.roadmap.window.workspace.reset`) removido; a
+entrada real vive em `builtinUiMenuContributionsPlugin` (camada ui, pois o
+layout é uma preocupação de UI). Spec do serviço (limpa chaves de layout,
+preserva as demais, incrementa epoch). Snapshot de API regenerado
+(+ `WorkspaceLayoutService`). Suíte (2353) e lint verdes.
+
+---
+
 ## 2026-06-13 — dialog-shell: corrigir espaço abaixo do footer ao redimensionar ✅
 
 Bug compartilhado por **todos** os diálogos (via `<svge-dialog-shell>`): ao

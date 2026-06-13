@@ -70,6 +70,9 @@ export * from './lib/theme-toggle';
 // Workspace settings dialog (Item 2 — débito 4f)
 export * from './lib/workspace-settings';
 
+// Workspace layout reset — Window ▸ Workspace ▸ Reset Workspace (D-088)
+export * from './lib/workspace-layout';
+
 // Effects panel UI (Fase 6d — D-023 cat 7)
 export * from './lib/effects-panel';
 

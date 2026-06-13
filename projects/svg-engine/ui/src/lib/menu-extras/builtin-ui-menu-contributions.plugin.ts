@@ -30,6 +30,7 @@ import { SvgeSmartObjectEditorDialogService } from '../smart-object-dialog';
 import { SvgeSvgSourceDialogService } from '../svg-source-dialog';
 import { SvgeTraceImageDialogService, type TraceImageDialogResult } from '../trace-image-dialog';
 import { SvgeWorkspaceSettingsDialogService } from '../workspace-settings';
+import { WorkspaceLayoutService } from '../workspace-layout';
 
 /**
  * **`builtinUiMenuContributionsPlugin`** — D-044 (UI controls full-functionality follow-up).
@@ -165,6 +166,32 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
         run(runCtx) {
           const service = fromCtx(SvgeKeyboardShortcutsDialogService, runCtx);
           service.open(runCtx?.injector ?? ctx.injector);
+        },
+      }),
+    );
+
+    // ── Window ▸ Workspace ▸ Reset Workspace (D-088) ──────────────
+    //
+    // **Ships** the roadmap placeholder `svge.roadmap.window.workspace.reset`
+    // (removed from `builtinRoadmapMenuPlugin`). Reverts the **panel LAYOUT**
+    // (panel-group tab sides + shell-pro rail collapse) to its defaults via
+    // `WorkspaceLayoutService`. Deliberately distinct from the Workspace
+    // **Settings** dialog's "Reset defaults" (which reverts canvas settings:
+    // background / page / grid / rulers) and from the document (untouched).
+    // Lives here (not edit-side) because the layout state is a UI concern.
+    // Always enabled — resetting the layout never depends on selection /
+    // document. Order 30 keeps the placeholder's original slot (after
+    // Workspace Settings 10 and Keyboard Shortcuts 20).
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.ui.window.reset-workspace',
+        parentId: 'svge.window.workspace',
+        slot: MENU_SLOT.WINDOW,
+        label: 'Reset Workspace',
+        icon: 'restart_alt',
+        order: 30,
+        run(runCtx) {
+          fromCtx(WorkspaceLayoutService, runCtx).reset();
         },
       }),
     );

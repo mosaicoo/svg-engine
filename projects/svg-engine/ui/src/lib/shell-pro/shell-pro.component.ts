@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import {
   applyAnimationToTree,
   type BoundingBox,
@@ -44,6 +52,7 @@ import { SvgeMenuBar } from '../menu-bar';
 import { SvgePagesPanel } from '../pages-panel';
 import { SvgeThemeToggle } from '../theme-toggle';
 import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
+import { WorkspaceLayoutService } from '../workspace-layout';
 import { SvgeRulers } from '../rulers';
 import { SvgeStatusBar } from '../status-bar';
 import { SvgeTimeline } from '../timeline';
@@ -634,6 +643,8 @@ export class SvgeShellPro {
   private readonly playback = inject(PlaybackService);
   private readonly bus = inject(CommandBus);
   private readonly toolHost = inject(ToolHostService);
+  // **D-088** — Reset Workspace watcher (un-collapse rails on reset).
+  private readonly workspaceLayout = inject(WorkspaceLayoutService);
   /**
    * **PAGES-REFACTOR follow-up #5** — exposed `protected` so the
    * template can bind `.with-rulers` on the canvas-cell. When the
@@ -672,6 +683,24 @@ export class SvgeShellPro {
     if (this.toolHost.activeId() === null) {
       this.toolHost.activate(SELECT_TOOL_ID);
     }
+
+    // **D-088** — When the workspace layout is reset (Window ▸ Workspace ▸
+    // Reset Workspace), revert BOTH rails to the default (expanded) state.
+    // The service already cleared the persisted keys; here we reset the
+    // LIVE signals so the change shows without a reload. Skip the initial
+    // run (epoch unchanged) so a normal load keeps the user's restored
+    // collapse state. (`leftCollapsed`/`rightCollapsed` are field-
+    // initialized before this constructor body runs, so they're set here.)
+    let lastResetEpoch = this.workspaceLayout.resetEpoch();
+    effect(() => {
+      const epoch = this.workspaceLayout.resetEpoch();
+      if (epoch === lastResetEpoch) return;
+      lastResetEpoch = epoch;
+      // Set the signals directly (not setLeft/RightCollapsed) so we don't
+      // re-write '0' into the just-cleared localStorage keys.
+      this.leftCollapsed.set(false);
+      this.rightCollapsed.set(false);
+    });
   }
 
   // ── COLLAPSE — hide/show the side panels to reclaim canvas space ────

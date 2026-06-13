@@ -815,7 +815,8 @@
     "TOOL_OPT_SHARED_STYLES",
     "ToolOptionsRegistry",
     "TraceImageDialogData",
-    "TraceImageDialogResult"
+    "TraceImageDialogResult",
+    "WorkspaceLayoutService"
   ],
   "svg-engine/ai/nlu": [
     "ACTION_DICTIONARY",

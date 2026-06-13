@@ -15,6 +15,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { MatIcon } from '@angular/material/icon';
 import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatTooltip } from '@angular/material/tooltip';
+import { WorkspaceLayoutService } from '../workspace-layout';
 
 /**
  * **D-081 — TabSide refactor.** Position of the tab strip relative
@@ -706,6 +707,9 @@ export class SvgePanelGroup {
    */
   private readonly userTabSide = signal<SvgePanelGroupTabSide | null>(null);
 
+  /** **D-088** — watched so "Reset Workspace" reverts the tab side live. */
+  private readonly workspaceLayout = inject(WorkspaceLayoutService);
+
   // Auto-select the first tab when none has been chosen yet — runs
   // whenever the tab set changes (e.g. tabs added/removed dynamically).
   constructor() {
@@ -727,13 +731,23 @@ export class SvgePanelGroup {
     // dynamic re-keying works (rare; mostly groupId is set once at
     // template time). Defensive against SSR (no `window`) and
     // localStorage being unavailable (private-mode / disabled).
+    //
+    // **D-088** — also re-runs when `WorkspaceLayoutService.resetEpoch`
+    // bumps (Reset Workspace). The reset clears the stored key first, so
+    // this effect then reads `null` and falls back to the default side —
+    // reverting the live tab side without a reload.
     effect(() => {
+      this.workspaceLayout.resetEpoch(); // subscribe: a reset re-runs this effect
       const id = this.groupId();
       if (id === null) return;
       if (typeof localStorage === 'undefined') return;
       try {
         const stored = localStorage.getItem(`${TAB_SIDE_STORAGE_PREFIX}-${id}`);
-        if (stored === null) return;
+        if (stored === null) {
+          // No saved value (fresh, or just reset) → use the default side.
+          this.userTabSide.set(null);
+          return;
+        }
         if (stored === 'top' || stored === 'right' || stored === 'bottom' || stored === 'left') {
           this.userTabSide.set(stored);
         }

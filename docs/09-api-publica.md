@@ -627,10 +627,11 @@ seção 2026-05-18.
 
 #### Services
 
-| Símbolo                                  | Descrição                                                                                                           |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `ThemeService` (`@Injectable({ root })`) | `theme: Signal<Theme>`, `resolvedTheme: Signal<ResolvedTheme>`, `setTheme`, `cycle`. Reflete em `<html data-theme>` |
-| `Theme` / `ResolvedTheme` (types)        | `'system'\|'light'\|'dark'` e `'light'\|'dark'`                                                                     |
+| Símbolo                                                        | Descrição                                                                                                                                                                                                                                                                    |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ThemeService` (`@Injectable({ root })`)                       | `theme: Signal<Theme>`, `resolvedTheme: Signal<ResolvedTheme>`, `setTheme`, `cycle`. Reflete em `<html data-theme>`                                                                                                                                                          |
+| `Theme` / `ResolvedTheme` (types)                              | `'system'\|'light'\|'dark'` e `'light'\|'dark'`                                                                                                                                                                                                                              |
+| `WorkspaceLayoutService` (`@Injectable({ root })`) **(D-088)** | `reset()` limpa o **layout** persistido (tab side dos panel-groups + collapse dos rails do shell-pro) e bumpa `resetEpoch: Signal<number>`; panel-group/shell-pro observam o epoch e revertem o estado vivo. Reset Workspace; distinto do "Reset defaults" das configurações |
 
 ---
 
