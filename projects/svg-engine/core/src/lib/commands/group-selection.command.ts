@@ -1,5 +1,7 @@
 import type { GroupNode } from '../model/group-node';
+import { isLayer } from '../model/layer';
 import { createGroup } from '../model/node-factory';
+import { isPage } from '../model/page';
 import { isGroupNode, type SvgNode } from '../model/svg-node';
 import { findNodeById, findParent, insertNode, removeNode } from '../tree/tree-ops';
 import { generateNodeId, type NodeId } from '../types/node-id';
@@ -71,6 +73,16 @@ export class GroupSelectionCommand implements Command {
       const node = findNodeById(doc.root, id);
       if (node === null) {
         return fail(`GroupSelectionCommand: node "${id}" not found`);
+      }
+      // Layers and Pages are top-level organizational containers — they
+      // can NEVER be nested inside a group (that's the same invariant
+      // MakeLayerCommand / the layers-panel drag-drop enforce). Reject the
+      // whole operation if any selected node is one, so Ctrl+G / Object ▸
+      // Group can't quietly wrap a layer into a group.
+      if (isLayer(node) || isPage(node)) {
+        return fail(
+          `GroupSelectionCommand: cannot group a ${isPage(node) ? 'page' : 'layer'} ("${id}") — layers/pages are top-level only`,
+        );
       }
       const parent = findParent(doc.root, id);
       if (parent === null) {

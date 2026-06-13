@@ -1,7 +1,10 @@
 import { TestBed } from '@angular/core/testing';
 import { CommandBus } from '../command-bus/command-bus.service';
+import { withLayerFlag } from '../model/layer';
 import { createEllipse, createGroup, createRect } from '../model/node-factory';
+import { withPageFlag } from '../model/page';
 import { EditorStateService } from '../state/editor-state.service';
+import { findNodeById, findParent } from '../tree/tree-ops';
 import { type NodeId } from '../types/node-id';
 import { MoveNodeInTreeCommand } from './move-node-in-tree.command';
 
@@ -168,6 +171,70 @@ describe('MoveNodeInTreeCommand — validation failures', () => {
     });
     const r = bus.dispatch(new MoveNodeInTreeCommand(outer.id, inner.id, 0));
     expect(r.ok).toBe(false);
+  });
+});
+
+describe('MoveNodeInTreeCommand — layer/page top-level invariant (D-079)', () => {
+  it('refuses to move a LAYER into a group', () => {
+    const layer = withLayerFlag(createGroup([createRect({ x: 0, y: 0, width: 10, height: 10 })]));
+    const group = createGroup([]);
+    const { state, bus } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([layer, group] as unknown as ReturnType<typeof createRect>[], {
+        id: state.document().root.id,
+      }),
+    });
+    const r = bus.dispatch(new MoveNodeInTreeCommand(layer.id, group.id, 0));
+    expect(r.ok).toBe(false);
+    // Layer stays a direct child of the root.
+    expect(findParent(state.document().root, layer.id)?.id).toBe(state.document().root.id);
+  });
+
+  it('ALLOWS moving a layer into a page', () => {
+    const page = withPageFlag(createGroup([]), { x: 0, y: 0, width: 100, height: 100 });
+    const layer = withLayerFlag(createGroup([]));
+    const { state, bus } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([page, layer] as unknown as ReturnType<typeof createRect>[], {
+        id: state.document().root.id,
+      }),
+    });
+    const r = bus.dispatch(new MoveNodeInTreeCommand(layer.id, page.id, 0));
+    expect(r.ok).toBe(true);
+    expect(findParent(state.document().root, layer.id)?.id).toBe(page.id);
+  });
+
+  it('ALLOWS reordering a layer at the document root', () => {
+    const leaf = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const layer = withLayerFlag(createGroup([]));
+    const { state, bus } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([leaf, layer] as unknown as ReturnType<typeof createRect>[], {
+        id: state.document().root.id,
+      }),
+    });
+    const r = bus.dispatch(new MoveNodeInTreeCommand(layer.id, state.document().root.id, 0));
+    expect(r.ok).toBe(true);
+    expect(state.document().root.children[0]?.id).toBe(layer.id);
+  });
+
+  it('refuses to move a PAGE into a group', () => {
+    const page = withPageFlag(createGroup([]), { x: 0, y: 0, width: 100, height: 100 });
+    const group = createGroup([]);
+    const { state, bus } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([page, group] as unknown as ReturnType<typeof createRect>[], {
+        id: state.document().root.id,
+      }),
+    });
+    const r = bus.dispatch(new MoveNodeInTreeCommand(page.id, group.id, 0));
+    expect(r.ok).toBe(false);
+    expect(findNodeById(state.document().root, page.id)).not.toBeNull();
+    expect(findParent(state.document().root, page.id)?.id).toBe(state.document().root.id);
   });
 });
 

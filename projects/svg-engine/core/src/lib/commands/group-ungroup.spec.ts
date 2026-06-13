@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { CommandBus } from '../command-bus/command-bus.service';
+import { isLayer, withLayerFlag } from '../model/layer';
 import { createEllipse, createGroup, createRect } from '../model/node-factory';
 import { EditorStateService } from '../state/editor-state.service';
 import { findNodeById } from '../tree/tree-ops';
@@ -44,6 +45,23 @@ describe('GroupSelectionCommand', () => {
     expect(grp?.transform).toEqual(IDENTITY_TRANSFORM);
     // Parent containing the group is the document root
     expect(state.document().root.id).toBe(rootId);
+  });
+
+  it('refuses to group a selection containing a LAYER (layers are top-level only)', () => {
+    const { state, bus } = setup();
+    const leaf = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const layer = withLayerFlag(createGroup([]));
+    const newRoot = createGroup([leaf, layer], { id: state.document().root.id });
+    state.setDocument({ ...state.document(), root: newRoot });
+
+    bus.dispatch(new GroupSelectionCommand([leaf.id, layer.id]));
+
+    // No wrapper group was created — children unchanged and the layer
+    // remains a top-level layer (Ctrl+G can't nest a layer in a group).
+    const root = state.document().root;
+    expect(root.children.length).toBe(2);
+    expect(root.children.some((c) => c.type === 'group' && !isLayer(c))).toBe(false);
+    expect(isLayer(findNodeById(root, layer.id)!)).toBe(true);
   });
 
   it('children appear inside the group in PARENT-order, not selection-order', () => {

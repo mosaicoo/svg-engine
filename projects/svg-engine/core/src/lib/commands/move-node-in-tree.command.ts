@@ -1,4 +1,6 @@
 import type { GroupNode } from '../model/group-node';
+import { isLayer } from '../model/layer';
+import { isPage } from '../model/page';
 import { isGroupNode, type SvgNode } from '../model/svg-node';
 import { findNodeById, findParent, insertNode, removeNode } from '../tree/tree-ops';
 import { generateNodeId, type NodeId } from '../types/node-id';
@@ -66,6 +68,24 @@ export class MoveNodeInTreeCommand implements Command {
     }
     if (!isGroupNode(targetParent)) {
       return fail(`MoveNodeInTreeCommand: new parent "${this.newParentId}" is not a group`);
+    }
+
+    // 2b) Top-level invariant: Layers and Pages are organizational
+    // containers and can only live in a "layer container" — a layer at the
+    // document root OR inside a page (D-079); a page only at the document
+    // root. They must NEVER be moved into a group. The layers-panel
+    // drag-drop already blocks this in the UI; this is the last line of
+    // defense for any other caller (matches MakeLayerCommand's guard).
+    if (isPage(node) && this.newParentId !== doc.root.id) {
+      return fail(`MoveNodeInTreeCommand: a page can only live at the document root`);
+    }
+    if (isLayer(node)) {
+      const intoContainer = this.newParentId === doc.root.id || isPage(targetParent);
+      if (!intoContainer) {
+        return fail(
+          `MoveNodeInTreeCommand: a layer can only live at the document root or inside a page (not "${this.newParentId}")`,
+        );
+      }
     }
 
     // 3) Cycle detection: target parent cannot BE the node, nor be a

@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-06-12 — Invariante: Layer/Page nunca dentro de um grupo (Group/Move) ✅
+
+**Pergunta/observação:** "uma pasta/layer pode ser arrastada para um grupo?"
+Pela regra, **não** — Layers e Pages vivem só no topo (Layer: filha do root ou
+de uma page; Page: só no root).
+
+**Verificação:** o **arrastar** no Layers Panel já é bloqueado (`isDropAllowed`
+não acende o indicador → `onDrop` não dispara). **Mas** auditando achei dois
+buracos sem guard no core:
+
+- **`GroupSelectionCommand`** (Ctrl+G / Object ▸ Group): embrulhava uma layer
+  selecionada num grupo — selecionar 2 layers (filhas da page) + Ctrl+G →
+  layers dentro de um grupo. **Bug real.**
+- **`MoveNodeInTreeCommand`**: sem "última linha de defesa" para o invariante
+  (só a UI protegia o único caminho).
+
+**Correção (guards no core, fonte autoritativa p/ todos os callers — atalho,
+menu, NLU):**
+
+- `GroupSelectionCommand` rejeita a operação se qualquer nó selecionado for
+  layer/page (`fail`, sem mutação).
+- `MoveNodeInTreeCommand` rejeita mover uma layer para fora de root/page, e uma
+  page para fora do root (mesmo padrão do `MakeLayerCommand`).
+
+**Pendente (UX, follow-up):** o item de menu **Group** continua habilitado com
+layers selecionadas (o atalho/menu vira no-op seguro pelo guard); desabilitá-lo
+visualmente exige um factory dedicado — fica como polimento.
+
+**Verificação:** +5 specs core (group rejeita layer; move layer→grupo falha;
+layer→page ok; reorder no root ok; page→grupo falha). Suíte **2304** verde;
+lint OK; sem mudança de API pública.
+
 ## 2026-06-12 — UX: Isolation/breadcrumb exclusivo para Groups (não Layers/Pages) ✅
 
 **Sintoma (reportado):** clicar/dar dois cliques numa forma dentro de uma
