@@ -81,6 +81,7 @@ import {
   ShapeOverlay,
   SymbolSprayerOverlay,
   resolveNodeIdFromEvent,
+  organizationalContainerPredicate,
   resolveSelectableNodeId,
   RotationPivot,
   SELECT_TOOL_ID,
@@ -1067,6 +1068,8 @@ export class CustomEditor implements OnDestroy {
       mode,
       rootId: this.state.document().root.id,
       isolationRootId: this.isolation.isolationRootId(),
+      // Layers/Pages are transparent to selection (organizational only).
+      isTransparentContainer: organizationalContainerPredicate(this.state.document().root),
     });
   }
 
@@ -1109,6 +1112,8 @@ export class CustomEditor implements OnDestroy {
       mode: 'group',
       rootId,
       isolationRootId: this.isolation.isolationRootId(),
+      // Layers/Pages are transparent to selection (organizational only).
+      isTransparentContainer: organizationalContainerPredicate(this.state.document().root),
     });
     const now = performance.now();
     const isSecondClickOnSameTarget =

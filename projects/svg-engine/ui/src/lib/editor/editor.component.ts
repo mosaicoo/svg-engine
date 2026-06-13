@@ -19,6 +19,7 @@ import {
   LayersFilter,
   OutlineFilter,
   PageOverlay,
+  organizationalContainerPredicate,
   resolveSelectableNodeId,
   SELECT_TOOL_ID,
   SvgeCanvasGestures,
@@ -472,6 +473,8 @@ export class SvgeEditor {
       // PAGES-FIX-3: active page acts as implicit isolation scope so
       // clicks on shapes resolve to the shape (not the page).
       isolationRootId: this.isolation.isolationRootId() ?? activePageId,
+      // Layers/Pages are transparent to selection (organizational only).
+      isTransparentContainer: organizationalContainerPredicate(this.state.document().root),
     });
     // Page itself counts as canvas for the context-menu (the page is
     // the artboard background, not a user object). Document root and

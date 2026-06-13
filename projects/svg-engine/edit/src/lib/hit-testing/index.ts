@@ -1,6 +1,7 @@
 export {
   collectNodeAncestorIds,
   findOwningNodeId,
+  organizationalContainerPredicate,
   resolveNodeIdFromEvent,
   resolveSelectableNodeId,
   type SelectionResolutionMode,

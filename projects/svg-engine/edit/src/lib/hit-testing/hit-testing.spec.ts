@@ -1,7 +1,8 @@
-import { toNodeId } from 'svg-engine/core';
+import { createGroup, createRect, toNodeId, withLayerFlag, withPageFlag } from 'svg-engine/core';
 import {
   collectNodeAncestorIds,
   findOwningNodeId,
+  organizationalContainerPredicate,
   resolveNodeIdFromEvent,
   resolveSelectableNodeId,
 } from './hit-testing';
@@ -246,5 +247,80 @@ describe('resolveSelectableNodeId — PAGES-FIX-3 (page-as-scope-root)', () => {
         rootId: toNodeId('doc-root'),
       }),
     ).toBe('page-1');
+  });
+});
+
+/**
+ * Layers/Pages are organizational containers, NOT functional groups —
+ * group-mode selection must "see through" them: a shape directly in a
+ * layer selects the SHAPE; a shape inside a group inside a layer selects
+ * the GROUP. Driven by the `isTransparentContainer` predicate.
+ */
+describe('resolveSelectableNodeId — transparent containers (layers/pages)', () => {
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  function el(tag: string, id: string): Element {
+    const e = document.createElementNS(SVG_NS, tag);
+    e.setAttribute('data-node-id', id);
+    return e;
+  }
+  /** doc-root > page > layer > [group >] shape. Returns the shape element. */
+  function makeLayeredDom(withGroup: boolean): Element {
+    const docRoot = el('g', 'doc-root');
+    const page = el('g', 'page');
+    const layer = el('g', 'layer');
+    const shape = el('rect', 'shape');
+    if (withGroup) {
+      const group = el('g', 'group');
+      group.appendChild(shape);
+      layer.appendChild(group);
+    } else {
+      layer.appendChild(shape);
+    }
+    page.appendChild(layer);
+    docRoot.appendChild(page);
+    return shape;
+  }
+  // Scope = the active page; layer + page are transparent.
+  const opts = {
+    mode: 'group' as const,
+    rootId: toNodeId('doc-root'),
+    isolationRootId: toNodeId('page'),
+    isTransparentContainer: (id: string) => id === 'layer' || id === 'page',
+  };
+
+  it('selects the SHAPE when it lives directly in a layer', () => {
+    const shape = makeLayeredDom(false);
+    expect(resolveSelectableNodeId({ target: shape } as unknown as Event, opts)).toBe('shape');
+  });
+
+  it('selects the GROUP when the shape is inside a group inside a layer', () => {
+    const shape = makeLayeredDom(true);
+    expect(resolveSelectableNodeId({ target: shape } as unknown as Event, opts)).toBe('group');
+  });
+
+  it('WITHOUT the predicate, selects the layer (legacy/regression guard)', () => {
+    const shape = makeLayeredDom(false);
+    expect(
+      resolveSelectableNodeId({ target: shape } as unknown as Event, {
+        mode: 'group',
+        rootId: toNodeId('doc-root'),
+        isolationRootId: toNodeId('page'),
+      }),
+    ).toBe('layer');
+  });
+});
+
+describe('organizationalContainerPredicate', () => {
+  it('flags layer + page ids as transparent, plain groups/shapes as not', () => {
+    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const plainGroup = createGroup([]);
+    const layer = withLayerFlag(createGroup([]));
+    const page = withPageFlag(createGroup([]), { x: 0, y: 0, width: 100, height: 100 });
+    const root = createGroup([rect, plainGroup, layer, page]);
+    const isTransparent = organizationalContainerPredicate(root);
+    expect(isTransparent(layer.id)).toBe(true);
+    expect(isTransparent(page.id)).toBe(true);
+    expect(isTransparent(plainGroup.id)).toBe(false);
+    expect(isTransparent(rect.id)).toBe(false);
   });
 });

@@ -1,4 +1,11 @@
-import { toNodeId, type NodeId } from 'svg-engine/core';
+import {
+  findNodeById,
+  type GroupNode,
+  isLayer,
+  isPage,
+  toNodeId,
+  type NodeId,
+} from 'svg-engine/core';
 
 /** Attribute name set by the renderer's dispatcher on each node `<g>`. */
 const NODE_ID_ATTR = 'data-node-id';
@@ -93,6 +100,16 @@ export function resolveSelectableNodeId(
     readonly mode: SelectionResolutionMode;
     readonly rootId: NodeId;
     readonly isolationRootId?: NodeId | null;
+    /**
+     * Predicate marking a node id as a **transparent container** — one
+     * that group mode should NOT select but instead "see through". Used
+     * to skip **Layers / Pages**, which are organizational containers, not
+     * functional groups: clicking a shape that lives directly in a layer
+     * selects the *shape*, and a shape inside a group inside a layer
+     * selects the *group*. When omitted, group mode keeps its original
+     * behavior (returns the direct child of the scope root).
+     */
+    readonly isTransparentContainer?: (id: NodeId) => boolean;
   },
 ): NodeId | null {
   const target = event.target;
@@ -123,7 +140,22 @@ export function resolveSelectableNodeId(
     // — caller can decide (typically: clear selection).
     return scopeRootId;
   }
-  return chain[scopeIdx - 1] ?? null;
+  // Topmost selectable ancestor below the scope root. Layers/Pages are
+  // organizational containers — transparent to selection (see
+  // `isTransparentContainer`) — so we skip them and return the topmost
+  // REAL node beneath (a group, or the clicked leaf when no group sits
+  // between it and the scope). The leaf (`chain[0]`) is never transparent,
+  // so the loop always resolves. Without the predicate, the original
+  // behavior (the direct child of the scope root) is preserved.
+  const isTransparent = options.isTransparentContainer;
+  if (isTransparent === undefined) {
+    return chain[scopeIdx - 1] ?? null;
+  }
+  for (let i = scopeIdx - 1; i >= 0; i--) {
+    const id = chain[i]!;
+    if (!isTransparent(id)) return id;
+  }
+  return chain[0] ?? null;
 }
 
 /**
@@ -140,4 +172,23 @@ export function collectNodeAncestorIds(target: Element): NodeId[] {
     el = el.parentElement;
   }
   return ids;
+}
+
+/**
+ * Build the `isTransparentContainer` predicate for {@link resolveSelectableNodeId}
+ * group mode from the current document `root`. A node id is "transparent"
+ * when it resolves to a **Layer** or a **Page** — organizational containers
+ * that exist for structure, not functional composition. Group-mode canvas
+ * selection sees through them: clicking a shape that lives directly in a
+ * layer selects the *shape* (not the layer), while a shape inside a group
+ * inside a layer still selects the *group*.
+ *
+ * Capture this once per pointer event (it closes over the passed `root`) so
+ * the lookup reflects the document at event time.
+ */
+export function organizationalContainerPredicate(root: GroupNode): (id: NodeId) => boolean {
+  return (id: NodeId): boolean => {
+    const node = findNodeById(root, id);
+    return node !== null && (isLayer(node) || isPage(node));
+  };
 }

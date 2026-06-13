@@ -14,7 +14,10 @@ import {
 } from 'svg-engine/core';
 import { screenToDoc, ViewportService } from 'svg-engine/render';
 import { findRenderedNode, getCombinedBBox, getRenderedNodeBBox } from '../geometry/node-bbox';
-import { resolveSelectableNodeId } from '../hit-testing/hit-testing';
+import {
+  organizationalContainerPredicate,
+  resolveSelectableNodeId,
+} from '../hit-testing/hit-testing';
 import { IsolationService } from '../isolation/isolation.service';
 import { type MarqueeCandidate, nodesInsideMarquee } from '../marquee/marquee-hit-testing';
 import { MarqueeService } from '../marquee/marquee.service';
@@ -241,6 +244,10 @@ export class SvgeShellInteractions implements OnDestroy {
       mode: 'group',
       rootId,
       isolationRootId: this.isolation.isolationRootId() ?? this.activePage.activePageId(),
+      // Layers/Pages are organizational — see through them so a click on a
+      // shape inside a layer selects the shape (or its real group), not the
+      // layer (which would mimic group behavior).
+      isTransparentContainer: organizationalContainerPredicate(this.state.document().root),
     });
 
     // 3a. Click on empty canvas → start marquee (or exit isolation).
@@ -426,6 +433,7 @@ export class SvgeShellInteractions implements OnDestroy {
       mode: 'group',
       rootId: this.state.document().root.id,
       isolationRootId: this.isolation.isolationRootId() ?? this.activePage.activePageId(),
+      isTransparentContainer: organizationalContainerPredicate(this.state.document().root),
     });
     this.selection.setHover(hoverId === this.activePage.activePageId() ? null : hoverId);
   }
@@ -518,6 +526,10 @@ export class SvgeShellInteractions implements OnDestroy {
       rootId,
       // PAGES-FIX-3: same page-as-scope-root logic as onPointerDown.
       isolationRootId: this.isolation.isolationRootId() ?? this.activePage.activePageId(),
+      // See through Layers/Pages so dblclick drills to the shape's real
+      // group (not the layer), and a shape directly in a layer doesn't
+      // resolve to the layer at all.
+      isTransparentContainer: organizationalContainerPredicate(this.state.document().root),
     });
     const now = performance.now();
     const isSecondClickOnSameTarget =

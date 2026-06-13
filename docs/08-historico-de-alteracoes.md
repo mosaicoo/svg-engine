@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-06-12 — Seleção no canvas: Layers/Pages transparentes (não promove a layer) ✅
+
+**Reportado:** ao clicar num objeto que pertence a uma **pasta/layer** no
+canvas, a seleção era **promovida para a layer** (como se fosse um grupo). Mas
+layers são **organizacionais**, não composição funcional — a seleção deveria
+ficar no **objeto** clicado.
+
+**Causa raiz:** o `resolveSelectableNodeId` em modo `'group'` retornava o
+**filho direto do scope root** (a page ativa). Para uma forma dentro de uma
+layer, esse filho é a **layer** → seleção promovida pra layer.
+
+**Correção:** o group-mode passou a **"ver através"** de containers
+organizacionais (layers/pages) via um predicado opcional
+`isTransparentContainer`. Ele caminha do scope root para baixo pulando
+containers transparentes e retorna o **nó real** mais alto: um **grupo** quando
+existe um entre a forma e a layer, ou a **própria forma** quando ela está
+direto na layer. Sem o predicado, o comportamento legado é preservado.
+
+- Helper `organizationalContainerPredicate(root)` (no `edit`/hit-testing)
+  monta o predicado (`isLayer || isPage`) a partir do documento.
+- Aplicado nos **7 call-sites** de group-mode: `shell-interactions` (pointerdown
+  / hover / dblclick), `svge-editor` + `svge-shell-pro` (context-menu resolver),
+  e custom-editor (playground). Bônus: o **dblclick** agora dá drill no **grupo
+  real** (não na layer), e a forma-direto-na-layer nem resolve pra layer.
+
+**Verificação:** +4 specs (forma-em-layer → forma; forma-em-grupo-em-layer →
+grupo; sem-predicado → layer (guard de regressão); predicado flag layer/page).
+Suíte **2309** verde; lint OK; snapshot de API atualizado (novo export
+`organizationalContainerPredicate`). Build da lib refeito p/ os consumers.
+
 ## 2026-06-12 — Invariante: Layer/Page nunca dentro de um grupo (Group/Move) ✅
 
 **Pergunta/observação:** "uma pasta/layer pode ser arrastada para um grupo?"

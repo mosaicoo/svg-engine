@@ -543,6 +543,7 @@
     "OptimizeCommand",
     "Optimizer",
     "OptimizerRegistry",
+    "organizationalContainerPredicate",
     "outerGlowEffect",
     "OutlineFilter",
     "outlineStyle",
