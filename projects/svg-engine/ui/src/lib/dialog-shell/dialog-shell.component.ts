@@ -287,6 +287,17 @@ import { MatTooltip } from '@angular/material/tooltip';
       flex: 1 1 auto;
       min-height: 0;
       overflow: auto;
+      /* Material hard-codes \`max-height: 65vh\` on \`.mat-mdc-dialog-content\`.
+         That cap fights the shell's fill-the-pane layout: when the user
+         resizes a dialog taller than ~65vh, the body stops growing at 65vh
+         and the footer (pinned below it in this flex column) can't reach
+         the bottom — leaving dead space below the footer. It only showed
+         on dialogs whose content actually reaches 65vh (the scrolling
+         ones: Workspace Settings, Keyboard Shortcuts, Plugins). The pane's
+         own \`maxHeight: 85vh\` (svgeDialogConfig) + the resize handler are
+         the real height bounds, so the body must be uncapped. The \`.dlg-body\`
+         attribute selector outranks \`.mat-mdc-dialog-content\`, so this wins. */
+      max-height: none;
       padding: 1rem 1.25rem;
       /* Material default adds extra top padding — normalize to match
          the consistent vertical rhythm with header. */

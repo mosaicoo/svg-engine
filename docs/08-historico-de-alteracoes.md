@@ -6,6 +6,31 @@
 
 ---
 
+## 2026-06-13 — dialog-shell: corrigir espaço abaixo do footer ao redimensionar ✅
+
+Bug compartilhado por **todos** os diálogos (via `<svge-dialog-shell>`): ao
+redimensionar para mais alto que ~65vh, sobrava um espaço branco abaixo do
+footer. Aparecia só nos diálogos cujo corpo **rola** (Workspace Settings,
+Keyboard Shortcuts, Plugins) — os de conteúdo curto (About, Find & Replace,
+Source) não atingiam o limite.
+
+**Causa raiz:** o Angular Material fixa `max-height: 65vh` em
+`.mat-mdc-dialog-content` (= o `.dlg-body` do shell). O `ngAfterViewInit` do
+shell já limpava `max-height` no surface/container, mas **não no content**.
+Ao redimensionar além de 65vh, o corpo travava em 65vh e o footer (fixado
+abaixo dele no flex-column) não alcançava a base → espaço morto.
+
+**Correção (1 linha no shell):** `.dlg-body { max-height: none }`. O seletor
+de atributo do `.dlg-body` supera `.mat-mdc-dialog-content`, então sobrepõe.
+O bound real de altura é o `maxHeight: 85vh` do pane (`svgeDialogConfig`) +
+o handle de resize — o cap de 65vh do corpo era redundante e nocivo.
+Conserta todos os diálogos de uma vez. Build + lint verdes.
+
+Também (no Keyboard Shortcuts): conteúdo movido para filho direto do
+`.dlg-body` (sem wrapper), espelhando o padrão do source-viewer.
+
+---
+
 ## 2026-06-13 — D-087-fix: detecção de conflito canônica + centrar × da busca ✅
 
 Dois acertos no Keyboard Shortcuts manager a partir de uso:
