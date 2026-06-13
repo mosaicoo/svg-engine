@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { comboMatches, parseCombo } from './shortcut';
+import { comboFromEvent, comboMatches, formatCombo, parseCombo, validateCombo } from './shortcut';
 import { ShortcutRegistry } from './shortcut-registry.service';
 import { ShortcutService } from './shortcut.service';
 
@@ -220,5 +220,56 @@ describe('ShortcutService — global dispatcher', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'l', ctrlKey: true }));
     expect(fired).toBe(1);
     svc.stop();
+  });
+});
+
+describe('validateCombo', () => {
+  it('returns ok for valid combos', () => {
+    expect(validateCombo('Ctrl+G').ok).toBe(true);
+    expect(validateCombo('g').ok).toBe(true);
+    expect(validateCombo('Alt+ArrowUp').ok).toBe(true);
+  });
+
+  it('returns the error message for invalid combos', () => {
+    const r = validateCombo('Ctrl+');
+    expect(r.ok).toBe(false);
+    expect(r.error).toBeDefined();
+    expect(validateCombo('').ok).toBe(false);
+  });
+});
+
+describe('formatCombo', () => {
+  it('normalizes modifier order + casing', () => {
+    expect(formatCombo('ctrl+g')).toBe('Ctrl+G');
+    expect(formatCombo('shift+ctrl+z')).toBe('Ctrl+Shift+Z');
+  });
+
+  it('maps named keys to friendly labels', () => {
+    expect(formatCombo('alt+arrowup')).toBe('Alt+↑');
+    expect(formatCombo('Escape')).toBe('Esc');
+    expect(formatCombo('Ctrl+F5')).toBe('Ctrl+F5');
+  });
+
+  it('returns an empty string for an empty combo', () => {
+    expect(formatCombo('')).toBe('');
+    expect(formatCombo('   ')).toBe('');
+  });
+});
+
+describe('comboFromEvent', () => {
+  it('builds a parseable combo that round-trips through comboMatches', () => {
+    const ev = ke('g', { ctrlKey: true, shiftKey: true });
+    const combo = comboFromEvent(ev)!;
+    expect(combo).toBe('Ctrl+Shift+g');
+    expect(comboMatches(parseCombo(combo), ke('g', { ctrlKey: true, shiftKey: true }))).toBe(true);
+  });
+
+  it('keeps named keys verbatim', () => {
+    expect(comboFromEvent(ke('ArrowUp', { altKey: true }))).toBe('Alt+ArrowUp');
+  });
+
+  it('returns null for a lone modifier press', () => {
+    expect(comboFromEvent(ke('Control', { ctrlKey: true }))).toBeNull();
+    expect(comboFromEvent(ke('Shift', { shiftKey: true }))).toBeNull();
   });
 });

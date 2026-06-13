@@ -24,6 +24,7 @@ import {
 
 import { SvgeAboutDialogService } from '../about-dialog';
 import { SvgeFindReplaceDialogService } from '../find-replace-dialog';
+import { SvgeKeyboardShortcutsDialogService } from '../keyboard-shortcuts-dialog';
 import { SvgePluginManagerDialogService } from '../plugin-manager-dialog';
 import { SvgeSmartObjectEditorDialogService } from '../smart-object-dialog';
 import { SvgeSvgSourceDialogService } from '../svg-source-dialog';
@@ -137,6 +138,32 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
           // scope-aware injector wiring live in one place so every
           // call site stays aligned automatically.
           const service = fromCtx(SvgeWorkspaceSettingsDialogService, runCtx);
+          service.open(runCtx?.injector ?? ctx.injector);
+        },
+      }),
+    );
+
+    // ── Window ▸ Workspace ▸ Keyboard Shortcuts… (D-087) ─────────
+    //
+    // **Ships** the roadmap placeholder `svge.roadmap.window.workspace.
+    // shortcuts` (removed from `builtinRoadmapMenuPlugin`). Opens
+    // <svge-keyboard-shortcuts-dialog> — the central command + shortcut
+    // manager (view / rebind / unbind / reset, conflict warnings). Lives
+    // here (not edit-side) because the manager is a Material dialog
+    // (D-017). Always enabled — managing shortcuts never depends on
+    // selection/document. Order 20 sits between Workspace Settings (10)
+    // and the Reset Workspace roadmap leaf (30), matching the slot the
+    // placeholder occupied.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.ui.window.keyboard-shortcuts',
+        parentId: 'svge.window.workspace',
+        slot: MENU_SLOT.WINDOW,
+        label: 'Keyboard Shortcuts…',
+        icon: 'keyboard',
+        order: 20,
+        run(runCtx) {
+          const service = fromCtx(SvgeKeyboardShortcutsDialogService, runCtx);
           service.open(runCtx?.injector ?? ctx.injector);
         },
       }),
@@ -324,6 +351,7 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
         id: 'svge.builtin.shortcut.trace-image',
         combo: 'Ctrl+Alt+T',
         description: 'Open Trace Image dialog for the selected image',
+        category: 'Object',
         run(event, runCtx?: ShortcutContext) {
           event.preventDefault();
           void openTraceImageDialog(runCtx?.injector ?? ctx.injector);
@@ -363,6 +391,7 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
         id: 'svge.builtin.shortcut.find-replace',
         combo: 'Ctrl+H',
         description: 'Open Find & Replace dialog',
+        category: 'Edit',
         run(event, runCtx?: ShortcutContext) {
           event.preventDefault();
           openFindReplaceDialog(runCtx);

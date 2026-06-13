@@ -90,6 +90,7 @@ export const commandPalettePlugin: EditorPlugin = {
         id: 'studio.command-palette.shortcut',
         combo: 'Ctrl+K',
         description: 'Abrir o assistente de comandos (linguagem natural)',
+        category: 'View',
         run(event, runCtx) {
           event.preventDefault();
           toggle(runCtx?.injector ?? ctx.injector);

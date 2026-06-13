@@ -6,6 +6,51 @@
 
 ---
 
+## 2026-06-13 — D-087: Keyboard Shortcuts manager (ver/configurar/personalizar) ✅
+
+Gerenciador central de comandos + atalhos: lista todos os comandos com atalho
+registrado, permite **rebind / unbind / reset** por comando, com detecção de
+conflito e restauração de padrões — via diálogo dedicado (Window ▸ Workspace ▸
+Keyboard Shortcuts…).
+
+**Camada de modelo (svg-engine/edit, `shortcut/`):**
+
+- `Shortcut.category?` opcional (agrupamento na UI); builtins categorizados
+  (Edit/Object/Selection/Snapshots/View).
+- Helpers puros em `shortcut.ts`: `validateCombo` (valida sem throw),
+  `comboFromEvent` (captura combinação de tecla → string parseável; ignora
+  modificador puro), `formatCombo` (exibição amigável: `ctrl+g` → `Ctrl+G`,
+  `arrowup` → `↑`).
+- **`KeybindingsService`** (`providedIn: 'root'`, global) — fonte de verdade de
+  "qual tecla dispara qual comando". Sobrepõe **overrides do usuário** aos
+  defaults do `ShortcutRegistry`, persiste em `localStorage`
+  (`svge:keybindings:v1`, guarda SSR/privacy) e expõe: `bindings` (KeybindingView
+  com default/efetivo/source/conflito, agrupado/ordenado), `tryMatch`
+  override-aware, `setBinding`/`unbind`/`resetBinding`/`resetAll`,
+  `conflictIdsFor`, `hasCustomizations`.
+- `ShortcutService.handler` passa a despachar via `keybindings.tryMatch` — um
+  rebind vale imediatamente; **sem** overrides o comportamento é idêntico ao
+  registry. Persiste entre reloads, app-wide (não por-editor).
+
+**UI (svg-engine/ui):** `<svge-keyboard-shortcuts-dialog>` + service — busca,
+lista agrupada por categoria, chip do combo, **recorder** inline (foca uma caixa,
+captura `keydown` localmente com `preventDefault`+`stopPropagation` para não
+disparar o comando nem fechar o diálogo no Esc; Esc cancela), aviso de conflito
+ao vivo, reset por-linha, unbind, "Restore all defaults" no rodapé.
+
+**Menu:** entrada real registrada no `builtinUiMenuContributionsPlugin` sob
+Window ▸ Workspace (order 20). Os **placeholders de roadmap** "Keyboard
+Shortcuts…" (Window ▸ Workspace e Help) foram removidos do
+`builtinRoadmapMenuPlugin` (convenção "ship = delete the placeholder").
+
+Specs novos: `KeybindingsService` (override→tryMatch, persistência load/save,
+conflito, reset, when-guard) + combo helpers. Suíte **2343** verde, lint OK,
+snapshot de API atualizado (+`KeybindingsService`, `KeybindingView`,
+`KeybindingOverrides`, `validateCombo`, `comboFromEvent`, `formatCombo`,
+`SvgeKeyboardShortcutsDialog(Service)`).
+
+---
+
 ## 2026-06-13 — Export: podar filtros de efeito não usados (defs enxutos) ✅
 
 O `.svg`/SMIL exportado carregava **todos os ~20 filtros builtin** (`<filter

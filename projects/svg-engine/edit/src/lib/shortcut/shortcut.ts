@@ -42,6 +42,10 @@ export interface ShortcutContext {
  *   `null` / `undefined`, always active.
  * - `description`: human-readable description for preferences UIs.
  *   Optional; falls back to `id` in display contexts.
+ * - `category`: optional grouping label for the keyboard-shortcuts
+ *   manager UI (e.g., `'Edit'`, `'Selection'`, `'Snapshots'`). Falls
+ *   back to `'Other'` when omitted. Pure presentation — never affects
+ *   dispatch.
  * - `run(event, ctx?)`: handler. Receives the original `KeyboardEvent`
  *   so the implementation can `preventDefault()` if needed (the service
  *   doesn't auto-prevent — leaves the choice to the shortcut). The
@@ -55,6 +59,7 @@ export interface Shortcut {
   readonly combo: string;
   readonly when?: Signal<boolean> | null;
   readonly description?: string;
+  readonly category?: string;
   run(event: KeyboardEvent, ctx?: ShortcutContext): void;
 }
 
@@ -178,4 +183,108 @@ export function comboMatches(parsed: ParsedCombo, event: KeyboardEvent): boolean
   if (event.shiftKey !== parsed.shift) return false;
   if (event.altKey !== parsed.alt) return false;
   return true;
+}
+
+/**
+ * `true`/`{ ok }` validation wrapper around {@link parseCombo}. Lets the
+ * keyboard-shortcuts manager check user input without try/catch at every
+ * call site — returns the parse error message for inline display.
+ */
+export function validateCombo(combo: string): { readonly ok: boolean; readonly error?: string } {
+  try {
+    parseCombo(combo);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** `KeyboardEvent.key` values that are themselves a modifier (no real key). */
+const PURE_MODIFIER_KEYS = new Set([
+  'control',
+  'shift',
+  'alt',
+  'meta',
+  'os',
+  'altgraph',
+  'dead',
+  'capslock',
+  'contextmenu',
+]);
+
+/**
+ * Derive a canonical, **parseable** combo string from a `KeyboardEvent`
+ * — the inverse of {@link parseCombo}, used by the shortcuts manager's
+ * "press the keys" recorder.
+ *
+ * Returns `null` when the event is a lone modifier press (Ctrl, Shift,
+ * …) so the recorder waits for an actual key. Modifiers are emitted in
+ * canonical order (`Ctrl+Alt+Shift+Cmd`) followed by the key; single
+ * printable keys are lowercased (matching {@link parseCombo}, which
+ * lowercases regardless, so the produced string round-trips through
+ * {@link comboMatches}).
+ */
+export function comboFromEvent(event: KeyboardEvent): string | null {
+  const k = event.key;
+  if (typeof k !== 'string' || k.length === 0) return null;
+  if (PURE_MODIFIER_KEYS.has(k.toLowerCase())) return null;
+  const parts: string[] = [];
+  if (event.ctrlKey) parts.push('Ctrl');
+  if (event.altKey) parts.push('Alt');
+  if (event.shiftKey) parts.push('Shift');
+  if (event.metaKey) parts.push('Cmd');
+  parts.push(k.length === 1 ? k.toLowerCase() : k);
+  return parts.join('+');
+}
+
+const KEY_DISPLAY_LABEL: Record<string, string> = {
+  arrowup: '↑',
+  arrowdown: '↓',
+  arrowleft: '←',
+  arrowright: '→',
+  escape: 'Esc',
+  enter: 'Enter',
+  space: 'Space',
+  ' ': 'Space',
+  delete: 'Del',
+  backspace: '⌫',
+  tab: 'Tab',
+};
+
+function formatKeyLabel(key: string): string {
+  const mapped = KEY_DISPLAY_LABEL[key];
+  if (mapped !== undefined) return mapped;
+  if (key.length === 1) return key.toUpperCase();
+  if (/^f\d{1,2}$/.test(key)) return key.toUpperCase();
+  return key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+/**
+ * Pretty-print a combo string for display in the shortcuts manager and
+ * menu hints. Normalizes modifier order + casing (`ctrl+g` →
+ * `Ctrl+G`), maps named keys to friendly labels (`arrowup` → `↑`,
+ * `escape` → `Esc`), and uppercases single keys. **Display only** —
+ * never feed the result back to {@link parseCombo} (the arrow glyphs
+ * aren't valid key tokens); keep the raw combo for storage / matching.
+ *
+ * Returns `''` for an empty combo (an "unbound" command).
+ */
+export function formatCombo(combo: string): string {
+  const raw = combo.trim();
+  if (raw.length === 0) return '';
+  const tokens = raw
+    .split('+')
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+  if (tokens.length === 0) return '';
+  const key = tokens[tokens.length - 1]!.toLowerCase();
+  const mods = tokens.slice(0, -1).map((t) => t.toLowerCase());
+  const out: string[] = [];
+  if (mods.includes('cmdorctrl')) out.push('Ctrl/Cmd');
+  if (mods.includes('ctrl') || mods.includes('control')) out.push('Ctrl');
+  if (mods.includes('alt') || mods.includes('option')) out.push('Alt');
+  if (mods.includes('shift')) out.push('Shift');
+  if (mods.includes('cmd') || mods.includes('meta') || mods.includes('win')) out.push('Cmd');
+  out.push(formatKeyLabel(key));
+  return out.join('+');
 }

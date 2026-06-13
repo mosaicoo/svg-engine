@@ -696,16 +696,11 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
         order: 10,
       }),
     );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.window.workspace.shortcuts',
-        parentId: 'svge.window.workspace',
-        slot: MENU_SLOT.WINDOW,
-        label: 'Keyboard Shortcuts…',
-        icon: 'keyboard',
-        order: 20,
-      }),
-    );
+    // **D-087 — SHIPPED.** "Keyboard Shortcuts…" is now a real command
+    // (the keyboard-shortcuts manager dialog) registered by
+    // `builtinUiMenuContributionsPlugin` under this same parent at order
+    // 20. The roadmap placeholder was removed per the "ship = delete the
+    // placeholder" convention.
     track(
       roadmapLeaf({
         id: 'svge.roadmap.window.workspace.reset',
@@ -848,15 +843,10 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
         order: 30,
       }),
     );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.help.shortcuts',
-        slot: MENU_SLOT.HELP,
-        label: 'Keyboard Shortcuts',
-        icon: 'keyboard',
-        order: 40,
-      }),
-    );
+    // **D-087 — SHIPPED.** The Help ▸ Keyboard Shortcuts placeholder was
+    // removed; the real manager lives under Window ▸ Workspace ▸ Keyboard
+    // Shortcuts… (single canonical location) — see
+    // `builtinUiMenuContributionsPlugin`.
     track(
       roadmapLeaf({
         id: 'svge.roadmap.help.plugin-development',

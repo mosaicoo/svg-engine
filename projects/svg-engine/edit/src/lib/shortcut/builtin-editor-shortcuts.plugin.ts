@@ -88,6 +88,7 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
         id: 'svge.builtin.shortcut.undo',
         combo: 'Ctrl+Z',
         description: 'Undo last command',
+        category: 'Edit',
         run(event, runCtx) {
           event.preventDefault();
           fromCtx(runCtx, CommandBus).undo();
@@ -99,6 +100,7 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
         id: 'svge.builtin.shortcut.redo-y',
         combo: 'Ctrl+Y',
         description: 'Redo (Windows idiom)',
+        category: 'Edit',
         run(event, runCtx) {
           event.preventDefault();
           fromCtx(runCtx, CommandBus).redo();
@@ -110,6 +112,7 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
         id: 'svge.builtin.shortcut.redo-shift-z',
         combo: 'Ctrl+Shift+Z',
         description: 'Redo (Mac/Linux idiom)',
+        category: 'Edit',
         run(event, runCtx) {
           event.preventDefault();
           fromCtx(runCtx, CommandBus).redo();
@@ -123,6 +126,7 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
         id: 'svge.builtin.shortcut.group',
         combo: 'Ctrl+G',
         description: 'Group selection',
+        category: 'Object',
         run(event, runCtx) {
           const selection = fromCtx(runCtx, SelectionService);
           const ids = Array.from(selection.selectedIds());
@@ -137,6 +141,7 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
         id: 'svge.builtin.shortcut.ungroup',
         combo: 'Ctrl+Shift+G',
         description: 'Ungroup focused selection',
+        category: 'Object',
         run(event, runCtx) {
           const selection = fromCtx(runCtx, SelectionService);
           const focus = selection.focusId();
@@ -158,6 +163,7 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
         id: 'svge.builtin.shortcut.select-all',
         combo: 'Ctrl+A',
         description: 'Select all top-level nodes',
+        category: 'Selection',
         run(event, runCtx) {
           const state = fromCtx(runCtx, EditorStateService);
           const root = state.document().root;
@@ -180,6 +186,7 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
         id: 'svge.builtin.shortcut.take-snapshot',
         combo: 'Ctrl+Shift+S',
         description: 'Take a snapshot of the current document',
+        category: 'Snapshots',
         run(event, runCtx) {
           const injector = runCtx?.injector ?? ctx.injector;
           const snaps = injector.get(SnapshotsService, null, { optional: true });
@@ -194,6 +201,7 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
         id: 'svge.builtin.shortcut.restore-last-snapshot',
         combo: 'Ctrl+Alt+Z',
         description: 'Restore the most recent snapshot',
+        category: 'Snapshots',
         run(event, runCtx) {
           const injector = runCtx?.injector ?? ctx.injector;
           const snaps = injector.get(SnapshotsService, null, { optional: true });

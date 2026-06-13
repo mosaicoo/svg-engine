@@ -102,6 +102,11 @@ export * from './lib/trace-image-dialog';
 // generic attribute; replace all in a single undoable batch.
 export * from './lib/find-replace-dialog';
 
+// Keyboard Shortcuts manager (D-087) — Material dialog over the global
+// KeybindingsService (svg-engine/edit). List every command, rebind /
+// unbind / reset its key combo with live conflict warnings.
+export * from './lib/keyboard-shortcuts-dialog';
+
 // Status bar (D-035 — shell-refinement; standalone OR via <svge-editor>)
 export * from './lib/status-bar';
 

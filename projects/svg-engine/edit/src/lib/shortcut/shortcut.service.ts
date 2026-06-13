@@ -1,8 +1,8 @@
 import { DOCUMENT } from '@angular/common';
 import { inject, Injectable, Injector, OnDestroy } from '@angular/core';
 import { isEditableTarget } from '../pointer/is-editable-target';
+import { KeybindingsService } from './keybindings.service';
 import type { ShortcutContext } from './shortcut';
-import { ShortcutRegistry } from './shortcut-registry.service';
 
 /**
  * Global keyboard listener that routes events to {@link ShortcutRegistry}.
@@ -33,7 +33,10 @@ import { ShortcutRegistry } from './shortcut-registry.service';
  */
 @Injectable({ providedIn: 'root' })
 export class ShortcutService implements OnDestroy {
-  private readonly registry = inject(ShortcutRegistry);
+  // **D-087** — dispatch through KeybindingsService (not the registry
+  // directly) so user-customized bindings take effect. With no overrides
+  // its `tryMatch` is identical to `ShortcutRegistry.tryMatch`.
+  private readonly keybindings = inject(KeybindingsService);
   private readonly document = inject(DOCUMENT);
   /**
    * The injector of this service instance — root in single-editor apps,
@@ -46,7 +49,7 @@ export class ShortcutService implements OnDestroy {
   private listening = false;
   private readonly handler = (event: KeyboardEvent): void => {
     if (isEditableTarget(event.target)) return;
-    const match = this.registry.tryMatch(event);
+    const match = this.keybindings.tryMatch(event);
     if (match === null) return;
     const ctx: ShortcutContext = { injector: this.injector };
     match.run(event, ctx);
