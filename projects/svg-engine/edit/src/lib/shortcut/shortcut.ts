@@ -288,3 +288,37 @@ export function formatCombo(combo: string): string {
   out.push(formatKeyLabel(key));
   return out.join('+');
 }
+
+/**
+ * Canonical equality key for a combo — two combos that fire on the **same**
+ * keystroke produce the **same** key, regardless of how they were written.
+ *
+ * This is what conflict detection must compare on (NOT the raw string):
+ * `'Ctrl+Shift+Z'` (authored in a plugin), `'Ctrl+Shift+z'` (captured from
+ * a `KeyboardEvent` — always lowercased), and `'Shift+Ctrl+z'` (different
+ * modifier order) are all the **same** binding and must collide.
+ *
+ * Built from {@link parseCombo} so case + modifier order are normalized and
+ * the key is canonical. `CmdOrCtrl` is emitted as a distinct `mod` token
+ * (it matches ctrl OR meta, so it isn't strictly equal to a plain `Ctrl`
+ * binding) — adequate here since builtin shortcuts use explicit modifiers.
+ *
+ * Falls back to a trimmed-lowercased raw string for unparseable input so a
+ * corrupt override never throws during conflict counting.
+ */
+export function canonicalCombo(combo: string): string {
+  let parsed: ParsedCombo & { readonly __cmdOrCtrl?: true };
+  try {
+    parsed = parseCombo(combo) as ParsedCombo & { readonly __cmdOrCtrl?: true };
+  } catch {
+    return combo.trim().toLowerCase();
+  }
+  const parts: string[] = [];
+  if (parsed.__cmdOrCtrl === true) parts.push('mod');
+  if (parsed.ctrl) parts.push('ctrl');
+  if (parsed.meta) parts.push('meta');
+  if (parsed.alt) parts.push('alt');
+  if (parsed.shift) parts.push('shift');
+  parts.push(parsed.key);
+  return parts.join('+');
+}

@@ -1,6 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import {
+  canonicalCombo,
   comboMatches,
   parseCombo,
   type ParsedCombo,
@@ -117,12 +118,16 @@ export class KeybindingsService {
   readonly bindings = computed<readonly KeybindingView[]>(() => {
     const overrides = this._overrides();
     const shortcuts = this.registry.shortcuts();
-    // Count effective combos once for conflict detection.
+    // Count effective combos once for conflict detection. Key on the
+    // CANONICAL form (case + modifier-order normalized) so e.g. a plugin
+    // default 'Ctrl+Shift+Z' and a captured override 'Ctrl+Shift+z' are
+    // recognized as the same binding — comparing raw strings missed these.
     const comboCounts = new Map<string, number>();
     for (const s of shortcuts) {
       const c = this.effectiveCombo(s, overrides);
       if (c === null || c.length === 0) continue;
-      comboCounts.set(c, (comboCounts.get(c) ?? 0) + 1);
+      const key = canonicalCombo(c);
+      comboCounts.set(key, (comboCounts.get(key) ?? 0) + 1);
     }
     const views = shortcuts.map<KeybindingView>((s) => {
       const hasOverride = Object.prototype.hasOwnProperty.call(overrides, s.id);
@@ -137,7 +142,7 @@ export class KeybindingsService {
         combo,
         isCustom: hasOverride,
         isUnbound,
-        conflict: combo !== null && (comboCounts.get(combo) ?? 0) > 1,
+        conflict: combo !== null && (comboCounts.get(canonicalCombo(combo)) ?? 0) > 1,
       };
     });
     return [...views].sort((a, b) =>
@@ -181,7 +186,10 @@ export class KeybindingsService {
     const def = this.registry.get(id)?.combo ?? null;
     this._overrides.update((o) => {
       const next = { ...o };
-      if (def !== null && combo === def) delete next[id];
+      // Compare canonically so rebinding to the default in a different
+      // case/order (e.g. captured 'Ctrl+Shift+z' vs default 'Ctrl+Shift+Z')
+      // still clears the override instead of storing a redundant one.
+      if (def !== null && canonicalCombo(combo) === canonicalCombo(def)) delete next[id];
       else next[id] = combo;
       return next;
     });
@@ -226,11 +234,14 @@ export class KeybindingsService {
    */
   conflictIdsFor(combo: string, excludeId?: string): readonly string[] {
     if (combo.length === 0) return [];
+    const target = canonicalCombo(combo);
     const overrides = this._overrides();
     const out: string[] = [];
     for (const s of this.registry.shortcuts()) {
       if (s.id === excludeId) continue;
-      if (this.effectiveCombo(s, overrides) === combo) out.push(s.id);
+      const eff = this.effectiveCombo(s, overrides);
+      if (eff === null || eff.length === 0) continue;
+      if (canonicalCombo(eff) === target) out.push(s.id);
     }
     return out;
   }

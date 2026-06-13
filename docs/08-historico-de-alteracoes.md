@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-06-13 — D-087-fix: detecção de conflito canônica + centrar × da busca ✅
+
+Dois acertos no Keyboard Shortcuts manager a partir de uso:
+
+1. **Conflito não era detectado entre combos "iguais" escritos diferente.**
+   Ex.: o default `Ctrl+Shift+Z` (Redo, autorado no plugin) vs um override
+   capturado `Ctrl+Shift+z` (sempre minúsculo, vindo do `KeyboardEvent`, e
+   possivelmente com modificadores reordenados) — mesmo atalho, strings
+   diferentes. O `comboCounts` comparava **string crua** → não casava → sem
+   alerta. **Correção:** novo `canonicalCombo(combo)` (forma canônica via
+   `parseCombo`: case + ordem de modificadores normalizados) usado em
+   `bindings()` (contagem + flag `conflict`), `conflictIdsFor` (aviso ao
+   regravar) e `setBinding` (limpar override quando == default). Agora ambas
+   as linhas mostram o ⚠️ "Also bound to another command" e o aviso
+   "Conflicts: …" aparece durante a captura. Política mantida (VSCode-like):
+   conflito é **aviso**, não bloqueia salvar — `when()` guards podem deixar
+   dois comandos coexistirem.
+2. **Botão × da busca desalinhado.** Removido o touch-target do icon-button
+   colapsava o × fora do centro; centralizado o wrapper do suffix
+   (`:host ::ng-deep .search .mat-mdc-form-field-icon-suffix`) + flex no botão.
+
+`canonicalCombo` é interno ao pacote `edit` (não exportado na API pública).
+Specs novos (`canonicalCombo` + conflito case/ordem); suíte (2348) e lint verdes.
+
+---
+
 ## 2026-06-13 — D-087: Keyboard Shortcuts manager (ver/configurar/personalizar) ✅
 
 Gerenciador central de comandos + atalhos: lista todos os comandos com atalho

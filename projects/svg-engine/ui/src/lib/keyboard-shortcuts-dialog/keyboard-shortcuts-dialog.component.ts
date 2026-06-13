@@ -257,6 +257,9 @@ interface ShortcutGroup {
     .clear-search {
       width: 32px;
       height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       --mdc-icon-button-state-layer-size: 32px;
       --mat-icon-button-touch-target-display: none;
     }
@@ -264,6 +267,18 @@ interface ShortcutGroup {
       font-size: 18px;
       width: 18px;
       height: 18px;
+      line-height: 18px;
+    }
+    /* Vertically center the clear (×) button in the outline field. Removing
+       the icon button's touch target collapses it off-center inside the
+       suffix wrapper; pin the wrapper to center against the input row.
+       Material renders the suffix in its own view → pierce with :host
+       ::ng-deep (scoped to this dialog's search field). */
+    :host ::ng-deep .search .mat-mdc-form-field-icon-suffix {
+      align-self: center;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 4px 0 0;
     }
     .empty {
       margin: 8px 0;

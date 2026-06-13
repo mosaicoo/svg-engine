@@ -1,6 +1,13 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { comboFromEvent, comboMatches, formatCombo, parseCombo, validateCombo } from './shortcut';
+import {
+  canonicalCombo,
+  comboFromEvent,
+  comboMatches,
+  formatCombo,
+  parseCombo,
+  validateCombo,
+} from './shortcut';
 import { ShortcutRegistry } from './shortcut-registry.service';
 import { ShortcutService } from './shortcut.service';
 
@@ -271,5 +278,26 @@ describe('comboFromEvent', () => {
   it('returns null for a lone modifier press', () => {
     expect(comboFromEvent(ke('Control', { ctrlKey: true }))).toBeNull();
     expect(comboFromEvent(ke('Shift', { shiftKey: true }))).toBeNull();
+  });
+});
+
+describe('canonicalCombo', () => {
+  it('is case-insensitive on the key', () => {
+    expect(canonicalCombo('Ctrl+Shift+Z')).toBe(canonicalCombo('Ctrl+Shift+z'));
+  });
+
+  it('is order-insensitive on the modifiers', () => {
+    expect(canonicalCombo('Shift+Ctrl+z')).toBe(canonicalCombo('Ctrl+Shift+z'));
+  });
+
+  it('distinguishes genuinely different combos', () => {
+    expect(canonicalCombo('Ctrl+G')).not.toBe(canonicalCombo('Ctrl+Shift+G'));
+    expect(canonicalCombo('Ctrl+G')).not.toBe(canonicalCombo('Alt+G'));
+    expect(canonicalCombo('Ctrl+G')).not.toBe(canonicalCombo('Meta+G'));
+  });
+
+  it('falls back to a normalized string for unparseable input', () => {
+    // No throw; deterministic key so conflict counting never crashes.
+    expect(canonicalCombo('Ctrl+')).toBe(canonicalCombo('ctrl+'));
   });
 });

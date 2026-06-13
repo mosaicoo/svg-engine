@@ -115,6 +115,22 @@ describe('KeybindingsService', () => {
     expect(kb.conflictIdsFor('Ctrl+G', 'b')).toContain('a');
   });
 
+  it('flags a conflict across case + modifier-order differences (canonical)', () => {
+    // The real bug: a plugin default authored 'Ctrl+Shift+Z' and an override
+    // captured from a KeyboardEvent ('Ctrl+Shift+z', always lowercased, and
+    // possibly reordered) are the SAME keystroke but different strings.
+    // Comparing raw strings missed it; canonical comparison catches it.
+    reg.register({ id: 'redo', combo: 'Ctrl+Shift+Z', description: 'Redo', run: () => undefined });
+    reg.register({ id: 'find', combo: 'Ctrl+H', description: 'Find', run: () => undefined });
+    expect(kb.bindings().every((v) => !v.conflict)).toBe(true);
+
+    kb.setBinding('find', 'Shift+Ctrl+z'); // lowercase key + reordered mods
+    const views = kb.bindings();
+    expect(views.find((v) => v.id === 'redo')!.conflict).toBe(true);
+    expect(views.find((v) => v.id === 'find')!.conflict).toBe(true);
+    expect(kb.conflictIdsFor('ctrl+shift+z', 'find')).toContain('redo');
+  });
+
   it('respects when() guards in tryMatch', () => {
     const gate = signal(false);
     reg.register({ id: 'a', combo: 'Ctrl+G', when: gate, run: () => undefined });
