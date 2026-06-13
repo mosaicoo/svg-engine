@@ -71,157 +71,161 @@ interface ShortcutGroup {
       title="Keyboard Shortcuts"
       subtitle="View and customize the key combination for each command"
     >
-      <div class="kbd-manager">
-        <mat-form-field appearance="outline" class="search">
-          <mat-label>Search commands</mat-label>
-          <input
-            matInput
-            type="text"
-            [value]="filter()"
-            (input)="onFilter($event)"
-            placeholder="group, Ctrl+G, snapshot…"
-          />
-          @if (filter() !== '') {
-            <button
-              matSuffix
-              mat-icon-button
-              type="button"
-              class="clear-search"
-              matTooltip="Clear search"
-              aria-label="Clear search"
-              (click)="clearFilter()"
-            >
-              <mat-icon>close</mat-icon>
-            </button>
-          }
-        </mat-form-field>
-
-        @if (groups().length === 0) {
-          <p class="empty">No commands match “{{ filter() }}”.</p>
-        } @else {
-          <div class="list" role="table" aria-label="Keyboard shortcuts">
-            @for (g of groups(); track g.category) {
-              <div class="group" role="rowgroup">
-                <h3 class="group-title">{{ g.category }}</h3>
-                @for (b of g.rows; track b.id) {
-                  <div class="row" role="row" [class.editing]="editingId() === b.id">
-                    <span class="row-desc" role="cell" [title]="b.id">{{ b.description }}</span>
-
-                    <span class="row-binding" role="cell">
-                      @if (editingId() === b.id) {
-                        <span
-                          #recorder
-                          class="recorder"
-                          tabindex="0"
-                          role="textbox"
-                          aria-label="Press the new shortcut"
-                          (keydown)="onRecordKey($event)"
-                        >
-                          @if (recordedCombo() === null) {
-                            <span class="recorder-hint">Press shortcut…</span>
-                          } @else {
-                            <kbd class="combo">{{ display(recordedCombo()!) }}</kbd>
-                          }
-                        </span>
-                      } @else if (b.isUnbound) {
-                        <span class="unbound" title="No shortcut">—</span>
-                      } @else {
-                        <kbd class="combo" [class.is-conflict]="b.conflict">{{
-                          display(b.combo!)
-                        }}</kbd>
-                        @if (b.conflict) {
-                          <mat-icon
-                            class="conflict-icon"
-                            matTooltip="Also bound to another command"
-                            aria-label="Shortcut conflict"
-                            >warning</mat-icon
-                          >
-                        }
-                        @if (b.isCustom) {
-                          <span
-                            class="custom-dot"
-                            matTooltip="Customized"
-                            aria-label="Customized"
-                          ></span>
-                        }
-                      }
-                    </span>
-
-                    <span class="row-actions" role="cell">
-                      @if (editingId() === b.id) {
-                        @if (recordConflicts().length > 0) {
-                          <span class="record-conflict" role="alert">
-                            Conflicts: {{ recordConflicts().join(', ') }}
-                          </span>
-                        }
-                        <button
-                          mat-icon-button
-                          type="button"
-                          class="act"
-                          matTooltip="Save"
-                          aria-label="Save shortcut"
-                          [disabled]="recordedCombo() === null"
-                          (click)="save(b.id)"
-                        >
-                          <mat-icon>check</mat-icon>
-                        </button>
-                        <button
-                          mat-icon-button
-                          type="button"
-                          class="act"
-                          matTooltip="Remove shortcut"
-                          aria-label="Remove shortcut"
-                          (click)="unbind(b.id)"
-                        >
-                          <mat-icon>block</mat-icon>
-                        </button>
-                        <button
-                          mat-icon-button
-                          type="button"
-                          class="act"
-                          matTooltip="Cancel"
-                          aria-label="Cancel"
-                          (click)="cancel()"
-                        >
-                          <mat-icon>close</mat-icon>
-                        </button>
-                      } @else {
-                        <button
-                          mat-icon-button
-                          type="button"
-                          class="act"
-                          matTooltip="Edit shortcut"
-                          aria-label="Edit shortcut"
-                          (click)="startEdit(b.id)"
-                        >
-                          <mat-icon>edit</mat-icon>
-                        </button>
-                        @if (b.isCustom) {
-                          <button
-                            mat-icon-button
-                            type="button"
-                            class="act"
-                            matTooltip="Reset to default"
-                            aria-label="Reset to default"
-                            (click)="reset(b.id)"
-                          >
-                            <mat-icon>restart_alt</mat-icon>
-                          </button>
-                        }
-                      }
-                    </span>
-                  </div>
-                }
-              </div>
-            }
-          </div>
+      <!-- Body content goes straight into the shell's flex-column body
+           (.dlg-body) — NO intermediate wrapper. An extra flex level
+           between the body and the scroll region collapses the fill and
+           leaves dead space below the footer on resize; the working
+           dialogs (source viewer, etc.) put the flex-fill child directly
+           in the body. The list is that flex-fill child. -->
+      <mat-form-field appearance="outline" class="search">
+        <mat-label>Search commands</mat-label>
+        <input
+          matInput
+          type="text"
+          [value]="filter()"
+          (input)="onFilter($event)"
+          placeholder="group, Ctrl+G, snapshot…"
+        />
+        @if (filter() !== '') {
+          <button
+            matSuffix
+            mat-icon-button
+            type="button"
+            class="clear-search"
+            matTooltip="Clear search"
+            aria-label="Clear search"
+            (click)="clearFilter()"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
         }
+      </mat-form-field>
 
-        <p class="hint">
-          Press the keys for a command to rebind it. <kbd>Esc</kbd> cancels. Single combos only (no
-          chords).
-        </p>
-      </div>
+      @if (groups().length === 0) {
+        <p class="empty">No commands match “{{ filter() }}”.</p>
+      } @else {
+        <div class="list" role="table" aria-label="Keyboard shortcuts">
+          @for (g of groups(); track g.category) {
+            <div class="group" role="rowgroup">
+              <h3 class="group-title">{{ g.category }}</h3>
+              @for (b of g.rows; track b.id) {
+                <div class="row" role="row" [class.editing]="editingId() === b.id">
+                  <span class="row-desc" role="cell" [title]="b.id">{{ b.description }}</span>
+
+                  <span class="row-binding" role="cell">
+                    @if (editingId() === b.id) {
+                      <span
+                        #recorder
+                        class="recorder"
+                        tabindex="0"
+                        role="textbox"
+                        aria-label="Press the new shortcut"
+                        (keydown)="onRecordKey($event)"
+                      >
+                        @if (recordedCombo() === null) {
+                          <span class="recorder-hint">Press shortcut…</span>
+                        } @else {
+                          <kbd class="combo">{{ display(recordedCombo()!) }}</kbd>
+                        }
+                      </span>
+                    } @else if (b.isUnbound) {
+                      <span class="unbound" title="No shortcut">—</span>
+                    } @else {
+                      <kbd class="combo" [class.is-conflict]="b.conflict">{{
+                        display(b.combo!)
+                      }}</kbd>
+                      @if (b.conflict) {
+                        <mat-icon
+                          class="conflict-icon"
+                          matTooltip="Also bound to another command"
+                          aria-label="Shortcut conflict"
+                          >warning</mat-icon
+                        >
+                      }
+                      @if (b.isCustom) {
+                        <span
+                          class="custom-dot"
+                          matTooltip="Customized"
+                          aria-label="Customized"
+                        ></span>
+                      }
+                    }
+                  </span>
+
+                  <span class="row-actions" role="cell">
+                    @if (editingId() === b.id) {
+                      @if (recordConflicts().length > 0) {
+                        <span class="record-conflict" role="alert">
+                          Conflicts: {{ recordConflicts().join(', ') }}
+                        </span>
+                      }
+                      <button
+                        mat-icon-button
+                        type="button"
+                        class="act"
+                        matTooltip="Save"
+                        aria-label="Save shortcut"
+                        [disabled]="recordedCombo() === null"
+                        (click)="save(b.id)"
+                      >
+                        <mat-icon>check</mat-icon>
+                      </button>
+                      <button
+                        mat-icon-button
+                        type="button"
+                        class="act"
+                        matTooltip="Remove shortcut"
+                        aria-label="Remove shortcut"
+                        (click)="unbind(b.id)"
+                      >
+                        <mat-icon>block</mat-icon>
+                      </button>
+                      <button
+                        mat-icon-button
+                        type="button"
+                        class="act"
+                        matTooltip="Cancel"
+                        aria-label="Cancel"
+                        (click)="cancel()"
+                      >
+                        <mat-icon>close</mat-icon>
+                      </button>
+                    } @else {
+                      <button
+                        mat-icon-button
+                        type="button"
+                        class="act"
+                        matTooltip="Edit shortcut"
+                        aria-label="Edit shortcut"
+                        (click)="startEdit(b.id)"
+                      >
+                        <mat-icon>edit</mat-icon>
+                      </button>
+                      @if (b.isCustom) {
+                        <button
+                          mat-icon-button
+                          type="button"
+                          class="act"
+                          matTooltip="Reset to default"
+                          aria-label="Reset to default"
+                          (click)="reset(b.id)"
+                        >
+                          <mat-icon>restart_alt</mat-icon>
+                        </button>
+                      }
+                    }
+                  </span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      <p class="hint">
+        Press the keys for a command to rebind it. <kbd>Esc</kbd> cancels. Single combos only (no
+        chords).
+      </p>
 
       <span svgeDialogFooterActions>
         <button
@@ -237,22 +241,15 @@ interface ShortcutGroup {
     </svge-dialog-shell>
   `,
   styles: `
-    /* Fill the dialog body so the list (the only scroll region) tracks
-       the dialog's height as it resizes — the dialog-shell body flexes,
-       and content that opts into flex-grow occupies it exactly. Without
-       this the body keeps a fixed-height list and leaves dead space + a
-       second (outer) scrollbar. */
-    .kbd-manager {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      padding: 4px 0;
-      flex: 1 1 auto;
-      min-height: 0;
-    }
+    /* Search + list + hint are DIRECT children of the shell's flex-column
+       body (no wrapper). The list is the flex-fill child (mirrors the
+       source-viewer's <pre>); search + hint stay fixed. This keeps the
+       list as the single scroll region that tracks the dialog height on
+       resize, with the footer pinned and no dead space below it. */
     .search {
       width: 100%;
       flex: 0 0 auto;
+      margin-bottom: 4px;
     }
     .clear-search {
       width: 32px;
@@ -289,12 +286,13 @@ interface ShortcutGroup {
       color: var(--mat-sys-on-surface-variant, #888);
     }
     .list {
-      /* The single scroll region: flexes to fill the available height
-         (no fixed cap → no dead space below; the dialog body never
-         overflows → no outer scrollbar). A modest min-height keeps it
-         usable on very short viewports. */
+      /* The single scroll region: flex-fills the body and is the only
+         scroller, so it tracks the dialog height on resize. min-height: 0
+         (not a fixed floor) is required for the flex item to shrink and
+         scroll instead of pushing the footer down — same as the proven
+         source-viewer <pre>. */
       flex: 1 1 auto;
-      min-height: 120px;
+      min-height: 0;
       overflow-y: auto;
       border: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
       border-radius: 6px;
