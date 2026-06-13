@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatDialogRef } from '@angular/material/dialog';
-import { MatFormField, MatLabel } from '@angular/material/form-field';
+import { MatFormField, MatLabel, MatSuffix } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
 import { MatTooltip } from '@angular/material/tooltip';
@@ -63,6 +63,7 @@ interface ShortcutGroup {
     MatFormField,
     MatLabel,
     MatInput,
+    MatSuffix,
   ],
   template: `
     <svge-dialog-shell
@@ -80,6 +81,19 @@ interface ShortcutGroup {
             (input)="onFilter($event)"
             placeholder="group, Ctrl+G, snapshot…"
           />
+          @if (filter() !== '') {
+            <button
+              matSuffix
+              mat-icon-button
+              type="button"
+              class="clear-search"
+              matTooltip="Clear search"
+              aria-label="Clear search"
+              (click)="clearFilter()"
+            >
+              <mat-icon>close</mat-icon>
+            </button>
+          }
         </mat-form-field>
 
         @if (groups().length === 0) {
@@ -223,14 +237,33 @@ interface ShortcutGroup {
     </svge-dialog-shell>
   `,
   styles: `
+    /* Fill the dialog body so the list (the only scroll region) tracks
+       the dialog's height as it resizes — the dialog-shell body flexes,
+       and content that opts into flex-grow occupies it exactly. Without
+       this the body keeps a fixed-height list and leaves dead space + a
+       second (outer) scrollbar. */
     .kbd-manager {
       display: flex;
       flex-direction: column;
       gap: 4px;
       padding: 4px 0;
+      flex: 1 1 auto;
+      min-height: 0;
     }
     .search {
       width: 100%;
+      flex: 0 0 auto;
+    }
+    .clear-search {
+      width: 32px;
+      height: 32px;
+      --mdc-icon-button-state-layer-size: 32px;
+      --mat-icon-button-touch-target-display: none;
+    }
+    .clear-search mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
     }
     .empty {
       margin: 8px 0;
@@ -241,7 +274,12 @@ interface ShortcutGroup {
       color: var(--mat-sys-on-surface-variant, #888);
     }
     .list {
-      max-height: 52vh;
+      /* The single scroll region: flexes to fill the available height
+         (no fixed cap → no dead space below; the dialog body never
+         overflows → no outer scrollbar). A modest min-height keeps it
+         usable on very short viewports. */
+      flex: 1 1 auto;
+      min-height: 120px;
       overflow-y: auto;
       border: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
       border-radius: 6px;
@@ -372,6 +410,7 @@ interface ShortcutGroup {
       line-height: 1.4;
       font-style: italic;
       color: var(--mat-sys-on-surface-variant, #888);
+      flex: 0 0 auto;
     }
     .hint kbd {
       font-family: monospace;
@@ -449,6 +488,10 @@ export class SvgeKeyboardShortcutsDialog {
 
   protected onFilter(ev: Event): void {
     this.filter.set((ev.target as HTMLInputElement).value);
+  }
+
+  protected clearFilter(): void {
+    this.filter.set('');
   }
 
   protected startEdit(id: string): void {
