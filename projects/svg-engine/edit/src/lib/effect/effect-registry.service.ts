@@ -1,4 +1,5 @@
 import { Injectable, signal } from '@angular/core';
+import { type GroupNode, type SvgNode, walk } from 'svg-engine/core';
 import type { Disposable } from '../plugin/plugin';
 import type { Effect } from './effect';
 
@@ -94,4 +95,50 @@ export class EffectRegistry {
     if (all.length === 0) return '';
     return all.map((e) => e.buildFilterMarkup()).join('\n');
   }
+
+  /**
+   * Build filter markup for ONLY the effects actually referenced by some
+   * node in `root` (via `style.filter` = `url(#effectId)`). The
+   * export-friendly counterpart to {@link buildAllFiltersMarkup}: the
+   * live renderer injects every registered filter so applying an effect
+   * resolves instantly, but an **exported** file should carry only the
+   * filters it uses — matching how gradients / patterns / clipPaths /
+   * masks / symbols are already pruned to "active" in the export.
+   *
+   * Any `url(#id)` that doesn't match a registered effect id is ignored
+   * (e.g. effect-chain ids, which emit their own self-contained
+   * `<filter>` via `ChainFilterRegistry`).
+   *
+   * Returns an empty string when no registered effect is referenced.
+   */
+  buildUsedFiltersMarkup(root: GroupNode): string {
+    const all = this._effects();
+    if (all.length === 0) return '';
+    const referenced = collectReferencedFilterIds(root);
+    if (referenced.size === 0) return '';
+    return all
+      .filter((e) => referenced.has(e.id))
+      .map((e) => e.buildFilterMarkup())
+      .join('\n');
+  }
+}
+
+/** Matches every `url(#id)` occurrence; captures the bare id. */
+const URL_REF_RE = /url\(\s*#([^)\s]+)\s*\)/g;
+
+/**
+ * Collect the set of ids referenced by any node's `style.filter` in the
+ * tree. A single `style.filter` may hold more than one `url(#id)`
+ * (SVG allows a filter list), so we scan all matches.
+ */
+function collectReferencedFilterIds(root: GroupNode): ReadonlySet<string> {
+  const ids = new Set<string>();
+  walk(root, (node: SvgNode) => {
+    const filter = node.style?.filter;
+    if (typeof filter !== 'string' || filter.length === 0) return;
+    for (const match of filter.matchAll(URL_REF_RE)) {
+      ids.add(match[1]!);
+    }
+  });
+  return ids;
 }

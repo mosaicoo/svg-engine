@@ -1,4 +1,5 @@
 import { computed, inject, Injectable } from '@angular/core';
+import { EditorStateService } from 'svg-engine/core';
 
 import { ChainFilterRegistry } from '../effect/chain-filter';
 import { EffectRegistry } from '../effect/effect-registry.service';
@@ -61,6 +62,10 @@ import { ActiveSymbolsService } from './symbols/symbol-library.service';
  */
 @Injectable({ providedIn: 'root' })
 export class ActiveDefsService {
+  // Scoped editor state — lets `buildExportDefs` scan the document for
+  // which effect filters are actually referenced (export prunes unused
+  // filters; the live `composed()` keeps injecting all of them).
+  private readonly state = inject(EditorStateService);
   private readonly effects = inject(EffectRegistry);
   private readonly chains = inject(ChainFilterRegistry);
   private readonly gradients = inject(ActiveGradientsService);
@@ -117,7 +122,23 @@ export class ActiveDefsService {
    */
   buildExportDefs(documentDefs: string | undefined): string {
     const docDefs = documentDefs ?? '';
-    const dynamic = this.composed() ?? '';
+    // Same composition as `composed()` EXCEPT the effects part is pruned
+    // to the filters actually referenced by the document. The renderer
+    // injects every registered filter (instant effect apply); an
+    // exported file should only carry what it uses — consistent with the
+    // already-pruned gradients / patterns / clipPaths / masks / symbols.
+    const root = this.state.document().root;
+    const dynamic = [
+      this.effects.buildUsedFiltersMarkup(root),
+      this.chains.buildAllChainsMarkup(),
+      this.gradients.buildAllActiveGradientsMarkup(),
+      this.patterns.buildAllActivePatternsMarkup(),
+      this.clipPaths.buildAllActiveClipPathsMarkup(),
+      this.masks.buildAllActiveMasksMarkup(),
+      this.symbols.buildAllActiveSymbolsMarkup(),
+    ]
+      .filter((s) => s.length > 0)
+      .join('\n');
     if (docDefs.length === 0) return dynamic;
     if (dynamic.length === 0) return docDefs;
     return `${docDefs}\n${dynamic}`;

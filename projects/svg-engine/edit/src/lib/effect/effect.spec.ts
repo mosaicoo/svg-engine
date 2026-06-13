@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { createGroup, createRect } from 'svg-engine/core';
 import {
   bevelEffect,
   blurEffect,
@@ -80,6 +81,50 @@ describe('EffectRegistry — basics', () => {
     reg.register(makeEffect('a'));
     reg.register(makeEffect('b'));
     const markup = reg.buildAllFiltersMarkup();
+    expect(markup).toContain('id="a"');
+    expect(markup).toContain('id="b"');
+  });
+});
+
+describe('EffectRegistry — buildUsedFiltersMarkup (export pruning)', () => {
+  function rectWithFilter(filter: string | undefined) {
+    const r = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    return filter === undefined ? r : { ...r, style: { ...r.style, filter } };
+  }
+
+  it('emits only the filters referenced by the document', () => {
+    const reg = TestBed.inject(EffectRegistry);
+    reg.register(makeEffect('a'));
+    reg.register(makeEffect('b'));
+    reg.register(makeEffect('c'));
+    const root = createGroup([rectWithFilter('url(#b)'), rectWithFilter(undefined)]);
+    const markup = reg.buildUsedFiltersMarkup(root);
+    expect(markup).toContain('id="b"');
+    expect(markup).not.toContain('id="a"');
+    expect(markup).not.toContain('id="c"');
+  });
+
+  it('returns an empty string when no node references any effect', () => {
+    const reg = TestBed.inject(EffectRegistry);
+    reg.register(makeEffect('a'));
+    const root = createGroup([rectWithFilter(undefined)]);
+    expect(reg.buildUsedFiltersMarkup(root)).toBe('');
+  });
+
+  it('ignores url(#id) that does not match a registered effect (e.g. chain ids)', () => {
+    const reg = TestBed.inject(EffectRegistry);
+    reg.register(makeEffect('a'));
+    const root = createGroup([rectWithFilter('url(#some.chain.id)')]);
+    expect(reg.buildUsedFiltersMarkup(root)).toBe('');
+  });
+
+  it('collects references from nested nodes', () => {
+    const reg = TestBed.inject(EffectRegistry);
+    reg.register(makeEffect('a'));
+    reg.register(makeEffect('b'));
+    const inner = createGroup([rectWithFilter('url(#a)')]);
+    const root = createGroup([inner, rectWithFilter('url(#b)')]);
+    const markup = reg.buildUsedFiltersMarkup(root);
     expect(markup).toContain('id="a"');
     expect(markup).toContain('id="b"');
   });

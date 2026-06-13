@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-06-13 — Export: podar filtros de efeito não usados (defs enxutos) ✅
+
+O `.svg`/SMIL exportado carregava **todos os ~20 filtros builtin** (`<filter
+id="svge.builtin.effect.*">`) mesmo quando o desenho usava só um (ex.: `bevel`).
+Causa: `ActiveDefsService.buildExportDefs` compunha os efeitos via
+`EffectRegistry.buildAllFiltersMarkup()` (**todos os registrados**), enquanto
+todos os outros tipos de def — gradients, patterns, clipPaths, masks, symbols e
+chains — já eram podados para "só os usados" no documento. Efeitos eram o único
+outlier.
+
+**Correção (apenas no export):**
+
+- Novo `EffectRegistry.buildUsedFiltersMarkup(root)` — varre o documento por
+  `url(#id)` em `style.filter` e emite só os filtros referenciados (ids que não
+  batem com efeito registrado, como ids de chain, são ignorados — chains emitem
+  seu próprio `<filter>` self-contained).
+- `buildExportDefs` passa a usar a versão "usados" para a parte de efeitos
+  (lê o root via `EditorStateService`), mantendo as demais partes intactas.
+
+O **render vivo** segue injetando todos os filtros (`composed()` →
+`buildAllFiltersMarkup`) para que aplicar um efeito seja instantâneo — só o
+**export** é enxuto, alinhado ao princípio "export limpo, canvas conveniente".
+Vale para SVG e SMIL (mesma rota de export). Sem mudança de superfície pública.
+Specs novos no `EffectRegistry`; suíte (2322) e lint verdes.
+
+---
+
 ## 2026-06-13 — Align: objeto único alinha à página ("Align to Page") ✅
 
 Antes, com **1 objeto** selecionado os botões de Align ficavam desabilitados
