@@ -126,61 +126,6 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
   ],
   template: `
     <!--
-      **D-071c** — Batch ops bar for multi-select. Appears only when
-      ≥2 layers are selected. Provides one-click Lock-all / Unlock-all
-      / Hide-all / Show-all on the current selection — operations the
-      user can do row-by-row but tediously. Sits ABOVE the search/filter
-      header so it's the first thing visible when multi-select is
-      active. Hidden in single-select / no-select to avoid clutter.
-    -->
-    @if (batchCount() > 1) {
-      <div class="batch-bar" role="toolbar" [attr.aria-label]="batchCount() + ' selected'">
-        <span class="batch-label">{{ batchCount() }} selected</span>
-        <div class="batch-actions">
-          <button
-            type="button"
-            class="batch-btn"
-            [title]="batchAllLocked() ? 'Unlock all selected' : 'Lock all selected'"
-            [attr.aria-label]="batchAllLocked() ? 'Unlock all selected' : 'Lock all selected'"
-            (click)="batchToggleLock()"
-          >
-            <mat-icon>{{ batchAllLocked() ? 'lock_open' : 'lock' }}</mat-icon>
-          </button>
-          <button
-            type="button"
-            class="batch-btn"
-            [title]="batchAllHidden() ? 'Show all selected' : 'Hide all selected'"
-            [attr.aria-label]="batchAllHidden() ? 'Show all selected' : 'Hide all selected'"
-            (click)="batchToggleVisibility()"
-          >
-            <mat-icon>{{ batchAllHidden() ? 'visibility' : 'visibility_off' }}</mat-icon>
-          </button>
-        </div>
-      </div>
-    }
-
-    <!--
-      **D-072 — Logical Layers**. Panel-level action bar with a single
-      "New Layer" button. Always visible (even when the panel is empty)
-      so the user has a discoverable entry point to start populating
-      the document — matches the Illustrator / Affinity pattern of
-      always-on layer-creation controls. Compact (single button) so it
-      doesn't push the search bar / batch bar off-screen.
-    -->
-    <div class="actions-bar" role="toolbar" aria-label="Layer actions">
-      <button
-        mat-icon-button
-        type="button"
-        class="new-layer-btn"
-        title="New Layer"
-        aria-label="New Layer"
-        (click)="createNewLayer()"
-      >
-        <mat-icon>add</mat-icon>
-      </button>
-    </div>
-
-    <!--
       Search + filter header (Illustrator convention). Hidden when the
       panel is empty (no document/children) so it doesn't clutter the
       "empty state" message.
@@ -297,6 +242,52 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
         }
       }
     </div>
+
+    <!--
+      **Panel footer** (Illustrator / Affinity convention) — layer-level
+      action controls anchored at the BOTTOM of the panel. Always shows
+      the "New Layer" button (left, so it's discoverable even when the
+      panel is empty); the multi-select **batch actions** appear on the
+      right only with ≥2 selected: Show/Hide-all then Lock/Unlock-all,
+      mirroring the per-row eye→lock order so the icon columns line up.
+    -->
+    <footer class="panel-footer" role="toolbar" aria-label="Layer actions">
+      <button
+        mat-icon-button
+        type="button"
+        class="new-layer-btn"
+        title="New Layer"
+        aria-label="New Layer"
+        (click)="createNewLayer()"
+      >
+        <mat-icon>add</mat-icon>
+      </button>
+      @if (batchCount() > 1) {
+        <div class="batch-group">
+          <span class="batch-label">{{ batchCount() }} selected</span>
+          <div class="batch-actions">
+            <button
+              type="button"
+              class="batch-btn"
+              [title]="batchAllHidden() ? 'Show all selected' : 'Hide all selected'"
+              [attr.aria-label]="batchAllHidden() ? 'Show all selected' : 'Hide all selected'"
+              (click)="batchToggleVisibility()"
+            >
+              <mat-icon>{{ batchAllHidden() ? 'visibility' : 'visibility_off' }}</mat-icon>
+            </button>
+            <button
+              type="button"
+              class="batch-btn"
+              [title]="batchAllLocked() ? 'Unlock all selected' : 'Lock all selected'"
+              [attr.aria-label]="batchAllLocked() ? 'Unlock all selected' : 'Lock all selected'"
+              (click)="batchToggleLock()"
+            >
+              <mat-icon>{{ batchAllLocked() ? 'lock_open' : 'lock' }}</mat-icon>
+            </button>
+          </div>
+        </div>
+      }
+    </footer>
 
     <ng-template #rowTpl let-node let-depth="depth">
       @if (showsRow()(node.id)) {
@@ -429,19 +420,29 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
       font-size: 13px;
       background: var(--mat-sys-surface-container, #fafafa);
     }
-    /* D-071c — Batch ops bar (multi-select only). Sits at the very
-       top of the panel, above the search/filter header. Uses a tinted
-       background to make it visually distinct from the regular header. */
-    .batch-bar {
+    /* Panel footer — layer-level actions anchored at the BOTTOM of the
+       panel (Illustrator / Affinity convention): the "New Layer" button
+       on the left + the multi-select batch actions on the right. Pinned
+       below the scrolling list; border on TOP since it now sits at the
+       panel's bottom edge. */
+    .panel-footer {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 6px 10px;
+      gap: 6px;
+      padding: 4px 8px;
       flex: 0 0 auto;
-      background: var(--mat-sys-secondary-container, rgba(25, 118, 210, 0.08));
-      color: var(--mat-sys-on-secondary-container, inherit);
-      border-bottom: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
+      border-top: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
+      background: var(--mat-sys-surface-container-low, #f5f5f5);
       font-size: 12px;
+    }
+    /* Batch actions (multi-select only) pushed to the right edge so their
+       eye/lock buttons line up with the per-row eye/lock column. */
+    .batch-group {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--mat-sys-on-surface-variant, inherit);
     }
     .batch-label {
       font-weight: 500;
@@ -471,19 +472,6 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
       font-size: 16px;
       width: 16px;
       height: 16px;
-    }
-    /* D-072 — Layer-creation action bar. Single "+" button at the top
-       of the panel; always visible (even when the layer list is empty)
-       so users have a discoverable entry point to start adding layers.
-       Right-aligned to mirror Illustrator/Affinity's bottom-bar
-       convention while keeping the search field unobstructed. */
-    .actions-bar {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      padding: 2px 6px;
-      flex: 0 0 auto;
-      background: var(--mat-sys-surface-container, transparent);
     }
     .new-layer-btn {
       width: 28px;
@@ -516,12 +504,36 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
     .search-field {
       flex: 1 1 auto;
       min-width: 0;
-      /* Compress Material outline density so the field fits a small
-         panel header without overflowing. */
-      --mat-form-field-container-vertical-padding: 4px;
+      font-size: 12px;
+      /* Compact + discreet so the search field matches the system's other
+         panel inputs instead of towering over the small panel header.
+         The custom props below INHERIT into Material's internals; the
+         height/padding tweaks need :host ::ng-deep because Material renders
+         the field's inner elements in its own view (outside this
+         component's emulated encapsulation). Scoped to :host so it can't
+         leak to form fields elsewhere. */
+      --mat-form-field-container-vertical-padding: 2px;
     }
-    .search-field .mat-mdc-form-field-flex {
-      min-height: 32px;
+    :host ::ng-deep .search-field .mat-mdc-text-field-wrapper {
+      padding-left: 8px;
+      padding-right: 4px;
+    }
+    :host ::ng-deep .search-field .mat-mdc-form-field-flex,
+    :host ::ng-deep .search-field .mat-mdc-form-field-infix {
+      min-height: 30px;
+    }
+    :host ::ng-deep .search-field .mat-mdc-form-field-infix {
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
+    :host ::ng-deep .search-field input.mat-mdc-input-element {
+      font-size: 12px;
+    }
+    :host ::ng-deep .search-field .mat-mdc-form-field-icon-prefix > .mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      padding: 0 2px;
     }
     .filter-trigger {
       position: relative;

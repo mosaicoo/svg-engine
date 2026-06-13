@@ -6,6 +6,31 @@
 
 ---
 
+## 2026-06-13 — Layers Panel: polimento de UX (rodapé unificado + alinhamento eye/lock + busca compacta) ✅
+
+Ajustes visuais no `<svge-layers-panel>` a partir de feedback de uso:
+
+1. **Toolbar movida para o rodapé.** O botão **New Layer** e as **ações em lote**
+   (multi-seleção) saíram do topo do painel e foram unificados em um único
+   `footer.panel-footer` ancorado no rodapé — convenção Illustrator/Affinity.
+   New Layer fica à esquerda; o grupo de lote (`.batch-group`, `margin-left:auto`)
+   é empurrado para a borda direita.
+2. **Ordem dos ícones de lote alinhada às linhas.** Os botões de lote agora seguem
+   a mesma ordem dos ícones por-linha: **eye (visibility) à esquerda, lock à direita**
+   (antes estavam invertidos), de modo que a coluna de lote alinhe verticalmente com
+   a coluna de cada item.
+3. **Campo de busca compacto e discreto.** `.search-field` reduzido para combinar
+   com os demais inputs do sistema (altura ~30px, fonte 12px, ícone de prefixo 18px,
+   padding vertical menor). Como o Material renderiza os elementos internos do
+   form-field na própria view (encapsulation Emulated), os ajustes de altura/padding
+   usam `:host ::ng-deep` (escopado ao host para não vazar globalmente); as custom
+   props que herdam ficam direto em `.search-field`.
+
+Sem mudança de comportamento/handlers — apenas template + CSS do componente.
+Suíte de biblioteca (2309) e lint verdes.
+
+---
+
 ## 2026-06-12 — Seleção no canvas: Layers/Pages transparentes (não promove a layer) ✅
 
 **Reportado:** ao clicar num objeto que pertence a uma **pasta/layer** no
