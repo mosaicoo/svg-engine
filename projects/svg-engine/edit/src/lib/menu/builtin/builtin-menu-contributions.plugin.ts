@@ -138,7 +138,21 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     };
     const cantGroupFactory = (injector: Injector): Signal<boolean> => {
       const selection = injector.get(SelectionService);
-      return computed(() => selection.selectedIds().size < 2);
+      const state = injector.get(EditorStateService);
+      return computed(() => {
+        const ids = selection.selectedIds();
+        if (ids.size < 2) return true;
+        // Layers and Pages are top-level only — they can't be grouped
+        // (GroupSelectionCommand rejects them as a hard guard). Disable the
+        // item up-front when any is selected so the user sees it's not
+        // allowed, instead of Ctrl+G / Object ▸ Group being a silent no-op.
+        const root = state.document().root;
+        for (const id of ids) {
+          const node = findNodeById(root, id);
+          if (node !== null && (isLayer(node) || isPage(node))) return true;
+        }
+        return false;
+      });
     };
     const cantUngroupFactory = (injector: Injector): Signal<boolean> => {
       const selection = injector.get(SelectionService);

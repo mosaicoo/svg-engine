@@ -9,6 +9,7 @@ import {
   EditorStateService,
   HistoryService,
   InsertNodeCommand,
+  withLayerFlag,
   withPageFlag,
 } from 'svg-engine/core';
 import { describe, expect, it } from 'vitest';
@@ -167,6 +168,24 @@ describe('builtinMenuContributionsPlugin — disabled factories are scope-aware 
     selection.selectMany([r.id, e.id]);
 
     expect(sig()).toBe(false); // 2 selected → enabled
+  });
+
+  it('Group disabled when the selection includes a LAYER (cannot group a layer)', () => {
+    const { reg, state, selection, injector } = setupRoot();
+    const group = reg.get('svge.builtin.edit.group')!;
+    const sig = resolveDisabledSignal(group, injector);
+
+    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const layer = withLayerFlag(createGroup([]));
+    state.setDocument({
+      ...state.document(),
+      root: { ...state.document().root, children: [rect, layer] },
+    });
+    selection.selectMany([rect.id, layer.id]);
+
+    // 2 selected, but one is a layer → disabled up-front (the menu mirrors
+    // the GroupSelectionCommand guard so Ctrl+G isn't a silent no-op).
+    expect(sig()).toBe(true);
   });
 
   it('Ungroup disabled signal reflects focus type of the resolving injector', () => {

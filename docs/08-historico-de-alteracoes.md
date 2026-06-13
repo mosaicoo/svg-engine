@@ -30,13 +30,15 @@ menu, NLU):**
 - `MoveNodeInTreeCommand` rejeita mover uma layer para fora de root/page, e uma
   page para fora do root (mesmo padrão do `MakeLayerCommand`).
 
-**Pendente (UX, follow-up):** o item de menu **Group** continua habilitado com
-layers selecionadas (o atalho/menu vira no-op seguro pelo guard); desabilitá-lo
-visualmente exige um factory dedicado — fica como polimento.
+**Polimento (UX) — feito:** o `cantGroupFactory` (gate de disabled do item
+**Group** + Make Opacity Mask) agora também desabilita quando a seleção inclui
+uma layer/page. Antes, com o guard core, o `Ctrl+G`/menu virava um **no-op
+silencioso**; agora o item fica **cinza** de antemão, deixando claro que não é
+permitido (em vez de "cliquei e não fez nada").
 
-**Verificação:** +5 specs core (group rejeita layer; move layer→grupo falha;
-layer→page ok; reorder no root ok; page→grupo falha). Suíte **2304** verde;
-lint OK; sem mudança de API pública.
+**Verificação:** +6 specs (core: group rejeita layer; move layer→grupo falha;
+layer→page ok; reorder no root ok; page→grupo falha. menu: Group desabilitado
+quando a seleção tem layer). Suíte **2305** verde; lint OK; sem mudança de API.
 
 ## 2026-06-12 — UX: Isolation/breadcrumb exclusivo para Groups (não Layers/Pages) ✅
 
