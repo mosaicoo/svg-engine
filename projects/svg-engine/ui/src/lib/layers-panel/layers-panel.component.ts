@@ -1390,13 +1390,18 @@ export class LayersPanel {
   /**
    * Convert a Layer back into a plain group (D-072). Inverse of
    * {@link convertToLayer}. No-op when the node is not actually a
-   * layer (returns `false`).
+   * layer (returns `false`). A **single-child** layer dissolves (the
+   * child is promoted, no pointless 1-element group) — so we re-select
+   * the surviving node, since the layer id no longer exists afterwards.
    */
   protected convertToGroup(id: NodeId): boolean {
     const root = this.state.document().root;
     const node = findNodeById(root, id);
     if (node === null || !isLayer(node)) return false;
-    this.bus.dispatch(new UnmakeLayerCommand(id));
+    const cmd = new UnmakeLayerCommand(id);
+    this.bus.dispatch(cmd);
+    const result = cmd.getResultNodeId();
+    if (result !== null) this.selection.select(result);
     return true;
   }
 

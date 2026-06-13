@@ -5,6 +5,7 @@ import { isPage } from '../model/page';
 import type { SvgNode } from '../model/svg-node';
 import { findNodeById, findParent, insertNode, removeNode, updateNode } from '../tree/tree-ops';
 import { generateNodeId, type NodeId } from '../types/node-id';
+import { multiply } from '../types/transform';
 import { type Command, type CommandContext, type CommandResult, fail, ok } from './command';
 
 /**
@@ -86,17 +87,37 @@ export class MakeLayerCommand implements Command {
 }
 
 /**
- * Release a Layer back into a plain group. The children remain
- * unchanged; only the `customData.svgeKind` flag is cleared. Inverse
- * of {@link MakeLayerCommand}.
+ * Release a Layer back into a plain group. Inverse of
+ * {@link MakeLayerCommand}.
+ *
+ * **Single-child layers dissolve instead of demoting**: a layer wrapping
+ * exactly ONE node isn't a meaningful group — conceptually there's nothing
+ * to group with a single element. So when the layer has one child, the
+ * command **promotes that child** into the layer's slot (preserving paint
+ * order) and **bakes the layer's transform** into it (so the render is
+ * unchanged) instead of leaving behind a pointless 1-element group. A layer
+ * with 2+ children keeps the plain group (a real grouping); an empty layer
+ * keeps the empty group (no child to promote). Mirrors {@link UngroupCommand}'s
+ * transform-baking for the dissolve path.
  *
  * Idempotent on non-layer groups (returns ok without dispatching).
+ *
+ * **Undo**: snapshots the whole root before mutating and restores it —
+ * one mechanism covering both the flag-flip and the dissolve paths.
  */
 export class UnmakeLayerCommand implements Command {
   readonly id: string = generateNodeId();
   readonly label = 'Convert to Group';
 
   private previousRootSnapshot: SvgNode | null = null;
+  /**
+   * The node that represents the post-convert result: the same group
+   * (flag-flip path) or the promoted child (single-child dissolve path).
+   * `null` before a successful `execute` (or after a no-op idempotent
+   * call). Exposed so the UI can re-select the right node — the layer id
+   * no longer exists after a dissolve.
+   */
+  private resultNodeId: NodeId | null = null;
 
   constructor(private readonly nodeId: NodeId) {}
 
@@ -108,8 +129,37 @@ export class UnmakeLayerCommand implements Command {
       return fail(`${this.label}: node "${this.nodeId}" is "${node.type}", not a group`);
     }
     if (!isLayer(node)) return ok(); // idempotent
+
+    // Single-child layer → dissolve (promote the only child) rather than
+    // leave a meaningless 1-element group. Bake the layer transform so the
+    // promoted child renders identically.
+    if (node.children.length === 1) {
+      const parent = findParent(doc.root, this.nodeId);
+      if (parent === null) {
+        return fail(`${this.label}: layer "${this.nodeId}" has no parent`);
+      }
+      const index = parent.children.findIndex((c) => c.id === this.nodeId);
+      if (index < 0) return fail(`${this.label}: failed to locate layer within parent`);
+      const child = node.children[0]!;
+      const baked: SvgNode = { ...child, transform: multiply(node.transform, child.transform) };
+      this.previousRootSnapshot = doc.root;
+      let nextRoot = removeNode(doc.root, this.nodeId);
+      if (nextRoot === doc.root) {
+        return fail(`${this.label}: failed to detach layer "${this.nodeId}"`);
+      }
+      try {
+        nextRoot = insertNode(nextRoot, parent.id, baked, index);
+      } catch (e) {
+        return fail(e instanceof Error ? e.message : String(e));
+      }
+      this.resultNodeId = child.id;
+      ctx.state.setDocument({ ...doc, root: nextRoot });
+      return ok();
+    }
+
     this.previousRootSnapshot = doc.root;
     const nextRoot = updateNode<GroupNode>(doc.root, this.nodeId, (g) => withoutLayerFlag(g));
+    this.resultNodeId = this.nodeId;
     ctx.state.setDocument({ ...doc, root: nextRoot });
     return ok();
   }
@@ -121,6 +171,16 @@ export class UnmakeLayerCommand implements Command {
     const doc = ctx.state.document();
     ctx.state.setDocument({ ...doc, root: snap });
     return ok();
+  }
+
+  /**
+   * The node representing the post-convert result, available AFTER a
+   * successful `execute()`: the same group id (flag-flip) or the promoted
+   * child id (single-child dissolve). `null` before execution or after a
+   * no-op idempotent call. Lets the UI re-select the surviving node.
+   */
+  getResultNodeId(): NodeId | null {
+    return this.resultNodeId;
   }
 }
 

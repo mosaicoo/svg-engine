@@ -123,17 +123,83 @@ describe('D-072 — Layer commands', () => {
   });
 
   describe('UnmakeLayerCommand', () => {
-    it('clears the layer flag from a layer group', () => {
+    it('clears the layer flag from a MULTI-child layer (stays a group)', () => {
       const { state, bus } = setup();
-      const layer = withLayerFlag(createGroup([createRect({ x: 0, y: 0, width: 10, height: 10 })]));
+      // 2+ children = a real grouping → the group is kept (flag-flip path),
+      // NOT dissolved. (Single-child dissolution is covered separately.)
+      const layer = withLayerFlag(
+        createGroup([
+          createRect({ x: 0, y: 0, width: 10, height: 10 }),
+          createRect({ x: 20, y: 0, width: 10, height: 10 }),
+        ]),
+      );
       seed(state, [layer]);
       expect(isLayer(layer)).toBe(true);
-      bus.dispatch(new UnmakeLayerCommand(layer.id));
+      const cmd = new UnmakeLayerCommand(layer.id);
+      bus.dispatch(cmd);
       const after = findNodeById(state.document().root, layer.id);
       expect(after).not.toBeNull();
       expect(isLayer(after!)).toBe(false);
-      // Children preserved.
-      expect((after as GroupNode).children.length).toBe(1);
+      // Children preserved; the group survives.
+      expect((after as GroupNode).children.length).toBe(2);
+      // Result is the same group (no dissolution).
+      expect(cmd.getResultNodeId()).toBe(layer.id);
+    });
+
+    it('DISSOLVES a single-child layer (promotes the child, no 1-element group)', () => {
+      const { state, bus } = setup();
+      const child = createRect({ x: 0, y: 0, width: 10, height: 10 });
+      const layer = withLayerFlag(createGroup([child]));
+      seed(state, [layer]);
+      const cmd = new UnmakeLayerCommand(layer.id);
+      bus.dispatch(cmd);
+      const root = state.document().root as GroupNode;
+      // The layer is gone; the child sits directly under the root at the
+      // layer's slot — no pointless wrapper group introduced.
+      expect(findNodeById(root, layer.id)).toBeNull();
+      expect(findNodeById(root, child.id)).not.toBeNull();
+      expect(root.children.length).toBe(1);
+      expect(root.children[0]!.id).toBe(child.id);
+      // Result id points to the promoted child (for UI re-selection).
+      expect(cmd.getResultNodeId()).toBe(child.id);
+    });
+
+    it('bakes the layer transform into the promoted child on dissolve', () => {
+      const { state, bus } = setup();
+      const child = createRect({ x: 0, y: 0, width: 10, height: 10 }); // identity
+      const layer = withLayerFlag(createGroup([child], { transform: [1, 0, 0, 1, 100, 50] }));
+      seed(state, [layer]);
+      bus.dispatch(new UnmakeLayerCommand(layer.id));
+      const promoted = findNodeById(state.document().root, child.id)!;
+      // multiply(layer, identity-child) → the layer's translate is preserved.
+      expect(promoted.transform).toEqual([1, 0, 0, 1, 100, 50]);
+    });
+
+    it('undo restores a dissolved single-child layer', () => {
+      const { state, bus } = setup();
+      const child = createRect({ x: 0, y: 0, width: 10, height: 10 });
+      const layer = withLayerFlag(createGroup([child]));
+      seed(state, [layer]);
+      bus.dispatch(new UnmakeLayerCommand(layer.id));
+      expect(findNodeById(state.document().root, layer.id)).toBeNull();
+      bus.undo();
+      const restored = findNodeById(state.document().root, layer.id);
+      expect(restored).not.toBeNull();
+      expect(isLayer(restored!)).toBe(true);
+      expect((restored as GroupNode).children[0]!.id).toBe(child.id);
+    });
+
+    it('keeps an EMPTY layer as an (empty) group — nothing to promote', () => {
+      const { state, bus } = setup();
+      const layer = withLayerFlag(createGroup([]));
+      seed(state, [layer]);
+      const cmd = new UnmakeLayerCommand(layer.id);
+      bus.dispatch(cmd);
+      const after = findNodeById(state.document().root, layer.id);
+      expect(after).not.toBeNull();
+      expect(isLayer(after!)).toBe(false);
+      expect((after as GroupNode).children.length).toBe(0);
+      expect(cmd.getResultNodeId()).toBe(layer.id);
     });
 
     it('preserves other customData entries when clearing the flag', () => {

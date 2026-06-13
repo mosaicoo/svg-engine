@@ -6,6 +6,31 @@
 
 ---
 
+## 2026-06-12 — UX: Convert Layer→Group de layer com 1 filho dissolve (sem grupo de 1) ✅
+
+**Pedido:** ao **Convert Layer → Group** numa pasta/layer com **um único
+objeto**, o objeto deve permanecer isolado — conceitualmente não existe
+agrupamento com um só elemento. Antes, o `UnmakeLayerCommand` só limpava a
+flag, deixando um **grupo de 1 elemento** desnecessário.
+
+**Solução (single source of truth no `core`):** `UnmakeLayerCommand` passou
+a **ramificar pelo nº de filhos**:
+
+- **1 filho** → **dissolve**: promove o único filho para o lugar da layer
+  (preserva o stacking) e faz **bake do transform** da layer no filho (render
+  idêntico) — mesma técnica do `UngroupCommand`. Nada de grupo de 1.
+- **2+ filhos** → mantém o grupo (agrupamento real; só limpa a flag).
+- **0 filhos** → mantém o grupo vazio (não há filho para promover).
+- Expõe `getResultNodeId()` (id do filho promovido ou do próprio grupo); o
+  **menu** (`Convert Layer to Group`) + o **Layers Panel** (`convertToGroup`)
+  **re-selecionam** o nó sobrevivente, já que o id da layer some no dissolve.
+- Undo continua por snapshot do root (cobre os dois caminhos).
+
+**Verificação:** +4 specs core (dissolve promove filho / bake de transform /
+undo restaura a layer / layer vazia segue grupo) + teste multi-filho ajustado.
+Suíte **2293** verde; lint OK; sem mudança de API pública (método novo numa
+classe já exportada). Build da lib refeito p/ propagar o `.d.ts` aos consumers.
+
 ## 2026-06-12 — Fix: Convert to Layer quebrado sob Pages (regressão D-079) ✅
 
 **Sintoma (reportado):** `Object ▸ Convert ▸ Convert to Layer` ficava

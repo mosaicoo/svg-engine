@@ -1871,7 +1871,13 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
           const sel = fromCtx(SelectionService, runCtx);
           const id = sel.focusId();
           if (id === null) return;
-          fromCtx(CommandBus, runCtx).dispatch(new UnmakeLayerCommand(id));
+          const cmd = new UnmakeLayerCommand(id);
+          fromCtx(CommandBus, runCtx).dispatch(cmd);
+          // A single-child layer dissolves (the child is promoted) — the
+          // layer id is then gone, so re-select the surviving node to keep
+          // the selection live.
+          const result = cmd.getResultNodeId();
+          if (result !== null) sel.select(result);
         },
       }),
     );
