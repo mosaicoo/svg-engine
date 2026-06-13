@@ -4,6 +4,8 @@ import {
   findNodeById,
   findParent,
   isGroupNode,
+  isLayer,
+  isPage,
   type NodeId,
   type SvgNode,
 } from 'svg-engine/core';
@@ -95,7 +97,15 @@ export class IsolationService {
       // (e.g., the playground's auto-exit-isolation effect).
       return [];
     }
-    return reversed.reverse();
+    // Displayed path = the document root + **real Groups only**. Pages
+    // and Layers are organizational containers, not Group navigation, so
+    // they're dropped from the breadcrumb (e.g. `root → Page → Layer →
+    // Group` renders as `Document › Group`). The isolation root itself is
+    // always a real group — `enter()` guarantees it — so it's kept.
+    return reversed.reverse().filter((id) => {
+      if (id === root.id) return true; // always keep the Document crumb
+      return isIsolatableGroup(findNodeById(root, id));
+    });
   });
 
   /**
@@ -103,15 +113,22 @@ export class IsolationService {
    * actually changed; `false` for no-ops (already isolated on that
    * node) or invalid input (id not found / not a group).
    *
-   * Only **groups** can be isolated — leaves have no semantic "inside"
-   * to scope edits to. Callers that want to "drill down" past a leaf
-   * should walk to the leaf's parent group via the layer panel and
-   * isolate that group instead.
+   * Only **real groups** can be isolated — leaves have no semantic
+   * "inside" to scope edits to, and Layers / Pages are organizational
+   * containers (not group navigation), so they're rejected too. Callers
+   * that want to "drill down" past a leaf should walk to the leaf's
+   * parent group via the layer panel and isolate that group instead.
    */
   enter(nodeId: NodeId): boolean {
     if (this._isolationRootId() === nodeId) return false;
     const node = findNodeById(this.state.document().root, nodeId);
-    if (node === null || node.type !== 'group') return false;
+    // Only **real Groups** can be isolated. Layers and Pages are
+    // organizational containers (navigated via the Layers / Pages
+    // panels), never isolation roots — isolation Mode and its
+    // breadcrumb are exclusive to Group navigation. Double-clicking a
+    // shape that lives directly in a layer therefore does NOT enter
+    // isolation (the breadcrumb stays hidden).
+    if (!isIsolatableGroup(node)) return false;
     this._isolationRootId.set(nodeId);
     return true;
   }
@@ -137,9 +154,15 @@ export class IsolationService {
     const current = this._isolationRootId();
     if (current === null) return;
     const docRoot = this.state.document().root;
-    const parent = findParent(docRoot, current);
+    // Climb to the nearest **real Group** ancestor, skipping the
+    // organizational containers (Pages / Layers) that are never isolation
+    // roots. When none remains before the document root, fully exit (a
+    // final Esc returns to the top-level scope).
+    let parent = findParent(docRoot, current);
+    while (parent !== null && parent.id !== docRoot.id && !isIsolatableGroup(parent)) {
+      parent = findParent(docRoot, parent.id);
+    }
     if (parent === null || parent.id === docRoot.id) {
-      // Direct child of root (or stale ref) — full exit.
       this.exit();
       return;
     }
@@ -180,6 +203,22 @@ export class IsolationService {
     if (target === null || !isGroupNode(target)) return true;
     return containsDescendant(target, nodeId);
   }
+}
+
+/**
+ * A node that may act as an isolation root: a **real Group** — i.e. a
+ * group that is NOT a Layer and NOT a Page. Layers and Pages are
+ * organizational containers (navigated via their own panels), so
+ * isolation Mode and its breadcrumb deliberately exclude them. `null`
+ * (node not found) is never isolatable.
+ *
+ * Returns a plain `boolean` (NOT a `node is GroupNode` type guard): a
+ * Layer/Page IS structurally a `GroupNode`, so narrowing to `GroupNode`
+ * would be wrong — `!isIsolatableGroup(x)` must not strip the `GroupNode`
+ * type from `x`.
+ */
+function isIsolatableGroup(node: SvgNode | null): boolean {
+  return node !== null && isGroupNode(node) && !isLayer(node) && !isPage(node);
 }
 
 /**

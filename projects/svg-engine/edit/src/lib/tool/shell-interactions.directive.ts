@@ -6,6 +6,7 @@ import {
   EditorStateService,
   findNodeById,
   getPageViewBox,
+  isLayer,
   isPage,
   type NodeId,
   type Point,
@@ -529,12 +530,15 @@ export class SvgeShellInteractions implements OnDestroy {
       if (id === rootId) return;
       const node = findNodeById(this.state.document().root, id);
       if (node === null || node.type !== 'group') return;
-      // PAGES-FIX-3: pages already act as an implicit isolation scope
-      // (see ActivePageService binding above). Dblclicking a page must
-      // not push *another* isolation level on top of the page — it
-      // would only confuse the breadcrumb / Esc-out flow. Pages are
-      // entered/exited via the Pages Panel, not via dblclick.
-      if (isPage(node)) return;
+      // Pages AND layers are organizational containers, not isolatable
+      // groups — isolation Mode + breadcrumb are exclusive to real Group
+      // navigation. Dblclicking a shape whose group-resolved container is
+      // a page or a layer must NOT enter isolation (it would show a
+      // breadcrumb treating the layer as a group). Pages/layers are
+      // navigated via their own panels. `IsolationService.enter()` guards
+      // this too (single source of truth); the early return here also
+      // avoids re-selecting the whole layer/page on a dblclick.
+      if (isPage(node) || isLayer(node)) return;
       // DBLCLICK-FIX: bloquear o comportamento padrão do navegador
       // (que dispara o Selection Action Menu — Translate/Copy popup —
       // ao detectar um dblclick em texto na vizinhança). Não chamamos

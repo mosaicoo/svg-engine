@@ -7,6 +7,8 @@ import {
   type GroupNode,
   type NodeId,
   type SvgDocument,
+  withLayerFlag,
+  withPageFlag,
 } from 'svg-engine/core';
 import { IsolationService } from './isolation.service';
 
@@ -183,5 +185,77 @@ describe('IsolationService — isInScope', () => {
     isolation.enter(groupA);
     expect(isolation.isInScope(leafA)).toBe(false);
     expect(isolation.isInScope(leafB)).toBe(false);
+  });
+});
+
+// ── Layers/Pages are organizational, NOT isolatable groups ───────────
+// Business rule: Isolation Mode and its breadcrumb are exclusive to real
+// Group navigation. Layers and Pages (groups carrying a kind flag) are
+// navigated via their own panels — they must never become an isolation
+// root nor appear in the breadcrumb.
+
+describe('IsolationService — layers/pages are not isolatable', () => {
+  /**
+   * Build `root → page → layer → [innerGroup → leaf]` and return the ids.
+   * The only **real group** in the chain is `innerGroup`.
+   */
+  function setupLayered() {
+    TestBed.configureTestingModule({});
+    const state = TestBed.inject(EditorStateService);
+    const isolation = TestBed.inject(IsolationService);
+    isolation.exit();
+    const leaf = createRect({ x: 0, y: 0, width: 5, height: 5 });
+    const innerGroup = createGroup([leaf]);
+    const layer = withLayerFlag(createGroup([innerGroup]));
+    const page = withPageFlag(createGroup([layer]), { x: 0, y: 0, width: 100, height: 100 });
+    const root: GroupNode = createGroup([page]);
+    state.resetDocument({
+      id: generateNodeId(),
+      root,
+      viewBox: { x: 0, y: 0, width: 100, height: 100 },
+    });
+    return { isolation, rootId: root.id, page, layer, innerGroup, leaf };
+  }
+
+  it('refuses to isolate a Layer', () => {
+    const { isolation, layer } = setupLayered();
+    expect(isolation.enter(layer.id)).toBe(false);
+    expect(isolation.isolationRootId()).toBeNull();
+    expect(isolation.isActive()).toBe(false);
+  });
+
+  it('refuses to isolate a Page', () => {
+    const { isolation, page } = setupLayered();
+    expect(isolation.enter(page.id)).toBe(false);
+    expect(isolation.isolationRootId()).toBeNull();
+  });
+
+  it('setRoot on a layer/page is also rejected (routes through enter)', () => {
+    const { isolation, layer } = setupLayered();
+    isolation.setRoot(layer.id);
+    expect(isolation.isolationRootId()).toBeNull();
+  });
+
+  it('DOES isolate a real Group nested under a layer/page', () => {
+    const { isolation, innerGroup } = setupLayered();
+    expect(isolation.enter(innerGroup.id)).toBe(true);
+    expect(isolation.isolationRootId()).toBe(innerGroup.id);
+  });
+
+  it('breadcrumbPath drops the Page + Layer (Document + real Group only)', () => {
+    const { isolation, rootId, innerGroup } = setupLayered();
+    isolation.enter(innerGroup.id);
+    // Full ancestry root → page → layer → innerGroup collapses to just
+    // [Document, innerGroup] — pages/layers are not Group navigation.
+    expect(isolation.breadcrumbPath()).toEqual([rootId, innerGroup.id]);
+  });
+
+  it('exitOne climbs past layer/page ancestors and fully exits', () => {
+    const { isolation, innerGroup } = setupLayered();
+    isolation.enter(innerGroup.id);
+    isolation.exitOne();
+    // innerGroup's only ancestors are a layer + a page + the root (no real
+    // group above it) → Esc returns to the top-level scope.
+    expect(isolation.isolationRootId()).toBeNull();
   });
 });

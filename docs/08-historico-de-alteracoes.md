@@ -6,6 +6,41 @@
 
 ---
 
+## 2026-06-12 — UX: Isolation/breadcrumb exclusivo para Groups (não Layers/Pages) ✅
+
+**Sintoma (reportado):** clicar/dar dois cliques numa forma dentro de uma
+**pasta/layer** ativava o breadcrumb de isolation tratando a layer (e a page)
+como se fossem **grupos** (`Document › ‹Group› › ‹Group› › ‹Path›`).
+
+**Regra de negócio:** Isolation Mode e seu breadcrumb são **exclusivos de
+navegação em Groups reais**. **Layers** e **Pages** são contêineres
+organizacionais (navegados pelos próprios painéis) — nunca devem ser
+isolation root nem aparecer no breadcrumb.
+
+**Causa raiz:** Layer e Page são `GroupNode` flagados, e o `IsolationService`
+aceitava qualquer `type==='group'`; o dblclick só excluía `isPage`, não
+`isLayer`. Então dois cliques numa forma dentro da layer faziam
+`isolation.enter(Layer)`.
+
+**Correção (fonte única no `IsolationService` + guard no dblclick):**
+
+- `enter()` agora rejeita Layer/Page (helper `isIsolatableGroup` = group real,
+  sem flag de layer/page). Cobre todos os call-sites (dblclick, Layers Panel,
+  breadcrumb `setRoot`).
+- `exitOne()` (Esc) **pula** ancestrais Layer/Page ao subir — vai pro próximo
+  Group real, ou sai de vez se não houver.
+- `breadcrumbPath` **filtra** Layer/Page (mantém só `Document` + Groups reais);
+  ex.: `root → Page → Layer → Group` vira `Document › Group`.
+- `shell-interactions` dblclick: o early-return de `isPage` agora inclui
+  `isLayer` (não tenta isolar nem re-selecionar a layer inteira).
+- Nota de tipo: `isIsolatableGroup` retorna `boolean` (não `node is GroupNode`)
+  — uma Layer **é** estruturalmente um `GroupNode`, então o narrowing seria
+  incorreto.
+
+**Verificação:** +6 specs (enter rejeita layer/page; setRoot idem; isola group
+real aninhado; breadcrumbPath colapsa para Document+Group; exitOne sai limpo).
+Suíte **2299** verde; lint OK; sem mudança de API pública.
+
 ## 2026-06-12 — UX: Convert Layer→Group de layer com 1 filho dissolve (sem grupo de 1) ✅
 
 **Pedido:** ao **Convert Layer → Group** numa pasta/layer com **um único
