@@ -18,6 +18,8 @@ import {
   HistoryService,
   InsertNodeCommand,
   type PageMargins,
+  readCustomAttrs,
+  setCustomAttr,
   type SvgNode,
   withPageFlag,
 } from 'svg-engine/core';
@@ -1951,5 +1953,104 @@ describe('SvgeInspector — GROUP-STYLE-FIX (B): group paint propagation', () =>
     expect(findNodeById(state.document().root, a.id)?.style.fill).toBe('#00ff00');
     // Locked leaf keeps its original fill.
     expect(findNodeById(state.document().root, b.id)?.style.fill).toBe('#222222');
+  });
+});
+
+describe('SvgeInspector — D-089 custom data-* attributes (Data tab)', () => {
+  function setupWith(node: SvgNode) {
+    const ctx = setup();
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup([node], { id: ctx.state.document().root.id }),
+    });
+    ctx.selection.select(node.id);
+    ctx.fixture.detectChanges();
+    activateTab(ctx.fixture.nativeElement, 'data');
+    ctx.fixture.detectChanges();
+    return { ...ctx, node };
+  }
+
+  function fireInput(el: HTMLInputElement, value: string): void {
+    el.value = value;
+    el.dispatchEvent(new Event('input'));
+  }
+
+  function fireChange(el: HTMLInputElement, value: string): void {
+    el.value = value;
+    el.dispatchEvent(new Event('change'));
+  }
+
+  it('shows the empty placeholder when the node has no custom attrs', () => {
+    const { fixture } = setupWith(createRect({ x: 0, y: 0, width: 10, height: 10 }));
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.custom-attr-row')).toBeNull();
+    expect(host.textContent).toContain('No custom attributes yet');
+  });
+
+  it('renders a row per existing custom attribute with its value', () => {
+    const node = setCustomAttr(
+      setCustomAttr(createRect({ x: 0, y: 0, width: 10, height: 10 }), 'sku', 'ABC-123'),
+      'category',
+      'shoes',
+    );
+    const { fixture } = setupWith(node);
+    const host = fixture.nativeElement as HTMLElement;
+    const rows = Array.from(host.querySelectorAll('.custom-attr-row'));
+    expect(rows.length).toBe(2);
+    const values = rows.map((r) => (r.querySelector('.ca-value input') as HTMLInputElement).value);
+    // sorted by name: category, sku
+    expect(values).toEqual(['shoes', 'ABC-123']);
+  });
+
+  it('adds a new attribute via the add form', () => {
+    const r = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const { fixture, state } = setupWith(r);
+    const host = fixture.nativeElement as HTMLElement;
+    fireInput(host.querySelector('.custom-attr-add .ca-name input') as HTMLInputElement, 'sku');
+    fireInput(host.querySelector('.custom-attr-add .ca-value input') as HTMLInputElement, 'Z9');
+    fixture.detectChanges();
+    (host.querySelector('button.ca-add') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(readCustomAttrs(findNodeById(state.document().root, r.id)!)).toEqual({ sku: 'Z9' });
+  });
+
+  it('disables the add button and shows an error for an invalid name', () => {
+    const { fixture } = setupWith(createRect({ x: 0, y: 0, width: 10, height: 10 }));
+    const host = fixture.nativeElement as HTMLElement;
+    fireInput(host.querySelector('.custom-attr-add .ca-name input') as HTMLInputElement, 'svge-x');
+    fixture.detectChanges();
+    expect((host.querySelector('button.ca-add') as HTMLButtonElement).disabled).toBe(true);
+    expect(host.querySelector('.ca-error')?.textContent).toContain('svge');
+  });
+
+  it('updates an existing attribute value via its input', () => {
+    const node = setCustomAttr(createRect({ x: 0, y: 0, width: 10, height: 10 }), 'sku', '1');
+    const { fixture, state } = setupWith(node);
+    const host = fixture.nativeElement as HTMLElement;
+    const valueInput = host.querySelector('.custom-attr-row .ca-value input') as HTMLInputElement;
+    fireChange(valueInput, '2');
+    fixture.detectChanges();
+    expect(readCustomAttrs(findNodeById(state.document().root, node.id)!)).toEqual({ sku: '2' });
+  });
+
+  it('removes an attribute via its delete button', () => {
+    const node = setCustomAttr(createRect({ x: 0, y: 0, width: 10, height: 10 }), 'sku', '1');
+    const { fixture, state } = setupWith(node);
+    const host = fixture.nativeElement as HTMLElement;
+    (host.querySelector('.custom-attr-row button.ca-remove') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(readCustomAttrs(findNodeById(state.document().root, node.id)!)).toEqual({});
+  });
+
+  it('renames an attribute via its name input (preserving value)', () => {
+    const node = setCustomAttr(createRect({ x: 0, y: 0, width: 10, height: 10 }), 'sku', '7');
+    const { fixture, state } = setupWith(node);
+    const host = fixture.nativeElement as HTMLElement;
+    const nameInput = host.querySelector('.custom-attr-row .ca-name input') as HTMLInputElement;
+    fireChange(nameInput, 'product-id');
+    fixture.detectChanges();
+    expect(readCustomAttrs(findNodeById(state.document().root, node.id)!)).toEqual({
+      'product-id': '7',
+    });
   });
 });

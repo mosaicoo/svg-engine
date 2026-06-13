@@ -63,15 +63,19 @@ a fase do roadmap implementa o conteúdo.
 
 #### Modelo (`./lib/model/`)
 
-| Símbolo                                                                                                                          | Descrição                                       |
-| -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `SvgNodeBase`                                                                                                                    | interface base (id, transform, style, metadata) |
-| `RectNode`, `EllipseNode`, `LineNode`, `PolygonNode`, `PolylineNode`, `PathNode`, `TextNode`, `ImageNode`, `GroupNode`           | os 9 tipos concretos                            |
-| `SvgNode` (union)                                                                                                                | discriminated union dos 9                       |
-| `SvgNodeType`, `SVG_NODE_TYPES`                                                                                                  | discriminadores literais                        |
-| `isGroupNode(node): node is GroupNode`                                                                                           | type guard                                      |
-| `createRect / createEllipse / createLine / createPolygon / createPolyline / createPath / createText / createImage / createGroup` | factories que retornam nós válidos              |
-| `NodeFactoryOptions`                                                                                                             | opções comuns das factories                     |
+| Símbolo                                                                                                                          | Descrição                                                                                    |
+| -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `SvgNodeBase`                                                                                                                    | interface base (id, transform, style, metadata)                                              |
+| `RectNode`, `EllipseNode`, `LineNode`, `PolygonNode`, `PolylineNode`, `PathNode`, `TextNode`, `ImageNode`, `GroupNode`           | os 9 tipos concretos                                                                         |
+| `SvgNode` (union)                                                                                                                | discriminated union dos 9                                                                    |
+| `SvgNodeType`, `SVG_NODE_TYPES`                                                                                                  | discriminadores literais                                                                     |
+| `isGroupNode(node): node is GroupNode`                                                                                           | type guard                                                                                   |
+| `createRect / createEllipse / createLine / createPolygon / createPolyline / createPath / createText / createImage / createGroup` | factories que retornam nós válidos                                                           |
+| `NodeFactoryOptions`                                                                                                             | opções comuns das factories                                                                  |
+| `readCustomAttrs(node): CustomAttrs` / `hasCustomAttrs(node)`                                                                    | (D-089) lê os atributos `data-*` customizados do nó (sub-chave `customData.svgeCustomAttrs`) |
+| `setCustomAttr / removeCustomAttr / renameCustomAttr / withCustomAttrs` (helpers puros)                                          | (D-089) CRUD imutável dos atributos `data-*`; limpam a chave quando vazia                    |
+| `isValidCustomAttrName(name)` / `customAttrToDataName(name)` / `dataNameToCustomAttr(attr)`                                      | (D-089) validação (rejeita prefixo reservado `svge`) + conversão `nome`⇄`data-nome`          |
+| `CustomAttrs`, `SVGE_CUSTOM_ATTRS_KEY`, `CUSTOM_ATTR_DATA_PREFIX`                                                                | (D-089) tipo do mapa + constantes da sub-chave/prefixo                                       |
 
 #### Tree (`./lib/tree/`) — operações imutáveis
 
@@ -126,6 +130,9 @@ a fase do roadmap implementa o conteúdo.
 | `MovePageCommand(nodeId, {x, y})`                                    | (D-080 Fase 6) translada apenas `viewBox.x/y` (width/height preservados). No-op + silent-undo em origin idêntico                                                                                                       |
 | `SetPageOptionsCommand(nodeId, patch)`                               | (D-080 Fase 3) patch parcial de `PageOptions` (background/margins/orientation/format). No-op + silent-undo quando patch não muda nada                                                                                  |
 | `EnsureDefaultPageCommand()`                                         | (PAGES-FIX-2) idempotente: cria "Page 1" + migra root-level shapes pra dentro dela; no-op quando já existe ≥ 1 página. Usado pelo bootstrap dos shells                                                                 |
+| `SetCustomAttrCommand(nodeId, name, value)`                          | (D-089) cria/atualiza um atributo `data-*` customizado. Valida o nome (rejeita inválido/reservado `svge`). Undoable (snapshot do root)                                                                                 |
+| `RemoveCustomAttrCommand(nodeId, name)`                              | (D-089) remove um atributo `data-*`. No-op silencioso quando ausente                                                                                                                                                   |
+| `RenameCustomAttrCommand(nodeId, from, to)`                          | (D-089) renomeia preservando o valor. Falha (tree intocada) quando `from` ausente, `to` inválido/duplicado                                                                                                             |
 
 ##### Path Editor (Bloco 6-PE) ✅
 
@@ -262,12 +269,12 @@ a fase do roadmap implementa o conteúdo.
 
 #### Implementações built-in
 
-| Símbolo                  | Descrição                                                                               |
-| ------------------------ | --------------------------------------------------------------------------------------- |
-| `svgImporter`            | string SVG → `SvgDocument` (rect/ellipse/line/polygon/polyline/path/text + defs/clip)   |
-| `svgExporter`            | `SvgDocument` → string SVG determinística                                               |
-| `pngExporter`            | `SvgDocument` → `Blob` PNG (via `<canvas>`); aceita `{ scale }` para retina @1x/@2x/@3x |
-| `renderPng(doc, scale?)` | função pura de rasterização (base do `pngExporter`)                                     |
+| Símbolo                  | Descrição                                                                                                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `svgImporter`            | string SVG → `SvgDocument` (rect/ellipse/line/polygon/polyline/path/text + defs/clip). **D-089**: lê todo `data-*` (exceto reservado `data-svge-*`) para `customData.svgeCustomAttrs` |
+| `svgExporter`            | `SvgDocument` → string SVG determinística. **D-089**: emite os atributos `data-*` customizados (ordenados) em todo nó                                                                 |
+| `pngExporter`            | `SvgDocument` → `Blob` PNG (via `<canvas>`); aceita `{ scale }` para retina @1x/@2x/@3x                                                                                               |
+| `renderPng(doc, scale?)` | função pura de rasterização (base do `pngExporter`)                                                                                                                                   |
 
 > **Plugin wrappers** (`builtinIoPlugin`, `pngExporterPlugin`) ficam em `svg-engine/edit` porque dependem de `EditorPlugin`.
 

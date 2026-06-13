@@ -2,6 +2,7 @@ import {
   ANIMATION_KEY,
   type AnimationDoc,
   animationToSmil,
+  customAttrToDataName,
   type EllipseNode,
   getPageName,
   getPageViewBox,
@@ -18,6 +19,7 @@ import {
   type PolygonNode,
   type PolylineNode,
   readAnimationDoc,
+  readCustomAttrs,
   type RectNode,
   roundPathCorners,
   type SvgDocument,
@@ -659,7 +661,27 @@ function baseAttrs(node: SvgNode, skipTransform = false): [string, string][] {
   if (!skipTransform && !isIdentityTransform(node.transform)) {
     out.push(['transform', transformAttr(node.transform)]);
   }
+  // **D-089 — Custom `data-*` attributes**. User-authored key/value props
+  // (e.g. `data-sku="123"`) emitted LAST so they read clearly at the end of
+  // the attribute list and never interleave with native SVG attrs. Sorted
+  // by name for deterministic output (golden-file / diff friendliness).
+  // The `data-` prefix puts them in a namespace the SVG render spec ignores
+  // and every major editor preserves — pure metadata transport, distinct
+  // from the engine's own `data-svge-*` flags (those are reserved and can
+  // never be a custom-attr name; see `isValidCustomAttrName`).
+  out.push(...customDataAttrs(node));
   return out;
+}
+
+/**
+ * **D-089** — Serialize a node's custom attributes to `data-<name>` pairs,
+ * sorted by name. Empty when the node has none.
+ */
+function customDataAttrs(node: SvgNode): [string, string][] {
+  const attrs = readCustomAttrs(node);
+  return Object.keys(attrs)
+    .sort()
+    .map((name): [string, string] => [customAttrToDataName(name), attrs[name]!]);
 }
 
 function styleAttrs(style: SvgStyle): [string, string][] {

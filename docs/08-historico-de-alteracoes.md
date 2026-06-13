@@ -6,6 +6,50 @@
 
 ---
 
+## 2026-06-13 — D-089: Propriedades personalizadas `data-*` em elementos SVG ✅
+
+Permite anexar pares chave/valor arbitrários a **qualquer** nó (`SvgNode`),
+que fazem **round-trip** no SVG exportado como atributos `data-*` padrão
+(`data-<nome>="<valor>"`) — válidos em SVG/HTML, preservados por
+Inkscape/Illustrator/Figma e ignorados pela renderização — e são relidos na
+importação. Atende ao pedido: formato `data-*`, tratamento profissional, painel
+completo e **API por comando** para plugins/scripts.
+
+**Modelo (core)** — `model/custom-attrs.ts`: armazena um
+`Record<string,string>` sob `metadata.customData['svgeCustomAttrs']`
+(sub-chave isolada das flags internas `data-svge-*`). Helpers **puros**
+(structural sharing, limpam a chave quando vazia): `readCustomAttrs`,
+`hasCustomAttrs`, `setCustomAttr`, `removeCustomAttr`, `renameCustomAttr`,
+`withCustomAttrs`, `isValidCustomAttrName`, `customAttrToDataName`,
+`dataNameToCustomAttr`. **Validação**: nome = sufixo `data-*` minúsculo
+(`^[a-z][a-z0-9-]*$`); o prefixo reservado `svge`/`svge-*` é rejeitado, então
+um atributo do usuário nunca colide com as flags do engine.
+
+**API por comando (core)** — `commands/custom-attr.commands.ts`:
+`SetCustomAttrCommand` (create/update), `RemoveCustomAttrCommand`,
+`RenameCustomAttrCommand` — undoable (snapshot do root + `updateNode`),
+uma entrada de histórico cada. É o canal para "criar/atualizar/ler/remover
+via comando" (leitura = helper puro `readCustomAttrs`).
+
+**IO (round-trip)** — exporter emite `data-<nome>` em `baseAttrs` (todo tipo
+de nó, ordenado por nome para saída determinística); importer lê todo `data-*`
+em `baseFactoryOpts` (exceto `data-svge-*`, filtrado por `dataNameToCustomAttr`)
+para o `customData`. As ramificações layer/smart-object/page do importer agora
+**mesclam** (não sobrescrevem) o `customData` dos atributos customizados.
+
+**Painel (ui)** — nova aba **Data** no Inspector (seleção única, qualquer tipo):
+lista os atributos atuais (nome + valor editáveis, ordenados), botão remover
+por linha, formulário de adição com validação inline (botão desabilitado +
+hint de erro), e rename via edição do nome (revertido se inválido/duplicado).
+Cada edição despacha os comandos D-089.
+
+Specs: modelo (validação/setters/rename), comandos (CRUD + undo), round-trip
+io (export/import/ciclo completo, sem colisão com layer/smart-object/`<title>`),
+Inspector (lista/add/update/remove/rename/erro). Snapshot de API regenerado
+(+15 símbolos). Suíte (2401) e lint verdes.
+
+---
+
 ## 2026-06-13 — D-088: Reset Workspace (resetar o layout dos painéis) ✅
 
 Implementado o item de menu **Window ▸ Workspace ▸ Reset Workspace** (antes

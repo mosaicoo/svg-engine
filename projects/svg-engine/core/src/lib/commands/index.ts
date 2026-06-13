@@ -116,3 +116,10 @@ export {
   RasterizeSmartObjectCommand,
   ReplaceSmartObjectContentsCommand,
 } from './smart-object.commands';
+// D-089 — Custom `data-*` attributes: undoable CRUD so plugins/scripts can
+// create/update/remove a custom property via a command (read is pure).
+export {
+  RemoveCustomAttrCommand,
+  RenameCustomAttrCommand,
+  SetCustomAttrCommand,
+} from './custom-attr.commands';

@@ -31,12 +31,16 @@ import {
   isGroupNode,
   isPage,
   isSmartObject,
+  isValidCustomAttrName,
   type NodeId,
   type PageBackground,
   type PageFormat,
   type PageMargins,
   type PageOrientation,
   type Point,
+  readCustomAttrs,
+  RemoveCustomAttrCommand,
+  RenameCustomAttrCommand,
   type ReorderDirection,
   RenamePageCommand,
   ReorderNodeCommand,
@@ -44,6 +48,7 @@ import {
   ResizePageCommand,
   RotateNodeCommand,
   SetCornerRadiusCommand,
+  SetCustomAttrCommand,
   SetPageOptionsCommand,
   SetPropertyCommand,
   SetStylePropertyOnManyCommand,
@@ -1129,6 +1134,111 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
         }
 
         <!--
+          D-089 — Custom data-* attributes tab. Available for ANY
+          single-selected node. Lets the user attach arbitrary key/value
+          props that round-trip to the exported SVG as standard
+          data-name attributes (the importer reads them back). The exact
+          same CRUD is available programmatically via the core commands
+          (SetCustomAttrCommand / RemoveCustomAttrCommand /
+          RenameCustomAttrCommand) so plugins and scripts share this path.
+        -->
+        <ng-template svgePanelGroupTab svgePanelGroupTabId="data" label="Data" icon="data_object">
+          <section class="section">
+            <h3 class="section-title">Custom attributes (data-*)</h3>
+
+            @if (customAttrEntries().length > 0) {
+              <div class="custom-attr-list">
+                @for (entry of customAttrEntries(); track entry[0]) {
+                  <div class="custom-attr-row">
+                    <span class="ca-prefix" aria-hidden="true">data-</span>
+                    <mat-form-field appearance="outline" class="ca-name">
+                      <mat-label>name</mat-label>
+                      <input
+                        matInput
+                        [disabled]="isLocked()"
+                        [value]="entry[0]"
+                        (change)="
+                          commitCustomAttrRename(entry[0], $any($event.target).value, $event)
+                        "
+                        aria-label="Attribute name"
+                      />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" class="ca-value">
+                      <mat-label>value</mat-label>
+                      <input
+                        matInput
+                        [disabled]="isLocked()"
+                        [value]="entry[1]"
+                        (change)="commitCustomAttrValue(entry[0], $any($event.target).value)"
+                        aria-label="Attribute value"
+                      />
+                    </mat-form-field>
+                    <button
+                      mat-icon-button
+                      type="button"
+                      class="ca-remove"
+                      [disabled]="isLocked()"
+                      (click)="deleteCustomAttr(entry[0])"
+                      aria-label="Remove attribute"
+                      title="Remove attribute"
+                    >
+                      <mat-icon>delete_outline</mat-icon>
+                    </button>
+                  </div>
+                }
+              </div>
+            } @else {
+              <p class="placeholder small">No custom attributes yet.</p>
+            }
+
+            <!-- Add a new attribute (name + value). -->
+            <div class="custom-attr-add">
+              <span class="ca-prefix" aria-hidden="true">data-</span>
+              <mat-form-field appearance="outline" class="ca-name">
+                <mat-label>name</mat-label>
+                <input
+                  matInput
+                  [disabled]="isLocked()"
+                  [value]="newAttrName()"
+                  (input)="newAttrName.set($any($event.target).value)"
+                  (keydown.enter)="addCustomAttr()"
+                  aria-label="New attribute name"
+                />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="ca-value">
+                <mat-label>value</mat-label>
+                <input
+                  matInput
+                  [disabled]="isLocked()"
+                  [value]="newAttrValue()"
+                  (input)="newAttrValue.set($any($event.target).value)"
+                  (keydown.enter)="addCustomAttr()"
+                  aria-label="New attribute value"
+                />
+              </mat-form-field>
+              <button
+                mat-icon-button
+                type="button"
+                class="ca-add"
+                [disabled]="isLocked() || !canAddCustomAttr()"
+                (click)="addCustomAttr()"
+                aria-label="Add attribute"
+                title="Add attribute"
+              >
+                <mat-icon>add</mat-icon>
+              </button>
+            </div>
+            @if (newAttrNameError(); as err) {
+              <p class="placeholder small ca-error" role="alert">{{ err }}</p>
+            }
+            <p class="placeholder small">
+              Exported as <code>data-&lt;name&gt;</code>. Names use lowercase letters, digits and
+              hyphens; the <code>svge</code> prefix is reserved.
+            </p>
+          </section>
+        </ng-template>
+
+        <!--
           Type tab (D-068) — exposes the D-053 text-only fields.
           Visible only when the focused node is a text.
         -->
@@ -2082,6 +2192,41 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
     .placeholder.small {
       font-size: 12px;
       padding: 4px 0;
+    }
+    /* D-089 — Custom data-* attributes tab. A 3-column row (data- prefix,
+       name, value) plus a trailing icon button. min-width:0 on the
+       form fields lets them shrink in the narrow sidebar without
+       overflow (same defence the .grid uses). */
+    .custom-attr-row,
+    .custom-attr-add {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+    }
+    .custom-attr-row .ca-name,
+    .custom-attr-add .ca-name {
+      flex: 1 1 40%;
+      min-width: 0;
+    }
+    .custom-attr-row .ca-value,
+    .custom-attr-add .ca-value {
+      flex: 1 1 60%;
+      min-width: 0;
+    }
+    .ca-prefix {
+      font-family: monospace;
+      font-size: 11px;
+      opacity: 0.6;
+      flex: 0 0 auto;
+    }
+    .custom-attr-row .ca-remove,
+    .custom-attr-add .ca-add {
+      flex: 0 0 auto;
+    }
+    .ca-error {
+      color: var(--mat-sys-error, #b3261e);
+      font-style: normal;
     }
     /* Transform / Pivot section (Item 5 — débito 4c-Polish) */
     .reset-btn {
@@ -3637,6 +3782,101 @@ export class SvgeInspector {
     this.bus.dispatch(
       new SetPropertyCommand<SvgNode, never>(node.id, field as never, raw as never),
     );
+  }
+
+  // ── D-089 — Custom data-* attributes ───────────────────────────────
+  //
+  // The Inspector "Data" tab is the UI half of D-089; the programmatic
+  // half is the trio of core commands (SetCustomAttrCommand /
+  // RemoveCustomAttrCommand / RenameCustomAttrCommand) dispatched below.
+  // Both paths converge on the same undoable commands, so a script and a
+  // user click are indistinguishable in the history.
+
+  /** Draft name for the "add attribute" row (two-way via signal). */
+  protected readonly newAttrName = signal('');
+  /** Draft value for the "add attribute" row. */
+  protected readonly newAttrValue = signal('');
+
+  /**
+   * Current custom attributes of the focused node as `[name, value]`
+   * pairs, sorted by name for a stable UI order (independent of the
+   * order attributes were added — matches the exporter's sorted output).
+   */
+  protected readonly customAttrEntries = computed<readonly [string, string][]>(() => {
+    const node = this.focusNode();
+    if (node === null) return [];
+    return Object.entries(readCustomAttrs(node)).sort(([a], [b]) => a.localeCompare(b));
+  });
+
+  /**
+   * Validation message for the draft attribute name, or `null` when the
+   * name is empty (no error shown yet) or valid+free. Drives the inline
+   * `role="alert"` hint and gates the add button.
+   */
+  protected readonly newAttrNameError = computed<string | null>(() => {
+    const name = this.newAttrName().trim();
+    if (name.length === 0) return null;
+    if (!isValidCustomAttrName(name)) {
+      return 'Use lowercase letters, digits and hyphens; cannot start with a digit or "svge".';
+    }
+    if (this.customAttrEntries().some(([existing]) => existing === name)) {
+      return 'An attribute with this name already exists.';
+    }
+    return null;
+  });
+
+  /** Whether the draft attribute can be added (non-empty + valid + free). */
+  protected readonly canAddCustomAttr = computed<boolean>(() => {
+    const name = this.newAttrName().trim();
+    return name.length > 0 && this.newAttrNameError() === null;
+  });
+
+  /** Add the draft attribute to the focused node (create), then reset the form. */
+  protected addCustomAttr(): void {
+    const node = this.focusNode();
+    if (node === null || this.layers.isLocked(node.id)) return;
+    if (!this.canAddCustomAttr()) return;
+    const name = this.newAttrName().trim();
+    this.bus.dispatch(new SetCustomAttrCommand(node.id, name, this.newAttrValue()));
+    this.newAttrName.set('');
+    this.newAttrValue.set('');
+  }
+
+  /** Update an existing attribute's value (no-op when unchanged). */
+  protected commitCustomAttrValue(name: string, raw: string): void {
+    const node = this.focusNode();
+    if (node === null || this.layers.isLocked(node.id)) return;
+    if (readCustomAttrs(node)[name] === raw) return;
+    this.bus.dispatch(new SetCustomAttrCommand(node.id, name, raw));
+  }
+
+  /** Remove an attribute from the focused node. */
+  protected deleteCustomAttr(name: string): void {
+    const node = this.focusNode();
+    if (node === null || this.layers.isLocked(node.id)) return;
+    this.bus.dispatch(new RemoveCustomAttrCommand(node.id, name));
+  }
+
+  /**
+   * Rename an attribute (preserving its value). The command is a no-op
+   * when `to` is invalid, empty, equal to `from`, or already taken — in
+   * which case the edited input is reset to the authoritative name so it
+   * never shows stale text (the model didn't change, so the value
+   * binding wouldn't otherwise reflow).
+   */
+  protected commitCustomAttrRename(from: string, rawTo: string, event: Event): void {
+    const target = event.target as HTMLInputElement | null;
+    const node = this.focusNode();
+    if (node === null || this.layers.isLocked(node.id)) {
+      if (target !== null) target.value = from;
+      return;
+    }
+    const to = rawTo.trim();
+    if (to === from) return;
+    this.bus.dispatch(new RenameCustomAttrCommand(node.id, from, to));
+    // If the rename didn't apply, `from` still exists → reset the input.
+    const applied = readCustomAttrs(this.focusNode() ?? node);
+    if (!(to in applied) && target !== null) target.value = from;
   }
 
   /**

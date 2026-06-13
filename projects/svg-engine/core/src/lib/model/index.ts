@@ -49,6 +49,22 @@ export {
   withoutPageFlag,
 } from './page';
 
+// D-089 — Custom `data-*` attributes (arbitrary user key/value props per node)
+export {
+  CUSTOM_ATTR_DATA_PREFIX,
+  type CustomAttrs,
+  customAttrToDataName,
+  dataNameToCustomAttr,
+  hasCustomAttrs,
+  isValidCustomAttrName,
+  readCustomAttrs,
+  removeCustomAttr,
+  renameCustomAttr,
+  setCustomAttr,
+  SVGE_CUSTOM_ATTRS_KEY,
+  withCustomAttrs,
+} from './custom-attrs';
+
 export {
   createEllipse,
   createGroup,

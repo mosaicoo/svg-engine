@@ -11,10 +11,13 @@ import {
   createPolyline,
   createRect,
   createText,
+  type CustomAttrs,
+  dataNameToCustomAttr,
   generateNodeId,
   isAnimationDoc,
   type NodeFactoryOptions,
   parseTransformAttr,
+  SVGE_CUSTOM_ATTRS_KEY,
   SVGE_KIND_KEY,
   SVGE_KIND_LAYER,
   SVGE_KIND_PAGE,
@@ -267,10 +270,37 @@ function baseFactoryOpts(el: Element): MutableFactoryOpts {
     style: parseStyle(el),
   };
   const name = parseAuthoredName(el);
-  if (name !== undefined) {
-    opts.metadata = { name };
+  // **D-089 — Custom `data-*` attributes**. Read every user `data-*`
+  // attribute (excluding the engine-reserved `data-svge-*` namespace,
+  // filtered by `dataNameToCustomAttr`) back into
+  // `metadata.customData[SVGE_CUSTOM_ATTRS_KEY]` so they survive the
+  // export → re-import round-trip. The `g` case below MERGES (not
+  // clobbers) this when it adds its kind/page/animation flags.
+  const customAttrs = parseCustomAttrs(el);
+  const hasCustom = Object.keys(customAttrs).length > 0;
+  if (name !== undefined || hasCustom) {
+    opts.metadata = {
+      ...(name !== undefined ? { name } : {}),
+      ...(hasCustom ? { customData: { [SVGE_CUSTOM_ATTRS_KEY]: customAttrs } } : {}),
+    };
   }
   return opts;
+}
+
+/**
+ * **D-089** — Collect an element's user `data-*` attributes into a
+ * {@link CustomAttrs} map (attribute name without the `data-` prefix →
+ * value). The engine's own `data-svge-*` round-trip flags are excluded:
+ * `dataNameToCustomAttr` returns `null` for the reserved `svge` prefix
+ * (and for any non-`data-` / malformed name), so they're skipped here.
+ */
+function parseCustomAttrs(el: Element): CustomAttrs {
+  const out: Record<string, string> = {};
+  for (const attr of Array.from(el.attributes)) {
+    const name = dataNameToCustomAttr(attr.name);
+    if (name !== null) out[name] = attr.value;
+  }
+  return out;
 }
 
 function parseElement(
@@ -326,22 +356,32 @@ function parseElement(
       if (isLayerGroup) {
         // Merge the layer flag into customData WITHOUT clobbering the
         // `name` that `baseFactoryOpts` may have populated from
-        // `inkscape:label` / `data-svge-name`.
+        // `inkscape:label` / `data-svge-name`, NOR the D-089 custom
+        // `data-*` attrs it may have parsed into `customData`.
         opts.metadata = {
           ...(opts.metadata ?? {}),
-          customData: { [SVGE_KIND_KEY]: SVGE_KIND_LAYER },
+          customData: {
+            ...(opts.metadata?.customData ?? {}),
+            [SVGE_KIND_KEY]: SVGE_KIND_LAYER,
+          },
         };
       } else if (isSmartObjectGroup) {
         opts.metadata = {
           ...(opts.metadata ?? {}),
-          customData: { [SVGE_KIND_KEY]: SVGE_KIND_SMART_OBJECT },
+          customData: {
+            ...(opts.metadata?.customData ?? {}),
+            [SVGE_KIND_KEY]: SVGE_KIND_SMART_OBJECT,
+          },
         };
       } else if (isPageGroup) {
         // Parse the page viewBox + optional explicit name. Falls back
         // silently when the data-attribute is missing/malformed — the
         // model accepts a page without viewBox (renderer + Inspector
         // both fall back to the document's viewBox).
-        const customData: Record<string, unknown> = { [SVGE_KIND_KEY]: SVGE_KIND_PAGE };
+        const customData: Record<string, unknown> = {
+          ...(opts.metadata?.customData ?? {}),
+          [SVGE_KIND_KEY]: SVGE_KIND_PAGE,
+        };
         const rawVB = el.getAttribute('data-svge-page-viewbox');
         if (rawVB !== null) {
           const parts = rawVB

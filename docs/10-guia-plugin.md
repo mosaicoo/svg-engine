@@ -281,6 +281,47 @@ roda todos os `defaultEnabled !== false`.
 
 ---
 
+## Receita 5 — Ler/escrever propriedades personalizadas `data-*` (D-089)
+
+Qualquer plugin/script pode anexar pares chave/valor a um nó. Eles fazem
+round-trip no SVG exportado como atributos `data-<nome>` padrão. **Escrita é
+via comando** (undoable, passa pelo CommandBus); **leitura é o helper puro**
+`readCustomAttrs`.
+
+```ts
+import { CommandBus, EditorStateService } from 'svg-engine/core';
+import {
+  readCustomAttrs,
+  RemoveCustomAttrCommand,
+  RenameCustomAttrCommand,
+  SetCustomAttrCommand,
+} from 'svg-engine/core';
+
+const bus = ctx.injector.get(CommandBus);
+const state = ctx.injector.get(EditorStateService);
+
+// create / update  →  exporta como data-sku="ABC-123"
+bus.dispatch(new SetCustomAttrCommand(nodeId, 'sku', 'ABC-123'));
+
+// read  (sem comando — leitura é pura)
+const node = findNodeById(state.document().root, nodeId)!;
+const attrs = readCustomAttrs(node); // { sku: 'ABC-123' }
+
+// rename (preserva o valor) e remove
+bus.dispatch(new RenameCustomAttrCommand(nodeId, 'sku', 'product-id'));
+bus.dispatch(new RemoveCustomAttrCommand(nodeId, 'product-id'));
+```
+
+**Regras**: o nome é o sufixo do `data-*` (sem o prefixo `data-`), minúsculo,
+casando `^[a-z][a-z0-9-]*$`; o prefixo `svge`/`svge-*` é **reservado** (flags
+internas do engine) e rejeitado — então um atributo de plugin nunca colide com
+`data-svge-kind`/`data-svge-animation` etc. `SetCustomAttrCommand` com nome
+inválido e `RenameCustomAttrCommand` com destino inválido/duplicado são no-ops
+(tree intocada). É exatamente o mesmo caminho que a aba **Data** do Inspector
+usa — clique do usuário e script são indistinguíveis no histórico.
+
+---
+
 ## Padrões e armadilhas
 
 ### ✅ Faça
