@@ -23,6 +23,7 @@ import {
   type SelectableResolveOptions,
 } from '../hit-testing/hit-testing';
 import { geometricHitTestElement } from '../hit-testing/geometric-hit-test';
+import { KeyObjectService } from '../alignment/key-object.service';
 import { IsolationService } from '../isolation/isolation.service';
 import { type MarqueeCandidate, nodesInsideMarquee } from '../marquee/marquee-hit-testing';
 import { MarqueeService } from '../marquee/marquee.service';
@@ -101,6 +102,9 @@ export class SvgeShellInteractions implements OnDestroy {
   private readonly document = inject(DOCUMENT);
   private readonly toolHost = inject(ToolHostService);
   private readonly selection = inject(SelectionService);
+  // D-094 — "Align to Key Object": a plain click on an already-selected
+  // member (while a key is active) re-designates it as the key.
+  private readonly keyObject = inject(KeyObjectService);
   private readonly state = inject(EditorStateService);
   private readonly bus = inject(CommandBus);
   private readonly transform = inject(TransformService);
@@ -476,6 +480,29 @@ export class SvgeShellInteractions implements OnDestroy {
         this.selection.clear();
       }
       this.marquee.end();
+    }
+
+    // **D-094 — Align to Key Object: re-key on a plain click.** When a key
+    // object is already active, a plain click (no modifier, no drag) on a
+    // node that is ALREADY part of the selection re-designates it as the
+    // key — the Illustrator gesture, decided with the user: only while a
+    // key exists, plain click only, clicking the current key is a no-op.
+    // Guarded to a true click: `potentialDrag` set on down, no `move`
+    // gesture occurred (`ds` captured above is null for a click), and no
+    // marquee (marquee nulls `potentialDrag` on down). The selection is
+    // left untouched — only the key (and its orange highlight) moves.
+    const wasClick = this.potentialDrag !== null && (ds === null || ds.kind !== 'move');
+    if (
+      wasClick &&
+      !event.shiftKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      this.keyObject.hasKeyObject()
+    ) {
+      const clickedId = this.potentialDrag!.nodeId;
+      if (this.selection.isSelected(clickedId) && this.keyObject.keyObjectId() !== clickedId) {
+        this.keyObject.setKeyObject(clickedId);
+      }
     }
 
     this.potentialDrag = null;

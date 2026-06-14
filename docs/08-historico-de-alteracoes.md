@@ -45,6 +45,17 @@ scope provider + na trap-list de serviços escopados (AUDIT-FIX P3). Specs:
 (**2503**) verdes; snapshot de API regenerado (+`resolveAlignReference`,
 `KeyObjectService`).
 
+**Follow-up (gesto de re-key por clique)**: a designação deixou de ser só
+pelo menu — com uma key **já ativa**, um **clique simples** (sem
+modificador, sem arraste) num objeto **que já faz parte da seleção**
+re-aponta a key para ele (e o contorno laranja migra), sem perder a
+seleção; clicar na key atual é no-op; Shift/Ctrl seguem alternando a
+seleção. Implementado no `onPointerUp` do `[svgeShellInteractions]`
+([shell-interactions.directive.ts](../projects/svg-engine/edit/src/lib/tool/shell-interactions.directive.ts)),
+guardado a clique real (sem `move`/marquee) + `hasKeyObject()`. É o gesto
+do Illustrator (decidido com o usuário: só com key ativa, clique simples,
+re-clique = no-op). Sem novo API público; suíte (2503) + lint verdes.
+
 ---
 
 ## 2026-06-14 — D-093 — Object ▸ Transform: Rotate / Scale / Skew / Reset + dialogs de parâmetro ✅
