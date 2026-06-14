@@ -6,6 +6,44 @@
 
 ---
 
+## 2026-06-14 — Fidelidade de exportação: fontes embutidas no PNG ✅
+
+Fecha a lacuna nº 1 da revisão por formato. O PNG rasteriza o SVG via
+`<img src="data:image/svg+xml;…">` num `<canvas>` — esse `<img>` é um documento
+isolado que **não enxerga** os `@font-face` da página, então texto com fonte web
+caía em fallback no PNG (diverge do canvas). Casos mais afetados: `fontFamily`
+custom e variable fonts (D-053).
+
+**Solução** (novo módulo [font-embed.ts](../projects/svg-engine/io/src/lib/font-embed.ts),
+ligado em `renderPng`): antes de gerar o data-URI, (1) coleta as `font-family`
+usadas pelos `TextNode` do doc; (2) varre `document.styleSheets` procurando os
+`@font-face` que casam; (3) faz `fetch` dos bytes da fonte e os embute como
+`src: url(data:font/woff2;base64,…)` num `<style>` injetado no `<svg>`. Embutir
+como **data-URI** também evita o _taint_ do canvas (uma URL cross-origin
+quebraria `toBlob`).
+
+**Best-effort por design:** só embute famílias que a página declarou via
+`@font-face` (fontes de sistema — Arial, sans-serif — não têm regra → puladas,
+renderizam com a fonte do sistema, como qualquer viewer); qualquer falha (fetch
+cross-origin bloqueado, 404, stylesheet ilegível) pula aquela face e mantém o
+resto — o export **nunca falha** por causa de fonte. **Limitação conhecida:**
+fontes registradas só por JS (`new FontFace().load()` sem regra CSS) não são
+descobríveis e não embutem.
+
+Partes puras (coleta de famílias, injeção do `<style>`, composição do CSS via
+resolver) são testáveis sem DOM — 10 specs novos em
+[font-embed.spec.ts](../projects/svg-engine/io/src/lib/font-embed.spec.ts). O
+resolver DOM (scan + fetch) é injetável (default = scanner do documento). Sem
+mudança de API pública (módulo interno ao `io`; `renderPng` segue
+`Promise<Blob>`). Build + suíte (2455) + lint verdes.
+
+SVG vetorial: embedding ainda **não** ligado (o `svgExporter.export` é síncrono e
+o fetch é assíncrono) — fica como `emitEmbeddedFonts` opcional num wrapper async
+futuro. O SVG continua referenciando a fonte por nome (fiel quando o viewer tem
+a fonte).
+
+---
+
 ## 2026-06-14 — Fidelidade de exportação: defs runtime + revisão por formato ✅
 
 Investigação do relato "PNG exportado não está fiel ao canvas". O pipeline PNG é

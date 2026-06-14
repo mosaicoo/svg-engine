@@ -1,4 +1,5 @@
 import type { SvgDocument } from 'svg-engine/core';
+import { embedUsedFonts } from './font-embed';
 import type { Exporter } from './io-types';
 import { svgExporter } from './svg-exporter';
 
@@ -42,21 +43,38 @@ import { svgExporter } from './svg-exporter';
  * Pipeline matches the original `pngExporter`: serialize → base64 →
  * `<img>` load → `<canvas>` paint → `toBlob('image/png')`.
  */
-export function renderPng(document: SvgDocument, scale = 2): Promise<Blob> {
+export async function renderPng(document: SvgDocument, scale = 2): Promise<Blob> {
   if (typeof window === 'undefined' || typeof Image === 'undefined') {
-    return Promise.reject(new Error('renderPng requires a browser environment'));
+    throw new Error('renderPng requires a browser environment');
   }
   if (!Number.isFinite(scale) || scale <= 0) {
-    return Promise.reject(new Error(`renderPng: invalid scale ${scale}`));
+    throw new Error(`renderPng: invalid scale ${scale}`);
   }
   const svgText = svgExporter.export(document);
   if (typeof svgText !== 'string') {
-    return Promise.reject(new Error('renderPng: svgExporter returned non-string'));
+    throw new Error('renderPng: svgExporter returned non-string');
   }
   const vb = document.viewBox;
   const canvasWidth = Math.max(1, Math.round(vb.width * scale));
   const canvasHeight = Math.max(1, Math.round(vb.height * scale));
 
+  // **PNG font fidelity** — inline the web fonts the document's text
+  // actually uses so the rasterizing `<img>` doesn't fall back to a
+  // system font. Best-effort: returns the SVG unchanged when there's
+  // nothing custom to embed (system fonts, no @font-face) or on any
+  // fetch/CORS failure — export never fails because of fonts.
+  const svgWithFonts = await embedUsedFonts(svgText, document.root);
+
+  return rasterizeSvg(svgWithFonts, canvasWidth, canvasHeight);
+}
+
+/**
+ * Paint a serialized SVG string onto an offscreen `<canvas>` and extract
+ * a PNG Blob. The only way browsers convert SVG → raster on the main
+ * thread is via an `<img>`, so we wrap the SVG in a base64 `data:` URI,
+ * load it, draw it scaled to the target pixel size, and `toBlob`.
+ */
+function rasterizeSvg(svgText: string, canvasWidth: number, canvasHeight: number): Promise<Blob> {
   return new Promise<Blob>((resolve, reject) => {
     const img = new Image();
     let base64: string;
