@@ -29,6 +29,7 @@ import {
   getRenderedNodeBBox,
   getRenderedParentMatrix,
 } from '../geometry/node-bbox';
+import { KeyObjectService } from '../alignment/key-object.service';
 import { LayersService } from '../layers/layers.service';
 import { SelectionService } from '../selection/selection.service';
 import { DIRECT_SELECT_TOOL_ID } from '../tool/builtin-tools';
@@ -114,6 +115,18 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
       ></svg:rect>
     }
 
+    @if (keyBBox(); as k) {
+      <svg:rect
+        class="key-object"
+        aria-hidden="true"
+        [attr.x]="k.x"
+        [attr.y]="k.y"
+        [attr.width]="k.width"
+        [attr.height]="k.height"
+        fill="none"
+      ></svg:rect>
+    }
+
     @if (focusBBox(); as b) {
       <svg:rect
         class="bbox"
@@ -192,6 +205,15 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
       stroke-dasharray: 3 2;
       vector-effect: non-scaling-stroke;
     }
+    /* D-094 — key object accent: thicker orange outline (same hue as the
+       keyboard focus ring) so it reads as "the anchor" against the blue
+       selection chrome. Decorative + non-interactive. */
+    .key-object {
+      stroke: #ff6f00;
+      stroke-width: 2;
+      vector-effect: non-scaling-stroke;
+      pointer-events: none;
+    }
     .handle {
       fill: #ffffff;
       stroke: #1976d2;
@@ -269,9 +291,17 @@ export class SelectionOverlay {
   private readonly toolHost = inject(ToolHostService);
   private readonly bus = inject(CommandBus);
   private readonly layers = inject(LayersService);
+  // D-094 — "Align to Key Object" highlight: the designated anchor among
+  // a multi-selection gets a distinct accented outline so the user sees
+  // which object the align ops snap everything else to.
+  private readonly keyObject = inject(KeyObjectService);
 
   private readonly _focusBBox = signal<BoundingBox | null>(null);
   private readonly _hoverBBox = signal<BoundingBox | null>(null);
+  private readonly _keyBBox = signal<BoundingBox | null>(null);
+
+  /** Accented outline of the key object (only while a multi-selection has one). */
+  readonly keyBBox = this._keyBBox.asReadonly();
 
   /**
    * Bounding box of the focused selection (single id) or composite bbox
@@ -698,6 +728,18 @@ export class SelectionOverlay {
 
     const hoverBBox = hover !== null && !ids.has(hover) ? getRenderedNodeBBox(svg, hover) : null;
     this.maybeSet(this._hoverBBox, hoverBBox);
+
+    // **D-094** — key object outline. Only meaningful for a multi-selection
+    // (for single selection the key would equal the only object); hidden
+    // when the key node is layer-hidden so the accent doesn't float in
+    // empty space. `keyObjectId()` already returns null once the key
+    // leaves the selection, so this clears itself automatically.
+    const keyId = this.keyObject.keyObjectId();
+    const keyBBox =
+      keyId !== null && ids.size > 1 && !this.layers.hiddenIds().has(keyId)
+        ? getRenderedNodeBBox(svg, keyId)
+        : null;
+    this.maybeSet(this._keyBBox, keyBBox);
   }
 
   // ── Internal helpers ─────────────────────────────────────────────

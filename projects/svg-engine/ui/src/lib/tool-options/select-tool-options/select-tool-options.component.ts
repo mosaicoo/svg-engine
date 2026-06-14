@@ -23,8 +23,10 @@ import {
   AlignmentService,
   type DistributeAxis,
   getRenderedNodeBBox,
+  KeyObjectService,
   LayersService,
   type NodeBBox,
+  resolveAlignReference,
   SelectionService,
 } from 'svg-engine/edit';
 import { TOOL_OPT_SHARED_STYLES } from '../shared-styles';
@@ -288,6 +290,8 @@ export class SvgeSelectToolOptions {
   private readonly alignment = inject(AlignmentService);
   private readonly state = inject(EditorStateService);
   private readonly activePage = inject(ActivePageService);
+  // D-094 — "Align to Key Object" state, honored via resolveAlignReference.
+  private readonly keyObject = inject(KeyObjectService);
   private readonly bus = inject(CommandBus);
 
   /** Convertible leaf types — same set the Inspector + Pathfinder use. */
@@ -323,13 +327,15 @@ export class SvgeSelectToolOptions {
   protected align(axis: AlignAxis): void {
     const items = this.collectSelectedBBoxes();
     if (items.length === 0) return;
-    if (items.length === 1) {
-      // Single node → align to the active page (fallback: document viewBox).
-      const reference = this.activePage.activePageViewBox() ?? this.state.document().viewBox;
+    // D-094 — centralized reference resolution (key object ▸ page ▸ union),
+    // identical to the menu + Inspector path.
+    const page = this.activePage.activePageViewBox() ?? this.state.document().viewBox;
+    const reference = resolveAlignReference(items, this.keyObject.keyObjectId(), page);
+    if (reference !== null) {
       this.alignment.alignToReference(items, axis, reference);
-      return;
+    } else {
+      this.alignment.align(items, axis);
     }
-    this.alignment.align(items, axis);
   }
 
   protected distribute(axis: DistributeAxis): void {

@@ -4,12 +4,47 @@ import {
   computeAlignToReferenceDeltas,
   computeDistributeDeltas,
   type NodeBBox,
+  resolveAlignReference,
   unionBBox,
 } from './alignment-math';
 
 function nb(x: number, y: number, w: number, h: number, id?: NodeId): NodeBBox {
   return { id: id ?? generateNodeId(), bbox: bbox(x, y, w, h) };
 }
+
+describe('resolveAlignReference (D-094)', () => {
+  const page = bbox(0, 0, 800, 600);
+
+  it('returns null (selection union) for ≥ 2 items with no key object', () => {
+    const items = [nb(0, 0, 10, 10), nb(50, 0, 10, 10)];
+    expect(resolveAlignReference(items, null, page)).toBeNull();
+  });
+
+  it('returns the page reference for a single selected item (no key)', () => {
+    const only = nb(10, 10, 20, 20);
+    expect(resolveAlignReference([only], null, page)).toEqual(page);
+  });
+
+  it('returns the key object bbox when a designated key is in a ≥ 2 selection', () => {
+    const keyId = generateNodeId();
+    const key = nb(100, 100, 40, 40, keyId);
+    const other = nb(0, 0, 10, 10);
+    expect(resolveAlignReference([other, key], keyId, page)).toEqual(key.bbox);
+  });
+
+  it('ignores a key object id that is not part of the current selection', () => {
+    const items = [nb(0, 0, 10, 10), nb(50, 0, 10, 10)];
+    // Stale/foreign key id → falls through to union (null).
+    expect(resolveAlignReference(items, generateNodeId(), page)).toBeNull();
+  });
+
+  it('ignores the key object for a single-item selection (page wins)', () => {
+    const keyId = generateNodeId();
+    const only = nb(10, 10, 20, 20, keyId);
+    // Key needs ≥ 2 to be meaningful; a lone item still aligns to the page.
+    expect(resolveAlignReference([only], keyId, page)).toEqual(page);
+  });
+});
 
 describe('unionBBox', () => {
   it('returns the same bbox for a single item', () => {

@@ -15,6 +15,7 @@ import { ViewportService } from 'svg-engine/render';
 import { describe, expect, it } from 'vitest';
 
 import { AlignmentService } from '../alignment/alignment.service';
+import { KeyObjectService } from '../alignment/key-object.service';
 import { AnchorSelectionService } from '../anchor-editor/anchor-selection.service';
 import { AnimationService } from '../animation/animation.service';
 import { PlaybackService } from '../animation/playback.service';
@@ -211,6 +212,8 @@ const STATEFUL_SCOPED_TOKENS: readonly ProviderToken<unknown>[] = [
   TransformService,
   MarqueeService,
   AlignmentService,
+  // D-094 — "Align to Key Object" per-editor state.
+  KeyObjectService,
   AutoSaveService,
   ClipboardService,
   // edit — tools (active tool host + tool state machines)

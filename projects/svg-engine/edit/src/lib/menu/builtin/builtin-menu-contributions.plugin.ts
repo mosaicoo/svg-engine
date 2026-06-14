@@ -45,7 +45,9 @@ import {
   type AlignAxis,
   AlignmentService,
   type DistributeAxis,
+  KeyObjectService,
   type NodeBBox,
+  resolveAlignReference,
 } from '../../alignment';
 import { AnimationService } from '../../animation/animation.service';
 import { ClipboardService } from '../../clipboard/clipboard.service';
@@ -178,6 +180,22 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     const cantAlignFactory = (injector: Injector): Signal<boolean> => {
       const selection = injector.get(SelectionService);
       return computed(() => selection.selectedIds().size < 1);
+    };
+    // **D-094** — "Make Key Object" needs a focused node inside a multi-
+    // selection (≥ 2). The focused (last-clicked) node becomes the fixed
+    // alignment anchor; "Clear Key Object" is enabled only while one is set.
+    const cantMakeKeyFactory = (injector: Injector): Signal<boolean> => {
+      const selection = injector.get(SelectionService);
+      return computed(() => {
+        const ids = selection.selectedIds();
+        if (ids.size < 2) return true;
+        const focus = selection.focusId();
+        return focus === null || !ids.has(focus);
+      });
+    };
+    const noKeyObjectFactory = (injector: Injector): Signal<boolean> => {
+      const keyObject = injector.get(KeyObjectService);
+      return computed(() => !keyObject.hasKeyObject());
     };
     // D-065 — Distribute needs ≥ 3 nodes (2 nodes have nothing
     // "between" them to space; 3+ have at least one inner node to
@@ -1426,17 +1444,22 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
           run(runCtx) {
             const items = collectSelectedBBoxes(runCtx);
             if (items.length === 0) return;
-            if (items.length === 1) {
-              // Single node → align to the active page (Illustrator
-              // "Align to Artboard"). Reference = page viewBox, fallback
-              // the document viewBox when there's no active page.
-              const reference =
-                fromCtx(ActivePageService, runCtx).activePageViewBox() ??
-                fromCtx(EditorStateService, runCtx).document().viewBox;
-              fromCtx(AlignmentService, runCtx).alignToReference(items, axis, reference);
-              return;
+            // **D-094** — single, centralized reference resolution shared by
+            // the menu, Inspector and Select tool-options. `resolveAlignReference`
+            // picks the reference: a designated **key object** (≥ 2 selected),
+            // else the **page/artboard** (single node), else `null` = align to
+            // the **selection union**. Page = active page viewBox (fallback doc).
+            const page =
+              fromCtx(ActivePageService, runCtx).activePageViewBox() ??
+              fromCtx(EditorStateService, runCtx).document().viewBox;
+            const keyId = fromCtx(KeyObjectService, runCtx).keyObjectId();
+            const reference = resolveAlignReference(items, keyId, page);
+            const alignment = fromCtx(AlignmentService, runCtx);
+            if (reference !== null) {
+              alignment.alignToReference(items, axis, reference);
+            } else {
+              alignment.align(items, axis);
             }
-            fromCtx(AlignmentService, runCtx).align(items, axis);
           },
         }),
       );
@@ -1490,6 +1513,63 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
       'align_vertical_bottom',
       70,
       'bottom',
+    );
+
+    // ── D-094 — Align ▸ Key Object (Illustrator "Align to Key Object") ──
+    //
+    // Ships the roadmap placeholder `svge.roadmap.object.align.align-to`
+    // (removed from `builtinRoadmapMenuPlugin`). With ≥ 2 nodes selected,
+    // "Make Key Object" pins the focused (last-clicked) node as the fixed
+    // alignment anchor; the 6 align ops then align everything to it (it
+    // stays put) instead of to the selection union — `resolveAlignReference`
+    // reads `KeyObjectService.keyObjectId()`. "Clear Key Object" reverts to
+    // union/page alignment. Transient UI state (not undoable, not persisted)
+    // — auto-clears when the key object leaves the selection.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.align.divider-key',
+        parentId: 'svge.builtin.object.align',
+        slot: MENU_SLOT.OBJECT,
+        label: '',
+        order: 80,
+        divider: true,
+        run() {
+          /* divider */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.align.make-key',
+        parentId: 'svge.builtin.object.align',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Make Key Object',
+        icon: 'center_focus_strong',
+        tooltip: 'Align the rest of the selection to the focused object (it stays put)',
+        order: 90,
+        disabled: cantMakeKeyFactory,
+        run(runCtx) {
+          const sel = fromCtx(SelectionService, runCtx);
+          const focus = sel.focusId();
+          if (focus === null || !sel.selectedIds().has(focus)) return;
+          fromCtx(KeyObjectService, runCtx).setKeyObject(focus);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.align.clear-key',
+        parentId: 'svge.builtin.object.align',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Clear Key Object',
+        icon: 'center_focus_weak',
+        tooltip: 'Stop aligning to the key object (back to selection / page)',
+        order: 100,
+        disabled: noKeyObjectFactory,
+        run(runCtx) {
+          fromCtx(KeyObjectService, runCtx).clear();
+        },
+      }),
     );
 
     // ── Distribute ▶ parent ────────────────────────────────────────

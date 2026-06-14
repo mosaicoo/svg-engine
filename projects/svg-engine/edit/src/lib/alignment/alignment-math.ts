@@ -105,6 +105,40 @@ export function computeAlignToReferenceDeltas(
 }
 
 /**
+ * **D-094** — resolve which **reference bbox** the 6 align operations
+ * should use, implementing the "Align To" mode selection:
+ *
+ * - **Key Object** — when `keyObjectId` is set AND present among `items`
+ *   AND there are ≥ 2 items, the reference is that object's bbox (it
+ *   stays put while everything else aligns to it). Illustrator's
+ *   "Align to Key Object".
+ * - **Page / Artboard** — a lone selected object (`items.length === 1`)
+ *   aligns to the `page` reference (nothing else to align to).
+ * - **Selection** — ≥ 2 items with no key object → returns `null`,
+ *   meaning the caller aligns to the selection's **union** bbox via
+ *   {@link computeAlignDeltas} (`AlignmentService.align`).
+ *
+ * Centralizes the branching previously duplicated across the menu,
+ * Inspector and Select tool-options align handlers. Returns the bbox to
+ * pass to {@link computeAlignToReferenceDeltas} (`alignToReference`), or
+ * `null` to use union alignment.
+ *
+ * **Pure**: no DOM, no signals.
+ */
+export function resolveAlignReference(
+  items: readonly NodeBBox[],
+  keyObjectId: NodeId | null,
+  page: BoundingBox,
+): BoundingBox | null {
+  if (keyObjectId !== null && items.length >= 2) {
+    const key = items.find((i) => i.id === keyObjectId);
+    if (key !== undefined) return key.bbox;
+  }
+  if (items.length === 1) return page;
+  return null;
+}
+
+/**
  * Compute the per-node `(dx, dy)` to evenly distribute centers along
  * the chosen axis. Returns an empty map when:
  * - `items.length < 3` (distribute needs an "inner" item to space).

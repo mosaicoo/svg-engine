@@ -9,6 +9,7 @@ import {
 import { ViewportService } from 'svg-engine/render';
 
 import { AlignmentService } from '../alignment/alignment.service';
+import { KeyObjectService } from '../alignment/key-object.service';
 import { AnchorSelectionService } from '../anchor-editor/anchor-selection.service';
 import { AnimationService } from '../animation/animation.service';
 import { PlaybackService } from '../animation/playback.service';
@@ -276,6 +277,11 @@ export function provideSvgEngineEditorScope(options?: SvgEngineEditorScopeOption
     TransformService,
     MarqueeService,
     AlignmentService,
+    // **D-094** — "Align to Key Object" state (which selected node the 6
+    // align ops use as the fixed reference). Per-editor scope: it reads
+    // the scoped SelectionService and two editors must keep independent
+    // key objects (same rationale as SelectionService itself).
+    KeyObjectService,
     AutoSaveService,
     // D-044: in-memory clipboard. Per-editor scope so two editors mounted
     // side-by-side cannot paste each other's content unintentionally.

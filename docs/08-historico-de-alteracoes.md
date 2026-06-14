@@ -6,6 +6,47 @@
 
 ---
 
+## 2026-06-14 — D-094 — Object ▸ Align ▸ Align to Key Object ✅
+
+Ship o placeholder de roadmap `svge.roadmap.object.align.align-to` como o
+**"Align to Key Object"** do Illustrator: com ≥ 2 objetos selecionados,
+elege-se um como **âncora** e os 6 alinhamentos passam a alinhar tudo **a
+ele** (que fica parado), em vez de à união da seleção. Reaproveita 100% do
+motor existente (`alignToReference` + `TranslateManyCommand`) — Key Object
+só muda qual bbox é a referência.
+
+**Centralização (a parte que tocou o existente)**: a escolha de referência
+estava **duplicada** em 3 lugares (menu, Inspector, Select tool-options),
+cada um com o ramo "1 nó → página / ≥ 2 → união". Extraído para um único
+helper puro [resolveAlignReference](../projects/svg-engine/edit/src/lib/alignment/alignment-math.ts)
+`(items, keyObjectId, page) → BoundingBox | null` (key object ▸ página ▸
+`null`=união). Os 3 call sites agora consultam o mesmo helper → o Key Object
+vale automaticamente em todos, sem divergência.
+
+**Estado + UI (a parte nova e isolada)**:
+
+- [KeyObjectService](../projects/svg-engine/edit/src/lib/alignment/key-object.service.ts)
+  (escopado por editor; `providedIn:'root'` como fallback): `keyObjectId`
+  é um `computed` validado contra a seleção (nunca expõe id obsoleto) +
+  um `effect` que limpa o id quando ele sai da seleção (não "ressurge" ao
+  re-selecionar — convenção Illustrator). Estado transiente: não-undoable,
+  não-persistido.
+- **Designação** via menu: **Object ▸ Align ▸ Make Key Object** (fixa o nó
+  focado/last-clicked numa seleção ≥ 2) e **Clear Key Object** —
+  registrados em [builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts).
+- **Highlight** no [selection-overlay](../projects/svg-engine/edit/src/lib/overlay/selection-overlay.component.ts):
+  contorno laranja (`.key-object`) ao redor da âncora, só em multi-seleção.
+
+Wiring: menu + Inspector (`alignSelection`) + Select tool-options (`align`)
+passam a usar `resolveAlignReference` + `KeyObjectService`. Placeholder
+removido do `builtinRoadmapMenuPlugin`. `KeyObjectService` registrado no
+scope provider + na trap-list de serviços escopados (AUDIT-FIX P3). Specs:
+`resolveAlignReference` (5) + `KeyObjectService` (6). Build + lint + suíte
+(**2503**) verdes; snapshot de API regenerado (+`resolveAlignReference`,
+`KeyObjectService`).
+
+---
+
 ## 2026-06-14 — D-093 — Object ▸ Transform: Rotate / Scale / Skew / Reset + dialogs de parâmetro ✅
 
 Conclui o submenu **Object ▸ Transform**, que tinha Flip H/V reais mas

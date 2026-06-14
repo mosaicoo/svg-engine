@@ -67,9 +67,11 @@ import {
   type DistributeAxis,
   getRenderedNodeBBox,
   getRenderedParentMatrix,
+  KeyObjectService,
   LayersService,
   MaskLibraryService,
   type NodeBBox,
+  resolveAlignReference,
   SelectionService,
   SmartObjectActionsService,
   TransformService,
@@ -2630,6 +2632,10 @@ export class SvgeInspector {
   // to Page"), not to itself. `null` (no page) falls back to the
   // document's own viewBox.
   private readonly activePage = inject(ActivePageService);
+  // D-094 — "Align to Key Object" state. `resolveAlignReference` reads it
+  // so the Inspector's align buttons honor the key object designated via
+  // the Object ▸ Align menu, exactly like the menu + Select tool-options.
+  private readonly keyObject = inject(KeyObjectService);
 
   /**
    * The 8 anchors of the bbox, in the order shown by the 3×3 pivot
@@ -3556,20 +3562,24 @@ export class SvgeInspector {
    * as the Object ▸ Align menu submenu — single source of truth for
    * "align".
    *
-   * - **1 node** → align to the active page (Illustrator "Align to
-   *   Artboard"): reference = the page's viewBox, fallback the document
-   *   viewBox.
-   * - **≥ 2 nodes** → align relative to the selection (union bbox).
+   * Reference picked by `resolveAlignReference` (D-094), shared with the
+   * menu + Select tool-options:
+   * - **key object** (≥ 2 nodes, one designated) → align to it (it stays put).
+   * - **1 node** → align to the active page (Illustrator "Align to Artboard").
+   * - **≥ 2 nodes, no key** → align relative to the selection (union bbox).
    */
   protected alignSelection(axis: AlignAxis): void {
     const items = this.collectSelectedBBoxes();
     if (items.length === 0) return;
-    if (items.length === 1) {
-      const reference = this.activePage.activePageViewBox() ?? this.state.document().viewBox;
+    // D-094 — centralized reference resolution (key object ▸ page ▸ union),
+    // identical to the menu + Select tool-options path.
+    const page = this.activePage.activePageViewBox() ?? this.state.document().viewBox;
+    const reference = resolveAlignReference(items, this.keyObject.keyObjectId(), page);
+    if (reference !== null) {
       this.alignment.alignToReference(items, axis, reference);
-      return;
+    } else {
+      this.alignment.align(items, axis);
     }
-    this.alignment.align(items, axis);
   }
 
   /** Same flow for distribute (≥ 3 items required). */

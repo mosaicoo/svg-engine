@@ -503,17 +503,11 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // / Skew… (orders 30/40/50) are real dialog-backed entries registered
     // by `builtinUiMenuContributionsPlugin` (they need a Material dialog —
     // D-017). No longer roadmap placeholders.
-    // Align ▶ extra (6 align ops are real).
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.object.align.align-to',
-        parentId: 'svge.builtin.object.align',
-        slot: MENU_SLOT.OBJECT,
-        label: 'Align To…',
-        icon: 'align_horizontal_center',
-        order: 80,
-      }),
-    );
+    // Align ▶ — SHIPPED (D-094). The "Align To" reference selection is now
+    // real: the 6 align ops auto-pick the reference (key object ▸ page ▸
+    // selection) via `resolveAlignReference`, and `builtinMenuContributionsPlugin`
+    // adds **Make / Clear Key Object** to this submenu (Illustrator "Align to
+    // Key Object"). No longer a roadmap placeholder.
     // Distribute ▶ extra (2 distribute ops are real).
     track(
       roadmapLeaf({
