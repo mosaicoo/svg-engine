@@ -6,6 +6,50 @@
 
 ---
 
+## 2026-06-14 — Fundo de página (solid/image) como arte: canvas + export ✅
+
+Fecha a lacuna nº 2 da revisão por formato. O fundo por página
+(`PageOptions.background`: `transparent` | `solid{color}` | `image{href}`) era
+**editável** no Inspector (aba Page) mas não aparecia em lugar nenhum: nem
+pintado ao vivo (o `PageOverlay` só desenha o marcador translúcido de chrome; o
+`WorkspaceBackground` pinta o "desk", outro conceito), nem exportado
+(`effectiveExportDoc` só ajustava viewBox + children). Agora o fundo é **arte**,
+com paridade canvas ↔ arquivo exportado.
+
+**Fonte única da verdade** — novo helper puro
+[getPageBackgroundNode(page)](../projects/svg-engine/core/src/lib/model/page-background.ts)
+no core: retorna o `RectNode` (solid, `fill = cor`) ou `ImageNode` (image, `href`
+
+- `preserveAspectRatio` = `xMidYMid slice` = cover) cobrindo o viewBox da página,
+  ou `null` (transparent / sem viewBox / viewBox degenerado). Consumido pelos dois
+  lados:
+
+* **Export** ([active-page.service.ts](../projects/svg-engine/edit/src/lib/pages/active-page.service.ts)):
+  `effectiveExportDoc` faz **prepend** do nó de fundo aos filhos da página (atrás
+  de todo o conteúdo) → serializa no SVG/PNG. `transparent` não emite nada (PNG
+  mantém alfa, igual ao canvas).
+* **Canvas ao vivo** ([page-overlay.component.ts](../projects/svg-engine/edit/src/lib/workspace/page-overlay.component.ts)):
+  lê o mesmo `getPageOptions(...).background`. `solid` → `[style.fill]` do
+  page-rect; `image` → `<svg:image>` (cover) atrás do rect (que vira `fill:none`,
+  mantendo só contorno + hit-target); `transparent` → marcador translúcido de
+  antes (sem regressão).
+
+**Correção de suporte no exporter**: `svgExporter.renderImage` agora emite
+`preserveAspectRatio` quando definido (antes era descartado) — necessário pro
+fundo-imagem "cover" bater no export, e correção geral pra qualquer imagem
+importada com PAR não-default.
+
+Specs: helper (solid/image/transparent/sem-viewbox/degenerado), `effectiveExportDoc`
+(prepend de rect/imagem; nada para transparent) e PAR no svg-exporter. Build +
+suíte (2465) + lint verdes; snapshot de API +2 símbolos.
+
+**Limitação conhecida (round-trip):** export de página única achata o fundo num
+`<rect>`/`<image>` real — visualmente fiel, mas re-importar não restaura a opção
+`PageOptions.background` (vira shape comum). Aceitável para flatten; persistir a
+opção exigiria emitir `data-svge-page-options` no grupo da página.
+
+---
+
 ## 2026-06-14 — Fidelidade de exportação: fontes embutidas no PNG ✅
 
 Fecha a lacuna nº 1 da revisão por formato. O PNG rasteriza o SVG via

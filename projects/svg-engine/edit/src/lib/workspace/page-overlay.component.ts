@@ -1,5 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { getPageOptions, getPageViewBox, type NodeId } from 'svg-engine/core';
+import {
+  getPageOptions,
+  getPageViewBox,
+  type NodeId,
+  PAGE_BACKGROUND_IMAGE_PAR,
+} from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
 import { ActivePageService } from '../pages/active-page.service';
 import { PageDragService } from '../pages/page-drag.service';
@@ -96,12 +101,31 @@ import { type PageRect, resolvePageBounds, WorkspaceService } from './workspace.
         and guides overlays use the same helper so they stay aligned
         to the same rectangle.
       -->
+      @if (backgroundImageHref(); as href) {
+        <!--
+          Page background IMAGE (PageOptions.background.kind === 'image').
+          Painted UNDER the page-rect (which then uses fill:none so the
+          image shows through). Same href + preserveAspectRatio the
+          exporter emits via getPageBackgroundNode → parity with export.
+          pointer-events:none so the rect stays the hit-target.
+        -->
+        <svg:image
+          class="page-bg-image"
+          [attr.x]="p.x"
+          [attr.y]="p.y"
+          [attr.width]="p.width"
+          [attr.height]="p.height"
+          [attr.href]="href"
+          [attr.preserveAspectRatio]="imagePar"
+        />
+      }
       <svg:rect
         class="page-rect"
         [attr.x]="p.x"
         [attr.y]="p.y"
         [attr.width]="p.width"
         [attr.height]="p.height"
+        [style.fill]="rectFill()"
         [attr.data-node-id]="pageNodeId()"
         [attr.pointer-events]="pageNodeId() === null ? 'none' : 'all'"
       />
@@ -132,6 +156,11 @@ import { type PageRect, resolvePageBounds, WorkspaceService } from './workspace.
        * (toggle between 'all' and 'none' based on whether a D-079
        * page is active). We don't lock it in CSS so the binding wins.
        */
+    }
+    .page-bg-image {
+      /* The page-rect carries the hit-target; the background image must
+         not intercept clicks (else it'd swallow page-interior clicks). */
+      pointer-events: none;
     }
     .margin-rect {
       fill: none;
@@ -203,6 +232,42 @@ export class PageOverlay {
       this.viewport.contentBox(),
     );
   });
+
+  /**
+   * **Page background as artwork** — the active page's
+   * `PageOptions.background`. Drives the live paint (solid fill / image)
+   * so the canvas shows what the export will contain — the SAME
+   * `getPageOptions(...).background` the exporter reads via
+   * `getPageBackgroundNode` (parity canvas ↔ exported file). Falls back
+   * to transparent for legacy / no-active-page documents.
+   */
+  private readonly pageBackground = computed(() => {
+    const active = this.activePage?.activePage() ?? null;
+    return active !== null ? getPageOptions(active).background : { kind: 'transparent' as const };
+  });
+
+  /** Image href when the page background is an image, else null. */
+  protected readonly backgroundImageHref = computed<string | null>(() => {
+    const bg = this.pageBackground();
+    return bg.kind === 'image' ? bg.href : null;
+  });
+
+  /**
+   * Fill for the page rect: the solid colour when the background is
+   * solid; `'none'` when it's an image (so the `<image>` painted under
+   * the rect shows through — the rect then only carries the outline +
+   * hit-target); `null` for transparent, letting the CSS default
+   * (`--svge-page-fill`, the translucent paper marker) apply.
+   */
+  protected readonly rectFill = computed<string | null>(() => {
+    const bg = this.pageBackground();
+    if (bg.kind === 'solid') return bg.color;
+    if (bg.kind === 'image') return 'none';
+    return null;
+  });
+
+  /** `preserveAspectRatio` for the background image — kept in lockstep with export. */
+  protected readonly imagePar = PAGE_BACKGROUND_IMAGE_PAR;
 
   /**
    * **PAGES-REFACTOR Fase 4** — node id of the active D-079 page (or

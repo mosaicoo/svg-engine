@@ -3,6 +3,7 @@ import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import {
   type BoundingBox,
   EditorStateService,
+  getPageBackgroundNode,
   getPageViewBox,
   type InsertParentResolver,
   type NodeId,
@@ -222,12 +223,21 @@ export class ActivePageService implements InsertParentResolver {
     const page = this.activePage();
     if (page === null) return doc;
     const pvb = getPageViewBox(page);
+    // **Page background as artwork** — the page's solid/image background
+    // (PageOptions.background) is part of the art, not editor chrome, so
+    // it must serialize into the exported SVG/PNG. Prepend it as the
+    // first child (behind all content); `null` for transparent pages
+    // (export keeps an alpha background, matching the canvas). The live
+    // canvas paints the equivalent rect/image via PageOverlay from the
+    // SAME helper, so canvas ↔ export stay in parity.
+    const bg = getPageBackgroundNode(page);
+    const children = bg !== null ? [bg, ...page.children] : page.children;
     return {
       ...doc,
       viewBox: pvb ?? doc.viewBox,
       root: {
         ...doc.root,
-        children: page.children,
+        children,
       },
     };
   }

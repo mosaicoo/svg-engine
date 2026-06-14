@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createEllipse,
   createGroup,
+  createImage,
   createPath,
   createRect,
   createText,
@@ -412,5 +413,27 @@ describe('svgExporter — D-053/D-069 multi-line tspan emission', () => {
     expect(text).toBeDefined();
     if (text === undefined || text.type !== 'text') return;
     expect(text.content).toBe('just one line');
+  });
+});
+
+describe('svgExporter — image preserveAspectRatio', () => {
+  it('emits preserveAspectRatio when set (page-background "cover" + general fidelity)', () => {
+    const out = exportNode([
+      createImage({
+        x: 0,
+        y: 0,
+        width: 50,
+        height: 40,
+        href: 'pic.png',
+        preserveAspectRatio: 'xMidYMid slice',
+      }),
+    ]);
+    expect(out).toContain('href="pic.png"');
+    expect(out).toContain('preserveAspectRatio="xMidYMid slice"');
+  });
+
+  it('omits preserveAspectRatio when not set (default meet)', () => {
+    const out = exportNode([createImage({ x: 0, y: 0, width: 50, height: 40, href: 'pic.png' })]);
+    expect(out).not.toContain('preserveAspectRatio');
   });
 });

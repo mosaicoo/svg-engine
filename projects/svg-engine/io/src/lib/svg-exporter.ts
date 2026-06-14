@@ -638,6 +638,14 @@ function renderImage(node: ImageNode, depth: number, ctx: ExportContext): string
     ['height', fmt(node.height)],
     ['href', node.href],
   ];
+  // Emit `preserveAspectRatio` when set so the exported `<image>` scales
+  // the same way it does on the canvas (the renderer binds the same
+  // attribute). Required for page-background images (`xMidYMid slice` =
+  // cover) to look identical in the exported file; also a general
+  // fidelity fix for any imported image carrying a non-default value.
+  if (node.preserveAspectRatio !== undefined && node.preserveAspectRatio.length > 0) {
+    attrs.push(['preserveAspectRatio', node.preserveAspectRatio]);
+  }
   return renderLeaf('image', attrs, depth, node, ctx);
 }
 

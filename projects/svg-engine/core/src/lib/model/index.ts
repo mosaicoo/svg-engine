@@ -49,6 +49,10 @@ export {
   withoutPageFlag,
 } from './page';
 
+// Page background as artwork (solid / image) — shared by the live canvas
+// paint and the export projection so both stay in parity.
+export { getPageBackgroundNode, PAGE_BACKGROUND_IMAGE_PAR } from './page-background';
+
 // D-089 — Custom `data-*` attributes (arbitrary user key/value props per node)
 export {
   CUSTOM_ATTR_DATA_PREFIX,

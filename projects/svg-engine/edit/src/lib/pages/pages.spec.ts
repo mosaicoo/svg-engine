@@ -5,11 +5,15 @@ import {
   CreatePageCommand,
   createEmptyDocument,
   createGroup,
+  createRect,
   EditorStateService,
+  type ImageNode,
   isPage,
   type NodeId,
+  type RectNode,
   toNodeId,
   withPageFlag,
+  withPageOptions,
 } from 'svg-engine/core';
 import { SelectionService } from '../selection/selection.service';
 import { ACTIVE_PAGE_STORAGE_KEY } from './active-page.config';
@@ -301,5 +305,64 @@ describe('PAGES-REFACTOR Fase 7 — persistence + selection clear', () => {
     bus.dispatch(new CreatePageCommand(VB, 'A'));
     TestBed.flushEffects();
     expect(sel.isSelected(fakeNodeId)).toBe(true);
+  });
+});
+
+describe('effectiveExportDoc — page background as artwork', () => {
+  /** Build a doc with a single active page carrying `content`. */
+  function setupPage(content: ReturnType<typeof createRect>) {
+    const { state, active } = setup();
+    const page = withPageFlag(createGroup([content]), VB, 'P');
+    return { state, active, page };
+  }
+
+  it('prepends a solid background rect behind the page content', () => {
+    const content = createRect({ x: 10, y: 10, width: 20, height: 20 });
+    const { state, active, page } = setupPage(content);
+    const withBg = withPageOptions(page, { background: { kind: 'solid', color: '#123456' } });
+    state.setDocument({
+      ...state.document(),
+      root: { ...state.document().root, children: [withBg] },
+    });
+    active.setActive(withBg.id);
+
+    const out = active.effectiveExportDoc(state.document());
+    expect(out.viewBox).toEqual(VB);
+    expect(out.root.children.length).toBe(2);
+    const first = out.root.children[0]!;
+    expect(first.type).toBe('rect');
+    expect((first as RectNode).style.fill).toBe('#123456');
+    // Content is preserved AFTER the background (so it paints on top).
+    expect(out.root.children[1]!.id).toBe(content.id);
+  });
+
+  it('prepends an image background covering the page', () => {
+    const content = createRect({ x: 0, y: 0, width: 5, height: 5 });
+    const { state, active, page } = setupPage(content);
+    const withBg = withPageOptions(page, { background: { kind: 'image', href: 'bg.png' } });
+    state.setDocument({
+      ...state.document(),
+      root: { ...state.document().root, children: [withBg] },
+    });
+    active.setActive(withBg.id);
+
+    const first = active.effectiveExportDoc(state.document()).root.children[0]!;
+    expect(first.type).toBe('image');
+    expect((first as ImageNode).href).toBe('bg.png');
+    expect((first as ImageNode).width).toBe(VB.width);
+  });
+
+  it('prepends nothing for a transparent page (export keeps alpha background)', () => {
+    const content = createRect({ x: 0, y: 0, width: 5, height: 5 });
+    const { state, active, page } = setupPage(content); // default = transparent
+    state.setDocument({
+      ...state.document(),
+      root: { ...state.document().root, children: [page] },
+    });
+    active.setActive(page.id);
+
+    const out = active.effectiveExportDoc(state.document());
+    expect(out.root.children.length).toBe(1);
+    expect(out.root.children[0]!.id).toBe(content.id);
   });
 });
