@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import {
   CommandBus,
   createEllipse,
@@ -72,6 +73,26 @@ function activateTab(host: HTMLElement, tabId: string): void {
     );
   }
   btn.click();
+}
+
+/**
+ * **D-092** — minimal view over `SvgeInspector`'s template-facing
+ * (protected) colour API, used by specs. The advanced
+ * `<svge-color-picker>` lives inside a lazy mat-menu (only instantiated
+ * when the popover opens), so specs that need to exercise the
+ * colour-change path drive `setStyle(...)` / read `styleColor(...)`
+ * directly. The picker forwards through the SAME
+ * `(colorChange)="setStyle(...)"` Angular @Output binding that the
+ * palette specs already cover end-to-end, so this stays faithful.
+ */
+interface InspectorColorApi {
+  setStyle(field: string, value: string): void;
+  styleColor(field: string): string;
+}
+
+function inspectorOf(fixture: ReturnType<typeof setup>['fixture']): InspectorColorApi {
+  return fixture.debugElement.query(By.directive(SvgeInspector))
+    .componentInstance as unknown as InspectorColorApi;
 }
 
 describe('SvgeInspector — empty / multi states', () => {
@@ -430,12 +451,11 @@ describe('SvgeInspector — command dispatch on edit', () => {
     activateTab(fixture.nativeElement, 'colors');
     fixture.detectChanges();
 
-    const fillInput = fixture.nativeElement.querySelector(
-      'input[type="color"]',
-    ) as HTMLInputElement | null;
-    if (fillInput === null) throw new Error('fill input not found');
-    fillInput.value = '#ff0000';
-    fillInput.dispatchEvent(new Event('change', { bubbles: true }));
+    // D-092: the simplified native <input type="color"> was removed. The
+    // Fill swatch row is now a <button.color-trigger> opening the advanced
+    // <svge-color-picker> popup, which routes through
+    // (colorChange)="setStyle('fill', $event)". Drive that handler.
+    inspectorOf(fixture).setStyle('fill', '#ff0000');
     fixture.detectChanges();
 
     const updated = findNodeById(state.document().root, r.id);
@@ -731,11 +751,12 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
     });
   });
 
-  it('picker input value is normalized to hex even when model has hsl/rgb/named', () => {
+  it('picker receives normalized hex even when model has hsl/rgb/named', () => {
     // Bloco 4-IP-FixBugs2 regression: pre-fix, the native picker opened
-    // at #cccccc (gray) whenever the model held a non-hex color. Now it
-    // opens at the normalized hex equivalent so the user sees their
-    // actual color highlighted in the picker dialog.
+    // at #cccccc (gray) whenever the model held a non-hex color. Now
+    // styleColor() normalizes the model value to hex6 and feeds it to
+    // <svge-color-picker [color]=...>, so the popup opens at the user's
+    // actual color (D-092 dropped the native <input type="color">).
     const r = createRect(
       { x: 0, y: 0, width: 10, height: 10 },
       { style: { fill: 'rgb(0, 128, 64)' } },
@@ -749,12 +770,8 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
     fixture.detectChanges();
     activateTab(fixture.nativeElement, 'colors');
     fixture.detectChanges();
-    const fillInput = fixture.nativeElement.querySelector(
-      'input[type="color"]',
-    ) as HTMLInputElement | null;
-    if (fillInput === null) throw new Error('fill input not found');
-    // Browsers store color values lower-cased and zero-padded.
-    expect(fillInput.value).toBe('#008040');
+    // Normalized, lower-cased, zero-padded hex6.
+    expect(inspectorOf(fixture).styleColor('fill')).toBe('#008040');
   });
 
   describe('palette integration (Bloco 4d)', () => {
@@ -784,18 +801,19 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
       fixture.detectChanges();
       activateTab(fixture.nativeElement, 'colors');
       fixture.detectChanges();
-      // Active-target moved from <label.field-row> to the wrapping
+      // Active-target moved from the color row to the wrapping
       // <div.color-cell> (Bloco 4-Alpha) so the accent ring wraps
-      // both the color row and the new alpha input.
+      // both the color row and the new alpha input. D-092: the color
+      // row is now a <button.color-trigger> (was a <label.field-row>).
       const cells = Array.from(
         fixture.nativeElement.querySelectorAll('.color-cell'),
       ) as HTMLElement[];
-      const labelRows = Array.from(
-        fixture.nativeElement.querySelectorAll('label.field-row'),
-      ) as HTMLLabelElement[];
+      const colorRows = Array.from(
+        fixture.nativeElement.querySelectorAll('.color-trigger'),
+      ) as HTMLElement[];
       expect(cells[0]?.classList.contains('active-target')).toBe(true);
       expect(cells[1]?.classList.contains('active-target')).toBe(false);
-      labelRows[1]!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      colorRows[1]!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
       fixture.detectChanges();
       expect(cells[0]?.classList.contains('active-target')).toBe(false);
       expect(cells[1]?.classList.contains('active-target')).toBe(true);
@@ -844,9 +862,10 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
       fixture.detectChanges();
       activateTab(fixture.nativeElement, 'colors');
       fixture.detectChanges();
+      // D-092: color rows are now <button.color-trigger> (was labels).
       const rows = Array.from(
-        fixture.nativeElement.querySelectorAll('label.field-row'),
-      ) as HTMLLabelElement[];
+        fixture.nativeElement.querySelectorAll('.color-trigger'),
+      ) as HTMLElement[];
       rows[1]!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
       fixture.detectChanges();
       const specSwatch = fixture.nativeElement.querySelector(
@@ -929,12 +948,12 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
     });
   });
 
-  it('color row is position:relative so the picker dialog anchors next to the swatch', () => {
-    // Bloco 4-IP-FixBugs: without position:relative on the label, the
-    // absolutely-positioned hidden input escapes to the initial
-    // containing block (viewport). Native browsers anchor the color
-    // picker dialog to the input element, so the popover would appear
-    // in the viewport's top-left corner instead of next to the swatch.
+  it('color row is a button wired to the advanced picker menu (D-092)', () => {
+    // D-092: the swatch row is a <button.color-trigger> bound to a
+    // mat-menu via [matMenuTriggerFor]. MatMenuTrigger marks its host
+    // with aria-haspopup="menu", so we assert that instead of the old
+    // position:relative (which only existed to anchor the removed native
+    // <input type="color">).
     const r = createRect({ x: 0, y: 0, width: 10, height: 10 });
     const { fixture, state, selection } = setup();
     state.setDocument({
@@ -945,19 +964,18 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
     fixture.detectChanges();
     activateTab(fixture.nativeElement, 'colors');
     fixture.detectChanges();
-    const fieldRow = fixture.nativeElement.querySelector(
-      'label.field-row',
-    ) as HTMLLabelElement | null;
-    if (fieldRow === null) throw new Error('field-row not found');
-    const cs = getComputedStyle(fieldRow);
-    expect(cs.position).toBe('relative');
+    const trigger = fixture.nativeElement.querySelector(
+      'button.color-trigger',
+    ) as HTMLButtonElement | null;
+    if (trigger === null) throw new Error('color-trigger not found');
+    expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
   });
 
-  it('color picker is fused with swatch under a single <label> (single visual control)', () => {
-    // Bloco 4-IP-Fix: market-standard pattern. Native <input type="color">
-    // is visually hidden (via .color-input-hidden) but tab-focusable and
-    // wired to the swatch via the parent <label>. Result: ONE clickable
-    // element per color field (no duplicated grey picker box).
+  it('color field is a single swatch button with no native color input (D-092)', () => {
+    // D-092: standardize on the advanced <svge-color-picker>. The
+    // simplified native <input type="color"> was removed; each Fill/
+    // Stroke field is now ONE <button.color-trigger> wrapping a single
+    // swatch chip that opens the advanced picker popup.
     const r = createRect({ x: 0, y: 0, width: 10, height: 10 });
     const { fixture, state, selection } = setup();
     state.setDocument({
@@ -969,17 +987,17 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
     activateTab(fixture.nativeElement, 'colors');
     fixture.detectChanges();
 
-    const fieldRows = Array.from(
-      fixture.nativeElement.querySelectorAll('label.field-row'),
-    ) as HTMLLabelElement[];
-    expect(fieldRows.length).toBe(2); // fill + stroke
-    // Each label wraps exactly one swatch + one hidden color input
-    for (const row of fieldRows) {
+    const triggers = Array.from(
+      fixture.nativeElement.querySelectorAll('button.color-trigger'),
+    ) as HTMLButtonElement[];
+    expect(triggers.length).toBe(2); // fill + stroke
+    for (const row of triggers) {
       expect(row.querySelectorAll('.swatch').length).toBe(1);
-      const colorInputs = row.querySelectorAll('input[type="color"]');
-      expect(colorInputs.length).toBe(1);
-      expect(colorInputs[0]?.classList.contains('color-input-hidden')).toBe(true);
+      // No simplified native picker remains anywhere in the field.
+      expect(row.querySelectorAll('input[type="color"]').length).toBe(0);
     }
+    // And none survive in the whole "colors" tab either.
+    expect(fixture.nativeElement.querySelectorAll('input[type="color"]').length).toBe(0);
   });
 });
 
@@ -1126,10 +1144,8 @@ describe('SvgeInspector — multi-edit (Item 1, débito 4c)', () => {
 
   it('common fill value: when all selected nodes share the same color, picker reads it', () => {
     const { fixture } = setupMulti([{ fill: '#ff0000' }, { fill: '#ff0000' }]);
-    const colorInput = fixture.nativeElement.querySelector(
-      'input[type="color"]',
-    ) as HTMLInputElement | null;
-    expect(colorInput?.value).toBe('#ff0000');
+    // D-092: the advanced picker reads its colour from styleColor('fill').
+    expect(inspectorOf(fixture).styleColor('fill')).toBe('#ff0000');
   });
 
   it('mixed fill values: picker shows neutral fallback, alpha input is empty', () => {
@@ -1137,10 +1153,8 @@ describe('SvgeInspector — multi-edit (Item 1, débito 4c)', () => {
       { fill: '#ff0000', fillOpacity: 0.5 },
       { fill: '#00ff00', fillOpacity: 1 },
     ]);
-    const colorInput = fixture.nativeElement.querySelector(
-      'input[type="color"]',
-    ) as HTMLInputElement;
-    expect(colorInput.value).toBe('#cccccc'); // neutral
+    // D-092: mixed colours collapse to the neutral grey the picker opens at.
+    expect(inspectorOf(fixture).styleColor('fill')).toBe('#cccccc'); // neutral
     const alphaInput = fixture.nativeElement.querySelector('.alpha-input') as HTMLInputElement;
     expect(alphaInput.value).toBe(''); // mixed → empty
     expect(alphaInput.placeholder).toBe('mixed');
@@ -1148,11 +1162,8 @@ describe('SvgeInspector — multi-edit (Item 1, débito 4c)', () => {
 
   it('editing fill in multi-edit dispatches SetStylePropertyOnManyCommand atomically', () => {
     const { fixture, state, rects } = setupMulti([{ fill: '#000000' }, { fill: '#000000' }]);
-    const colorInput = fixture.nativeElement.querySelector(
-      'input[type="color"]',
-    ) as HTMLInputElement;
-    colorInput.value = '#abcdef';
-    colorInput.dispatchEvent(new Event('change', { bubbles: true }));
+    // D-092: the picker popup routes through (colorChange)="setStyle('fill', …)".
+    inspectorOf(fixture).setStyle('fill', '#abcdef');
     fixture.detectChanges();
     // Both nodes updated.
     for (const r of rects) {
@@ -1167,11 +1178,7 @@ describe('SvgeInspector — multi-edit (Item 1, débito 4c)', () => {
       { fill: '#000000' },
       { fill: '#000000' },
     ]);
-    const colorInput = fixture.nativeElement.querySelector(
-      'input[type="color"]',
-    ) as HTMLInputElement;
-    colorInput.value = '#abcdef';
-    colorInput.dispatchEvent(new Event('change', { bubbles: true }));
+    inspectorOf(fixture).setStyle('fill', '#abcdef');
     fixture.detectChanges();
     bus.undo();
     for (const r of rects) {
@@ -1217,11 +1224,8 @@ describe('SvgeInspector — multi-edit (Item 1, débito 4c)', () => {
     // D-078: color picker lives in the "colors" tab (single-edit panel).
     activateTab(ctx.fixture.nativeElement, 'colors');
     ctx.fixture.detectChanges();
-    const colorInput = ctx.fixture.nativeElement.querySelector(
-      'input[type="color"]',
-    ) as HTMLInputElement;
-    colorInput.value = '#ff0000';
-    colorInput.dispatchEvent(new Event('change', { bubbles: true }));
+    // D-092: drive the advanced picker's colour-change handler.
+    inspectorOf(ctx.fixture).setStyle('fill', '#ff0000');
     ctx.fixture.detectChanges();
     expect(findNodeById(ctx.state.document().root, a.id)?.style.fill).toBe('#ff0000');
     expect(findNodeById(ctx.state.document().root, b.id)?.style.fill).toBe('#000000');

@@ -196,7 +196,7 @@ const HUE_PX = 16;
 
     <!-- Numeric / hex inputs row. -->
     <div class="inputs">
-      <label class="input-group">
+      <label class="input-group hex">
         <span class="lbl">HEX</span>
         <input
           type="text"
@@ -284,7 +284,15 @@ const HUE_PX = 16;
       padding: 12px;
       background: var(--mat-sys-surface-container, #f5f5f5);
       border-radius: 8px;
-      width: max-content;
+      /* Fixed to the natural width of the sat/val square + hue column
+         (200 + 8 gap + 16 + 24 padding = 248) so the picker fits inside
+         Material's 280px menu panel WITHOUT a horizontal scrollbar. The
+         inputs/recent rows wrap within this width instead of forcing the
+         popover wider than the square (the old max-content let the HEX/
+         RGB row push past the square and overflow into a scrollbar). */
+      width: 248px;
+      max-width: 100%;
+      box-sizing: border-box;
       user-select: none;
       touch-action: none;
     }
@@ -306,20 +314,27 @@ const HUE_PX = 16;
       grid-column: 1 / 3;
       grid-row: 2;
       display: flex;
+      /* Wrap so HEX + R/G/B never push past the picker width (the
+         scrollbar fix): HEX takes its own row, R/G/B + eyedropper share
+         the next. min-width:0 lets the number fields shrink to fit. */
+      flex-wrap: wrap;
       gap: 6px;
-      align-items: center;
+      align-items: flex-end;
     }
     .input-group {
       display: flex;
       flex-direction: column;
       font-size: 11px;
+      flex: 1 1 auto;
+      min-width: 0;
     }
     .input-group .lbl {
       color: var(--mat-sys-on-surface-variant, #666);
       margin-bottom: 2px;
     }
     .input-group input {
-      width: 4em;
+      width: 100%;
+      box-sizing: border-box;
       padding: 4px;
       border: 1px solid var(--mat-sys-outline-variant, #ccc);
       border-radius: 4px;
@@ -328,13 +343,16 @@ const HUE_PX = 16;
       background: var(--mat-sys-surface, #fff);
       color: var(--mat-sys-on-surface, #000);
     }
+    /* HEX takes a full row of its own; R/G/B then fit side-by-side below. */
+    .input-group.hex {
+      flex-basis: 100%;
+    }
     .input-group .hex-input {
-      width: 7em;
       text-transform: lowercase;
     }
     .eyedropper-btn {
-      margin-left: auto;
       align-self: end;
+      flex: 0 0 auto;
     }
     .recent {
       grid-column: 1 / 3;

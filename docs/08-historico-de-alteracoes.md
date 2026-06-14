@@ -6,6 +6,49 @@
 
 ---
 
+## 2026-06-14 — D-092: Color picker padronizado + popup responsivo ✅
+
+Padroniza a seleção de cores de **Fill** e **Stroke** no Inspector e elimina a
+barra de rolagem do popup. Antes cada campo de cor tinha **dois** componentes:
+um `<input type="color">` nativo simplificado (fundido ao swatch) **e** o
+`<svge-color-picker>` avançado (HEX/RGB, conta-gotas, paletas recentes), aberto
+por um botão de ícone separado. Agora há **um só** componente — o avançado.
+
+**Mudanças (Inspector — 4 células: Fill/Stroke × single/multi):**
+
+- A linha do swatch virou um `<button class="field-row color-trigger">` com
+  `[matMenuTriggerFor]` que abre o `<svge-color-picker>` num `mat-menu`
+  (CDK overlay). O `<input type="color">` nativo e o botão-ícone redundante
+  foram removidos das 4 células.
+- CSS: `.color-trigger` zera a aparência nativa do `<button>` (background/
+  border/padding) para ler como a antiga linha. Removidas as regras mortas
+  `.color-input-hidden` e `.picker-trigger-btn`; `position: relative` do
+  `.field-row` (que só ancorava o input escondido) saiu.
+- A faixa de **paletas curadas** (`<svge-color-palette>`) permanece inline —
+  ela não é "o picker simplificado"; é um atalho de swatches.
+
+**Responsividade do popup (causa raiz da scrollbar):**
+
+- A linha de inputs HEX/RGB do `<svge-color-picker>` excedia a largura do
+  quadrado sat/val (200px) e estourava o `max-width: 280px` do `mat-menu` →
+  scrollbar horizontal. Fix: `:host` com largura fixa de **248px**
+  (200 quadrado + 8 gap + 16 hue + 24 padding), `.inputs` com `flex-wrap`, HEX
+  em linha própria (`flex-basis: 100%`), inputs com `width: 100%` e
+  `box-sizing: border-box`. Sem scrollbar.
+
+**Fora de escopo (intencional):** os `<input type="color">` de _tool options_
+(pen/pencil/shape/text — cor padrão de **novos** desenhos), da timeline
+(keyframes) e do fundo do canvas não são edição de Fill/Stroke de objeto e
+foram preservados.
+
+Specs do Inspector reescritas para a nova superfície (sem `input[type="color"]`):
+drivam `setStyle`/`styleColor` via uma visão tipada da API protegida do
+componente — o binding `(colorChange)="setStyle(...)"` é o mesmo @Output já
+coberto fim-a-fim pelos testes de paleta. Sem mudança de API pública. Build,
+suíte (2442) e lint verdes.
+
+---
+
 ## 2026-06-14 — D-091: Tolerância de clique (hit slop) + seleção por área ✅
 
 Resolve a dificuldade de selecionar **shapes sem preenchimento** (`fill: none`)

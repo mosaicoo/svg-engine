@@ -1499,10 +1499,15 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
               <div class="style-subsection" aria-labelledby="style-fill-title">
                 <h4 id="style-fill-title" class="style-subsection-title">Fill</h4>
                 <div class="color-cell" [class.active-target]="activeColorTarget() === 'fill'">
-                  <label
-                    class="field-row"
+                  <button
+                    type="button"
+                    class="field-row color-trigger"
                     [class.disabled]="isLocked()"
+                    [disabled]="isLocked()"
+                    [matMenuTriggerFor]="fillPickerMenu"
                     (pointerdown)="setActiveColorTarget('fill')"
+                    aria-label="Edit fill colour"
+                    title="Edit fill colour — HEX, RGB, eyedropper, palettes"
                   >
                     <span class="lbl">color</span>
                     <span
@@ -1512,19 +1517,11 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
                       [title]="rawStyleColor('fill')"
                       aria-hidden="true"
                     ></span>
-                    <input
-                      type="color"
-                      class="color-input-hidden"
-                      aria-label="Pick fill color"
-                      [disabled]="isLocked()"
-                      [value]="styleColor('fill')"
-                      (change)="setStyle('fill', $any($event.target).value)"
-                    />
-                  </label>
+                  </button>
                   <!--
                 Bloco 4-Alpha: separate alpha slider per color field
-                (Figma/Affinity pattern). Native <input type="color"> is
-                RGB-only; we expose fillOpacity / strokeOpacity here so
+                (Figma/Affinity pattern). The colour picker is RGB/HEX
+                only; we expose fillOpacity / strokeOpacity here so
                 users can control transparency without leaving the row.
               -->
                   <input
@@ -1539,25 +1536,6 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
                     [value]="styleAlpha('fillOpacity')"
                     (change)="setStyleNumber('fillOpacity', $any($event.target).value)"
                   />
-                  <!--
-                Advanced picker trigger (Sprint C). Opens the pro-grade
-                colour picker (sat/val + hue + HEX/RGB + recents +
-                eyedropper) via mat-menu. The native swatch + hidden
-                color input above remain as the quick-pick path — this
-                button is purely additive so all existing UX continues
-                to work for users who don't need the advanced controls.
-              -->
-                  <button
-                    mat-icon-button
-                    type="button"
-                    class="picker-trigger-btn"
-                    [matMenuTriggerFor]="fillPickerMenu"
-                    [disabled]="isLocked()"
-                    aria-label="Open advanced fill colour picker"
-                    title="Advanced picker (hex, RGB, eyedropper, recent colours)"
-                  >
-                    <mat-icon>palette</mat-icon>
-                  </button>
                   <mat-menu
                     #fillPickerMenu="matMenu"
                     xPosition="before"
@@ -1591,10 +1569,15 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
               <div class="style-subsection" aria-labelledby="style-stroke-title">
                 <h4 id="style-stroke-title" class="style-subsection-title">Stroke</h4>
                 <div class="color-cell" [class.active-target]="activeColorTarget() === 'stroke'">
-                  <label
-                    class="field-row"
+                  <button
+                    type="button"
+                    class="field-row color-trigger"
                     [class.disabled]="isLocked()"
+                    [disabled]="isLocked()"
+                    [matMenuTriggerFor]="strokePickerMenu"
                     (pointerdown)="setActiveColorTarget('stroke')"
+                    aria-label="Edit stroke colour"
+                    title="Edit stroke colour — HEX, RGB, eyedropper, palettes"
                   >
                     <span class="lbl">color</span>
                     <span
@@ -1604,15 +1587,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
                       [title]="rawStyleColor('stroke')"
                       aria-hidden="true"
                     ></span>
-                    <input
-                      type="color"
-                      class="color-input-hidden"
-                      aria-label="Pick stroke color"
-                      [disabled]="isLocked()"
-                      [value]="styleColor('stroke')"
-                      (change)="setStyle('stroke', $any($event.target).value)"
-                    />
-                  </label>
+                  </button>
                   <input
                     type="number"
                     class="alpha-input"
@@ -1625,17 +1600,6 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
                     [value]="styleAlpha('strokeOpacity')"
                     (change)="setStyleNumber('strokeOpacity', $any($event.target).value)"
                   />
-                  <button
-                    mat-icon-button
-                    type="button"
-                    class="picker-trigger-btn"
-                    [matMenuTriggerFor]="strokePickerMenu"
-                    [disabled]="isLocked()"
-                    aria-label="Open advanced stroke colour picker"
-                    title="Advanced picker (hex, RGB, eyedropper, recent colours)"
-                  >
-                    <mat-icon>palette</mat-icon>
-                  </button>
                   <mat-menu
                     #strokePickerMenu="matMenu"
                     xPosition="before"
@@ -1782,7 +1746,14 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
               <div class="style-subsection" aria-labelledby="multi-style-fill-title">
                 <h4 id="multi-style-fill-title" class="style-subsection-title">Fill</h4>
                 <div class="color-cell" [class.active-target]="activeColorTarget() === 'fill'">
-                  <label class="field-row" (pointerdown)="setActiveColorTarget('fill')">
+                  <button
+                    type="button"
+                    class="field-row color-trigger"
+                    [matMenuTriggerFor]="fillPickerMenuM"
+                    (pointerdown)="setActiveColorTarget('fill')"
+                    aria-label="Edit fill colour (applies to all)"
+                    title="Edit fill colour — HEX, RGB, eyedropper, palettes"
+                  >
                     <span class="lbl">color</span>
                     <span
                       class="swatch"
@@ -1791,14 +1762,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
                       [title]="rawStyleColor('fill')"
                       aria-hidden="true"
                     ></span>
-                    <input
-                      type="color"
-                      class="color-input-hidden"
-                      aria-label="Pick fill color (applies to all)"
-                      [value]="styleColor('fill')"
-                      (change)="setStyle('fill', $any($event.target).value)"
-                    />
-                  </label>
+                  </button>
                   <input
                     type="number"
                     class="alpha-input"
@@ -1810,6 +1774,24 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
                     [placeholder]="hasMixedStyle('fillOpacity') ? 'mixed' : ''"
                     (change)="setStyleNumber('fillOpacity', $any($event.target).value)"
                   />
+                  <mat-menu
+                    #fillPickerMenuM="matMenu"
+                    xPosition="before"
+                    yPosition="below"
+                    panelClass="svge-picker-menu-panel"
+                  >
+                    <div
+                      class="picker-host"
+                      role="presentation"
+                      (click)="$event.stopPropagation()"
+                      (keydown)="$event.stopPropagation()"
+                    >
+                      <svge-color-picker
+                        [color]="styleColor('fill')"
+                        (colorChange)="setStyle('fill', $event)"
+                      />
+                    </div>
+                  </mat-menu>
                 </div>
                 <svge-color-palette class="palette-strip" (colorPicked)="onPalettePick($event)" />
               </div>
@@ -1817,7 +1799,14 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
               <div class="style-subsection" aria-labelledby="multi-style-stroke-title">
                 <h4 id="multi-style-stroke-title" class="style-subsection-title">Stroke</h4>
                 <div class="color-cell" [class.active-target]="activeColorTarget() === 'stroke'">
-                  <label class="field-row" (pointerdown)="setActiveColorTarget('stroke')">
+                  <button
+                    type="button"
+                    class="field-row color-trigger"
+                    [matMenuTriggerFor]="strokePickerMenuM"
+                    (pointerdown)="setActiveColorTarget('stroke')"
+                    aria-label="Edit stroke colour (applies to all)"
+                    title="Edit stroke colour — HEX, RGB, eyedropper, palettes"
+                  >
                     <span class="lbl">color</span>
                     <span
                       class="swatch"
@@ -1826,14 +1815,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
                       [title]="rawStyleColor('stroke')"
                       aria-hidden="true"
                     ></span>
-                    <input
-                      type="color"
-                      class="color-input-hidden"
-                      aria-label="Pick stroke color (applies to all)"
-                      [value]="styleColor('stroke')"
-                      (change)="setStyle('stroke', $any($event.target).value)"
-                    />
-                  </label>
+                  </button>
                   <input
                     type="number"
                     class="alpha-input"
@@ -1845,6 +1827,24 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
                     [placeholder]="hasMixedStyle('strokeOpacity') ? 'mixed' : ''"
                     (change)="setStyleNumber('strokeOpacity', $any($event.target).value)"
                   />
+                  <mat-menu
+                    #strokePickerMenuM="matMenu"
+                    xPosition="before"
+                    yPosition="below"
+                    panelClass="svge-picker-menu-panel"
+                  >
+                    <div
+                      class="picker-host"
+                      role="presentation"
+                      (click)="$event.stopPropagation()"
+                      (keydown)="$event.stopPropagation()"
+                    >
+                      <svge-color-picker
+                        [color]="styleColor('stroke')"
+                        (colorChange)="setStyle('stroke', $event)"
+                      />
+                    </div>
+                  </mat-menu>
                 </div>
                 <mat-form-field appearance="outline" class="full-width-field">
                   <mat-label>stroke-width</mat-label>
@@ -2067,20 +2067,6 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       opacity: 0.5;
       cursor: not-allowed;
     }
-    /* Advanced picker trigger — small icon button to the right of the
-       alpha input. Stays unobtrusive; users discover via tooltip. */
-    .picker-trigger-btn {
-      width: 28px;
-      height: 28px;
-      line-height: 28px;
-      flex: 0 0 28px;
-      padding: 0;
-    }
-    .picker-trigger-btn .mat-icon {
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-    }
     /* Inner container of the mat-menu popover — keeps the picker from
        inheriting unwanted menu styling (padding 0, no min-width). */
     .picker-host {
@@ -2093,15 +2079,29 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       gap: 8px;
       font-size: 12px;
       cursor: pointer;
-      /* position: relative is REQUIRED so the absolutely-positioned
-         .color-input-hidden anchors inside the row instead of
-         escaping to the initial containing block (viewport). The
-         native color picker dialog opens NEAR its input element —
-         without this, the picker would pop up in the top-left
-         corner of the page (Bloco 4-IP-FixBugs). */
-      position: relative;
+      /* D-092 — the popover is now a CDK overlay anchored to this
+         trigger by Material's menu, so the old position:relative
+         (which existed only to host the removed native
+         .color-input-hidden) is no longer needed. */
     }
     .field-row.disabled {
+      cursor: not-allowed;
+    }
+    /* D-092 — the swatch row is now a <button> that opens the advanced
+       picker (the simplified native <input type="color"> was removed).
+       Reset the native button chrome so it reads as the old flush row. */
+    .color-trigger {
+      appearance: none;
+      background: none;
+      border: 0;
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      font: inherit;
+      color: inherit;
+      text-align: left;
+    }
+    .color-trigger:disabled {
       cursor: not-allowed;
     }
     /* Bloco 4d active-target highlight moved from .field-row to the
@@ -2120,11 +2120,11 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       flex: 1;
       color: var(--mat-sys-on-surface-variant, #777);
     }
-    /* Bloco 4-IP-Fix: single visible color chip (swatch). The native
-       <input type="color"> is visually hidden but kept in the DOM as
-       a sibling of this <label>'s text; clicking the label opens the
-       native picker via the browser's label-input association. Result:
-       one element to look at AND to click (Figma/Affinity pattern).
+    /* Single visible color chip (swatch). D-092: clicking the swatch row
+       (a <button.color-trigger>) opens the advanced <svge-color-picker>
+       in a CDK overlay menu — the simplified native <input type="color">
+       was removed. Result: one element to look at AND to click
+       (Figma/Affinity pattern).
 
        Bloco 4z-fixes4: checkerboard backdrop is now CONDITIONAL via
        the .show-checker class, added only when the color is transparent
@@ -2156,30 +2156,6 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
     }
     .field-row.disabled .swatch {
       opacity: 0.5;
-    }
-    /* Native color input visually hidden — clicking the parent <label>
-       still opens its picker dialog (browsers: label-for-input association).
-       Kept tab-focusable (NOT removed via display:none) so keyboard users
-       can still reach + change colors.
-
-       Positioned to overlay the swatch (left:36px = swatch right edge +
-       gap) so the browser's native color-picker popover anchors NEXT TO
-       the swatch instead of in the viewport corner. The 1px-by-1px size
-       + opacity 0 keeps it invisible; pointer-events:none lets clicks
-       fall through to the parent <label>, which then dispatches a
-       programmatic click to this input — opening the picker. */
-    .color-input-hidden {
-      position: absolute;
-      top: 50%;
-      left: 36px;
-      width: 1px;
-      height: 1px;
-      opacity: 0;
-      overflow: hidden;
-      pointer-events: none;
-      margin: 0;
-      padding: 0;
-      border: 0;
     }
     .placeholder {
       display: flex;
@@ -3141,8 +3117,8 @@ export class SvgeInspector {
   }
 
   /**
-   * Value bound to the `<input type="color">` picker. Color inputs only
-   * accept `#RRGGBB`, so non-hex values are NORMALIZED to hex via
+   * Colour fed to the advanced `<svge-color-picker>` (D-092). The picker
+   * works in `#RRGGBB`, so non-hex values are NORMALIZED to hex via
    * {@link cssColorToHex6}. Special non-paint values (`'none'`,
    * `'url(...)'`, `'transparent'`) fall through to neutral. Mixed
    * values in multi-edit also fall through to neutral (picker can't
@@ -4488,8 +4464,8 @@ function parseNumericInput(raw: string): number | null {
  * Normalize any CSS color string to a 6-character `#RRGGBB` hex (lower-
  * case). Returns `null` when the input can't be interpreted as a color
  * (`'none'`, `'url(#grad)'`, malformed, etc. — callers handle the
- * fallback). Used by the inspector's color picker to seed the native
- * `<input type="color">` so it opens at the **real** model color (e.g.
+ * fallback). Used by the inspector's color picker to seed the advanced
+ * `<svge-color-picker>` so it opens at the **real** model color (e.g.
  * a `hsl(...)` from a generative palette) instead of the gray default.
  *
  * Strategy — short-circuits in order of decreasing cheapness:
@@ -4500,7 +4476,8 @@ function parseNumericInput(raw: string): number | null {
  *    (DOM required; safely returns `null` in non-browser contexts
  *    or when Canvas isn't fully implemented — e.g., jsdom)
  *
- * Alpha is discarded — native `<input type="color">` doesn't support it.
+ * Alpha is discarded — the `<svge-color-picker>` is RGB/HEX only (the
+ * separate per-field alpha input carries fill/strokeOpacity).
  *
  * Why not just always use Canvas: jsdom's Canvas impl is incomplete
  * (writing `fillStyle` doesn't normalize), so tests can't rely on it.
