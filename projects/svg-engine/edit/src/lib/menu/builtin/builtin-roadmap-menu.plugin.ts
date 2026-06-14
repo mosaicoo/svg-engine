@@ -8,11 +8,9 @@ import {
   findNodeById,
   JoinPathsCommand,
   type NodeId,
-  OffsetPathCommand,
   OutlineStrokeCommand,
   type PathSplitCut,
   ReversePathCommand,
-  SimplifyPathCommand,
   SplitPathCommand,
 } from 'svg-engine/core';
 
@@ -500,47 +498,11 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     );
 
     // ── Object (roadmap) ───────────────────────────────────────────
-    // Transform ▶ extra (Flip H/V are real, orders 10/20).
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.object.transform.rotate',
-        parentId: 'svge.builtin.object.flip',
-        slot: MENU_SLOT.OBJECT,
-        label: 'Rotate',
-        icon: 'rotate_right',
-        order: 30,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.object.transform.scale',
-        parentId: 'svge.builtin.object.flip',
-        slot: MENU_SLOT.OBJECT,
-        label: 'Scale',
-        icon: 'photo_size_select_large',
-        order: 40,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.object.transform.skew',
-        parentId: 'svge.builtin.object.flip',
-        slot: MENU_SLOT.OBJECT,
-        label: 'Skew',
-        icon: 'transform',
-        order: 50,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.object.transform.reset',
-        parentId: 'svge.builtin.object.flip',
-        slot: MENU_SLOT.OBJECT,
-        label: 'Reset Transform',
-        icon: 'restart_alt',
-        order: 60,
-      }),
-    );
+    // Transform ▶ — SHIPPED (D-093). Flip H/V (edit-side, orders 10/20)
+    // and Reset Transform (edit-side, order 60) are real; Rotate… / Scale…
+    // / Skew… (orders 30/40/50) are real dialog-backed entries registered
+    // by `builtinUiMenuContributionsPlugin` (they need a Material dialog —
+    // D-017). No longer roadmap placeholders.
     // Align ▶ extra (6 align ops are real).
     track(
       roadmapLeaf({
@@ -663,34 +625,11 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
         injector.get(CommandBus).dispatch(new ReversePathCommand(ids));
       },
     });
-    track({
-      id: 'svge.builtin.path.simplify',
-      slot: MENU_SLOT.PATH,
-      label: 'Simplify',
-      icon: 'show_chart',
-      order: 60,
-      disabled: (injector: Injector) => computed(() => selectedPathIds(injector).length === 0),
-      run(runCtx?: MenuContributionContext) {
-        const injector = runCtx?.injector ?? ctx.injector;
-        const ids = selectedPathIds(injector);
-        if (ids.length === 0) return;
-        injector.get(CommandBus).dispatch(new SimplifyPathCommand(ids));
-      },
-    });
-    track({
-      id: 'svge.builtin.path.offset',
-      slot: MENU_SLOT.PATH,
-      label: 'Offset Path',
-      icon: 'line_style',
-      order: 70,
-      disabled: (injector: Injector) => computed(() => selectedPathIds(injector).length === 0),
-      run(runCtx?: MenuContributionContext) {
-        const injector = runCtx?.injector ?? ctx.injector;
-        const ids = selectedPathIds(injector);
-        if (ids.length === 0) return;
-        injector.get(CommandBus).dispatch(new OffsetPathCommand(ids));
-      },
-    });
+    // Path ▸ Simplify… (order 60) + Offset Path… (order 70) — SHIPPED with
+    // parameter dialogs by `builtinUiMenuContributionsPlugin` (D-093). They
+    // lived here with HARDCODED defaults and no dialog; moved to the UI
+    // plugin so each prompts for its numeric parameter (Material — D-017).
+    // Ids/orders preserved so the Path menu reads identically.
     track({
       id: 'svge.builtin.path.clean-up',
       slot: MENU_SLOT.PATH,

@@ -32,6 +32,25 @@ export function rotate(angleRad: number): Transform {
   return [cos, sin, -sin, cos, 0, 0];
 }
 
+/**
+ * Build a horizontal-skew (shear-X) transform around the origin:
+ * `x' = x + tan(angleRad)·y`, `y' = y`. Angle in radians. This is the
+ * matrix form of SVG's `skewX(deg)`. Sibling to {@link rotate} / {@link scale}
+ * so the affine-math module is the single home for primitive builders.
+ */
+export function skewX(angleRad: number): Transform {
+  return [1, 0, Math.tan(angleRad), 1, 0, 0];
+}
+
+/**
+ * Build a vertical-skew (shear-Y) transform around the origin:
+ * `x' = x`, `y' = y + tan(angleRad)·x`. Angle in radians. Matrix form of
+ * SVG's `skewY(deg)`.
+ */
+export function skewY(angleRad: number): Transform {
+  return [1, Math.tan(angleRad), 0, 1, 0, 0];
+}
+
 /** Multiply two transforms (left * right) and return the resulting matrix. */
 export function multiply(left: Transform, right: Transform): Transform {
   const [a1, b1, c1, d1, e1, f1] = left;

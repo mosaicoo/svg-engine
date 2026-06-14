@@ -115,6 +115,17 @@ export * from './lib/keyboard-shortcuts-dialog';
 // from the svg-studio NLU palette (Ctrl+K, natural language).
 export * from './lib/command-palette';
 
+// D-093 — Object ▸ Transform parameter dialog (Rotate / Scale / Skew).
+// Illustrator-style "enter the exact amount" dialog backing the three
+// Transform submenu entries that need a value. Pure-UI; the menu handler
+// does the geometry + dispatches the matching batch command.
+export * from './lib/transform-dialog';
+
+// D-093 — generic single-number prompt dialog. Backs menu actions whose
+// command takes one numeric parameter but previously used a hardcoded
+// default (Path ▸ Offset Path distance, Path ▸ Simplify tolerance).
+export * from './lib/number-prompt-dialog';
+
 // Status bar (D-035 — shell-refinement; standalone OR via <svge-editor>)
 export * from './lib/status-bar';
 

@@ -5,6 +5,8 @@ import {
   multiply,
   rotate,
   scale,
+  skewX,
+  skewY,
   translate,
   type Transform,
 } from './transform';
@@ -51,6 +53,38 @@ describe('Transform', () => {
       const p = applyTransform(m, 1, 0);
       expect(p.x).toBeCloseTo(0);
       expect(p.y).toBeCloseTo(1);
+    });
+  });
+
+  describe('skewX', () => {
+    it('produces [1, 0, tan(a), 1, 0, 0]', () => {
+      const m = skewX(Math.PI / 4); // tan(45°) = 1
+      expect(m[0]).toBeCloseTo(1);
+      expect(m[1]).toBeCloseTo(0);
+      expect(m[2]).toBeCloseTo(1);
+      expect(m[3]).toBeCloseTo(1);
+    });
+
+    it('shears x by tan(a)·y, leaving y unchanged', () => {
+      const p = applyTransform(skewX(Math.PI / 4), 0, 10);
+      expect(p.x).toBeCloseTo(10);
+      expect(p.y).toBeCloseTo(10);
+    });
+  });
+
+  describe('skewY', () => {
+    it('produces [1, tan(a), 0, 1, 0, 0]', () => {
+      const m = skewY(Math.PI / 4);
+      expect(m[0]).toBeCloseTo(1);
+      expect(m[1]).toBeCloseTo(1);
+      expect(m[2]).toBeCloseTo(0);
+      expect(m[3]).toBeCloseTo(1);
+    });
+
+    it('shears y by tan(a)·x, leaving x unchanged', () => {
+      const p = applyTransform(skewY(Math.PI / 4), 10, 0);
+      expect(p.x).toBeCloseTo(10);
+      expect(p.y).toBeCloseTo(10);
     });
   });
 

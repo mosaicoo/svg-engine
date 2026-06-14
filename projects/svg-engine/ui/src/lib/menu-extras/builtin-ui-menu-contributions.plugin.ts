@@ -2,15 +2,27 @@ import { computed, type Injector, type ProviderToken, type Signal } from '@angul
 import { firstValueFrom } from 'rxjs';
 import {
   CommandBus,
+  DEFAULT_OFFSET_DISTANCE,
+  DEFAULT_SIMPLIFY_TOLERANCE,
   EditorStateService,
   findNodeById,
   type ImageNode,
   isSmartObject,
   type NodeId,
+  OffsetPathCommand,
+  type Point,
+  ResizeNodesCommand,
+  RotateNodesCommand,
   SetPropertyCommand,
+  SimplifyPathCommand,
+  SkewNodesCommand,
+  type Transform,
 } from 'svg-engine/core';
 import {
   type EditorPlugin,
+  getRenderedNodeBBox,
+  getRenderedParentMatrix,
+  LayersService,
   MENU_SLOT,
   MenuContributionRegistry,
   PLUGIN_API_VERSION,
@@ -26,10 +38,12 @@ import { SvgeAboutDialogService } from '../about-dialog';
 import { SvgeCommandPaletteService } from '../command-palette';
 import { SvgeFindReplaceDialogService } from '../find-replace-dialog';
 import { SvgeKeyboardShortcutsDialogService } from '../keyboard-shortcuts-dialog';
+import { SvgeNumberPromptDialogService } from '../number-prompt-dialog';
 import { SvgePluginManagerDialogService } from '../plugin-manager-dialog';
 import { SvgeSmartObjectEditorDialogService } from '../smart-object-dialog';
 import { SvgeSvgSourceDialogService } from '../svg-source-dialog';
 import { SvgeTraceImageDialogService, type TraceImageDialogResult } from '../trace-image-dialog';
+import { SvgeTransformDialogService, type TransformDialogMode } from '../transform-dialog';
 import { SvgeWorkspaceSettingsDialogService } from '../workspace-settings';
 import { WorkspaceLayoutService } from '../workspace-layout';
 
@@ -514,6 +528,228 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
           if (id === null) return;
           const service = fromCtx(SvgeSmartObjectEditorDialogService, runCtx);
           service.open(id, runCtx?.injector ?? ctx.injector);
+        },
+      }),
+    );
+
+    // ── D-093 — Object ▸ Transform ▸ Rotate… / Scale… / Skew… ───────
+    //
+    // Ship the roadmap placeholders `svge.roadmap.object.transform.{rotate,
+    // scale,skew}` (removed from `builtinRoadmapMenuPlugin`). Each opens an
+    // Illustrator-style parameter dialog (`<svge-transform-dialog>`) and
+    // dispatches the matching BATCH command, so a multi-selection transforms
+    // as a rigid group about the COMBINED-bbox centre — same convention as
+    // the canvas handles. Here (not edit-side) because they need a Material
+    // dialog (D-017). Parented under the Transform submenu
+    // (`svge.builtin.object.flip`, registered edit-side, with Flip H/V 10/20
+    // and Reset Transform 60). Skew is the brand-new D-093 core command;
+    // Rotate/Scale reuse the existing Rotate/Resize batch commands.
+    const selectionEmptyFactory = (injector: Injector): Signal<boolean> => {
+      const selection = injector.get(SelectionService);
+      return computed(() => Array.from(selection.selectedIds()).length === 0);
+    };
+    const deg2rad = (deg: number): number => (deg * Math.PI) / 180;
+    // tan(±90°) diverges — clamp so a skew can never collapse the shape.
+    const clampSkewDeg = (deg: number): number => Math.max(-89, Math.min(89, deg));
+    // Combined-bbox centre (doc coords) + per-node ancestor matrices, read
+    // from the live `<svge-renderer>` — the proven Flip/Align pattern. The
+    // three batch Entry types are structurally identical ({id, parentMatrix}).
+    const collectTransformContext = (
+      injector: Injector,
+    ): { entries: { id: NodeId; parentMatrix: Transform | null }[]; center: Point } | null => {
+      const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+      if (svg === null) return null;
+      const sel = injector.get(SelectionService);
+      const layers = injector.get(LayersService);
+      const entries: { id: NodeId; parentMatrix: Transform | null }[] = [];
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const id of sel.selectedIds()) {
+        if (layers.isLocked(id)) continue;
+        const bbox = getRenderedNodeBBox(svg, id);
+        if (bbox === null) continue;
+        entries.push({ id, parentMatrix: getRenderedParentMatrix(svg, id) });
+        minX = Math.min(minX, bbox.x);
+        minY = Math.min(minY, bbox.y);
+        maxX = Math.max(maxX, bbox.x + bbox.width);
+        maxY = Math.max(maxY, bbox.y + bbox.height);
+      }
+      if (entries.length === 0 || !Number.isFinite(minX)) return null;
+      return { entries, center: { x: (minX + maxX) / 2, y: (minY + maxY) / 2 } };
+    };
+    const openTransformDialog = async (
+      mode: TransformDialogMode,
+      runCtx: MenuContributionContext | undefined,
+    ): Promise<void> => {
+      const injector = runCtx?.injector ?? ctx.injector;
+      const ref = injector.get(SvgeTransformDialogService).open(mode, injector);
+      const result = await firstValueFrom(ref.afterClosed());
+      if (result == null) return; // cancelled / degenerate (e.g. scale 0)
+      const sel = collectTransformContext(injector);
+      if (sel === null) return; // nothing selected / not rendered
+      const bus = injector.get(CommandBus);
+      switch (result.mode) {
+        case 'rotate':
+          bus.dispatch(new RotateNodesCommand(sel.entries, sel.center, deg2rad(result.angleDeg)));
+          return;
+        case 'scale':
+          bus.dispatch(new ResizeNodesCommand(sel.entries, sel.center, result.sx, result.sy));
+          return;
+        case 'skew':
+          bus.dispatch(
+            new SkewNodesCommand(
+              sel.entries,
+              sel.center,
+              deg2rad(clampSkewDeg(result.skewXDeg)),
+              deg2rad(clampSkewDeg(result.skewYDeg)),
+            ),
+          );
+          return;
+      }
+    };
+    const TRANSFORM_ITEMS: readonly {
+      readonly id: string;
+      readonly mode: TransformDialogMode;
+      readonly label: string;
+      readonly icon: string;
+      readonly tooltip: string;
+      readonly order: number;
+    }[] = [
+      {
+        id: 'svge.builtin.ui.object.transform.rotate',
+        mode: 'rotate',
+        label: 'Rotate…',
+        icon: 'rotate_right',
+        tooltip: 'Rotate the selection by an exact angle',
+        order: 30,
+      },
+      {
+        id: 'svge.builtin.ui.object.transform.scale',
+        mode: 'scale',
+        label: 'Scale…',
+        icon: 'photo_size_select_large',
+        tooltip: 'Scale the selection by an exact percentage',
+        order: 40,
+      },
+      {
+        id: 'svge.builtin.ui.object.transform.skew',
+        mode: 'skew',
+        label: 'Skew…',
+        icon: 'transform',
+        tooltip: 'Skew (shear) the selection by an exact angle',
+        order: 50,
+      },
+    ];
+    for (const item of TRANSFORM_ITEMS) {
+      ctx.track(
+        reg.register({
+          id: item.id,
+          parentId: 'svge.builtin.object.flip',
+          slot: MENU_SLOT.OBJECT,
+          label: item.label,
+          icon: item.icon,
+          tooltip: item.tooltip,
+          order: item.order,
+          disabled: selectionEmptyFactory,
+          run(runCtx) {
+            void openTransformDialog(item.mode, runCtx);
+          },
+        }),
+      );
+    }
+
+    // ── D-093 — Path ▸ Simplify… / Offset Path… (parameter dialogs) ──
+    //
+    // Re-home the D-090 Path ▸ Simplify and Offset Path entries (removed
+    // from `builtinRoadmapMenuPlugin`, where they dispatched with a HARDCODED
+    // default and NO dialog). Each now prompts for its single numeric
+    // parameter via `<svge-number-prompt-dialog>` before dispatching — the
+    // missing "enter the amount" step every pro editor offers. Ids + orders
+    // preserved (`svge.builtin.path.simplify` 60, `…offset` 70) so the Path
+    // menu reads identically; only the run() gained a dialog (hence moved
+    // here, where Material lives — D-017).
+    const selectedPathIds = (injector: Injector): NodeId[] => {
+      const sel = injector.get(SelectionService);
+      const root = injector.get(EditorStateService).document().root;
+      const out: NodeId[] = [];
+      for (const id of sel.selectedIds()) {
+        const node = findNodeById(root, id);
+        if (node !== null && node.type === 'path') out.push(id);
+      }
+      return out;
+    };
+    const noPathSelectionFactory = (injector: Injector): Signal<boolean> =>
+      computed(() => selectedPathIds(injector).length === 0);
+    const openSimplifyDialog = async (
+      runCtx: MenuContributionContext | undefined,
+    ): Promise<void> => {
+      const injector = runCtx?.injector ?? ctx.injector;
+      const ids = selectedPathIds(injector);
+      if (ids.length === 0) return;
+      const ref = injector.get(SvgeNumberPromptDialogService).open(
+        {
+          icon: 'show_chart',
+          title: 'Simplify',
+          subtitle: 'Reduce anchor count while preserving the shape',
+          label: 'Tolerance',
+          unit: 'px',
+          value: DEFAULT_SIMPLIFY_TOLERANCE,
+          min: 0,
+          step: 0.1,
+          hint: 'Higher tolerance removes more anchors (smoother, less faithful). 0 keeps every point.',
+        },
+        injector,
+      );
+      const tolerance = await firstValueFrom(ref.afterClosed());
+      if (tolerance == null) return;
+      injector.get(CommandBus).dispatch(new SimplifyPathCommand(ids, tolerance));
+    };
+    const openOffsetDialog = async (runCtx: MenuContributionContext | undefined): Promise<void> => {
+      const injector = runCtx?.injector ?? ctx.injector;
+      const ids = selectedPathIds(injector);
+      if (ids.length === 0) return;
+      const ref = injector.get(SvgeNumberPromptDialogService).open(
+        {
+          icon: 'line_style',
+          title: 'Offset Path',
+          subtitle: 'Create a parallel contour inside or outside the path',
+          label: 'Distance',
+          unit: 'px',
+          value: DEFAULT_OFFSET_DISTANCE,
+          step: 1,
+          hint: 'Positive offsets outward; negative offsets inward (inset).',
+        },
+        injector,
+      );
+      const distance = await firstValueFrom(ref.afterClosed());
+      if (distance == null) return;
+      injector.get(CommandBus).dispatch(new OffsetPathCommand(ids, distance));
+    };
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.path.simplify',
+        slot: MENU_SLOT.PATH,
+        label: 'Simplify…',
+        icon: 'show_chart',
+        order: 60,
+        disabled: noPathSelectionFactory,
+        run(runCtx) {
+          void openSimplifyDialog(runCtx);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.path.offset',
+        slot: MENU_SLOT.PATH,
+        label: 'Offset Path…',
+        icon: 'line_style',
+        order: 70,
+        disabled: noPathSelectionFactory,
+        run(runCtx) {
+          void openOffsetDialog(runCtx);
         },
       }),
     );

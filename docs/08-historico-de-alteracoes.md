@@ -6,6 +6,60 @@
 
 ---
 
+## 2026-06-14 — D-093 — Object ▸ Transform: Rotate / Scale / Skew / Reset + dialogs de parâmetro ✅
+
+Conclui o submenu **Object ▸ Transform**, que tinha Flip H/V reais mas
+Rotate / Scale / Skew / Reset Transform como **placeholders de roadmap**
+(desativados). Agora os quatro são reais, no padrão Illustrator "informe o
+valor exato". Também adiciona os **diálogos que faltavam** em duas operações
+de Path entregues antes com default hardcoded (Simplify, Offset Path).
+
+**Core (svg-engine/core)** — só o Skew era inédito:
+
+- [transform.ts](../projects/svg-engine/core/src/lib/types/transform.ts): helpers
+  `skewX(rad)` / `skewY(rad)` (irmãos de `rotate`/`scale`/`translate`).
+- [skew-node.command.ts](../projects/svg-engine/core/src/lib/commands/skew-node.command.ts):
+  `SkewNodeCommand` + `composePivotSkew` (espelha `RotateNodeCommand` —
+  `T(pivot)·K·T(-pivot)·existing`, undoable).
+- [skew-nodes.command.ts](../projects/svg-engine/core/src/lib/commands/skew-nodes.command.ts):
+  `SkewNodesCommand` (batch, shear rígido do conjunto em torno do pivô
+  compartilhado via conjugação por `parentMatrix` — igual aos batches de
+  rotate/resize). Rotate/Scale **reaproveitam** `RotateNodesCommand` /
+  `ResizeNodesCommand` (já usados pelo Inspector e pelos handles do canvas);
+  Reset reaproveita `SetPropertyCommand('transform', [1,0,0,1,e,f])`.
+
+**UI (svg-engine/ui)** — dialogs Material (D-017):
+
+- [transform-dialog](../projects/svg-engine/ui/src/lib/transform-dialog/transform-dialog.component.ts):
+  `<svge-transform-dialog>` parametrizado por modo (rotate: ângulo°; scale:
+  % com toggle "uniforme"; skew: X°/Y°). Pure-UI — coleta o valor, devolve;
+  o handler faz a geometria + despacha o comando.
+- [number-prompt-dialog](../projects/svg-engine/ui/src/lib/number-prompt-dialog/number-prompt-dialog.component.ts):
+  `<svge-number-prompt-dialog>` genérico (1 número, label/unit/min/max/step/
+  hint) — reutilizado por Simplify (tolerância) e Offset Path (distância).
+
+**Wiring**:
+
+- Reset Transform (order 60, **sem dialog**) registrado edit-side em
+  [builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts),
+  ao lado de Flip H/V.
+- Rotate… / Scale… / Skew… (orders 30/40/50) + Simplify… / Offset Path…
+  (ids/orders preservados: 60/70) registrados em
+  [builtin-ui-menu-contributions.plugin.ts](../projects/svg-engine/ui/src/lib/menu-extras/builtin-ui-menu-contributions.plugin.ts)
+  (precisam de MatDialog). Pivô = **centro do bbox combinado** da seleção;
+  `entries` com `parentMatrix` por nó (helpers `getRenderedNodeBBox` /
+  `getRenderedParentMatrix`) → multi-seleção transforma como grupo rígido.
+- Placeholders de roadmap removidos de
+  [builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts)
+  (Transform rotate/scale/skew/reset) e as entradas Simplify/Offset
+  re-hospedadas na UI (antes dispatchavam com default fixo, sem dialog).
+
+Skew clampado a ±89° (tan diverge em 90°). Specs: skew (single+batch,
+paridade, undo, partial) + `skewX`/`skewY` no transform.spec. Build + lint +
+suíte (**2491**) verdes; snapshot de API regenerado (+core skew, +ui dialogs).
+
+---
+
 ## 2026-06-14 — Tools ▸ Command Palette (Ctrl+Shift+P) ✅
 
 "Ships" o placeholder de roadmap `svge.roadmap.tools.command-palette`: um

@@ -28,9 +28,11 @@ import {
   ReorderNodeCommand,
   type ReorderDirection,
   RestoreSnapshotCommand,
+  SetPropertyCommand,
   SnapshotsService,
   SubtractCommand,
   type TextNode,
+  type Transform,
   UngroupCommand,
   UnionCommand,
   UnmakeLayerCommand,
@@ -1314,6 +1316,50 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         disabled: noSelectionFactory,
         run(runCtx) {
           dispatchFlip(runCtx, 'vertical');
+        },
+      }),
+    );
+
+    // ── D-093 — Object ▸ Transform ▸ Reset Transform ────────────────
+    //
+    // Ships the roadmap placeholder `svge.roadmap.object.transform.reset`
+    // (removed from `builtinRoadmapMenuPlugin`). Mechanically identical to
+    // the Inspector's `resetTransform()`: clears rotation / scale / skew
+    // back to identity while KEEPING the translation (`[1,0,0,1,e,f]`), so
+    // the shape doesn't teleport. No dialog — it's a one-shot action. One
+    // undoable `SetPropertyCommand` per selected, unlocked node; nodes
+    // already at identity rotation/scale are skipped (no no-op history).
+    // Lives edit-side (no Material needed). Order 60 — last under the
+    // Transform submenu (Flip H/V 10/20, Rotate/Scale/Skew 30/40/50 added
+    // by the UI plugin, Reset 60).
+    const dispatchResetTransform = (runCtx: MenuContributionContext | undefined): void => {
+      const sel = fromCtx(SelectionService, runCtx);
+      const layers = fromCtx(LayersService, runCtx);
+      const state = fromCtx(EditorStateService, runCtx);
+      const bus = fromCtx(CommandBus, runCtx);
+      for (const id of sel.selectedIds()) {
+        if (layers.isLocked(id)) continue;
+        const node = findNodeById(state.document().root, id);
+        if (node === null) continue;
+        const t = node.transform;
+        // Already identity rotation+scale+skew → nothing to clear.
+        if (t[0] === 1 && t[1] === 0 && t[2] === 0 && t[3] === 1) continue;
+        const next: Transform = [1, 0, 0, 1, t[4], t[5]];
+        bus.dispatch(new SetPropertyCommand(id, 'transform', next));
+      }
+    };
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.transform.reset',
+        parentId: 'svge.builtin.object.flip',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Reset Transform',
+        icon: 'restart_alt',
+        tooltip: 'Clear rotation, scale and skew (keep position)',
+        order: 60,
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          dispatchResetTransform(runCtx);
         },
       }),
     );
