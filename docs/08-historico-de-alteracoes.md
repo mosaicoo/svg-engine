@@ -6,6 +6,53 @@
 
 ---
 
+## 2026-06-14 — Tools ▸ Command Palette (Ctrl+Shift+P) ✅
+
+"Ships" o placeholder de roadmap `svge.roadmap.tools.command-palette`: um
+**command palette** estilo VS Code / Figma "Quick actions" / Linear — overlay
+flutuante com input no topo e uma **lista filtrável** de **todos os comandos
+registrados** (menu/toolbar), executados por Enter ou clique. Distinto do NLU
+do svg-studio (Ctrl+K, linguagem natural): aqui é **busca por nome de comando**,
+**sem dependência de NLU/ML**, e `Ctrl+Shift+P` estava livre (sem colisão de
+atalho — confirmado).
+
+**Fonte da verdade**: `MenuContributionRegistry.contributions()` — as MESMAS
+entradas que a menu bar/toolbar renderizam. Cobre tudo que qualquer plugin
+contribui, automaticamente, sem fiação por comando. Excluídos: dividers,
+**pais de submenu** (seu `run` é só um gatilho), placeholders `comingSoon` e
+itens `visible:false`. Cada item mostra ícone, label, grupo (slot humanizado) e
+a dica de atalho; itens desabilitados aparecem esmaecidos e não executam.
+
+**Implementação** (tudo em `svg-engine/ui`, pois é dialog Material — D-017):
+
+- [command-palette.filter.ts](../projects/svg-engine/ui/src/lib/command-palette/command-palette.filter.ts) —
+  núcleo **puro** de score/ranqueamento (exact > prefixo > prefixo-de-palavra >
+  substring > subsequência; empate estável) + `humanizeMenuSlot`. Sem Angular →
+  100% testável.
+- [command-palette.dialog.ts](../projects/svg-engine/ui/src/lib/command-palette/command-palette.dialog.ts) —
+  `<svge-command-palette-dialog>`: **input flutuante** (ícone de busca + botão
+  **limpar** ✕ quando há texto, como os outros inputs da ferramenta) sobre a
+  **lista** navegável por teclado (↑/↓ com wrap, Home/End, Enter executa, Esc
+  fecha). Resolve `disabled` por escopo via `makeDisabledResolver` e executa via
+  `runContribution` com o injector da rota (multi-editor D-042/D-043).
+- [command-palette.service.ts](../projects/svg-engine/ui/src/lib/command-palette/command-palette.service.ts) —
+  abre via `MatDialog` ancorado no topo (`position.top`, `autoFocus:'input'`),
+  threading o injector escopado.
+- Wiring em [builtin-ui-menu-contributions.plugin.ts](../projects/svg-engine/ui/src/lib/menu-extras/builtin-ui-menu-contributions.plugin.ts):
+  entrada **Tools ▸ Command Palette…** (order 5) + atalho `Ctrl+Shift+P` no
+  `ShortcutRegistry`. O placeholder de roadmap foi removido do
+  `builtinRoadmapMenuPlugin` (Quick Search continua no roadmap).
+
+**Sem conflito** com NLU nem com outras funcionalidades: serviço/diálogo
+próprios, atalho distinto, e a paleta apenas **lê** o registry e despacha o
+`run` já existente de cada item (mesmo caminho do menu) — não há novo estado
+mutável nem novos comandos. Specs: 11 testes do filtro puro; o spec do roadmap
+trocou o leaf de exemplo (command-palette → quick-search). Build + suíte (2476)
+
+- lint verdes; snapshot de API regenerado (+novos símbolos públicos do `ui`).
+
+---
+
 ## 2026-06-14 — Fundo de página (solid/image) como arte: canvas + export ✅
 
 Fecha a lacuna nº 2 da revisão por formato. O fundo por página

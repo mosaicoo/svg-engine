@@ -110,6 +110,11 @@ export * from './lib/find-replace-dialog';
 // unbind / reset its key combo with live conflict warnings.
 export * from './lib/keyboard-shortcuts-dialog';
 
+// Command Palette (Tools ▸ Command Palette, Ctrl+Shift+P) — fuzzy search
+// over every MenuContributionRegistry command, run by keyboard. Distinct
+// from the svg-studio NLU palette (Ctrl+K, natural language).
+export * from './lib/command-palette';
+
 // Status bar (D-035 — shell-refinement; standalone OR via <svge-editor>)
 export * from './lib/status-bar';
 

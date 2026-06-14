@@ -707,16 +707,11 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     });
 
     // ── Tools menu (NEW) ───────────────────────────────────────────
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.tools.command-palette',
-        slot: MENU_SLOT.TOOLS,
-        label: 'Command Palette',
-        icon: 'terminal',
-        order: 10,
-        shortcut: 'Ctrl+Shift+P',
-      }),
-    );
+    // **Command Palette SHIPPED** — the roadmap placeholder
+    // `svge.roadmap.tools.command-palette` was removed; the real entry
+    // (`svge.builtin.ui.tools.command-palette`, Ctrl+Shift+P) is
+    // registered by `builtinUiMenuContributionsPlugin` (it opens a
+    // Material dialog, so it must live in `svg-engine/ui` per D-017).
     track(
       roadmapLeaf({
         id: 'svge.roadmap.tools.quick-search',

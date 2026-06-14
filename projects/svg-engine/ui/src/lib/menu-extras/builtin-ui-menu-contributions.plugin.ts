@@ -23,6 +23,7 @@ import {
 } from 'svg-engine/edit';
 
 import { SvgeAboutDialogService } from '../about-dialog';
+import { SvgeCommandPaletteService } from '../command-palette';
 import { SvgeFindReplaceDialogService } from '../find-replace-dialog';
 import { SvgeKeyboardShortcutsDialogService } from '../keyboard-shortcuts-dialog';
 import { SvgePluginManagerDialogService } from '../plugin-manager-dialog';
@@ -422,6 +423,52 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
         run(event, runCtx?: ShortcutContext) {
           event.preventDefault();
           openFindReplaceDialog(runCtx);
+        },
+      }),
+    );
+
+    // ── Tools ▸ Command Palette… + Ctrl+Shift+P shortcut ─────────
+    //
+    // **Ships** the roadmap placeholder `svge.roadmap.tools.command-palette`
+    // (removed from `builtinRoadmapMenuPlugin`). Opens
+    // `<svge-command-palette-dialog>` — a keyboard-first fuzzy search over
+    // EVERY registered menu/toolbar command (the MenuContributionRegistry),
+    // run by Enter or click. Lives here (not edit-side) because it's a
+    // Material dialog (D-017). **Distinct from the SVG Studio NLU palette**
+    // (Ctrl+K, natural language): this searches command NAMES, with no
+    // NLU/ML dependency, and Ctrl+Shift+P was free (no shortcut clash).
+    // Always enabled — the palette itself never depends on selection /
+    // document (each command keeps its own disabled state, shown greyed
+    // inside the list).
+    const openCommandPalette = (runCtx?: MenuContributionContext): void => {
+      const service = fromCtx(SvgeCommandPaletteService, runCtx);
+      service.open(runCtx?.injector ?? ctx.injector);
+    };
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.ui.tools.command-palette',
+        slot: MENU_SLOT.TOOLS,
+        label: 'Command Palette…',
+        icon: 'terminal',
+        tooltip: 'Search and run any command',
+        shortcut: 'Ctrl+Shift+P',
+        // Order 5 — first in the Tools menu (above Quick Search 20 and
+        // the Plugins submenu), matching the roadmap placeholder's slot.
+        order: 5,
+        run(runCtx) {
+          openCommandPalette(runCtx);
+        },
+      }),
+    );
+    ctx.track(
+      shortcuts.register({
+        id: 'svge.builtin.shortcut.command-palette',
+        combo: 'Ctrl+Shift+P',
+        description: 'Open the Command Palette',
+        category: 'View',
+        run(event, runCtx?: ShortcutContext) {
+          event.preventDefault();
+          openCommandPalette(runCtx);
         },
       }),
     );
