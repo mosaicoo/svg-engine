@@ -123,3 +123,17 @@ export {
   RenameCustomAttrCommand,
   SetCustomAttrCommand,
 } from './custom-attr.commands';
+// D-090 — Path menu operations (Reverse / Clean Up / Simplify / Offset /
+// Outline Stroke / Join / Split). Convert to Path = BatchConvertToPathCommand.
+export {
+  CleanUpPathCommand,
+  DEFAULT_OFFSET_DISTANCE,
+  DEFAULT_SIMPLIFY_TOLERANCE,
+  JoinPathsCommand,
+  OffsetPathCommand,
+  OutlineStrokeCommand,
+  type PathSplitCut,
+  ReversePathCommand,
+  SimplifyPathCommand,
+  SplitPathCommand,
+} from './path-ops.commands';

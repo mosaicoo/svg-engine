@@ -1,12 +1,22 @@
 import { computed, type Injector, type Signal } from '@angular/core';
 import {
+  type AnchorRef,
   BatchConvertToPathCommand,
+  CleanUpPathCommand,
   CommandBus,
   EditorStateService,
   findNodeById,
+  JoinPathsCommand,
   type NodeId,
+  OffsetPathCommand,
+  OutlineStrokeCommand,
+  type PathSplitCut,
+  ReversePathCommand,
+  SimplifyPathCommand,
+  SplitPathCommand,
 } from 'svg-engine/core';
 
+import { AnchorSelectionService } from '../../anchor-editor/anchor-selection.service';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../../plugin/plugin';
 import { SelectionService } from '../../selection/selection.service';
 import type { MenuContribution, MenuContributionContext } from '../menu-contribution';
@@ -119,6 +129,64 @@ function convertibleSelectedIds(injector: Injector): NodeId[] {
     if (node !== null && CONVERTIBLE_TYPES.has(node.type)) out.push(id as NodeId);
   }
   return out;
+}
+
+// ── D-090 — Path menu helpers (shared by the real Path entries) ─────────
+
+/** Ids of currently-selected `path` nodes (the Path ops operate on these). */
+function selectedPathIds(injector: Injector): NodeId[] {
+  const sel = injector.get(SelectionService);
+  const root = injector.get(EditorStateService).document().root;
+  const out: NodeId[] = [];
+  for (const id of sel.selectedIds()) {
+    const node = findNodeById(root, id);
+    if (node !== null && node.type === 'path') out.push(id as NodeId);
+  }
+  return out;
+}
+
+/** Selected `path` ids that actually carry a visible stroke (Outline Stroke). */
+function selectedStrokablePathIds(injector: Injector): NodeId[] {
+  const root = injector.get(EditorStateService).document().root;
+  return selectedPathIds(injector).filter((id) => {
+    const node = findNodeById(root, id);
+    if (node === null) return false;
+    const stroke = node.style.stroke;
+    const width = node.style.strokeWidth ?? 1;
+    return typeof stroke === 'string' && stroke !== 'none' && stroke.trim() !== '' && width > 0;
+  });
+}
+
+/**
+ * Build Split cut points from the current anchor selection. Split is a
+ * single-path op, so we pick the node that owns the most selected anchors
+ * and return its `(subpathIndex, anchorIndex)` cuts. Returns `null` when
+ * no anchors are selected.
+ */
+function splitTargetFromAnchorSelection(
+  injector: Injector,
+): { nodeId: NodeId; cuts: PathSplitCut[] } | null {
+  const refs = injector.get(AnchorSelectionService).selected();
+  if (refs.length === 0) return null;
+  const byNode = new Map<string, AnchorRef[]>();
+  for (const ref of refs) {
+    const list = byNode.get(ref.nodeId) ?? [];
+    list.push(ref);
+    byNode.set(ref.nodeId, list);
+  }
+  let bestNode: string | null = null;
+  let bestCount = 0;
+  for (const [nodeId, list] of byNode) {
+    if (list.length > bestCount) {
+      bestCount = list.length;
+      bestNode = nodeId;
+    }
+  }
+  if (bestNode === null) return null;
+  const cuts: PathSplitCut[] = byNode
+    .get(bestNode)!
+    .map((r) => ({ subpathIndex: r.subpathIndex, anchorIndex: r.anchorIndex }));
+  return { nodeId: bestNode as NodeId, cuts };
 }
 
 export const builtinRoadmapMenuPlugin: EditorPlugin = {
@@ -513,10 +581,12 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
       }),
     );
 
-    // ── Path menu (NEW) ────────────────────────────────────────────
-    // Convert to Path is REAL (BatchConvertToPathCommand); the rest are
-    // roadmap. Outline Stroke + Convert to Path are the two items Option B
-    // relocates here from Object.
+    // ── Path menu — ALL REAL (D-090) ───────────────────────────────
+    // Every entry dispatches a real core command. Convert to Path =
+    // BatchConvertToPathCommand; the rest = the D-090 path-ops commands.
+    // "Smooth" was dropped from the menu: the interactive Smooth tool
+    // (toolbar, shortcut `s`) already covers it, and the menu's RDP
+    // operation is the same algorithm exposed here as "Simplify".
     track({
       id: 'svge.builtin.path.convert-to-path',
       slot: MENU_SLOT.PATH,
@@ -532,78 +602,109 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
         injector.get(CommandBus).dispatch(new BatchConvertToPathCommand(ids));
       },
     });
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.path.outline-stroke',
-        slot: MENU_SLOT.PATH,
-        label: 'Outline Stroke',
-        icon: 'border_style',
-        order: 20,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.path.join',
-        slot: MENU_SLOT.PATH,
-        label: 'Join',
-        icon: 'call_merge',
-        order: 30,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.path.split',
-        slot: MENU_SLOT.PATH,
-        label: 'Split',
-        icon: 'call_split',
-        order: 40,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.path.reverse',
-        slot: MENU_SLOT.PATH,
-        label: 'Reverse Direction',
-        icon: 'swap_horiz',
-        order: 50,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.path.simplify',
-        slot: MENU_SLOT.PATH,
-        label: 'Simplify',
-        icon: 'show_chart',
-        order: 60,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.path.offset',
-        slot: MENU_SLOT.PATH,
-        label: 'Offset Path',
-        icon: 'line_style',
-        order: 70,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.path.smooth',
-        slot: MENU_SLOT.PATH,
-        label: 'Smooth',
-        icon: 'gesture',
-        order: 80,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.path.clean-up',
-        slot: MENU_SLOT.PATH,
-        label: 'Clean Up',
-        icon: 'cleaning_services',
-        order: 90,
-      }),
-    );
+    track({
+      id: 'svge.builtin.path.outline-stroke',
+      slot: MENU_SLOT.PATH,
+      label: 'Outline Stroke',
+      icon: 'border_style',
+      order: 20,
+      disabled: (injector: Injector) =>
+        computed(() => selectedStrokablePathIds(injector).length === 0),
+      run(runCtx?: MenuContributionContext) {
+        const injector = runCtx?.injector ?? ctx.injector;
+        const ids = selectedStrokablePathIds(injector);
+        if (ids.length === 0) return;
+        injector.get(CommandBus).dispatch(new OutlineStrokeCommand(ids));
+      },
+    });
+    track({
+      id: 'svge.builtin.path.join',
+      slot: MENU_SLOT.PATH,
+      label: 'Join',
+      icon: 'call_merge',
+      order: 30,
+      disabled: (injector: Injector) => computed(() => selectedPathIds(injector).length === 0),
+      run(runCtx?: MenuContributionContext) {
+        const injector = runCtx?.injector ?? ctx.injector;
+        const ids = selectedPathIds(injector);
+        if (ids.length === 0) return;
+        injector.get(CommandBus).dispatch(new JoinPathsCommand(ids));
+      },
+    });
+    track({
+      id: 'svge.builtin.path.split',
+      slot: MENU_SLOT.PATH,
+      label: 'Split',
+      icon: 'call_split',
+      order: 40,
+      // Split cuts at the selected ANCHORS (Direct Select / Path Editor),
+      // so it's enabled only when ≥1 anchor is selected — distinct from
+      // the Knife tool (clicked point) and Release Compound (subpaths).
+      disabled: (injector: Injector) =>
+        computed(() => injector.get(AnchorSelectionService).count() === 0),
+      run(runCtx?: MenuContributionContext) {
+        const injector = runCtx?.injector ?? ctx.injector;
+        const target = splitTargetFromAnchorSelection(injector);
+        if (target === null) return;
+        injector.get(CommandBus).dispatch(new SplitPathCommand(target.nodeId, target.cuts));
+      },
+    });
+    track({
+      id: 'svge.builtin.path.reverse',
+      slot: MENU_SLOT.PATH,
+      label: 'Reverse Direction',
+      icon: 'swap_horiz',
+      order: 50,
+      disabled: (injector: Injector) => computed(() => selectedPathIds(injector).length === 0),
+      run(runCtx?: MenuContributionContext) {
+        const injector = runCtx?.injector ?? ctx.injector;
+        const ids = selectedPathIds(injector);
+        if (ids.length === 0) return;
+        injector.get(CommandBus).dispatch(new ReversePathCommand(ids));
+      },
+    });
+    track({
+      id: 'svge.builtin.path.simplify',
+      slot: MENU_SLOT.PATH,
+      label: 'Simplify',
+      icon: 'show_chart',
+      order: 60,
+      disabled: (injector: Injector) => computed(() => selectedPathIds(injector).length === 0),
+      run(runCtx?: MenuContributionContext) {
+        const injector = runCtx?.injector ?? ctx.injector;
+        const ids = selectedPathIds(injector);
+        if (ids.length === 0) return;
+        injector.get(CommandBus).dispatch(new SimplifyPathCommand(ids));
+      },
+    });
+    track({
+      id: 'svge.builtin.path.offset',
+      slot: MENU_SLOT.PATH,
+      label: 'Offset Path',
+      icon: 'line_style',
+      order: 70,
+      disabled: (injector: Injector) => computed(() => selectedPathIds(injector).length === 0),
+      run(runCtx?: MenuContributionContext) {
+        const injector = runCtx?.injector ?? ctx.injector;
+        const ids = selectedPathIds(injector);
+        if (ids.length === 0) return;
+        injector.get(CommandBus).dispatch(new OffsetPathCommand(ids));
+      },
+    });
+    track({
+      id: 'svge.builtin.path.clean-up',
+      slot: MENU_SLOT.PATH,
+      label: 'Clean Up',
+      icon: 'cleaning_services',
+      order: 90,
+      disabled: (injector: Injector) => computed(() => selectedPathIds(injector).length === 0),
+      run(runCtx?: MenuContributionContext) {
+        const injector = runCtx?.injector ?? ctx.injector;
+        const ids = selectedPathIds(injector);
+        if (ids.length === 0) return;
+        injector.get(CommandBus).dispatch(new CleanUpPathCommand(ids));
+      },
+    });
 
     // ── Tools menu (NEW) ───────────────────────────────────────────
     track(

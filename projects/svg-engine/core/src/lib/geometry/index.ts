@@ -38,3 +38,14 @@ export {
 export { type FlatRing, flattenPathD, ringsToPathD } from './path-flatten';
 // D-055 — Live corners: derive a rounded `d` from an authored one.
 export { roundPathCorners } from './round-corners';
+// D-090 — Path menu editing ops (pure geometry; wrapped by commands).
+export {
+  cleanUpPathD,
+  joinPathDs,
+  reversePathD,
+  simplifyAnchorSubpath,
+  simplifyPathD,
+  splitPathDAtAnchors,
+} from './path-ops';
+export { offsetClosedRing, offsetPathD, offsetPolyline } from './path-offset';
+export { outlineStrokeToPathD } from './stroke-outline';

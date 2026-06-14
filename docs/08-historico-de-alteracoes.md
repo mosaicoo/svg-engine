@@ -6,6 +6,59 @@
 
 ---
 
+## 2026-06-14 — D-090: Menu Path totalmente funcional (ligações + 6 ops novas) ✅
+
+Religou e completou o menu **Path**: todas as 9 entradas agora despacham um
+comando real (antes só "Convert to Path" era real; o resto eram placeholders de
+roadmap com ícone de relógio).
+
+**Ligações:**
+
+- **Convert to Path** — já era real (`BatchConvertToPathCommand`); mantido.
+- **Smooth/Simplify** — unificado em **uma** entrada "Simplify" (RDP nos paths
+  selecionados via `SimplifyPathCommand`). O placeholder "Smooth" foi **removido
+  do menu** — a _ferramenta_ Smooth (toolbar, atalho `s`) já cobre o caso
+  interativo e roda o mesmo algoritmo (Ramer-Douglas-Peucker).
+
+**Implementações novas** (todas undoable, snapshot do root; geometria pura
+reutilizável em `core/geometry`):
+
+- **Split** (`SplitPathCommand`) — corta o path nos **âncoras selecionados**
+  (Direct Select / Path Editor) gerando nós separados. Distinto do Knife (ponto
+  clicado) e do Release Compound (fronteiras de subpath). Gated por
+  `AnchorSelectionService.count() > 0`.
+- **Outline Stroke** (`OutlineStrokeCommand`) — converte o traço em forma
+  preenchida (`fill` = cor do traço; campos de stroke removidos). Ribbon para
+  subpaths abertos, donut (anel externo + interno invertido) para fechados.
+- **Clean Up** (`CleanUpPathCommand`) — remove âncoras redundantes/degeneradas
+  (pontos duplicados de comprimento zero, subpaths < 2 âncoras). Conservador:
+  nunca altera o desenho visível.
+- **Join** (`JoinPathsCommand`) — 1 path aberto → fecha; 2+ → solda extremidades
+  mais próximas num único nó (transforms bakeados, como o compound-path).
+- **Reverse Direction** (`ReversePathCommand`) — inverte a ordem das âncoras +
+  troca `handleIn`/`handleOut`. Mesmo desenho, winding invertido.
+- **Offset Path** (`OffsetPathCommand`) — cópia paralela (default 10u; positivo
+  = para fora). Offset por bissetriz com miter clamp; sentido out/in resolvido
+  por área (winding-independente).
+
+**Geometria** (`core/geometry`): `path-ops.ts` (reverse/cleanUp/simplify/join/
+split), `path-offset.ts` (offset de ring/polyline), `stroke-outline.ts`. Todas
+puras (flatten p/ outline/offset; modelo de âncora p/ o resto). Limitações
+documentadas: outline/offset achatam curvas em polilinhas e não removem
+auto-interseções (1ª passada pragmática, como a maioria dos editores).
+
+**Wiring** em `builtinRoadmapMenuPlugin` (edit): cada item com `run` +
+`disabled` (gated por seleção de path / âncora / stroke). Placeholders de Path
+removidos; spec do roadmap-menu apontada para um placeholder de Tools.
+`builtinRoadmapMenuPlugin` é onde os itens de Path vivem. NLU agora descobre
+essas entradas automaticamente (têm `run`).
+
+Specs: geometria (`path-ops.spec.ts`) + comandos (`path-ops.commands.spec.ts`,
+inclui undo). Snapshot de API regenerado (+18 símbolos core). Suíte (2431) e
+lint verdes.
+
+---
+
 ## 2026-06-13 — D-089: Propriedades personalizadas `data-*` em elementos SVG ✅
 
 Permite anexar pares chave/valor arbitrários a **qualquer** nó (`SvgNode`),

@@ -108,16 +108,19 @@ describe('D-085 menubar reorg — no orphaned contributions', () => {
 });
 
 describe('D-085 roadmap items — visible but disabled', () => {
+  // D-090 relocated every Path entry to a REAL command, so the Path slot
+  // no longer has a roadmap placeholder. Use a Tools placeholder (still
+  // roadmap) to exercise the comingSoon / always-disabled contract.
   it('a roadmap leaf is marked comingSoon and is always disabled', () => {
     const { reg, injector } = setupAllEditMenus();
-    const item = reg.get('svge.roadmap.path.outline-stroke')!;
+    const item = reg.get('svge.roadmap.tools.command-palette')!;
     expect(item.comingSoon).toBe(true);
     expect(resolveDisabledSignal(item, injector)()).toBe(true);
   });
 
   it('roadmap leaves never throw when activated (no-op run)', () => {
     const { reg, injector } = setupAllEditMenus();
-    const item = reg.get('svge.roadmap.path.outline-stroke')!;
+    const item = reg.get('svge.roadmap.tools.command-palette')!;
     expect(() => runContribution(item, injector)).not.toThrow();
   });
 });
