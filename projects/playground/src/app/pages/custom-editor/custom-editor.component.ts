@@ -760,6 +760,12 @@ export class CustomEditor implements OnDestroy {
     const pb = pageBoundsIn(this.viewport.contentBox(), page);
     const exportDoc = {
       ...doc,
+      // Export-fidelity fix — merge runtime-derived defs (gradients,
+      // patterns, effects, chains, clipPaths, masks, symbols) so the PNG
+      // raster carries everything the canvas paints. Without this,
+      // `fill="url(#id)"` shapes export transparent. Same composer the
+      // live `<svge-renderer [defs]>` uses (see `defs` computed).
+      defs: this.activeDefs.buildExportDefs(doc.defs),
       viewBox: { x: pb.x, y: pb.y, width: pb.width, height: pb.height },
     };
     let blob: Blob;
@@ -804,6 +810,10 @@ export class CustomEditor implements OnDestroy {
     const pb = pageBoundsIn(this.viewport.contentBox(), page);
     const exportDoc = {
       ...doc,
+      // Export-fidelity fix — merge runtime-derived defs so the exported
+      // file carries gradients/patterns/effects/clipPaths/masks/symbols
+      // created in-editor (same composer as the live `defs` computed).
+      defs: this.activeDefs.buildExportDefs(doc.defs),
       viewBox: { x: pb.x, y: pb.y, width: pb.width, height: pb.height },
     };
     let payload: string | Blob;

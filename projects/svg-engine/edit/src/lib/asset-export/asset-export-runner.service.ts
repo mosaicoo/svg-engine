@@ -2,6 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { inject, Injectable } from '@angular/core';
 import { EditorStateService } from 'svg-engine/core';
 import { ExporterRegistry, renderPng } from 'svg-engine/io';
+import { ActiveDefsService } from '../library/active-defs.service';
 import { ActivePageService } from '../pages/active-page.service';
 import { AssetExportRegistry } from './asset-export-registry.service';
 import type { ExportSlot, ExportSlotResult } from './asset-export.types';
@@ -53,6 +54,16 @@ export class AssetExportRunner {
    * inside one file — the bug the user reported.
    */
   private readonly activePage = inject(ActivePageService);
+  /**
+   * **Export-fidelity fix** — runtime-derived defs (gradients, patterns,
+   * effects, chains, clipPaths, masks, symbols) live only in the editor's
+   * registries, not in `document.defs`. The File→Export path merges them
+   * via {@link ActiveDefsService.buildExportDefs} before serializing;
+   * this batch runner previously did NOT, so every slot (SVG **and** PNG)
+   * dropped them — shapes with `fill="url(#id)"` came out transparent /
+   * unfiltered. Merge here too so both export paths stay faithful.
+   */
+  private readonly activeDefs = inject(ActiveDefsService);
 
   /**
    * Execute one slot. Returns either `{ ok: true, filename }` (after
@@ -73,7 +84,15 @@ export class AssetExportRunner {
     // plugin). Mirrors that helper's call to `effectiveExportDoc` so
     // both export paths render the same single-page output. Falls back
     // to the raw doc in legacy single-root docs (no active page).
-    const doc = this.activePage.effectiveExportDoc(this.state.document());
+    //
+    // Export-fidelity fix — merge runtime defs BEFORE the page
+    // projection (effectiveExportDoc spreads `...doc`, preserving the
+    // merged `defs`), identical to `exportAndDownload`. Without this the
+    // batch path dropped gradients/filters/effects/patterns/clip/mask/
+    // symbols and shapes referencing them exported blank.
+    const raw = this.state.document();
+    const withDefs = { ...raw, defs: this.activeDefs.buildExportDefs(raw.defs) };
+    const doc = this.activePage.effectiveExportDoc(withDefs);
     const filename = this.registry.resolveUniqueName(slot.filename, exporter.extension, usedNames);
     let payload: string | Blob;
     try {

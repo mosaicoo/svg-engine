@@ -6,6 +6,58 @@
 
 ---
 
+## 2026-06-14 — Fidelidade de exportação: defs runtime + revisão por formato ✅
+
+Investigação do relato "PNG exportado não está fiel ao canvas". O pipeline PNG é
+`svgExporter.export(doc)` → base64 → `<img>` → `<canvas>` → `toBlob`. Logo a
+fidelidade depende de **(1)** o que o `svgExporter` serializa e **(2)** o que o
+`<img>`/canvas consegue rasterizar.
+
+**Causa raiz (bug real, corrigido):** gradientes, patterns, efeitos/filters,
+chains, clipPaths, masks e symbols **criados no editor** vivem só nos registries
+de runtime, não em `document.defs`. O `ActiveDefsService.buildExportDefs()` mescla
+ambos antes de serializar — mas **nem todo caminho de export chamava isso**. Só o
+`File ▸ Export SVG/PNG` (`exportAndDownload`) fazia. Caíam na armadilha (export
+saía com `fill="url(#id)"` apontando para nada → forma transparente/sem efeito):
+
+- **`AssetExportRunner.exportSlot`** (painel _Asset Export_, lib) — SVG **e** PNG.
+- **Playground `custom-editor`** — botões _Export SVG_ (`exportAs`) e _Export PNG_
+  (`exportPngWithPresets`, o picker @1x/@2x/@3x).
+
+**Correção:** os três agora mesclam `buildExportDefs()` no `doc.defs` antes de
+exportar (lib) / rasterizar (playground), igual ao caminho do menu. Spec novo
+([asset-export-runner.service.spec.ts](../projects/svg-engine/edit/src/lib/asset-export/asset-export-runner.service.spec.ts))
+trava a regressão. Build + suíte (2445) + lint (lib e playground) verdes.
+
+### Revisão por formato (estado atual)
+
+**SVG** — fiel ao canvas em fill/stroke/opacity/transform/gradiente/pattern/
+filter/efeito/blend-mode/clipPath/mask/symbol/texto/live-corners. Animação
+(SMIL) é **opt-in** (`File ▸ Export Animated SVG`). Round-trip determinístico.
+Fundo da página (`PageOptions.background` solid/image) **não** é emitido — ver
+lacunas.
+
+**PNG** — herda tudo do SVG acima (rasteriza via browser), com as limitações
+**inerentes ao raster**:
+
+- **Fontes**: web fonts/`@font-face` **não são embutidas** no payload do `<img>`,
+  então texto com fonte não-instalada cai em fallback. Lacuna conhecida (precisa
+  embed base64 das fontes).
+- **Animação**: PNG é estático (1 frame) — esperado.
+- **Fundo transparente**: sem fundo de página, o PNG sai com alfa transparente
+  (correto quando o canvas é transparente; ver lacuna do fundo de página).
+
+**Lacunas mapeadas (não corrigidas neste passo):**
+
+1. **Fonte não embutida no PNG** — maior gap de fidelidade de texto.
+2. **`PageOptions.background` (solid/image)** — é editável no Inspector (aba Page)
+   mas **não é pintado ao vivo** por nenhum renderer nem emitido no export; o
+   `PageOverlay` desenha só um marcador translúcido fixo (chrome). Precisa ser
+   ligado tanto na renderização quanto no export para virar "arte".
+3. **JPG/WEBP** — não há exporter registrado; só PNG (raster) e SVG (vetor).
+
+---
+
 ## 2026-06-14 — Fix: Delete de âncora nos shells reutilizáveis (paridade) ✅
 
 Fechou um gap descoberto ao explicar como deletar pontos no editor de path: o
