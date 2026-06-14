@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-06-14 — Fix: Delete de âncora nos shells reutilizáveis (paridade) ✅
+
+Fechou um gap descoberto ao explicar como deletar pontos no editor de path: o
+gesto "Delete/Backspace remove a **âncora** selecionada" (Direct Select) estava
+implementado **só** no playground `custom-editor`. Nos shells reutilizáveis
+(`[svgeShellInteractions]`, usado por `svge-editor` e `svge-shell-pro`) o
+handler de Delete só fazia `RemoveNodeCommand` — então, com um ponto
+selecionado, apertar Delete apagava a **forma inteira** em vez do ponto.
+
+**Mudança** ([shell-interactions.directive.ts](projects/svg-engine/edit/src/lib/tool/shell-interactions.directive.ts)):
+o handler de `Delete`/`Backspace` ganhou a mesma ordem de prioridade do
+custom-editor — **1) âncoras selecionadas → `RemoveAnchorCommand`** (uma por
+ref, ordenadas desc. por `(subpathIndex, anchorIndex)` para não embaralhar
+índices durante a remoção em lote), depois `anchorSelection.clear()`;
+**2) nós selecionados → `RemoveNodeCommand`** (comportamento legado intacto).
+Injeta o `AnchorSelectionService` (`providedIn: 'root'`). Sem mudança de API
+pública.
+
+Specs: dois testes novos em
+[shell-interactions.directive.spec.ts](projects/svg-engine/edit/src/lib/tool/shell-interactions.directive.spec.ts)
+— âncora selecionada → o nó sobrevive e só o ponto sai (`d` muda, seleção de
+âncora limpa); sem âncora → o nó é removido (regressão). Suíte (2444) e lint
+verdes.
+
+---
+
 ## 2026-06-14 — D-092: Color picker padronizado + popup responsivo ✅
 
 Padroniza a seleção de cores de **Fill** e **Stroke** no Inspector e elimina a

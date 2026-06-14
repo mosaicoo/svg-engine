@@ -1,7 +1,15 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
-import { generateNodeId } from 'svg-engine/core';
+import {
+  createEmptyDocument,
+  createGroup,
+  createPath,
+  EditorStateService,
+  findNodeById,
+  generateNodeId,
+} from 'svg-engine/core';
+import { AnchorSelectionService } from '../anchor-editor/anchor-selection.service';
 import { MarqueeService } from '../marquee/marquee.service';
 import { provideSvgEngineEditorScope } from '../scope/editor-scope.providers';
 import { SelectionService } from '../selection/selection.service';
@@ -120,5 +128,61 @@ describe('SvgeShellInteractions — hover outline wiring', () => {
     expect(() => firePointerMove(hostEl)).not.toThrow();
     // No node under the cursor (no SVG) → hover stays cleared.
     expect(selection.hoverId()).toBeNull();
+  });
+});
+
+/**
+ * Delete/Backspace priority parity with the playground custom-editor: a
+ * selected anchor point must be removed at the PATH level
+ * (`RemoveAnchorCommand`) rather than wiping the whole node. Without the
+ * anchor branch, Direct-Select + Delete in `svge-editor`/`svge-shell-pro`
+ * deleted the entire path — a frustrating gap in path editing.
+ */
+describe('SvgeShellInteractions — Delete prioritizes selected anchors over the node', () => {
+  /** Dispatch a real document-level keydown (the handler is global). */
+  function fireKeyDown(key: string): void {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+  }
+
+  function withPath(d: string) {
+    const ctx = mount();
+    const state = TestBed.inject(EditorStateService);
+    const anchorSelection = TestBed.inject(AnchorSelectionService);
+    state.resetDocument(createEmptyDocument());
+    const path = createPath(d);
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([path], { id: state.document().root.id }),
+    });
+    return { ...ctx, state, anchorSelection, path };
+  }
+
+  it('removes the selected anchor (path stays) instead of the whole node', () => {
+    // 4 anchors → removing one leaves a valid (≥2-anchor) subpath.
+    const { state, selection, anchorSelection, path } = withPath('M0 0 L10 0 L20 0 L20 10');
+    const originalD = (findNodeById(state.document().root, path.id) as { d: string }).d;
+
+    selection.select(path.id);
+    anchorSelection.selectOne({ nodeId: path.id, subpathIndex: 0, anchorIndex: 1 });
+
+    fireKeyDown('Delete');
+
+    const after = findNodeById(state.document().root, path.id) as { d: string } | null;
+    // Node survives — only the anchor was removed.
+    expect(after).not.toBeNull();
+    expect(after!.d).not.toBe(originalD);
+    // Anchor selection is cleared after the removal.
+    expect(anchorSelection.isEmpty()).toBe(true);
+  });
+
+  it('falls back to removing the node when no anchor is selected', () => {
+    const { state, selection, anchorSelection, path } = withPath('M0 0 L10 0 L20 0 L20 10');
+    selection.select(path.id);
+    expect(anchorSelection.isEmpty()).toBe(true);
+
+    fireKeyDown('Backspace');
+
+    // No anchor selected → the whole node is removed (legacy behaviour).
+    expect(findNodeById(state.document().root, path.id)).toBeNull();
   });
 });

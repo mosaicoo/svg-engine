@@ -10,9 +10,11 @@ import {
   isPage,
   type NodeId,
   type Point,
+  RemoveAnchorCommand,
   RemoveNodeCommand,
 } from 'svg-engine/core';
 import { screenToDoc, ViewportService } from 'svg-engine/render';
+import { AnchorSelectionService } from '../anchor-editor/anchor-selection.service';
 import { findRenderedNode, getCombinedBBox, getRenderedNodeBBox } from '../geometry/node-bbox';
 import {
   organizationalContainerPredicate,
@@ -59,7 +61,7 @@ const DOUBLE_CLICK_THRESHOLD_MS = 400;
  * | Double-click on a group       | `IsolationService.enter` (Affinity/Illustrator)               |
  * | Right-click                   | Handled by `[svgeContextMenu]` (separate directive)           |
  * | Pointer-down with active tool | Routed to `ToolHostService.routePointer*` (drawing tools)     |
- * | `Delete` / `Backspace`        | `RemoveNodeCommand` for each selected id                      |
+ * | `Delete` / `Backspace`        | selected anchors → `RemoveAnchorCommand`; else `RemoveNodeCommand` per id |
  * | `Escape`                      | `cancelGesture` + `marquee.cancel` + `isolation.exitOne`      |
  * | Any other key                 | Forward to `ToolHostService.routeKeyDown`                     |
  *
@@ -130,6 +132,13 @@ export class SvgeShellInteractions implements OnDestroy {
    * for free.
    */
   private readonly workspace = inject(WorkspaceService);
+  /**
+   * Anchor-point selection inside the focused path (Direct Select). Used
+   * by the Delete handler so removing a selected anchor stays at the
+   * path level (RemoveAnchorCommand) instead of wiping the whole node —
+   * parity with the playground custom-editor.
+   */
+  private readonly anchorSelection = inject(AnchorSelectionService);
 
   /**
    * **Grid-snap ↔ workspace-grid sync.** Mirrors the WORKSPACE grid the
@@ -560,9 +569,29 @@ export class SvgeShellInteractions implements OnDestroy {
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     if (isEditableTarget(event.target)) return;
 
-    // Delete / Backspace — remove selected nodes (single dispatch
-    // per id; consumer may want a batch command in the future).
+    // Delete / Backspace — priority order (finer-grained selection
+    // wins), mirroring the playground custom-editor so the shells have
+    // parity in the path editor:
+    //   1. Selected anchor points → RemoveAnchorCommand each. The path
+    //      stays; it just loses those points. Without this branch,
+    //      Delete on a Direct-Selected anchor would wipe the WHOLE node.
+    //   2. Selected nodes → RemoveNodeCommand each.
     if (event.key === 'Delete' || event.key === 'Backspace') {
+      const anchors = this.anchorSelection.selected();
+      if (anchors.length > 0) {
+        // Remove descending by (subpathIndex, anchorIndex) so earlier
+        // removals don't shift the indices of the ones still pending —
+        // otherwise deleting 0,1,2 in order corrupts/silently fails.
+        const sorted = [...anchors].sort((a, b) =>
+          a.subpathIndex !== b.subpathIndex
+            ? b.subpathIndex - a.subpathIndex
+            : b.anchorIndex - a.anchorIndex,
+        );
+        for (const ref of sorted) this.bus.dispatch(new RemoveAnchorCommand(ref));
+        this.anchorSelection.clear();
+        event.preventDefault();
+        return;
+      }
       const ids = Array.from(this.selection.selectedIds());
       if (ids.length === 0) return;
       event.preventDefault();
