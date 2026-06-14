@@ -94,26 +94,49 @@ export function resolveNodeIdFromEvent(event: Event): NodeId | null {
  * a child of the scope root (defensive — shouldn't happen with a
  * well-formed renderer output).
  */
+/** Options shared by the event- and element-based selectable resolvers. */
+export interface SelectableResolveOptions {
+  readonly mode: SelectionResolutionMode;
+  readonly rootId: NodeId;
+  readonly isolationRootId?: NodeId | null;
+  /**
+   * Predicate marking a node id as a **transparent container** — one
+   * that group mode should NOT select but instead "see through". Used
+   * to skip **Layers / Pages**, which are organizational containers, not
+   * functional groups: clicking a shape that lives directly in a layer
+   * selects the *shape*, and a shape inside a group inside a layer
+   * selects the *group*. When omitted, group mode keeps its original
+   * behavior (returns the direct child of the scope root).
+   */
+  readonly isTransparentContainer?: (id: NodeId) => boolean;
+}
+
 export function resolveSelectableNodeId(
   event: Event,
-  options: {
-    readonly mode: SelectionResolutionMode;
-    readonly rootId: NodeId;
-    readonly isolationRootId?: NodeId | null;
-    /**
-     * Predicate marking a node id as a **transparent container** — one
-     * that group mode should NOT select but instead "see through". Used
-     * to skip **Layers / Pages**, which are organizational containers, not
-     * functional groups: clicking a shape that lives directly in a layer
-     * selects the *shape*, and a shape inside a group inside a layer
-     * selects the *group*. When omitted, group mode keeps its original
-     * behavior (returns the direct child of the scope root).
-     */
-    readonly isTransparentContainer?: (id: NodeId) => boolean;
-  },
+  options: SelectableResolveOptions,
 ): NodeId | null {
   const target = event.target;
   if (!(target instanceof Element)) return null;
+  return resolveSelectableNodeIdFromElement(target, options);
+}
+
+/**
+ * Element-based twin of {@link resolveSelectableNodeId}: resolves the
+ * selectable `NodeId` for an arbitrary DOM element (rather than an
+ * event's target). Same group/deep + isolation-scope + transparent-
+ * container logic.
+ *
+ * **Why a separate entry point**: the geometric hit-test fallback
+ * (D-091) finds a shape's element by *coordinates* (not by an event
+ * target), then needs the IDENTICAL resolution the click path uses —
+ * so unfilled-shape selection lands on the same group/leaf a painted
+ * click would. Both callers funnel through this one function.
+ */
+export function resolveSelectableNodeIdFromElement(
+  target: Element | null,
+  options: SelectableResolveOptions,
+): NodeId | null {
+  if (target === null) return null;
   if (options.mode === 'deep') return findOwningNodeId(target);
   // Group mode: collect ancestor chain top-down and find the entry
   // immediately under the scope root.

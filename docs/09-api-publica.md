@@ -343,10 +343,14 @@ a fase do roadmap implementa o conteúdo.
 
 #### Hit-testing (`./lib/hit-testing/`)
 
-| Símbolo                                                     | Descrição                                                                                                   |
-| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `findOwningNodeId(target: Element \| null): NodeId \| null` | Caminha pelos `parentElement` buscando o `data-node-id` mais próximo. Pure function.                        |
-| `resolveNodeIdFromEvent(event: Event): NodeId \| null`      | Wrapper que aceita um Event e delega; `null` quando target não é Element ou sem ancestor com `data-node-id` |
+| Símbolo                                                             | Descrição                                                                                                                                                              |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `findOwningNodeId(target: Element \| null): NodeId \| null`         | Caminha pelos `parentElement` buscando o `data-node-id` mais próximo. Pure function.                                                                                   |
+| `resolveNodeIdFromEvent(event: Event): NodeId \| null`              | Wrapper que aceita um Event e delega; `null` quando target não é Element ou sem ancestor com `data-node-id`                                                            |
+| `resolveSelectableNodeId(event, opts)` / `SelectableResolveOptions` | Resolução deep/group + escopo (isolation/página) + containers transparentes (layers/pages)                                                                             |
+| `resolveSelectableNodeIdFromElement(target, opts)`                  | (D-091) gêmeo por-elemento de `resolveSelectableNodeId` (o evento delega a ele); usado pelo fallback geométrico                                                        |
+| `geometricHitTestElement(svgRoot, clientX, clientY, tolerancePx?)`  | (D-091) fallback de tolerância: elemento de geometria mais à frente cuja área/traço (± `tolerancePx`) contém o ponto, via `isPointInFill`/`isPointInStroke` do browser |
+| `DEFAULT_HIT_TOLERANCE_PX`                                          | (D-091) tolerância padrão (4 CSS px)                                                                                                                                   |
 
 > O atributo `data-node-id` já é setado pelo dispatcher `<svge-node>`
 > em `svg-engine/render`. Hit-testing funciona out-of-the-box.

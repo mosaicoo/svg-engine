@@ -6,6 +6,50 @@
 
 ---
 
+## 2026-06-14 — D-091: Tolerância de clique (hit slop) + seleção por área ✅
+
+Resolve a dificuldade de selecionar **shapes sem preenchimento** (`fill: none`)
+e **paths finos** por clique: antes só o traço pintado (~1px) era clicável (o
+hit-testing usa `event.target` do DOM, e `pointer-events: visiblePainted` torna
+só a pintura alvo). Comportamento agora alinhado ao Illustrator
+("Object Selection by Path Only" desligado): clicar a **área** da forma (mesmo
+vazia) seleciona, e há uma **faixa de tolerância** (~4px) ao redor do traço.
+
+**Arquitetura — fallback, não substituição:**
+
+- O hit nativo do DOM (`event.target`) continua sendo o caminho **primário**:
+  exato, z-order-correto, pega formas preenchidas — **zero regressão**.
+- Quando o hit do DOM cai no fundo (ou num container de escopo: página/raiz/
+  isolation root), entra o **fallback geométrico** (`geometricHitTestElement`):
+  varre os elementos de geometria de frente-para-trás e usa o próprio motor do
+  browser — `isPointInFill` (área, independente da pintura) + `isPointInStroke`
+  - um anel de amostras de raio `tolerance` em coordenadas de tela. O elemento
+    encontrado é mapeado pelo **mesmo** resolvedor de grupo/escopo
+    (`resolveSelectableNodeIdFromElement`), então cai no nó idêntico que um clique
+    pintado cairia.
+
+**Sem comprometer o resto** (preocupações do pedido):
+
+- **Precisão / elementos próximos**: para formas preenchidas o DOM decide
+  primeiro; o fallback só age quando o DOM não achou nada. Geometria real
+  (curvas/arcos/fill-rule/transform) é resolvida pelo motor do browser.
+- **Performance do mouse**: o fallback roda só em `pointerdown`/`click`
+  (discretos) — **hover/pointermove permanece DOM-only** (sem custo por
+  movimento). Trade-off documentado: hover não realça a área de uma forma vazia,
+  mas o clique a seleciona.
+- Fora de escopo/isolation, elementos não-selecionáveis continuam ignorados
+  (o resolvedor retorna null para hits fora da raiz de escopo).
+
+`resolveSelectableNodeId` foi refatorado para delegar a um novo
+`resolveSelectableNodeIdFromElement` (mesma lógica deep/group + containers
+transparentes), reusado pelo fallback. Wired em `[svgeShellInteractions]`
+(`onPointerDown` + `onClick`, este último para dblclick→isolation em área vazia).
+Specs: resolvedor por elemento + lógica do hit-test geométrico (z-order, área,
+stroke, anel de tolerância, guard de probeable). Snapshot de API regenerado
+(+4 símbolos edit). Suíte (2442) e lint verdes.
+
+---
+
 ## 2026-06-14 — D-090: Menu Path totalmente funcional (ligações + 6 ops novas) ✅
 
 Religou e completou o menu **Path**: todas as 9 entradas agora despacham um

@@ -5,6 +5,7 @@ import {
   organizationalContainerPredicate,
   resolveNodeIdFromEvent,
   resolveSelectableNodeId,
+  resolveSelectableNodeIdFromElement,
 } from './hit-testing';
 
 function makeSvgTree(): {
@@ -307,6 +308,37 @@ describe('resolveSelectableNodeId — transparent containers (layers/pages)', ()
         isolationRootId: toNodeId('page'),
       }),
     ).toBe('layer');
+  });
+});
+
+describe('resolveSelectableNodeIdFromElement — D-091 (element-based twin)', () => {
+  it('returns null for a null element', () => {
+    expect(
+      resolveSelectableNodeIdFromElement(null, { mode: 'group', rootId: toNodeId('root') }),
+    ).toBeNull();
+  });
+
+  it('resolves group mode from an element exactly like the event-based resolver', () => {
+    const { rect } = makeSvgTree();
+    // Same scenario as the event-based group-mode test: chain [inner, outer],
+    // outer = doc root → topmost selectable = inner.
+    expect(
+      resolveSelectableNodeIdFromElement(rect, { mode: 'group', rootId: toNodeId('outer-id') }),
+    ).toBe('inner-id');
+    // And the event-based resolver delegates to it (parity).
+    expect(
+      resolveSelectableNodeId({ target: rect } as unknown as Event, {
+        mode: 'group',
+        rootId: toNodeId('outer-id'),
+      }),
+    ).toBe('inner-id');
+  });
+
+  it('resolves deep mode to the closest owning id', () => {
+    const { rect } = makeSvgTree();
+    expect(
+      resolveSelectableNodeIdFromElement(rect, { mode: 'deep', rootId: toNodeId('outer-id') }),
+    ).toBe('inner-id');
   });
 });
 

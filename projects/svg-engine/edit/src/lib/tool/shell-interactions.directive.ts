@@ -17,7 +17,10 @@ import { findRenderedNode, getCombinedBBox, getRenderedNodeBBox } from '../geome
 import {
   organizationalContainerPredicate,
   resolveSelectableNodeId,
+  resolveSelectableNodeIdFromElement,
+  type SelectableResolveOptions,
 } from '../hit-testing/hit-testing';
+import { geometricHitTestElement } from '../hit-testing/geometric-hit-test';
 import { IsolationService } from '../isolation/isolation.service';
 import { type MarqueeCandidate, nodesInsideMarquee } from '../marquee/marquee-hit-testing';
 import { MarqueeService } from '../marquee/marquee.service';
@@ -239,16 +242,10 @@ export class SvgeShellInteractions implements OnDestroy {
     //    PAGES-FIX-3: when no isolation is active, the active page (if
     //    any) becomes the scope root so clicks resolve to shapes inside
     //    the page rather than to the page itself.
-    const rootId = this.state.document().root.id;
-    const id = resolveSelectableNodeId(event, {
-      mode: 'group',
-      rootId,
-      isolationRootId: this.isolation.isolationRootId() ?? this.activePage.activePageId(),
-      // Layers/Pages are organizational — see through them so a click on a
-      // shape inside a layer selects the shape (or its real group), not the
-      // layer (which would mimic group behavior).
-      isTransparentContainer: organizationalContainerPredicate(this.state.document().root),
-    });
+    // DOM hit (primary) + geometric tolerance fallback for unfilled /
+    // near-stroke shapes (D-091). Group mode matches the Select tool's
+    // convention; Layers/Pages are seen through (organizational).
+    const id = this.resolveSelectionId(event);
 
     // 3a. Click on empty canvas → start marquee (or exit isolation).
     if (id === null) {
@@ -521,16 +518,9 @@ export class SvgeShellInteractions implements OnDestroy {
       return;
     }
     const rootId = this.state.document().root.id;
-    const id = resolveSelectableNodeId(event, {
-      mode: 'group',
-      rootId,
-      // PAGES-FIX-3: same page-as-scope-root logic as onPointerDown.
-      isolationRootId: this.isolation.isolationRootId() ?? this.activePage.activePageId(),
-      // See through Layers/Pages so dblclick drills to the shape's real
-      // group (not the layer), and a shape directly in a layer doesn't
-      // resolve to the layer at all.
-      isTransparentContainer: organizationalContainerPredicate(this.state.document().root),
-    });
+    // Same DOM-hit + geometric-fallback resolution as onPointerDown so a
+    // dblclick on an unfilled shape's area also enters isolation (D-091).
+    const id = this.resolveSelectionId(event);
     const now = performance.now();
     const isSecondClickOnSameTarget =
       id !== null &&
@@ -694,6 +684,58 @@ export class SvgeShellInteractions implements OnDestroy {
     } else {
       this.selection.selectMany(hits);
     }
+  }
+
+  // ── Selection resolution (DOM hit + geometric fallback) — D-091 ──
+
+  /** Shared options for selectable-node resolution (group mode + scope). */
+  private selectableOptions(): SelectableResolveOptions {
+    const root = this.state.document().root;
+    return {
+      mode: 'group',
+      rootId: root.id,
+      isolationRootId: this.isolation.isolationRootId() ?? this.activePage.activePageId(),
+      isTransparentContainer: organizationalContainerPredicate(root),
+    };
+  }
+
+  /**
+   * Resolve the node id for a pointer/click. **Primary**: native DOM hit
+   * (`event.target`) — exact, z-order-correct, catches filled shapes.
+   * **Fallback** (D-091): when the DOM hit lands on background or a scope
+   * container (page / isolation root / document root), run a geometric
+   * tolerance hit so an **unfilled** shape clicked on its area, or a click
+   * a few px off a thin stroke, still selects — matching Illustrator. The
+   * geometric hit is mapped through the SAME group/scope resolution so it
+   * lands on the identical node a painted click would.
+   */
+  private resolveSelectionId(event: PointerEvent | MouseEvent): NodeId | null {
+    const opts = this.selectableOptions();
+    const domId = resolveSelectableNodeId(event, opts);
+    if (domId !== null && !this.isScopeContainer(domId)) return domId;
+    const svg = this.findInnerSvg();
+    if (svg !== null) {
+      const el = geometricHitTestElement(svg, event.clientX, event.clientY);
+      if (el !== null) {
+        const geoId = resolveSelectableNodeIdFromElement(el, opts);
+        if (geoId !== null && !this.isScopeContainer(geoId)) return geoId;
+      }
+    }
+    return domId;
+  }
+
+  /**
+   * Whether `id` is a scope CONTAINER (document root / active page /
+   * isolation root) rather than a target shape. A geometric hit may
+   * upgrade past these; when no shape is found they're returned so the
+   * existing page-marquee / background / exit-isolation logic runs.
+   */
+  private isScopeContainer(id: NodeId): boolean {
+    return (
+      id === this.state.document().root.id ||
+      id === this.activePage.activePageId() ||
+      id === this.isolation.isolationRootId()
+    );
   }
 
   // ── Coord helpers ───────────────────────────────────────────────
