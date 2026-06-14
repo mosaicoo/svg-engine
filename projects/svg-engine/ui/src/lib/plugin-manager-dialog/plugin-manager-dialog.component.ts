@@ -29,10 +29,19 @@ import { SvgePluginManager } from '../plugin-manager';
     </svge-dialog-shell>
   `,
   styles: `
+    /* The inner <svge-plugin-manager> is \`height: 100%\` and scrolls its
+       list internally, so it needs a DEFINITE parent height. We get that
+       by flex-growing to fill the shell's \`.dlg-body\` (itself a flex
+       column that fills the overlay pane) instead of pinning a fixed
+       height — that's what lets the panel follow the dialog when the user
+       resizes it (no dead space above the footer). The initial open
+       height comes from the dialog config (\`height\` in the service), not
+       from here. \`min-height\` is just a usability floor for very small
+       resizes. */
     .pmd-body {
       display: flex;
-      height: min(60vh, 520px);
-      min-height: 280px;
+      flex: 1 1 auto;
+      min-height: 200px;
     }
     .pmd-body > svge-plugin-manager {
       width: 100%;

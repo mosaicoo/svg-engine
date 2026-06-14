@@ -26,11 +26,18 @@ import { SvgePluginManagerDialog } from './plugin-manager-dialog.component';
 export class SvgePluginManagerDialogService {
   private readonly dialog = inject(MatDialog);
 
-  /** Open the plugin manager dialog. Returns the `MatDialogRef`. */
+  /**
+   * Open the plugin manager dialog. Returns the `MatDialogRef`.
+   *
+   * `height` gives the pane a definite initial size so the panel opens
+   * comfortably tall; the body (`.pmd-body`) flex-fills it and follows
+   * the user's resize from there (the dialog-shell resize grabber
+   * rewrites the pane height live).
+   */
   open(parentInjector?: Injector): MatDialogRef<SvgePluginManagerDialog> {
     return this.dialog.open(
       SvgePluginManagerDialog,
-      svgeDialogConfig('md', { injector: parentInjector }),
+      svgeDialogConfig('md', { injector: parentInjector, height: 'min(70vh, 600px)' }),
     );
   }
 }
