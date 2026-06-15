@@ -7,11 +7,14 @@ import {
   type EditorPlugin,
   PLUGIN_API_VERSION,
   PluginCatalog,
+  PluginLoader,
   type PluginManifest,
   PluginManagerService,
   PluginRegistry,
+  providePluginLoader,
   provideSvgEnginePlugin,
 } from 'svg-engine/edit';
+import type { EnvironmentProviders, Provider } from '@angular/core';
 import { SvgePluginManager } from './plugin-manager.component';
 
 const STORAGE_KEY = 'svge:plugins:state';
@@ -20,6 +23,8 @@ const STORAGE_KEY = 'svge:plugins:state';
 interface PanelActions {
   onToggle(p: PluginManifest): void;
   onUninstall(p: PluginManifest): void;
+  readonly installUrl: { set(v: string): void };
+  submitInstall(): Promise<void>;
 }
 
 function makePlugin(overrides: Partial<EditorPlugin> = {}): EditorPlugin {
@@ -40,10 +45,17 @@ function makePlugin(overrides: Partial<EditorPlugin> = {}): EditorPlugin {
 })
 class TestHost {}
 
-function setup(plugins: readonly EditorPlugin[] = []) {
+function setup(
+  plugins: readonly EditorPlugin[] = [],
+  extraProviders: (Provider | EnvironmentProviders)[] = [],
+) {
   TestBed.configureTestingModule({
     imports: [TestHost],
-    providers: [provideNoopAnimations(), ...plugins.map((p) => provideSvgEnginePlugin(p))],
+    providers: [
+      provideNoopAnimations(),
+      ...plugins.map((p) => provideSvgEnginePlugin(p)),
+      ...extraProviders,
+    ],
   });
   const manager = TestBed.inject(PluginManagerService);
   const registry = TestBed.inject(PluginRegistry);
@@ -124,5 +136,33 @@ describe('SvgePluginManager', () => {
     TestBed.flushEffects();
     fixture.detectChanges();
     expect(catalog.has('ext')).toBe(false);
+  });
+
+  // ── D-099 — Install from URL ───────────────────────────────────────
+  it('hides the Install affordance when no runtime loader is configured', () => {
+    const { fixture } = setup([]);
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.pm-install-btn')).toBeNull();
+  });
+
+  it('shows Install when the loader is configured and submit delegates to it (D-099)', async () => {
+    const { fixture, panel } = setup(
+      [],
+      [
+        providePluginLoader({
+          trustedOrigins: ['https://trusted.example'],
+          moduleLoader: () => Promise.resolve({ default: makePlugin({ id: 'x' }) }),
+        }),
+      ],
+    );
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.pm-install-btn')).not.toBeNull();
+
+    const loader = TestBed.inject(PluginLoader);
+    const spy = vi.spyOn(loader, 'loadFromManifestUrl').mockResolvedValue({ ok: true });
+
+    panel.installUrl.set('https://trusted.example/p.json');
+    await panel.submitInstall();
+    expect(spy).toHaveBeenCalledWith('https://trusted.example/p.json');
   });
 });

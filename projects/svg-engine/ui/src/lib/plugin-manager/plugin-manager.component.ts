@@ -1,9 +1,17 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { MatIconButton } from '@angular/material/button';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  type OnInit,
+  signal,
+} from '@angular/core';
+import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatSlideToggle } from '@angular/material/slide-toggle';
-import { type PluginManifest, PluginManagerService } from 'svg-engine/edit';
+import { PluginLoader, type PluginManifest, PluginManagerService } from 'svg-engine/edit';
 
 /**
  * **D-083 Fase 1 — `<svge-plugin-manager>`**. The product UI for
@@ -30,12 +38,67 @@ import { type PluginManifest, PluginManagerService } from 'svg-engine/edit';
 @Component({
   selector: 'svge-plugin-manager',
   standalone: true,
-  imports: [NgTemplateOutlet, MatIcon, MatIconButton, MatSlideToggle],
+  imports: [NgTemplateOutlet, MatButton, MatIcon, MatIconButton, MatSlideToggle],
   template: `
     <header class="pm-header">
       <span class="pm-title">Plugins</span>
       <span class="pm-count" [attr.aria-label]="total() + ' plugins'">{{ total() }}</span>
+      <!--
+        **D-099** — "Install from URL…" lives HERE, inside the manager, not
+        as a separate menu item: the installed plugin then just appears in
+        the External group below. Only shown when the host configured the
+        runtime loader (trusted origins + module loader); otherwise install
+        is impossible and the affordance would mislead.
+      -->
+      @if (canInstall()) {
+        <button
+          mat-button
+          type="button"
+          class="pm-install-btn"
+          [attr.aria-expanded]="showInstall()"
+          (click)="toggleInstall()"
+        >
+          <mat-icon>add</mat-icon>
+          Install…
+        </button>
+      }
     </header>
+
+    @if (showInstall()) {
+      <div class="pm-install" role="group" aria-label="Install plugin from URL">
+        <label class="pm-install-label" for="pm-install-url">Plugin manifest URL</label>
+        <div class="pm-install-row">
+          <input
+            id="pm-install-url"
+            class="pm-install-input"
+            type="url"
+            inputmode="url"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="https://trusted-origin/plugin.json"
+            [value]="installUrl()"
+            [disabled]="installing()"
+            (input)="onUrlInput($event)"
+            (keydown.enter)="submitInstall()"
+          />
+          <button
+            mat-button
+            type="button"
+            color="primary"
+            [disabled]="installing() || installUrl().trim().length === 0"
+            (click)="submitInstall()"
+          >
+            {{ installing() ? 'Installing…' : 'Install' }}
+          </button>
+          <button mat-button type="button" [disabled]="installing()" (click)="toggleInstall()">
+            Cancel
+          </button>
+        </div>
+        <p class="pm-install-hint">
+          Only manifests served from an origin this app trusts can be installed.
+        </p>
+      </div>
+    }
 
     @if (actionError(); as err) {
       <div class="pm-action-error" role="alert">
@@ -166,6 +229,64 @@ import { type PluginManifest, PluginManagerService } from 'svg-engine/edit';
       background: var(--mat-sys-surface-container-high, #eee);
       border-radius: 10px;
       padding: 1px 8px;
+    }
+    /* D-099 — Install affordance. Compact button in the header + an
+       inline form revealed below it. */
+    .pm-install-btn {
+      flex: 0 0 auto;
+      margin-left: 6px;
+      height: 28px;
+      line-height: 28px;
+      padding: 0 8px;
+      font-size: 12px;
+      min-width: 0;
+    }
+    .pm-install-btn mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      margin-right: 2px;
+    }
+    .pm-install {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 8px 10px;
+      flex: 0 0 auto;
+      border-bottom: 1px solid var(--mat-sys-outline-variant, #e0e0e0);
+      background: var(--mat-sys-surface-container-low, #f5f5f5);
+    }
+    .pm-install-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--mat-sys-on-surface-variant, #777);
+    }
+    .pm-install-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pm-install-input {
+      flex: 1 1 auto;
+      min-width: 0;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      font-size: 12px;
+      border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.2));
+      border-radius: 6px;
+      background: var(--mat-sys-surface, #fff);
+      color: var(--mat-sys-on-surface, inherit);
+    }
+    .pm-install-input:focus {
+      outline: 2px solid var(--mat-sys-primary, #1976d2);
+      outline-offset: -1px;
+    }
+    .pm-install-hint {
+      margin: 0;
+      font-size: 11px;
+      color: var(--mat-sys-on-surface-variant, #888);
     }
     .pm-action-error {
       display: flex;
@@ -302,8 +423,11 @@ import { type PluginManifest, PluginManagerService } from 'svg-engine/edit';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SvgePluginManager {
+export class SvgePluginManager implements OnInit {
   private readonly manager = inject(PluginManagerService);
+  // **D-099** — optional: present only when the host wired the runtime
+  // loader via `providePluginLoader`. Null → no "Install from URL…".
+  private readonly loader = inject(PluginLoader, { optional: true });
 
   protected readonly internal = this.manager.internalPlugins;
   protected readonly external = this.manager.externalPlugins;
@@ -311,6 +435,63 @@ export class SvgePluginManager {
 
   /** Transient banner for a failed/blocked action (cleared on next success). */
   protected readonly actionError = signal<string | null>(null);
+
+  // ── D-099 — Install from URL ─────────────────────────────────────
+  /**
+   * Deep-link flag: when opened from **Tools ▸ Plugins ▸ Install Plugin…**
+   * the dialog passes `true` so the install form starts open. Default
+   * `false` (opened from Manage Plugins → list first).
+   */
+  readonly openInstall = input<boolean>(false);
+
+  /** Whether the inline install form is showing. */
+  protected readonly showInstall = signal(false);
+  /** Bound to the manifest URL input. */
+  protected readonly installUrl = signal('');
+  /** True while a `loadFromManifestUrl` call is in flight. */
+  protected readonly installing = signal(false);
+
+  ngOnInit(): void {
+    if (this.openInstall() && this.canInstall()) {
+      this.showInstall.set(true);
+    }
+  }
+
+  /** Install is offered only when the host configured the runtime loader. */
+  protected canInstall(): boolean {
+    return this.loader?.isEnabled ?? false;
+  }
+
+  protected toggleInstall(): void {
+    this.showInstall.update((v) => !v);
+  }
+
+  protected onUrlInput(e: Event): void {
+    this.installUrl.set((e.target as HTMLInputElement).value);
+  }
+
+  /**
+   * Fetch + install the plugin described by {@link installUrl}. Delegates
+   * all validation + the trusted-origin gate to
+   * {@link PluginLoader.loadFromManifestUrl}; on success the plugin appears
+   * in the External group and the form closes, on failure the error shows
+   * in the shared {@link actionError} banner.
+   */
+  protected async submitInstall(): Promise<void> {
+    const loader = this.loader;
+    const url = this.installUrl().trim();
+    if (loader === null || url.length === 0 || this.installing()) return;
+    this.installing.set(true);
+    this.actionError.set(null);
+    const res = await loader.loadFromManifestUrl(url);
+    this.installing.set(false);
+    if (res.ok) {
+      this.installUrl.set('');
+      this.showInstall.set(false);
+    } else {
+      this.actionError.set(res.error ?? 'Install failed');
+    }
+  }
 
   protected onToggle(p: PluginManifest): void {
     const res = p.enabled ? this.manager.disable(p.id) : this.manager.enable(p.id);

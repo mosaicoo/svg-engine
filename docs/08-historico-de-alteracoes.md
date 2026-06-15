@@ -6,6 +6,51 @@
 
 ---
 
+## 2026-06-15 — D-099 — Tools ▸ Plugins ▸ Install Plugin… (dentro do gerenciador) ✅
+
+Ship o placeholder de roadmap `svge.roadmap.tools.plugins.install` como
+funcionalidade real — **dentro do gerenciador de plugins**, não como uma
+superfície separada (decisão de UX validada com o usuário: o lugar certo de
+instalar é onde se gerencia; o plugin instalado então aparece na lista
+**External**).
+
+**Loader (edit)** — novo `PluginLoader.loadFromManifestUrl(url)`
+([plugin-loader.service.ts](../projects/svg-engine/edit/src/lib/plugin/plugin-loader.service.ts)):
+faz `fetch` do manifesto JSON e delega ao `load()` existente (todos os
+gates: validação → apiVersion → allowlist do `entry` → moduleLoader →
+shape-check → install). **Mais estrito na frente**: a URL do manifesto
+precisa estar na allowlist de origens confiáveis **antes** de qualquer
+fetch — então não é uma superfície "cole qualquer URL e baixe" (a postura
+deliberada não-marketplace da Fase 2, D-083). Método novo na classe já
+exportada → **sem mudança no snapshot de API**.
+
+**UI (ui)** — `<svge-plugin-manager>` ganhou uma seção **"Install from
+URL…"** no header
+([plugin-manager.component.ts](../projects/svg-engine/ui/src/lib/plugin-manager/plugin-manager.component.ts)):
+botão + form inline (campo de URL + Install + Cancel). Só aparece quando o
+host configurou o loader (`PluginLoader.isEnabled`); senão a instalação é
+impossível e a affordance enganaria. Injeta `PluginLoader` como **optional**.
+
+**Menu (ui)** — `Tools ▸ Plugins ▸ Install Plugin…` real
+([builtin-ui-menu-contributions.plugin.ts](../projects/svg-engine/ui/src/lib/menu-extras/builtin-ui-menu-contributions.plugin.ts)),
+order 20 sob o parent `svge.tools.plugins`. Não é uma 2ª superfície: é um
+**deep-link** que abre o gerenciador já no form de instalar (`openInstall:
+true`, propagado via `MAT_DIALOG_DATA`). **Desabilitado** (factory) quando o
+loader não está configurado. Placeholder removido do `builtinRoadmapMenuPlugin`
+(Enable/Disable + Developer Mode seguem roadmap).
+
+**Não removido**: o demo `File ▸ "Carregar plugin externo (Mosaicoo)…"` do
+svg-studio — é dogfood app-level (teste same-origin do loader), distinto do
+instalador genérico da lib; fica.
+
+Specs: `loadFromManifestUrl` (allowlist antes do fetch, HTTP/JSON errors,
+entry-origin ainda gateado por `load()`); componente (install some/aparece
+conforme o loader; submit delega ao loader); serviço do diálogo (propaga
+`openInstall`). Build (lib + svg-studio) + lint + suíte (**2531**) verdes;
+sem mudança no snapshot de API.
+
+---
+
 ## 2026-06-15 — D-098 — Window ▸ Panels: revelar painéis (indireção lógica) ✅
 
 Os 10 placeholders de roadmap de **Window ▸ Panels** viraram **ações reais**

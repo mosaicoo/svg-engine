@@ -1,7 +1,16 @@
 import { inject, Injectable, type Injector } from '@angular/core';
 import { MatDialog, type MatDialogRef } from '@angular/material/dialog';
 import { svgeDialogConfig } from '../dialog-shell';
-import { SvgePluginManagerDialog } from './plugin-manager-dialog.component';
+import {
+  SvgePluginManagerDialog,
+  type SvgePluginManagerDialogData,
+} from './plugin-manager-dialog.component';
+
+/** Options for {@link SvgePluginManagerDialogService.open}. */
+export interface SvgePluginManagerOpenOptions {
+  /** **D-099** — start with the "Install from URL…" form open (deep-link). */
+  readonly openInstall?: boolean;
+}
 
 /**
  * **Centralized opener for `<svge-plugin-manager-dialog>`** (D-083 Fase 1).
@@ -34,10 +43,17 @@ export class SvgePluginManagerDialogService {
    * the user's resize from there (the dialog-shell resize grabber
    * rewrites the pane height live).
    */
-  open(parentInjector?: Injector): MatDialogRef<SvgePluginManagerDialog> {
+  open(
+    parentInjector?: Injector,
+    options?: SvgePluginManagerOpenOptions,
+  ): MatDialogRef<SvgePluginManagerDialog> {
     return this.dialog.open(
       SvgePluginManagerDialog,
-      svgeDialogConfig('md', { injector: parentInjector, height: 'min(70vh, 600px)' }),
+      svgeDialogConfig<SvgePluginManagerDialogData>('md', {
+        injector: parentInjector,
+        height: 'min(70vh, 600px)',
+        data: { openInstall: options?.openInstall ?? false },
+      }),
     );
   }
 }

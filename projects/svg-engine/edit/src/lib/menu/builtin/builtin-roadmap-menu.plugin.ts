@@ -649,7 +649,11 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
         shortcut: 'Ctrl+K',
       }),
     );
-    // Plugins ▶ — Manage Plugins (real) is contributed by the ui plugin.
+    // Plugins ▶ — Manage Plugins (real) + Install Plugin… (real, D-099) are
+    // contributed by the ui plugin. **D-099 — SHIPPED.** The "Install
+    // Plugin…" roadmap placeholder was removed: it's now a real deep-link
+    // into the manager's "Install from URL…" form (no separate installer
+    // surface). Enable / Disable + Developer Mode stay roadmap below.
     track(
       structuralParent({
         id: 'svge.tools.plugins',
@@ -657,16 +661,6 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
         label: 'Plugins',
         icon: 'extension',
         order: 30,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.tools.plugins.install',
-        parentId: 'svge.tools.plugins',
-        slot: MENU_SLOT.TOOLS,
-        label: 'Install Plugin…',
-        icon: 'add',
-        order: 20,
       }),
     );
     track(

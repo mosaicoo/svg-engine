@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type EditorPlugin, PLUGIN_API_VERSION } from './plugin';
 import type { ExternalPluginManifest } from './external-plugin-manifest';
 import {
@@ -151,5 +151,83 @@ describe('PluginLoader', () => {
     expect(h.loader.isOriginTrusted(`${TRUSTED}/x.js`)).toBe(true);
     expect(h.loader.isOriginTrusted('https://evil.example/x.js')).toBe(false);
     expect(h.loader.isOriginTrusted('not-a-url')).toBe(false);
+  });
+});
+
+describe('PluginLoader.loadFromManifestUrl (D-099)', () => {
+  const MANIFEST_URL = `${TRUSTED}/demo/plugin.json`;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(STORAGE_KEY);
+  });
+
+  /** Stub global fetch with a single canned response. */
+  function stubFetch(impl: (url: string) => Partial<Response> & { json?: () => Promise<unknown> }) {
+    vi.stubGlobal('fetch', (input: string) => Promise.resolve(impl(input) as Response));
+  }
+
+  it('fetches the manifest then loads + installs the plugin', async () => {
+    const h = configure();
+    stubFetch(() => ({ ok: true, status: 200, json: () => Promise.resolve(manifest()) }));
+    const res = await h.loader.loadFromManifestUrl(MANIFEST_URL);
+    expect(res.ok).toBe(true);
+    expect(h.manager.plugins().some((p) => p.id === 'com.acme.demo')).toBe(true);
+  });
+
+  it('refuses a manifest URL whose origin is not trusted — without fetching', async () => {
+    const h = configure();
+    let fetched = false;
+    stubFetch(() => {
+      fetched = true;
+      return { ok: true, status: 200, json: () => Promise.resolve(manifest()) };
+    });
+    const res = await h.loader.loadFromManifestUrl('https://evil.example/plugin.json');
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('allowlist');
+    expect(fetched).toBe(false); // fail-closed BEFORE the network call
+  });
+
+  it('fails when the loader is not configured (no module loader)', async () => {
+    const h = configure({ moduleLoader: 'omit' });
+    const res = await h.loader.loadFromManifestUrl(MANIFEST_URL);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('not configured');
+  });
+
+  it('surfaces an HTTP error from the manifest fetch', async () => {
+    const h = configure();
+    stubFetch(() => ({ ok: false, status: 404, json: () => Promise.resolve({}) }));
+    const res = await h.loader.loadFromManifestUrl(MANIFEST_URL);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('404');
+  });
+
+  it('surfaces invalid JSON in the manifest body', async () => {
+    const h = configure();
+    stubFetch(() => ({
+      ok: true,
+      status: 200,
+      json: () => Promise.reject(new Error('Unexpected token')),
+    }));
+    const res = await h.loader.loadFromManifestUrl(MANIFEST_URL);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('not valid JSON');
+  });
+
+  it('still gates the entry origin via load() even when the manifest URL is trusted', async () => {
+    const h = configure();
+    // Manifest fetched from a trusted origin, but its entry points elsewhere.
+    stubFetch(
+      () =>
+        ({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(manifest({ entry: 'https://evil.example/x.js' })),
+        }) as Partial<Response>,
+    );
+    const res = await h.loader.loadFromManifestUrl(MANIFEST_URL);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('allowlist');
   });
 });

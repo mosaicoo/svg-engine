@@ -1,6 +1,13 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { SvgeDialogShell } from '../dialog-shell';
 import { SvgePluginManager } from '../plugin-manager';
+
+/** Data injected by {@link SvgePluginManagerDialogService.open}. */
+export interface SvgePluginManagerDialogData {
+  /** **D-099** — start with the "Install from URL…" form open (deep-link). */
+  readonly openInstall?: boolean;
+}
 
 /**
  * **D-083 Fase 1 — `<svge-plugin-manager-dialog>`**. Material dialog
@@ -24,7 +31,7 @@ import { SvgePluginManager } from '../plugin-manager';
       subtitle="Enable, disable or uninstall this editor's plugins"
     >
       <div class="pmd-body">
-        <svge-plugin-manager />
+        <svge-plugin-manager [openInstall]="openInstall" />
       </div>
     </svge-dialog-shell>
   `,
@@ -49,4 +56,12 @@ import { SvgePluginManager } from '../plugin-manager';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SvgePluginManagerDialog {}
+export class SvgePluginManagerDialog {
+  // **D-099** — forwarded to the panel so a deep-link (Tools ▸ Plugins ▸
+  // Install Plugin…) can open straight into the install form. Optional:
+  // when opened without data (e.g. Manage Plugins), defaults to false.
+  private readonly data = inject<SvgePluginManagerDialogData | null>(MAT_DIALOG_DATA, {
+    optional: true,
+  });
+  protected readonly openInstall = this.data?.openInstall ?? false;
+}

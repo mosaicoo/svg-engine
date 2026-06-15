@@ -31,6 +31,7 @@ import {
   type MenuContributionContext,
   type NodeBBox,
   PLUGIN_API_VERSION,
+  PluginLoader,
   SelectionService,
   ShortcutRegistry,
   type ShortcutContext,
@@ -239,6 +240,39 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
         run(runCtx) {
           const service = fromCtx(SvgePluginManagerDialogService, runCtx);
           service.open(runCtx?.injector ?? ctx.injector);
+        },
+      }),
+    );
+
+    // ── Tools ▸ Plugins ▸ Install Plugin… (D-099) ─────────────────
+    //
+    // Ships the roadmap placeholder `svge.roadmap.tools.plugins.install`
+    // (removed). It does NOT add a separate installer surface — it
+    // **deep-links into the manager** opened straight on the "Install from
+    // URL…" form (`openInstall: true`). So there's one place to manage
+    // plugins; installing is just an action there, and the installed plugin
+    // appears in the manager's External group.
+    //
+    // **Disabled** unless the host configured the runtime loader
+    // (`providePluginLoader` → `PluginLoader.isEnabled`): with no loader +
+    // trusted origins there is nothing to install, so the entry greys out
+    // instead of opening a dead form. Factory form so each editor scope
+    // resolves its own loader (D-043).
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.ui.tools.plugins.install',
+        parentId: 'svge.tools.plugins',
+        slot: MENU_SLOT.TOOLS,
+        label: 'Install Plugin…',
+        icon: 'add',
+        order: 20,
+        disabled: (injector: Injector): Signal<boolean> => {
+          const loader = injector.get(PluginLoader, { optional: true });
+          return computed(() => !(loader?.isEnabled ?? false));
+        },
+        run(runCtx) {
+          const service = fromCtx(SvgePluginManagerDialogService, runCtx);
+          service.open(runCtx?.injector ?? ctx.injector, { openInstall: true });
         },
       }),
     );

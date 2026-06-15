@@ -133,6 +133,50 @@ export class PluginLoader {
 
     return this.manager.installExternal(plugin);
   }
+
+  /**
+   * **D-099** — convenience for the "Install from URL…" UI: fetch an
+   * {@link ExternalPluginManifest} as JSON from `manifestUrl`, then hand it
+   * to {@link load} (which runs every guard: validate → apiVersion gate →
+   * entry-origin allowlist → moduleLoader → shape-check → install).
+   *
+   * **Stricter at the front, same fail-closed posture**: the manifest URL
+   * itself must be on the trusted-origins allowlist *before any network
+   * call*. So this is NOT a "paste any URL and fetch" surface — it only
+   * reaches origins the host already trusts (the library's deliberate
+   * non-marketplace stance, D-083). Never throws; returns `{ ok, error }`.
+   */
+  async loadFromManifestUrl(manifestUrl: string): Promise<PluginActionResult> {
+    if (!this.isEnabled) {
+      return fail('Runtime plugin loading is not configured by this app');
+    }
+    if (!this.isOriginTrusted(manifestUrl)) {
+      return fail(
+        `Refused: "${manifestUrl}" is not on the trusted-origins allowlist (${
+          this.trustedOrigins.length === 0 ? 'none configured' : this.trustedOrigins.join(', ')
+        })`,
+      );
+    }
+
+    let res: Response;
+    try {
+      res = await fetch(manifestUrl, { credentials: 'omit' });
+    } catch (err) {
+      return fail(`Failed to fetch manifest from "${manifestUrl}": ${stringify(err)}`);
+    }
+    if (!res.ok) {
+      return fail(`Failed to fetch manifest from "${manifestUrl}": HTTP ${res.status}`);
+    }
+
+    let manifest: ExternalPluginManifest;
+    try {
+      manifest = (await res.json()) as ExternalPluginManifest;
+    } catch (err) {
+      return fail(`Manifest at "${manifestUrl}" is not valid JSON: ${stringify(err)}`);
+    }
+
+    return this.load(manifest);
+  }
 }
 
 function extractPlugin(mod: unknown, manifest: ExternalPluginManifest): EditorPlugin | string {
