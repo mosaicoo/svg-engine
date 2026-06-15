@@ -469,21 +469,34 @@ Material aberto pelo item **File ▸ Manage Plugins…** do
 
 #### Marquee / Snap / Alignment (Bloco 4a-4c)
 
-| Símbolo                                                                            | Descrição                                                                                           |
-| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `MarqueeService` (`@Injectable({ root })`)                                         | `state()` signal, `rect()` computed, `start/update/end/cancel`. Normaliza w/h ≥ 0                   |
-| `Marquee` (`g[svgeMarquee]`)                                                       | Overlay dashed visual                                                                               |
-| `MarqueeCandidate` (interface)                                                     | `{ id, bbox }` para `nodesInsideMarquee(rect, candidates, mode)`                                    |
-| `nodesInsideMarquee(rect, candidates, mode)`                                       | Hit-test puro — modos `'intersect'` (Illustrator) e `'contain'` (AutoCAD)                           |
-| `SnapService` (`@Injectable({ root })`)                                            | config (`enabled`, `mode`, `gridSize`, `thresholdPx`), signal `activeGuides`, `resolveForMove(...)` |
-| `SnapGuides` (`g[svgeSnapGuides]`)                                                 | Overlay magenta (dashed = grid; sólido = objetos)                                                   |
-| `resolveSnap(moving, targets, threshold)`                                          | Resolver puro (matemática); usado por `SnapService.resolveForMove`                                  |
-| `rectsToSnapTargets(rects)`                                                        | Gerador puro — 6 features por rect (low/center/high × 2 eixos)                                      |
-| `gridTargetsNear(area, gridSize)`                                                  | Targets de grid limitados à área do moving (bounded mesmo em docs grandes)                          |
-| `AlignmentService.align(items, axis)`                                              | 6 axes: `left/center-x/right/top/center-y/bottom` — relativo à união da seleção (≥2 nós)            |
-| `AlignmentService.alignToReference(items, axis, reference)`                        | Alinha à `reference` (BoundingBox) fixa — "Align to Page": 1 nó alinha à página ativa               |
-| `AlignmentService.distribute(items, axis)`                                         | `horizontal` / `vertical` — ≥3 nós, edges mantêm posição                                            |
-| `computeAlignDeltas` / `computeAlignToReferenceDeltas` / `computeDistributeDeltas` | Math puro (testáveis sem DI)                                                                        |
+| Símbolo                                                                            | Descrição                                                                                                 |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `MarqueeService` (`@Injectable({ root })`)                                         | `state()` signal, `rect()` computed, `start/update/end/cancel`. Normaliza w/h ≥ 0                         |
+| `Marquee` (`g[svgeMarquee]`)                                                       | Overlay dashed visual                                                                                     |
+| `MarqueeCandidate` (interface)                                                     | `{ id, bbox }` para `nodesInsideMarquee(rect, candidates, mode)`                                          |
+| `nodesInsideMarquee(rect, candidates, mode)`                                       | Hit-test puro — modos `'intersect'` (Illustrator) e `'contain'` (AutoCAD)                                 |
+| `SnapService` (`@Injectable({ root })`)                                            | config (`enabled`, `mode`, `gridSize`, `thresholdPx`), signal `activeGuides`, `resolveForMove(...)`       |
+| `SnapGuides` (`g[svgeSnapGuides]`)                                                 | Overlay magenta (dashed = grid; sólido = objetos)                                                         |
+| `resolveSnap(moving, targets, threshold)`                                          | Resolver puro (matemática); usado por `SnapService.resolveForMove`                                        |
+| `rectsToSnapTargets(rects)`                                                        | Gerador puro — 6 features por rect (low/center/high × 2 eixos)                                            |
+| `gridTargetsNear(area, gridSize)`                                                  | Targets de grid limitados à área do moving (bounded mesmo em docs grandes)                                |
+| `AlignmentService.align(items, axis)`                                              | 6 axes: `left/center-x/right/top/center-y/bottom` — relativo à união da seleção (≥2 nós)                  |
+| `AlignmentService.alignToReference(items, axis, reference)`                        | Alinha à `reference` (BoundingBox) fixa — "Align to Page": 1 nó alinha à página ativa                     |
+| `AlignmentService.distribute(items, axis)`                                         | `horizontal` / `vertical` — ≥3 nós, edges mantêm posição                                                  |
+| `computeAlignDeltas` / `computeAlignToReferenceDeltas` / `computeDistributeDeltas` | Math puro (testáveis sem DI)                                                                              |
+| `AlignmentService.distributeSpacing(items, axis, gap)`                             | **D-095** — distribui por **gap** borda-a-borda igual (≠ centros); ≥3 nós, 1º fixo no eixo                |
+| `resolveAlignReference(items, keyObjectId, page)`                                  | **D-094** — resolve a referência do Align ("Align To": key object ▸ página ▸ união/`null`). Puro          |
+| `computeDistributeSpacingDeltas` / `computeAverageGap`                             | **D-095** — math puro do spacing (deltas por gap; gap médio p/ pré-preencher o diálogo)                   |
+| `KeyObjectService` (`@Injectable`, scoped)                                         | **D-094** — `keyObjectId()` (signal validado vs seleção), `setKeyObject(id)`, `clear()`, `hasKeyObject()` |
+
+#### Help links (D-096)
+
+| Símbolo                                             | Descrição                                                                                                                                                                                   |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SVGE_HELP_LINKS` (`InjectionToken<SvgeHelpLinks>`) | Destinos do menu Help (Documentation / Tutorials / Plugin Development / Report Issue). Factory default → `DEFAULT_HELP_LINKS`                                                               |
+| `SvgeHelpLinks` (interface)                         | `documentation`, `tutorials`, `pluginDevelopment`, `reportIssue` — todas `string`                                                                                                           |
+| `DEFAULT_HELP_LINKS`                                | Docs em caminhos **relativos** (`/docs/…`, resolvem contra o origin atual → host-independente); Report Issue absoluto (issue tracker)                                                       |
+| `provideSvgeHelpLinks(partial)`                     | Provider de override (merge parcial sobre os defaults). **Embedder/host configura aqui, sem tocar na lib** — ex.: `provideSvgeHelpLinks({ documentation: 'https://docs.example.com/svg' })` |
 
 #### Workspace / Layers / Palette / Menu / Shortcut (Fase 4)
 
