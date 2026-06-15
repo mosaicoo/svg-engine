@@ -6,7 +6,13 @@ import { MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatRadioModule } from '@angular/material/radio';
 import { MatSelectModule } from '@angular/material/select';
-import { WHEEL_ZOOM_SPEED_MAX, WHEEL_ZOOM_SPEED_MIN, WorkspaceService } from 'svg-engine/edit';
+import {
+  type ImportPlacementMode,
+  ImportSettingsService,
+  WHEEL_ZOOM_SPEED_MAX,
+  WHEEL_ZOOM_SPEED_MIN,
+  WorkspaceService,
+} from 'svg-engine/edit';
 import { SvgeDialogShell } from '../dialog-shell';
 
 /**
@@ -81,7 +87,7 @@ const PRESET_COLORS: Readonly<
     <svge-dialog-shell
       icon="tune"
       title="Workspace settings"
-      subtitle="Background · Page · Grid · Rulers · Guides · Interaction"
+      subtitle="Background · Page · Grid · Rulers · Guides · Import · Interaction"
     >
       <!-- Body (default slot) -->
       <!--
@@ -227,6 +233,31 @@ const PRESET_COLORS: Readonly<
         </button>
       </section>
 
+      <!--
+        D-107 — SVG Import placement preference. Persisted via
+        ImportSettingsService (localStorage). Controls how File ▸ Import ▸
+        SVG positions the imported art: 'centered' drops it at natural 1:1
+        size on the active page; 'place' lets the user drag an insertion
+        rectangle on the canvas (Illustrator's *Place*).
+      -->
+      <section class="group">
+        <h3>SVG Import</h3>
+        <mat-radio-group
+          class="import-modes"
+          [value]="placementMode()"
+          (change)="setPlacementMode($any($event).value)"
+          aria-label="SVG import placement"
+        >
+          <mat-radio-button value="centered">Centered at 100% (natural size)</mat-radio-button>
+          <mat-radio-button value="place">Drag a placement rectangle</mat-radio-button>
+        </mat-radio-group>
+        <p class="info">
+          Choose how an imported SVG is positioned. “Centered” inserts it at its natural size on the
+          active page; “Drag a placement rectangle” lets you draw the insertion area on the canvas
+          (press Esc to cancel).
+        </p>
+      </section>
+
       <section class="group">
         <h3>Interaction</h3>
         <label class="slider-row">
@@ -325,6 +356,13 @@ const PRESET_COLORS: Readonly<
       flex-direction: column;
       gap: 4px;
     }
+    /* D-107 — SVG import placement radios (vertical, same as bg-presets) */
+    .import-modes {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
     .bg-presets mat-radio-button {
       display: flex;
       align-items: center;
@@ -384,6 +422,12 @@ const PRESET_COLORS: Readonly<
 })
 export class SvgeWorkspaceSettings {
   private readonly ws = inject(WorkspaceService);
+  /**
+   * **D-107** — SVG import placement preference (centered 100% vs
+   * interactive *place* rectangle). Root-scoped (a global preference,
+   * not per-editor) and persisted to localStorage by the service.
+   */
+  private readonly importSettings = inject(ImportSettingsService);
   /**
    * Kept injected (even though the Done button uses `mat-dialog-close`)
    * so callers wiring `afterClosed()` can still distinguish "Done"
@@ -469,6 +513,10 @@ export class SvgeWorkspaceSettings {
   protected readonly speedMin = WHEEL_ZOOM_SPEED_MIN;
   protected readonly speedMax = WHEEL_ZOOM_SPEED_MAX;
 
+  // ── SVG import readers (D-107) ────────────────────────────────
+
+  protected readonly placementMode = computed(() => this.importSettings.placementMode());
+
   // ── Mutators (delegate validation to WorkspaceService) ────────
 
   /**
@@ -553,6 +601,10 @@ export class SvgeWorkspaceSettings {
     const n = typeof raw === 'number' ? raw : Number.parseInt(raw, 10);
     if (Number.isFinite(n)) this.ws.patchInteraction({ wheelZoomSpeed: n });
   }
+  /** D-107 — persist the chosen SVG-import placement mode. */
+  protected setPlacementMode(mode: ImportPlacementMode): void {
+    this.importSettings.setPlacementMode(mode);
+  }
   protected resetAll(): void {
     // PRO-GAP G1 — include background in "Reset defaults" so users
     // expect the dialog to revert ALL workspace settings (not just
@@ -566,5 +618,9 @@ export class SvgeWorkspaceSettings {
     this.ws.setRulersEnabled(false);
     this.ws.clearGuides();
     this.ws.resetInteraction();
+    // D-107 — also revert the SVG-import placement preference to the
+    // 'centered' default so "Reset defaults" reverts every control in
+    // this dialog (including the Import section), not just some.
+    this.importSettings.setPlacementMode('centered');
   }
 }

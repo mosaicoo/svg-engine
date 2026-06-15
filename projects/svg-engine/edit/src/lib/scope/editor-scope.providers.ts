@@ -23,6 +23,7 @@ import { ClipboardService } from '../clipboard/clipboard.service';
 import { ChainFilterRegistry } from '../effect/chain-filter';
 import { SelectSameService } from '../find-replace/select-same.service';
 import { SnapshotsPersistenceService } from '../snapshots/snapshots-persistence.service';
+import { ImportPlacementService } from '../import-placement/import-placement.service';
 import { IsolationService } from '../isolation/isolation.service';
 import { AssetManagerService } from '../library/assets/asset-manager.service';
 import { ActiveClipPathsService } from '../library/clip-paths/clip-path-library.service';
@@ -335,6 +336,14 @@ export function provideSvgEngineEditorScope(options?: SvgEngineEditorScopeOption
     PenToolService,
     ShapeToolService,
     InlineTextEditorService,
+    // **D-107** — interactive "place" gesture for File ▸ Import ▸ SVG.
+    // Holds the pending import + live drag rectangle; the capture overlay
+    // (`<svg:g svgeImportPlacementOverlay>`) drives it. Per-editor scope:
+    // the pending placement is editor-specific (it injects CommandBus +
+    // EditorStateService + SelectionService at construction), so two
+    // editors mounted side-by-side place independently — same defect class
+    // as SmartObjectActionsService / SelectSameService.
+    ImportPlacementService,
     // D-050: per-editor focus signal for the Gradient tool. Scoped so
     // two editors mounted side-by-side don't share the "currently
     // focused gradient" hint.

@@ -27,6 +27,7 @@ import { AssetExportPersistenceService } from '../asset-export/asset-export-pers
 import { AssetExportRegistry } from '../asset-export/asset-export-registry.service';
 import { AssetExportRunner } from '../asset-export/asset-export-runner.service';
 import { SelectSameService } from '../find-replace/select-same.service';
+import { ImportPlacementService } from '../import-placement/import-placement.service';
 import { IsolationService } from '../isolation/isolation.service';
 import { SmartObjectActionsService } from '../smart-object-actions/smart-object-actions.service';
 import { ActiveDefsService } from '../library/active-defs.service';
@@ -245,6 +246,8 @@ const STATEFUL_SCOPED_TOKENS: readonly ProviderToken<unknown>[] = [
   TraceProgressService,
   // edit — find/replace + select-same
   SelectSameService,
+  // D-107 — interactive "place" gesture for File ▸ Import ▸ SVG.
+  ImportPlacementService,
   // D-076 — Smart Object actions (Replace Contents + Rasterize) shared
   // by menu plugin and Inspector section.
   SmartObjectActionsService,

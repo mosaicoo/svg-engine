@@ -59,6 +59,8 @@ import { SVGE_HELP_LINKS, type SvgeHelpLinks } from '../../help';
 import { makeClipMask, releaseClipMask, topmostSelected } from '../../clip-mask/clip-mask-actions';
 import { SelectSameService } from '../../find-replace/select-same.service';
 import { getRenderedNodeBBox } from '../../geometry/node-bbox';
+import { ImportPlacementService } from '../../import-placement/import-placement.service';
+import { ImportSettingsService } from '../../import-settings/import-settings.service';
 import { LayersService } from '../../layers/layers.service';
 import { ActiveDefsService } from '../../library/active-defs.service';
 import { PANEL_ID, PanelHostService } from '../../panel/panel-host.service';
@@ -2966,7 +2968,18 @@ function importSvgFromFile(runCtx: MenuContributionContext | undefined, fromCtx:
         // which wiped every page + all existing work (data loss). Now the
         // import is inserted into the ACTIVE PAGE as one selected group,
         // preserving every page + element.
-        placeImportedSvgIntoActivePage(runCtx, fromCtx, result.document);
+        //
+        // **D-107** — branch on the persisted placement preference:
+        // - `'centered'` (default): insert at natural 1:1 size centered on the
+        //   active page (D-106).
+        // - `'place'`: hand the parsed art to `ImportPlacementService`; the
+        //   `<svge-import-placement-overlay>` then lets the user drag a
+        //   rectangle on the canvas (Illustrator's *Place*).
+        if (fromCtx(ImportSettingsService, runCtx).placementMode() === 'place') {
+          beginImportPlacement(runCtx, fromCtx, result.document);
+        } else {
+          placeImportedSvgIntoActivePage(runCtx, fromCtx, result.document);
+        }
         if (result.warnings.length > 0 && typeof console !== 'undefined') {
           console.warn(`[SVGEngine] Import warnings:\n${result.warnings.join('\n')}`);
         }
@@ -2994,8 +3007,9 @@ function importSvgFromFile(runCtx: MenuContributionContext | undefined, fromCtx:
  *   inside the active page — then selects the result so the user can
  *   immediately reposition / resize it with the normal selection handles.
  *
- * **Follow-up (deferred)**: interactive "drag a placement rectangle on the
- * canvas" (Illustrator's *Place*) — a tool/overlay feature on top of this.
+ * **Companion (D-107)**: {@link beginImportPlacement} is the interactive
+ * "drag a placement rectangle on the canvas" alternative (Illustrator's
+ * *Place*), selected via the persisted `ImportSettingsService` preference.
  */
 function placeImportedSvgIntoActivePage(
   runCtx: MenuContributionContext | undefined,
@@ -3040,6 +3054,27 @@ function placeImportedSvgIntoActivePage(
   // AUTO_PARENT → the active page (or root) via the CommandBus resolver.
   fromCtx(CommandBus, runCtx).dispatch(new InsertNodeCommand(AUTO_PARENT, placed));
   fromCtx(SelectionService, runCtx).select(placed.id);
+}
+
+/**
+ * **D-107** — hand the parsed import to {@link ImportPlacementService} for
+ * the interactive *place* gesture (the user drags a rectangle on the canvas;
+ * the `<svge-import-placement-overlay>` captures the drag and the service
+ * commits the fit, defs-merge, insert + select). No-op when the import is
+ * empty. Used when the persisted placement preference is `'place'`.
+ */
+function beginImportPlacement(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+  doc: SvgDocument,
+): void {
+  const imported = doc.root;
+  if (imported.type !== 'group' || imported.children.length === 0) return;
+  fromCtx(ImportPlacementService, runCtx).begin({
+    group: imported,
+    src: doc.viewBox,
+    defs: doc.defs,
+  });
 }
 
 async function exportAndDownload(

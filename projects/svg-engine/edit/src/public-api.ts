@@ -98,6 +98,9 @@ export * from './lib/panel';
 // SVG import placement preference (centered 100% vs interactive place) (D-106)
 export * from './lib/import-settings';
 
+// Interactive "place" gesture for SVG import (drag rectangle) (D-107)
+export * from './lib/import-placement';
+
 // Keyboard shortcuts (Fase 4 Bloco 4g)
 export * from './lib/shortcut';
 

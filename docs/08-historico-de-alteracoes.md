@@ -6,6 +6,50 @@
 
 ---
 
+## 2026-06-15 — D-107 — Import SVG: modo "place" interativo (arrastar retângulo) + toggle na UI ✅
+
+Parte 2 (etapa 2/2) da importação configurável. Implementa o modo `'place'`
+(arrastar o retângulo de inserção no canvas, estilo _Place_ do Illustrator) e
+expõe o toggle entre os dois modos na UI de **Workspace Settings**. Conclui o
+D-105/D-106.
+
+- **`ImportPlacementService`** (novo, `svg-engine/edit`, `providedIn:'root'` +
+  no escopo por-editor —
+  [import-placement.service.ts](../projects/svg-engine/edit/src/lib/import-placement/import-placement.service.ts)):
+  guarda o `PendingImport` (group + `src` BoundingBox natural + defs) e o
+  retângulo de drag (sinais `pending`/`rect`). `begin`/`beginDrag`/`updateDrag`/
+  `commitDrag`/`cancel`. No commit, **encaixa a arte no retângulo preservando
+  o aspect ratio** (`fitImportTransform` — `s = min(w/srcW, h/srcH)`,
+  centralizada); um clique (retângulo ~0) cai para **1:1 natural no ponto**.
+  Mescla defs, insere via `InsertNodeCommand(AUTO_PARENT)` (1 undo) e seleciona.
+- **`<svg:g svgeImportPlacementOverlay>`** (novo, `svg-engine/edit` —
+  [import-placement-overlay.component.ts](../projects/svg-engine/edit/src/lib/import-placement/import-placement-overlay.component.ts)):
+  superfície de captura **autocontida** — quando há `pending`, renderiza um
+  `<rect>` transparente cobrindo o viewport (`pointer-events: all`, cursor
+  crosshair) que captura o **próprio** drag (pointerdown/move/up) e desenha a
+  banda tracejada; `Esc` cancela. Não toca na diretiva central
+  `[svgeShellInteractions]`. Sem `pending`, não renderiza nada (custo zero).
+  Projetado front-most nos shells `svge-shell-pro`, `svge-editor` e na visão
+  `custom-editor` do playground.
+- **Branch no handler de import**
+  ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts),
+  `importSvgFromFile`): lê `ImportSettingsService.placementMode()` — `'centered'`
+  → `placeImportedSvgIntoActivePage` (D-106); `'place'` → `beginImportPlacement`
+  (entrega o conteúdo ao `ImportPlacementService`).
+- **Toggle na UI** (`SvgeWorkspaceSettings`, `svg-engine/ui` —
+  [workspace-settings.component.ts](../projects/svg-engine/ui/src/lib/workspace-settings/workspace-settings.component.ts)):
+  nova seção **SVG Import** com radios "Centralizado a 100% (tamanho natural)" vs
+  "Arrastar retângulo de posicionamento", ligados ao `ImportSettingsService`.
+  Incluído no "Reset defaults".
+
+`ImportPlacementService` foi adicionado a `provideSvgEngineEditorScope` + à
+spec-trava (`STATEFUL_SCOPED_TOKENS`). Specs do serviço (fit/commit/cancel/
+defs-merge). Build + lint + suíte (**2550**) verdes; snapshot de API regenerado
+(+`ImportPlacementService`, `PendingImport`, `fitImportTransform`,
+`rectFromPoints`, `SvgeImportPlacementOverlay`).
+
+---
+
 ## 2026-06-15 — D-106 — Import SVG: modo "100% natural centralizado na página" + preferência persistente ✅
 
 Parte 2 (etapa 1/2) da importação configurável. Após o fix crítico (D-105),

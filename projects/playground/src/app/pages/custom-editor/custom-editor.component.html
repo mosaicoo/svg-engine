@@ -433,6 +433,12 @@
                Renders nothing otherwise. Must come AFTER all other
                overlays so the text editing surface sits on top. -->
           <svg:g svgeInlineTextEditor></svg:g>
+          <!-- D-107 — interactive SVG-import placement overlay (Illustrator's
+               *Place*). Self-gated: renders nothing until File ▸ Import ▸ SVG
+               runs in 'place' mode, then a transparent capture surface lets
+               the user drag the insertion rectangle. FRONT-most so the
+               capture sits above all content. -->
+          <svg:g svgeImportPlacementOverlay></svg:g>
         </svge-renderer>
       </svge-workspace-background>
     </div>

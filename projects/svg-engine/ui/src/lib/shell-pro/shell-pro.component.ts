@@ -32,6 +32,7 @@ import {
   PlaybackService,
   organizationalContainerPredicate,
   resolveSelectableNodeId,
+  SvgeImportPlacementOverlay,
   SvgePageSelectionOverlay,
   SELECT_TOOL_ID,
   SvgeCanvasGestures,
@@ -133,6 +134,7 @@ import { SvgeToolsPalette } from '../tools-palette';
     WorkspaceBackground,
     PageOverlay,
     SvgePageSelectionOverlay,
+    SvgeImportPlacementOverlay,
     GridOverlay,
     GuidesOverlay,
     OutlineFilter,
@@ -279,6 +281,14 @@ import { SvgeToolsPalette } from '../tools-palette';
               gradient stops) for a crisp affordance.
             -->
             <svg:g svgePageSelectionOverlay></svg:g>
+            <!--
+              D-107 — interactive SVG-import placement overlay
+              (Illustrator's Place). Self-gated: renders NOTHING until
+              File - Import - SVG runs in 'place' mode, then a transparent
+              full-viewport capture surface lets the user drag the insertion
+              rectangle. FRONT-most so the capture sits above all content.
+            -->
+            <svg:g svgeImportPlacementOverlay></svg:g>
           </svge-renderer>
         </svge-workspace-background>
         <!--
