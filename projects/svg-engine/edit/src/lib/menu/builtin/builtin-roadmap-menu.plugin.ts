@@ -320,16 +320,10 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     );
 
     // ── Edit (roadmap) ─────────────────────────────────────────────
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.edit.paste-in-place',
-        slot: MENU_SLOT.EDIT,
-        label: 'Paste In Place',
-        icon: 'content_paste_go',
-        order: 46,
-        shortcut: 'Ctrl+Shift+V',
-      }),
-    );
+    // **D-102 — SHIPPED.** "Paste In Place" (Edit, order 46) is now a real
+    // command registered by `builtinMenuContributionsPlugin`: pastes at the
+    // original coordinates (zero offset) while a plain Paste now nudges +10px,
+    // so the two are distinct. Roadmap placeholder removed per convention.
     track(
       roadmapLeaf({
         id: 'svge.roadmap.edit.invert-selection',

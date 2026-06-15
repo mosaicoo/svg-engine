@@ -22,6 +22,7 @@ import {
   isSmartObject,
   MakeLayerCommand,
   MakeSmartObjectCommand,
+  multiply,
   type NodeId,
   type Point,
   RemoveNodeCommand,
@@ -31,8 +32,10 @@ import {
   SetPropertyCommand,
   SnapshotsService,
   SubtractCommand,
+  type SvgNode,
   type TextNode,
   type Transform,
+  translate,
   UngroupCommand,
   UnionCommand,
   UnmakeLayerCommand,
@@ -590,7 +593,27 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         order: 44,
         disabled: noClipboardFactory,
         run(runCtx) {
-          pasteFromClipboard(runCtx, fromCtx);
+          pasteFromClipboard(runCtx, fromCtx, PASTE_OFFSET);
+        },
+      }),
+    );
+    // **D-102** — Paste In Place. Ships the roadmap placeholder
+    // `svge.roadmap.edit.paste-in-place` (removed). Same flow as Paste but a
+    // ZERO offset, so the content lands at its ORIGINAL coordinates
+    // (Illustrator's Ctrl+Shift+V) instead of the +10px nudge a plain Paste
+    // now uses. Order 46 keeps it between Paste (44) and Duplicate (48), as
+    // the roadmap comment intended. Disabled when the clipboard is empty.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.paste-in-place',
+        slot: MENU_SLOT.EDIT,
+        label: 'Paste In Place',
+        icon: 'content_paste_go',
+        shortcut: 'Ctrl+Shift+V',
+        order: 46,
+        disabled: noClipboardFactory,
+        run(runCtx) {
+          pasteFromClipboard(runCtx, fromCtx, { x: 0, y: 0 });
         },
       }),
     );
@@ -2264,7 +2287,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         order: 32,
         disabled: noClipboardFactory,
         run(runCtx) {
-          pasteFromClipboard(runCtx, fromCtx);
+          pasteFromClipboard(runCtx, fromCtx, PASTE_OFFSET);
         },
       }),
     );
@@ -2819,18 +2842,49 @@ function cutSelected(runCtx: MenuContributionContext | undefined, fromCtx: Resol
   deleteSelected(runCtx, fromCtx);
 }
 
-function pasteFromClipboard(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+/**
+ * **D-102** — default offset for a plain **Paste**. Matches
+ * `DuplicateNodeCommand`'s 10px (Figma / Affinity convention) so the pasted
+ * copy lands visibly off the original instead of stacked exactly on top.
+ * **Paste In Place** passes a zero offset to keep the original coordinates
+ * (Illustrator's Ctrl+Shift+V semantics).
+ */
+const PASTE_OFFSET: Point = { x: 10, y: 10 };
+
+/**
+ * Paste the clipboard into the active page (`AUTO_PARENT`). `offset` shifts
+ * every pasted node in its parent's coordinate space:
+ *
+ * - `PASTE_OFFSET` (plain **Paste**) → the copy is visible, not stacked on
+ *   the original. (The pre-D-102 Paste used no offset, i.e. it was already
+ *   effectively "paste in place" — which made the original placeholder
+ *   redundant; D-102 splits the two so each is distinct.)
+ * - `{ x: 0, y: 0 }` (**Paste In Place**) → exact original coordinates.
+ */
+function pasteFromClipboard(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+  offset: Point,
+): void {
   const clipboard = fromCtx(ClipboardService, runCtx);
   const nodes = clipboard.paste();
   if (nodes.length === 0) return;
   const bus = fromCtx(CommandBus, runCtx);
+  const inPlace = offset.x === 0 && offset.y === 0;
   // **PAGES-REFACTOR Fase 1**: AUTO_PARENT — CommandBus resolves the
   // active page (or root) via INSERT_PARENT_RESOLVER, no manual lookup.
   for (const node of nodes) {
-    bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
+    // Compose the offset onto the top-level node only — descendants keep
+    // their relative transforms, so a pasted group shifts as a whole
+    // (same approach as DuplicateNodeCommand).
+    const placed: SvgNode = inPlace
+      ? node
+      : { ...node, transform: multiply(translate(offset.x, offset.y), node.transform) };
+    bus.dispatch(new InsertNodeCommand(AUTO_PARENT, placed));
   }
   // Select the newly-pasted nodes so subsequent operations target them
-  // (matches the convention of every professional editor).
+  // (matches the convention of every professional editor). Ids are
+  // preserved by the spread, so the original `nodes` ids still match.
   const sel = fromCtx(SelectionService, runCtx);
   sel.selectMany(nodes.map((n) => n.id));
 }

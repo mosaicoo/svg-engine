@@ -6,6 +6,47 @@
 
 ---
 
+## 2026-06-15 — D-102 — Edit ▸ Paste In Place (+ Paste passa a ter offset) ✅
+
+Ship o placeholder de roadmap `svge.roadmap.edit.paste-in-place`.
+
+**Achado que guiou o design**: o **Paste atual já colava nas coordenadas
+exatas** (sem offset) — ou seja, já era efetivamente um "paste in place".
+Isso tornava o placeholder redundante. Para os dois itens ficarem
+**distintos**, dividimos (padrão Illustrator/Figma):
+
+- **Paste** (Ctrl+V) → agora aplica um **offset de +10px** (mesma convenção
+  do `DuplicateNodeCommand`), então a cópia fica **visível**, não empilhada
+  exatamente sobre o original.
+- **Paste In Place** (Ctrl+Shift+V, novo) → cola nas **coordenadas
+  originais** (offset zero).
+
+Implementação em
+[builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts):
+`pasteFromClipboard` ganhou um parâmetro `offset: Point`; com offset
+não-nulo compõe `multiply(translate(dx,dy), node.transform)` no nó de topo
+(descendentes mantêm transforms relativos, igual ao Duplicate). Constante
+`PASTE_OFFSET = {x:10,y:10}`. Nova entrada `svge.builtin.edit.paste-in-place`
+(slot Edit, order 46 — entre Paste/44 e Duplicate/48), `disabled` quando o
+clipboard está vazio. Placeholder removido do `builtinRoadmapMenuPlugin`.
+
+**Atalho de teclado**: `Ctrl+Shift+V` é exibido no menu mas **não wired** —
+mantém paridade com Ctrl+V/C/X, que também são display-only (o
+`builtinEditorShortcutsPlugin` ainda não liga os atalhos de clipboard;
+deferido). Só clique de menu/toolbar dispara.
+
+**Mudança de comportamento sinalizada**: o Paste simples agora desloca +10px
+(antes empilhava). É discutivelmente uma correção (empilhar exatamente sobre
+o original é UX ruim), mas é uma mudança visível — fácil de reverter mudando
+`PASTE_OFFSET` para `{x:0,y:0}` se preferir o comportamento antigo.
+
+Specs: Paste In Place mantém coords (transform identidade) e Paste desloca
+(+10,+10); Paste In Place desabilitado com clipboard vazio. Build + lint +
+suíte (**2533**) verdes; sem mudança no snapshot de API (mudança só de menu,
+sem export novo).
+
+---
+
 ## 2026-06-15 — D-101 — Remover o placeholder "Apply Filter…" do menu Object ✅
 
 Removido o placeholder de roadmap `svge.roadmap.object.apply-filter`

@@ -9,9 +9,11 @@ import {
   EditorStateService,
   HistoryService,
   InsertNodeCommand,
+  type SvgNode,
   withLayerFlag,
   withPageFlag,
 } from 'svg-engine/core';
+import { ClipboardService } from '../../clipboard/clipboard.service';
 import { describe, expect, it } from 'vitest';
 
 import { PANEL_ID, PanelHostService } from '../../panel/panel-host.service';
@@ -66,11 +68,41 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(ids).toContain('svge.builtin.edit.cut');
     expect(ids).toContain('svge.builtin.edit.copy');
     expect(ids).toContain('svge.builtin.edit.paste');
+    expect(ids).toContain('svge.builtin.edit.paste-in-place');
     expect(ids).toContain('svge.builtin.edit.duplicate');
     // **D-085** — Group / Ungroup MOVED to the Object slot (Option B);
     // they keep their ids but no longer appear in the Edit slot.
     expect(ids).not.toContain('svge.builtin.edit.group');
     expect(ids).not.toContain('svge.builtin.edit.ungroup');
+  });
+
+  it('Paste In Place keeps original coords; plain Paste offsets +10px (D-102)', () => {
+    const { reg, state, injector } = setupRoot();
+    const clipboard = injector.get(ClipboardService);
+    // A rect with identity transform; clipboard stores a clone.
+    clipboard.copy([createRect({ x: 10, y: 10, width: 20, height: 20 })]);
+
+    const lastChild = (): SvgNode => {
+      const kids = (state.document().root as { readonly children: readonly SvgNode[] }).children;
+      return kids[kids.length - 1]!;
+    };
+
+    // Paste In Place → transform stays identity (no offset).
+    reg.get('svge.builtin.edit.paste-in-place')!.run({ injector });
+    expect(lastChild().transform).toEqual([1, 0, 0, 1, 0, 0]);
+
+    // Plain Paste → transform nudged by +10,+10 so the copy is visible.
+    reg.get('svge.builtin.edit.paste')!.run({ injector });
+    expect(lastChild().transform).toEqual([1, 0, 0, 1, 10, 10]);
+  });
+
+  it('Paste In Place is disabled while the clipboard is empty (D-102)', () => {
+    const { reg, injector } = setupRoot();
+    const item = reg.get('svge.builtin.edit.paste-in-place');
+    expect(item).toBeDefined();
+    expect(resolveDisabledSignal(item!, injector)()).toBe(true); // empty clipboard
+    injector.get(ClipboardService).copy([createRect({ x: 0, y: 0, width: 5, height: 5 })]);
+    expect(resolveDisabledSignal(item!, injector)()).toBe(false);
   });
 
   it('populates View slot with Zoom + Toggle Grid/Rulers/Outline/Timeline', () => {
