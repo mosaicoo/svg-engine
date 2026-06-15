@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-06-15 — D-097 — Remover o placeholder "Check Updates" do menu Help ✅
+
+Removido o último placeholder de roadmap do menu Help
+(`svge.roadmap.help.check-updates`). **Não faz sentido neste produto:**
+
+- **App web (svg-studio)** — é um SPA servido com `outputHashing: "all"`
+  (arquivos versionados por hash) e **sem service worker** (verificado: nenhum
+  `provideServiceWorker`/`ngsw`). Todo carregamento/refresh já busca o último
+  deploy; não há nada para "checar". O único caso web legítimo seria um PWA com
+  `SwUpdate` ("nova versão → recarregar"), que o Studio não usa.
+- **Biblioteca embedável (svg-engine)** — a versão é a que o host empacotou via
+  npm; a lib não pode se autoatualizar. "Check Updates" é herança de app
+  desktop (instalar binário novo) que não mapeia para nenhum dos dois.
+
+Edição única em
+[builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts):
+removido o `roadmapLeaf(...)` + comentário explicando a decisão. O slot Help
+agora não tem **nenhum** placeholder (Documentation, Tutorials, Plugin
+Development, Report Issue, Keyboard Shortcuts e About são todos reais). Spec do
+roadmap inalterado (já exercita o contrato comingSoon via um placeholder de
+Tools). Se um dia o Studio virar PWA instalável, reintroduzimos como
+funcionalidade real (`SwUpdate.checkForUpdate()`). Build + lint + suíte verdes;
+sem mudança no snapshot de API.
+
+---
+
 ## 2026-06-15 — D-096 — Help ▸ Documentation / Tutorials / Plugin Development / Report Issue ✅
 
 Ship 4 dos placeholders de roadmap do menu Help como **links externos reais**

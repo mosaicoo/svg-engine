@@ -845,16 +845,13 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // Report Issue are now real external links registered by
     // `builtinMenuContributionsPlugin`, opening host-independent,
     // DI-configurable URLs (`SVGE_HELP_LINKS` / `provideSvgeHelpLinks`). No
-    // longer placeholders. Only Check Updates remains roadmap (needs a
-    // version-check backend).
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.help.check-updates',
-        slot: MENU_SLOT.HELP,
-        label: 'Check Updates',
-        icon: 'system_update',
-        order: 70,
-      }),
-    );
+    // longer placeholders.
+    //
+    // **D-097 — REMOVED.** "Check Updates" was dropped: it makes no sense
+    // for a web SPA (every page load already serves the latest hashed
+    // build, and there is no service worker to lag behind a deploy) nor
+    // for the embeddable library (its version is whatever the host
+    // bundled via npm — the library cannot update itself). The Help slot
+    // now has no roadmap placeholders at all.
   },
 };
