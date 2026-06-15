@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import { MatDialogRef } from '@angular/material/dialog';
 import { SVG_ENGINE_VERSION } from 'svg-engine';
+import { SVGE_HELP_LINKS } from 'svg-engine/edit';
 import { SvgeDialogShell } from '../dialog-shell';
 
 /**
@@ -46,9 +47,7 @@ import { SvgeDialogShell } from '../dialog-shell';
           exporters, and menu contributions.
         </p>
         <div class="links">
-          <a href="https://github.com/mosaicoo/svg-engine" target="_blank" rel="noopener">
-            GitHub repository
-          </a>
+          <a [href]="homepage" target="_blank" rel="noopener noreferrer"> GitHub repository </a>
         </div>
       </div>
       <ng-container svgeDialogFooterActions>
@@ -91,5 +90,9 @@ import { SvgeDialogShell } from '../dialog-shell';
 })
 export class SvgeAboutDialog {
   protected readonly version = SVG_ENGINE_VERSION;
+  // D-096 — the repository/homepage link is host-independent: it comes from
+  // the DI-configurable SVGE_HELP_LINKS (default → the public GitHub repo).
+  // Apps repoint it via provideSvgeHelpLinks (e.g. from their environment).
+  protected readonly homepage = inject(SVGE_HELP_LINKS).homepage;
   readonly ref = inject(MatDialogRef<SvgeAboutDialog>);
 }

@@ -170,7 +170,13 @@
             "development": {
               "optimization": false,
               "extractLicenses": false,
-              "sourceMap": true
+              "sourceMap": true,
+              "fileReplacements": [
+                {
+                  "replace": "projects/svg-studio/src/environments/environment.ts",
+                  "with": "projects/svg-studio/src/environments/environment.development.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"

@@ -22,17 +22,25 @@ export interface SvgeHelpLinks {
   readonly tutorials: string;
   readonly pluginDevelopment: string;
   readonly reportIssue: string;
+  /**
+   * Project homepage / repository — the link shown in the **About** dialog
+   * (`<svge-about-dialog>`). Absolute by nature (an external project page);
+   * apps repoint it via {@link provideSvgeHelpLinks} (e.g. from their own
+   * `environment`).
+   */
+  readonly homepage: string;
 }
 
 /**
  * Built-in defaults. Docs links are origin-relative (resolve against the
- * current app host); Report Issue points at the public issue tracker.
+ * current app host); Report Issue + homepage point at the public repo.
  */
 export const DEFAULT_HELP_LINKS: SvgeHelpLinks = {
   documentation: '/docs/documentation',
   tutorials: '/docs/tutorials',
   pluginDevelopment: '/docs/plugin-development',
   reportIssue: 'https://github.com/mosaicoo/svg-engine/issues/new',
+  homepage: 'https://github.com/mosaicoo/svg-engine',
 };
 
 /** DI token holding the resolved {@link SvgeHelpLinks}. Defaults to {@link DEFAULT_HELP_LINKS}. */

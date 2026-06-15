@@ -7,8 +7,9 @@ describe('SVGE_HELP_LINKS / provideSvgeHelpLinks (D-096)', () => {
     expect(DEFAULT_HELP_LINKS.documentation).toBe('/docs/documentation');
     expect(DEFAULT_HELP_LINKS.tutorials).toBe('/docs/tutorials');
     expect(DEFAULT_HELP_LINKS.pluginDevelopment).toBe('/docs/plugin-development');
-    // Report Issue is an external (absolute) destination, not an app page.
+    // Report Issue + homepage are external (absolute) destinations, not app pages.
     expect(DEFAULT_HELP_LINKS.reportIssue.startsWith('http')).toBe(true);
+    expect(DEFAULT_HELP_LINKS.homepage.startsWith('http')).toBe(true);
   });
 
   it('the token resolves to the defaults when nothing is provided', () => {

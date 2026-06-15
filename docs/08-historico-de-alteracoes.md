@@ -42,6 +42,24 @@ links). Build + lint + suíte (**2514**) verdes; snapshot de API regenerado
 (+`SVGE_HELP_LINKS`, `DEFAULT_HELP_LINKS`, `provideSvgeHelpLinks`,
 `SvgeHelpLinks`).
 
+**Follow-up (hosts absolutos → env/DI)**: na **biblioteca**, o único URL
+absoluto que rodava e ainda estava fixo era o link do **About**
+(`github.com/mosaicoo/svg-engine`) — agora vem do mesmo token, campo `homepage`
+em `SvgeHelpLinks` (default = o repo); o `<svge-about-dialog>` injeta
+`SVGE_HELP_LINKS` e liga o href a `links.homepage`. No **app svg-studio** o
+`STUDIO_PLUGINS_ORIGIN` (antes `https://svgstudio.mosaicoo.tech` hardcoded)
+passou a vir do `environment`: novos
+[environment.ts](../projects/svg-studio/src/environments/environment.ts) +
+[environment.development.ts](../projects/svg-studio/src/environments/environment.development.ts)
+(`pluginsOrigin` + `homepageUrl`), `fileReplacements` no `angular.json` (config
+`development`), e `app.config.ts` chama
+`provideSvgeHelpLinks({ homepage: environment.homepageUrl })`. Trocar de
+deploy/host agora é **edição de config, nunca de código**. Restam só literais
+benignos (namespaces W3C do SVG, exemplos/testes, `localhost` em comentário +
+`.vscode/launch.json`). Lib build + svg-studio build (prod+dev) + lint + suíte
+(2514) verdes; sem mudança no snapshot de API (`homepage` é campo de interface
+já exportada).
+
 ---
 
 ## 2026-06-15 — D-095 — Object ▸ Distribute ▸ Spacing… (gap-based) ✅

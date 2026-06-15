@@ -5,10 +5,12 @@ import {
   providePluginLoader,
   provideSvgEngineEditorBuiltins,
   provideSvgEnginePlugin,
+  provideSvgeHelpLinks,
 } from 'svg-engine/edit';
 import { provideSvgeUiBuiltins } from 'svg-engine/ui';
 import { builtinNluPlugin } from 'svg-engine/ai/nlu';
 
+import { environment } from '../environments/environment';
 import { commandPalettePlugin } from './command-palette/command-palette.plugin';
 import {
   mosaicooLoaderDemoPlugin,
@@ -43,6 +45,12 @@ export const appConfig: ApplicationConfig = {
     // lazy-loads BrowserAnimationsModule on first use.
     provideAnimationsAsync(),
     provideRouter(routes),
+
+    // ── D-096 — Help link destinations from the app environment ────
+    // Repoints the host-dependent links (here: the About dialog's homepage)
+    // without touching the library. The docs links keep the lib defaults
+    // (relative /docs/… → resolve against this app's own origin).
+    provideSvgeHelpLinks({ homepage: environment.homepageUrl }),
 
     // ── Editor builtins (tier headless) ───────────────────────────
     ...provideSvgEngineEditorBuiltins(),

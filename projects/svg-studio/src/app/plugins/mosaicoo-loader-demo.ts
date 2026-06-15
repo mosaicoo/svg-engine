@@ -11,6 +11,8 @@ import {
 } from 'svg-engine/edit';
 import { SvgePluginManagerDialogService } from 'svg-engine/ui';
 
+import { environment } from '../../environments/environment';
+
 /**
  * **Teste real da Fase 2 (D-083) no SVG Studio** — carregar um plugin
  * externo *de verdade*, por rede, de uma origem confiável.
@@ -41,7 +43,7 @@ import { SvgePluginManagerDialogService } from 'svg-engine/ui';
  * caminho**: esta única entrada cobre `/plugins/` e todas as subpastas
  * (`/plugins/<plugin>/…`) — cada plugin só aponta seu próprio `entry`.
  */
-export const STUDIO_PLUGINS_ORIGIN = 'https://svgstudio.mosaicoo.tech';
+export const STUDIO_PLUGINS_ORIGIN = environment.pluginsOrigin;
 
 /**
  * `moduleLoader` do consumidor: `import()` nativo do `entry` já validado.
