@@ -2,7 +2,9 @@ import { bbox, generateNodeId, type NodeId } from 'svg-engine/core';
 import {
   computeAlignDeltas,
   computeAlignToReferenceDeltas,
+  computeAverageGap,
   computeDistributeDeltas,
+  computeDistributeSpacingDeltas,
   type NodeBBox,
   resolveAlignReference,
   unionBBox,
@@ -228,6 +230,75 @@ describe('computeDistributeDeltas', () => {
     const arr = [a, b, c];
     const snapshot = [...arr];
     computeDistributeDeltas(arr, 'horizontal');
+    expect(arr).toEqual(snapshot);
+  });
+});
+
+describe('computeAverageGap (D-095)', () => {
+  it('returns null for fewer than 3 items', () => {
+    expect(computeAverageGap([], 'horizontal')).toBeNull();
+    expect(computeAverageGap([nb(0, 0, 10, 10)], 'horizontal')).toBeNull();
+    expect(computeAverageGap([nb(0, 0, 10, 10), nb(50, 0, 10, 10)], 'horizontal')).toBeNull();
+  });
+
+  it('averages the edge-to-edge gaps along the axis', () => {
+    // gaps: a→b = 20, b→c = 30 → average 25.
+    const items = [nb(0, 0, 10, 10), nb(30, 0, 10, 10), nb(70, 0, 10, 10)];
+    expect(computeAverageGap(items, 'horizontal')).toBe(25);
+  });
+
+  it('works on the vertical axis and is order-independent', () => {
+    const items = [nb(0, 70, 10, 10), nb(0, 0, 10, 10), nb(0, 30, 10, 10)];
+    expect(computeAverageGap(items, 'vertical')).toBe(25);
+  });
+});
+
+describe('computeDistributeSpacingDeltas (D-095)', () => {
+  it('returns an empty map for fewer than 2 items', () => {
+    expect(computeDistributeSpacingDeltas([], 'horizontal', 10).size).toBe(0);
+    expect(computeDistributeSpacingDeltas([nb(0, 0, 10, 10)], 'horizontal', 10).size).toBe(0);
+  });
+
+  it('lays out equal gaps with the first item fixed (sizes vary)', () => {
+    const idA = generateNodeId();
+    const idB = generateNodeId();
+    const idC = generateNodeId();
+    const a = nb(0, 0, 10, 10, idA);
+    const b = nb(30, 0, 20, 10, idB);
+    const c = nb(100, 0, 10, 10, idC);
+    const d = computeDistributeSpacingDeltas([a, b, c], 'horizontal', 10);
+    expect(d.get(idA)).toBeUndefined(); // first stays fixed
+    expect(d.get(idB)).toEqual({ x: -10, y: 0 }); // lead 20 (cursor 10 + gap 10)
+    expect(d.get(idC)).toEqual({ x: -50, y: 0 }); // lead 50 (cursor 40 + gap 10)
+  });
+
+  it('moves only along the axis (vertical, 2 items)', () => {
+    const idA = generateNodeId();
+    const idB = generateNodeId();
+    const a = nb(0, 0, 10, 10, idA);
+    const b = nb(0, 100, 10, 10, idB);
+    const d = computeDistributeSpacingDeltas([a, b], 'vertical', 5);
+    expect(d.get(idA)).toBeUndefined();
+    expect(d.get(idB)).toEqual({ x: 0, y: -85 }); // lead 15 (cursor 10 + gap 5)
+  });
+
+  it('with the Auto gap (computeAverageGap) the last item stays put', () => {
+    const idA = generateNodeId();
+    const idB = generateNodeId();
+    const idC = generateNodeId();
+    const a = nb(0, 0, 10, 10, idA);
+    const b = nb(30, 0, 10, 10, idB);
+    const c = nb(70, 0, 10, 10, idC);
+    const gap = computeAverageGap([a, b, c], 'horizontal'); // 25
+    const d = computeDistributeSpacingDeltas([a, b, c], 'horizontal', gap!);
+    expect(d.get(idC)).toBeUndefined(); // last lands on its original spot
+    expect(d.get(idB)).toEqual({ x: 5, y: 0 });
+  });
+
+  it("does not mutate the caller's items array", () => {
+    const arr = [nb(100, 0, 10, 10), nb(0, 0, 10, 10), nb(50, 0, 10, 10)];
+    const snapshot = [...arr];
+    computeDistributeSpacingDeltas(arr, 'horizontal', 10);
     expect(arr).toEqual(snapshot);
   });
 });

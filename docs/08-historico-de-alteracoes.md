@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-06-15 — D-095 — Object ▸ Distribute ▸ Spacing… (gap-based) ✅
+
+Ship o placeholder `svge.roadmap.object.distribute.spacing`. "Distribute
+Spacing" iguala o **vão (gap) borda-a-borda** entre objetos — diferente do
+Distribute existente, que iguala **centros**. Com objetos de tamanhos
+diferentes, centros deixam vãos desiguais; spacing iguala os vãos (padrão
+Illustrator/Affinity). Era o único item do submenu Distribute sem motor —
+o código já marcava como follow-up pendente; agora está pronto.
+
+- **Math (puro, edit)** — [alignment-math.ts](../projects/svg-engine/edit/src/lib/alignment/alignment-math.ts):
+  `computeDistributeSpacingDeltas(items, axis, gap)` (1º item fixo no eixo;
+  cada seguinte com `gap` após a borda do anterior; delta só no eixo) +
+  `computeAverageGap(items, axis)` (gap médio atual → pré-preenche o diálogo,
+  o "Auto" do Illustrator: aplicar sem mudar = equalizar). Espelha o
+  `computeDistributeDeltas` (centros).
+- **Service** — `AlignmentService.distributeSpacing(items, axis, gap)`
+  despacha um `TranslateManyCommand` (1 entrada de undo).
+- **UI** — duas entradas **Horizontal Spacing… / Vertical Spacing…** (orders
+  30/40) sob o submenu Distribute, registradas em
+  [builtin-ui-menu-contributions.plugin.ts](../projects/svg-engine/ui/src/lib/menu-extras/builtin-ui-menu-contributions.plugin.ts)
+  (precisa de Material — D-017). Reúsam o `SvgeNumberPromptDialog` (D-093),
+  pré-preenchido com o gap médio. Requer ≥3 objetos (como o Distribute de
+  centros). O placeholder único "Spacing…" virou as duas entradas por eixo,
+  espelhando os dois Distribute existentes.
+
+Specs: `computeAverageGap` (3) + `computeDistributeSpacingDeltas` (5),
+incluindo a propriedade "com gap = média, o último objeto fica parado".
+Build + lint + suíte (**2511**) verdes; snapshot de API regenerado
+(+`computeAverageGap`, +`computeDistributeSpacingDeltas`).
+
+---
+
 ## 2026-06-14 — D-094 — Object ▸ Align ▸ Align to Key Object ✅
 
 Ship o placeholder de roadmap `svge.roadmap.object.align.align-to` como o

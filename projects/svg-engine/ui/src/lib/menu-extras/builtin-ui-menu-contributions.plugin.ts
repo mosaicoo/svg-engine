@@ -19,14 +19,18 @@ import {
   type Transform,
 } from 'svg-engine/core';
 import {
+  AlignmentService,
+  computeAverageGap,
+  type DistributeAxis,
   type EditorPlugin,
   getRenderedNodeBBox,
   getRenderedParentMatrix,
   LayersService,
   MENU_SLOT,
   MenuContributionRegistry,
-  PLUGIN_API_VERSION,
   type MenuContributionContext,
+  type NodeBBox,
+  PLUGIN_API_VERSION,
   SelectionService,
   ShortcutRegistry,
   type ShortcutContext,
@@ -753,5 +757,93 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+
+    // ── D-095 — Object ▸ Distribute ▸ Horizontal / Vertical Spacing… ──
+    //
+    // Ships the roadmap placeholder `svge.roadmap.object.distribute.spacing`
+    // (removed). "Distribute Spacing" equalizes the edge-to-edge GAP between
+    // objects (unlike the existing Distribute, which equalizes centres), so
+    // different-sized objects get identical visual spacing. Each axis opens
+    // the number-prompt dialog pre-filled with the current AVERAGE gap (the
+    // Illustrator "Auto" feel — Apply unchanged = equalize). Needs a Material
+    // dialog (D-017), so it lives here, parented under the edit-side Distribute
+    // submenu. Requires ≥3 objects, same as the centres-based Distribute.
+    const collectSelectedBBoxes = (injector: Injector): NodeBBox[] => {
+      const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+      if (svg === null) return [];
+      const sel = injector.get(SelectionService);
+      const out: NodeBBox[] = [];
+      for (const id of sel.selectedIds()) {
+        const bb = getRenderedNodeBBox(svg, id);
+        if (bb !== null) out.push({ id, bbox: bb });
+      }
+      return out;
+    };
+    const noDistributeSelectionFactory = (injector: Injector): Signal<boolean> => {
+      const selection = injector.get(SelectionService);
+      return computed(() => Array.from(selection.selectedIds()).length < 3);
+    };
+    const openSpacingDialog = async (
+      axis: DistributeAxis,
+      runCtx: MenuContributionContext | undefined,
+    ): Promise<void> => {
+      const injector = runCtx?.injector ?? ctx.injector;
+      const items = collectSelectedBBoxes(injector);
+      if (items.length < 3) return;
+      const avg = computeAverageGap(items, axis);
+      const ref = injector.get(SvgeNumberPromptDialogService).open(
+        {
+          icon: 'space_bar',
+          title: axis === 'horizontal' ? 'Horizontal Spacing' : 'Vertical Spacing',
+          subtitle: 'Equalize the gap between objects (edge to edge)',
+          label: 'Spacing',
+          unit: 'px',
+          // Pre-fill with the current average gap → Apply unchanged equalizes
+          // ("Auto"). Rounded to keep the field tidy; the user can override.
+          value: avg === null ? 0 : Math.round(avg * 100) / 100,
+          step: 1,
+          hint: 'Sets an equal edge-to-edge gap; the first object on the axis stays put.',
+        },
+        injector,
+      );
+      const gap = await firstValueFrom(ref.afterClosed());
+      if (gap == null) return;
+      injector.get(AlignmentService).distributeSpacing(items, axis, gap);
+    };
+    const SPACING_ITEMS: readonly {
+      readonly id: string;
+      readonly axis: DistributeAxis;
+      readonly label: string;
+      readonly order: number;
+    }[] = [
+      {
+        id: 'svge.builtin.ui.object.distribute.spacing-h',
+        axis: 'horizontal',
+        label: 'Horizontal Spacing…',
+        order: 30,
+      },
+      {
+        id: 'svge.builtin.ui.object.distribute.spacing-v',
+        axis: 'vertical',
+        label: 'Vertical Spacing…',
+        order: 40,
+      },
+    ];
+    for (const item of SPACING_ITEMS) {
+      ctx.track(
+        reg.register({
+          id: item.id,
+          parentId: 'svge.builtin.object.distribute',
+          slot: MENU_SLOT.OBJECT,
+          label: item.label,
+          icon: 'space_bar',
+          order: item.order,
+          disabled: noDistributeSelectionFactory,
+          run(runCtx) {
+            void openSpacingDialog(item.axis, runCtx);
+          },
+        }),
+      );
+    }
   },
 };

@@ -11,6 +11,7 @@ import {
   computeAlignDeltas,
   computeAlignToReferenceDeltas,
   computeDistributeDeltas,
+  computeDistributeSpacingDeltas,
   type DistributeAxis,
   type NodeBBox,
 } from './alignment-math';
@@ -80,6 +81,19 @@ export class AlignmentService {
   distribute(items: readonly NodeBBox[], axis: DistributeAxis): boolean {
     const deltas = computeDistributeDeltas(items, axis);
     return this.dispatch(deltas, `Distribute ${axis}`);
+  }
+
+  /**
+   * **D-095** — Distribute `items` with an EQUAL edge-to-edge `gap` along
+   * the axis ("Distribute Spacing"). Unlike {@link distribute} (which
+   * equalizes centers), this equalizes the GAPS, so different-sized objects
+   * end up with identical visual spacing. The first item on the axis stays
+   * put; the rest shift to honour the gap. No-op (`false`) when nothing
+   * would move. See {@link computeDistributeSpacingDeltas}.
+   */
+  distributeSpacing(items: readonly NodeBBox[], axis: DistributeAxis, gap: number): boolean {
+    const deltas = computeDistributeSpacingDeltas(items, axis, gap);
+    return this.dispatch(deltas, `Distribute ${axis} spacing`);
   }
 
   private dispatch(deltas: ReadonlyMap<NodeId, Point>, label: string): boolean {

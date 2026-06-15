@@ -508,17 +508,11 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // selection) via `resolveAlignReference`, and `builtinMenuContributionsPlugin`
     // adds **Make / Clear Key Object** to this submenu (Illustrator "Align to
     // Key Object"). No longer a roadmap placeholder.
-    // Distribute ▶ extra (2 distribute ops are real).
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.object.distribute.spacing',
-        parentId: 'svge.builtin.object.distribute',
-        slot: MENU_SLOT.OBJECT,
-        label: 'Spacing…',
-        icon: 'space_bar',
-        order: 30,
-      }),
-    );
+    // Distribute ▶ — SHIPPED (D-095). "Spacing…" (equal edge-to-edge gap,
+    // not centers) is now real: `builtinUiMenuContributionsPlugin` adds
+    // **Horizontal / Vertical Spacing…** (dialog pre-filled with the current
+    // average gap) under this submenu, backed by `computeDistributeSpacingDeltas`.
+    // Needs a Material dialog (D-017), so it lives UI-side. No longer a placeholder.
     // ── Object ▸ Mask ▶ — SHIPPED (D-086) ──────────────────────────
     // The Mask submenu (Make/Release Clipping Path + Make/Release Opacity
     // Mask) is now REAL — registered with working handlers by

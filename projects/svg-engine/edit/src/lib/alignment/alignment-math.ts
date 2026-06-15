@@ -29,9 +29,9 @@ export type AlignAxis = 'left' | 'center-x' | 'right' | 'top' | 'center-y' | 'bo
  * positions and define the bounds. Requires at least **3 nodes** —
  * fewer than 3 yields an empty deltas map (no-op).
  *
- * "Distribute equal spacing" (gap-based, not center-based) is a
- * potential follow-up — Affinity exposes both modes; we ship centers
- * first because it's the most-used in practice.
+ * "Distribute equal spacing" (gap-based, not center-based) ships
+ * separately as {@link computeDistributeSpacingDeltas} (D-095) — Affinity
+ * exposes both modes; centers came first as the most-used in practice.
  */
 export type DistributeAxis = 'horizontal' | 'vertical';
 
@@ -172,6 +172,73 @@ export function computeDistributeDeltas(
     const delta = targetCenter - currentCenter;
     if (delta === 0) continue;
     out.set(item.id, isHorizontal ? { x: delta, y: 0 } : { x: 0, y: delta });
+  }
+  return out;
+}
+
+/**
+ * **D-095** — Average edge-to-edge gap currently between `items` along the
+ * axis. Used to pre-fill the "Spacing…" dialog so applying with no change
+ * equalizes to the current average (the Illustrator "Auto" feel).
+ *
+ * `gap = (extentSpan − Σ sizes) / (n − 1)`, where `extentSpan` spans the
+ * first leading edge to the last trailing edge (items sorted on the axis).
+ * Returns `null` for fewer than 3 items (nothing to average) or a
+ * degenerate extent (all stacked → span ≤ 0). May be negative when items
+ * currently overlap — a faithful readout of the present state.
+ *
+ * **Pure**: no DOM, no signals.
+ */
+export function computeAverageGap(items: readonly NodeBBox[], axis: DistributeAxis): number | null {
+  if (items.length < 3) return null;
+  const isHorizontal = axis === 'horizontal';
+  const lead = (b: BoundingBox): number => (isHorizontal ? b.x : b.y);
+  const size = (b: BoundingBox): number => (isHorizontal ? b.width : b.height);
+  const sorted = [...items].sort((a, b) => lead(a.bbox) - lead(b.bbox));
+  const first = sorted[0]!.bbox;
+  const last = sorted[sorted.length - 1]!.bbox;
+  const span = lead(last) + size(last) - lead(first);
+  if (span <= 0) return null;
+  let sumSizes = 0;
+  for (const { bbox } of sorted) sumSizes += size(bbox);
+  return (span - sumSizes) / (sorted.length - 1);
+}
+
+/**
+ * **D-095** — Compute the per-node `(dx, dy)` to distribute `items` with an
+ * EQUAL edge-to-edge `gap` along the axis (Illustrator/Affinity "Distribute
+ * Spacing"). Unlike {@link computeDistributeDeltas} (which equalizes
+ * CENTERS), this equalizes the GAPS, so objects of different sizes end up
+ * with identical visual spacing between them.
+ *
+ * The first item on the axis stays fixed; each subsequent item is moved so
+ * its leading edge sits `gap` past the previous item's trailing edge.
+ * Movement is constrained to the axis (cross-axis delta is 0). A negative
+ * `gap` packs items into overlap (valid). Items already in place are
+ * omitted (zero delta). Returns an empty map for fewer than 2 items.
+ *
+ * **Pure**: no DOM, no signals.
+ */
+export function computeDistributeSpacingDeltas(
+  items: readonly NodeBBox[],
+  axis: DistributeAxis,
+  gap: number,
+): ReadonlyMap<NodeId, Point> {
+  if (items.length < 2) return new Map();
+  const isHorizontal = axis === 'horizontal';
+  const lead = (b: BoundingBox): number => (isHorizontal ? b.x : b.y);
+  const size = (b: BoundingBox): number => (isHorizontal ? b.width : b.height);
+  const sorted = [...items].sort((a, b) => lead(a.bbox) - lead(b.bbox));
+  const out = new Map<NodeId, Point>();
+  let cursor = lead(sorted[0]!.bbox) + size(sorted[0]!.bbox);
+  for (let i = 1; i < sorted.length; i++) {
+    const item = sorted[i]!;
+    const target = cursor + gap; // new leading edge
+    const delta = target - lead(item.bbox);
+    if (delta !== 0) {
+      out.set(item.id, isHorizontal ? { x: delta, y: 0 } : { x: 0, y: delta });
+    }
+    cursor = target + size(item.bbox);
   }
   return out;
 }
