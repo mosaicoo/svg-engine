@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-06-15 — D-104 — Remover o placeholder "Custom Shape…" (Insert ▸ Shape) ✅
+
+Removido o placeholder de roadmap `svge.roadmap.insert.shape.custom`
+(Insert ▸ Shape ▸ Custom Shape…). **Redundante em todas as interpretações** —
+toda forma de obter uma "forma custom" já existe e em superfície melhor:
+
+- **Desenhar** uma forma arbitrária → **Pen tool** (paths precisos com
+  curvas/âncoras) ou **Pencil tool** (à mão livre); ambos geram `<path>`.
+- **Colar/abrir** um path/markup SVG pronto → **File ▸ Import ▸ SVG…**
+  (`importSvgFromFile`).
+- **Inserir um preset** (estrela, coração, seta…) → o painel **Shapes**
+  (Shape Library, D-048), com grade de previews e clique-para-inserir.
+
+Um item de menu "Custom Shape…" só duplicaria essas superfícies (mesma
+decisão de Apply Filter ≈ Effects panel / Check Updates / Enable-Disable).
+Edição única em
+[builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts):
+removido o `roadmapLeaf(...)` + comentário registrando a decisão. O submenu
+Insert ▸ Shape segue com as 7 formas rápidas (D-052). Build + lint + suíte
+verdes; sem mudança no snapshot de API.
+
+---
+
 ## 2026-06-15 — D-103 — Fix: Select All selecionava a Página (sem overlay visual) ✅
 
 **Bug relatado**: Edit ▸ Select All não mostrava nada selecionado visualmente.

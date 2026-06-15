@@ -443,17 +443,13 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     );
 
     // ── Insert (roadmap) ───────────────────────────────────────────
-    // Shape ▶ extra (the 7 shapes + the real "Layer" are wired elsewhere).
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.insert.shape.custom',
-        parentId: 'svge.insert.shape',
-        slot: MENU_SLOT.INSERT,
-        label: 'Custom Shape…',
-        icon: 'extension',
-        order: 80,
-      }),
-    );
+    // Shape ▶ — the 7 quick shapes are wired by `builtinInsertMenuPlugin`.
+    // **D-104 — REMOVED.** "Custom Shape…" was dropped as redundant: every
+    // way to get a custom shape already exists elsewhere — draw an arbitrary
+    // path with the **Pen** / **Pencil** tools, paste/load existing markup
+    // via **File ▸ Import ▸ SVG…**, or pick a preset from the **Shapes**
+    // library panel (D-048). A menu entry would only duplicate those (same
+    // call as Apply Filter / Check Updates).
     track(
       roadmapLeaf({
         id: 'svge.roadmap.insert.artboard',
