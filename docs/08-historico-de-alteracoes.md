@@ -6,6 +6,34 @@
 
 ---
 
+## 2026-06-15 — D-103 — Fix: Select All selecionava a Página (sem overlay visual) ✅
+
+**Bug relatado**: Edit ▸ Select All não mostrava nada selecionado visualmente.
+
+**Causa**: os handlers de Select All (menu **e** atalho Ctrl+A) selecionavam
+`document().root.children`. Após o **PAGES-REFACTOR**, os filhos de topo do
+root são as **Páginas**, não as formas. Então Select All selecionava o **nó da
+Página** — que não tem overlay de seleção (a página é o artboard, não um objeto
+do usuário), dando a impressão de "nada selecionado".
+
+**Fix** (1 linha em cada handler): selecionar dentro da **página ativa** via
+`ActivePageService.treeForRendering()` — a GroupNode da página ativa (ou o root
+quando não há página), que é o container das formas visíveis e o mesmo subtree
+que o renderer pinta. Comportamento agora = "selecionar tudo no artboard ativo"
+(padrão Illustrator).
+
+- Menu: [builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)
+  (`selectAllTopLevel`).
+- Atalho: [builtin-editor-shortcuts.plugin.ts](../projects/svg-engine/edit/src/lib/shortcut/builtin-editor-shortcuts.plugin.ts)
+  (`Ctrl+A`) — `ActivePageService` é `providedIn:'root'`, então o `fromCtx`
+  resolve com segurança (fallback p/ root em headless).
+
+Specs: Select All seleciona os filhos da página ativa (e **não** o nó da
+página) + fallback para os filhos do root quando não há página. Build + lint +
+suíte (**2535**) verdes; sem mudança no snapshot de API.
+
+---
+
 ## 2026-06-15 — D-102 — Edit ▸ Paste In Place (+ Paste passa a ter offset) ✅
 
 Ship o placeholder de roadmap `svge.roadmap.edit.paste-in-place`.

@@ -2784,10 +2784,17 @@ function deleteSelected(runCtx: MenuContributionContext | undefined, fromCtx: Re
 }
 
 function selectAllTopLevel(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
-  const state = fromCtx(EditorStateService, runCtx);
-  const root = state.document().root;
-  if (root.type !== 'group' || root.children.length === 0) return;
-  fromCtx(SelectionService, runCtx).selectMany(root.children.map((c) => c.id));
+  // **D-103** — select inside the ACTIVE PAGE, not the document root. After
+  // PAGES-REFACTOR the root's top-level children are PAGES, so selecting
+  // `root.children` selected the page node itself — which shows no selection
+  // overlay (a page is the artboard, not a user object), hence "nothing
+  // appears selected". `treeForRendering()` is the active page's GroupNode
+  // (or the root when no page), i.e. the container of the visible, selectable
+  // objects — the same subtree the renderer paints. Matches Illustrator's
+  // "select all on the active artboard".
+  const container = fromCtx(ActivePageService, runCtx).treeForRendering();
+  if (container.type !== 'group' || container.children.length === 0) return;
+  fromCtx(SelectionService, runCtx).selectMany(container.children.map((c) => c.id));
 }
 
 function groupSelection(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {

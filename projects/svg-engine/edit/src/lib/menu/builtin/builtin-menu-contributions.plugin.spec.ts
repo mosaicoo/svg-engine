@@ -14,6 +14,7 @@ import {
   withPageFlag,
 } from 'svg-engine/core';
 import { ClipboardService } from '../../clipboard/clipboard.service';
+import { ActivePageService } from '../../pages/active-page.service';
 import { describe, expect, it } from 'vitest';
 
 import { PANEL_ID, PanelHostService } from '../../panel/panel-host.service';
@@ -103,6 +104,38 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(resolveDisabledSignal(item!, injector)()).toBe(true); // empty clipboard
     injector.get(ClipboardService).copy([createRect({ x: 0, y: 0, width: 5, height: 5 })]);
     expect(resolveDisabledSignal(item!, injector)()).toBe(false);
+  });
+
+  it('Select All selects objects on the ACTIVE PAGE, not the page node (D-103)', () => {
+    const { reg, state, selection, injector } = setupRoot();
+    const rectA = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const rectB = createRect({ x: 20, y: 0, width: 10, height: 10 });
+    const page = withPageFlag(createGroup([rectA, rectB]), { x: 0, y: 0, width: 100, height: 100 });
+    const doc = state.document();
+    state.setDocument({ ...doc, root: { ...doc.root, children: [page] } });
+    injector.get(ActivePageService).setActive(page.id);
+
+    reg.get('svge.builtin.edit.select-all')!.run({ injector });
+
+    const selected = selection.selectedIds();
+    // The shapes inside the active page are selected (so the overlay shows)...
+    expect(selected.has(rectA.id)).toBe(true);
+    expect(selected.has(rectB.id)).toBe(true);
+    // ...and NOT the page node itself (the pre-D-103 bug — no overlay shows
+    // for a page, so it "looked like nothing was selected").
+    expect(selected.has(page.id)).toBe(false);
+    expect(selected.size).toBe(2);
+  });
+
+  it('Select All falls back to root children when no page is active (D-103)', () => {
+    const { reg, state, selection, injector } = setupRoot();
+    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const doc = state.document();
+    state.setDocument({ ...doc, root: { ...doc.root, children: [rect] } });
+    // No page → ActivePageService.treeForRendering() returns the root.
+    reg.get('svge.builtin.edit.select-all')!.run({ injector });
+    expect(selection.selectedIds().has(rect.id)).toBe(true);
+    expect(selection.selectedIds().size).toBe(1);
   });
 
   it('populates View slot with Zoom + Toggle Grid/Rulers/Outline/Timeline', () => {

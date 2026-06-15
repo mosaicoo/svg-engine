@@ -8,6 +8,7 @@ import {
   SnapshotsService,
   UngroupCommand,
 } from 'svg-engine/core';
+import { ActivePageService } from '../pages/active-page.service';
 import type { EditorPlugin } from '../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../plugin/plugin';
 import { SelectionService } from '../selection/selection.service';
@@ -162,14 +163,17 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
       shortcuts.register({
         id: 'svge.builtin.shortcut.select-all',
         combo: 'Ctrl+A',
-        description: 'Select all top-level nodes',
+        description: 'Select all objects on the active page',
         category: 'Selection',
         run(event, runCtx) {
-          const state = fromCtx(runCtx, EditorStateService);
-          const root = state.document().root;
-          if (root.type !== 'group' || root.children.length === 0) return;
+          // **D-103** — select within the ACTIVE PAGE (the rendered subtree),
+          // not the document root. Selecting `root.children` post-PAGES-REFACTOR
+          // grabbed the page node (no selection overlay). Mirrors the menu's
+          // Select All handler.
+          const container = fromCtx(runCtx, ActivePageService).treeForRendering();
+          if (container.type !== 'group' || container.children.length === 0) return;
           event.preventDefault();
-          fromCtx(runCtx, SelectionService).selectMany(root.children.map((c) => c.id));
+          fromCtx(runCtx, SelectionService).selectMany(container.children.map((c) => c.id));
         },
       }),
     );
