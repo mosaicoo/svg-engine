@@ -6,6 +6,53 @@
 
 ---
 
+## 2026-06-15 — D-098 — Window ▸ Panels: revelar painéis (indireção lógica) ✅
+
+Os 10 placeholders de roadmap de **Window ▸ Panels** viraram **ações reais**
+que revelam o painel correspondente. O ponto central (pedido do usuário): o
+vínculo "clicar no item → painel aparece" não pode depender de **onde** o
+painel está montado, porque o layout pode mudar no futuro.
+
+**Arquitetura — IDs lógicas + bus de reveal + resolvedor por shell** (o menu
+nunca sabe "qual painel-group / aba"):
+
+1. **`PanelHostService`** (novo, `svg-engine/edit`, **headless**, escopado por
+   editor — [panel-host.service.ts](../projects/svg-engine/edit/src/lib/panel/panel-host.service.ts)).
+   Expõe `reveal(panelId)` (sinal `revealRequest` com `nonce` para reabrir o
+   mesmo painel re-disparar o effect) + `activePanelId`/`setActivePanel`
+   (relatado pelo shell, p/ um futuro ✓ no menu). No escopo de editor +
+   spec-trava (D-042/P3), então dois editores não cruzam reveals.
+2. **`PANEL_ID`** — constantes de IDs estáveis (`layers`/`history`/
+   `properties`/`appearance`/`export`/`gradient`) = o **contrato** entre menu
+   e shell. Casam com os `svgePanelGroupTabId` do rail direito do shell-pro.
+3. **Menu** ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)):
+   6 entradas reais sob o parent `svge.window.panels`, cada uma só
+   `fromCtx(PanelHostService, runCtx).reveal(PANEL_ID.*)`. Conhece **apenas a
+   ID lógica** — headless, sem Material.
+4. **Shell** ([shell-pro.component.ts](../projects/svg-engine/ui/src/lib/shell-pro/shell-pro.component.ts)):
+   um `effect` mapeia a ID lógica → aba do rail (`activeRightTab`) + descolapsa
+   o rail. Painel fora deste layout = no-op. **Trocar o layout = mudar só este
+   mapa**; menu, IDs e painéis ficam intactos.
+
+**Reconciliação**: a lista do menu agora reflete os painéis **reais** do rail
+(6 abas). Os placeholders sem painel docado — Transform (seção do Inspector),
+Assets/Plugins (não são painéis), Inspector (= Properties), Pages (overlay
+sempre visível), Effects (= Appearance) — foram **removidos**, não enviados
+como reveals mortos. Placeholders removidos do `builtinRoadmapMenuPlugin`
+(parent structural `svge.window.panels` mantido).
+
+**Limite consciente**: feedback visual de "qual painel está aberto" (✓ no
+menu) fica para depois — exige `checked` na `MenuContribution`; v1 é reveal
+puro. O `<svge-editor>` minimalista não tem rail → reveal é no-op nele.
+
+Specs: `PanelHostService` (reveal/nonce/activePanel) + teste e2e no plugin de
+menu (6 entradas + reveal dispara o serviço) + `PanelHostService` na spec-trava
+de escopo. Build (lib + svg-studio prod) + lint + suíte (**2522**) verdes;
+snapshot de API regenerado (+`PANEL_ID`, `PanelHostService`, `PanelId`,
+`PanelRevealRequest`).
+
+---
+
 ## 2026-06-15 — D-097 — Remover o placeholder "Check Updates" do menu Help ✅
 
 Removido o último placeholder de roadmap do menu Help

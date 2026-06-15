@@ -91,6 +91,10 @@ export * from './lib/palette';
 // Menu / toolbar contribution registry (Fase 4 Bloco 4e)
 export * from './lib/menu';
 
+// Panel reveal indirection — Window ▸ Panels routes logical panel ids to
+// whatever shell currently hosts them (D-098).
+export * from './lib/panel';
+
 // Keyboard shortcuts (Fase 4 Bloco 4g)
 export * from './lib/shortcut';
 

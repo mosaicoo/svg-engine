@@ -724,9 +724,15 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // `builtinUiMenuContributionsPlugin` under this same parent. Their
     // roadmap placeholders were removed per the "ship = delete the
     // placeholder" convention.
-    // Panels ▶ — every existing panel listed as a roadmap show/hide toggle.
-    // The panels themselves exist (mounted in the shells); per-panel
-    // menu-driven visibility is the roadmap part.
+    // Panels ▶ — structural parent only. **D-098 — SHIPPED.** The per-panel
+    // children (Layers / History / Properties / Appearance / Export /
+    // Gradient) are now REAL entries registered by
+    // `builtinMenuContributionsPlugin`; each calls
+    // `PanelHostService.reveal(PANEL_ID.*)` and the active shell switches to
+    // that panel. Their roadmap placeholders were removed per the "ship =
+    // delete the placeholder" convention (the panels with no docked home —
+    // Transform / Assets / Plugins / Inspector / Pages / Effects — were
+    // dropped, not shipped as dead reveals; see the plugin for the rationale).
     track(
       structuralParent({
         id: 'svge.window.panels',
@@ -734,106 +740,6 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
         label: 'Panels',
         icon: 'view_sidebar',
         order: 20,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.window.panels.layers',
-        parentId: 'svge.window.panels',
-        slot: MENU_SLOT.WINDOW,
-        label: 'Layers',
-        icon: 'layers',
-        order: 10,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.window.panels.properties',
-        parentId: 'svge.window.panels',
-        slot: MENU_SLOT.WINDOW,
-        label: 'Properties',
-        icon: 'tune',
-        order: 20,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.window.panels.appearance',
-        parentId: 'svge.window.panels',
-        slot: MENU_SLOT.WINDOW,
-        label: 'Appearance',
-        icon: 'palette',
-        order: 30,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.window.panels.transform',
-        parentId: 'svge.window.panels',
-        slot: MENU_SLOT.WINDOW,
-        label: 'Transform',
-        icon: 'transform',
-        order: 40,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.window.panels.history',
-        parentId: 'svge.window.panels',
-        slot: MENU_SLOT.WINDOW,
-        label: 'History',
-        icon: 'history',
-        order: 50,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.window.panels.assets',
-        parentId: 'svge.window.panels',
-        slot: MENU_SLOT.WINDOW,
-        label: 'Assets',
-        icon: 'collections',
-        order: 60,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.window.panels.effects',
-        parentId: 'svge.window.panels',
-        slot: MENU_SLOT.WINDOW,
-        label: 'Effects',
-        icon: 'auto_awesome',
-        order: 70,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.window.panels.pages',
-        parentId: 'svge.window.panels',
-        slot: MENU_SLOT.WINDOW,
-        label: 'Pages',
-        icon: 'description',
-        order: 80,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.window.panels.plugins',
-        parentId: 'svge.window.panels',
-        slot: MENU_SLOT.WINDOW,
-        label: 'Plugins',
-        icon: 'extension',
-        order: 90,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.window.panels.inspector',
-        parentId: 'svge.window.panels',
-        slot: MENU_SLOT.WINDOW,
-        label: 'Inspector',
-        icon: 'manage_search',
-        order: 95,
       }),
     );
 

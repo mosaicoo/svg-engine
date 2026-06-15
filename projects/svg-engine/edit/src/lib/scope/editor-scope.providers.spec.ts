@@ -43,6 +43,7 @@ import { SymbolSprayerPreviewService } from '../library/symbols/symbol-sprayer-p
 import { TraceProgressService } from '../autotrace/trace-progress.service';
 import { LayersService } from '../layers/layers.service';
 import { MarqueeService } from '../marquee/marquee.service';
+import { PanelHostService } from '../panel/panel-host.service';
 import { SelectionService } from '../selection/selection.service';
 import { ShortcutService } from '../shortcut/shortcut.service';
 import { SnapService } from '../snap/snap.service';
@@ -207,6 +208,8 @@ const STATEFUL_SCOPED_TOKENS: readonly ProviderToken<unknown>[] = [
   IsolationService,
   LayersService,
   WorkspaceService,
+  // D-098 — panel reveal indirection (Window ▸ Panels → shell).
+  PanelHostService,
   // edit — gestures + snap + alignment + autosave + clipboard
   SnapService,
   TransformService,

@@ -14,6 +14,7 @@ import {
 } from 'svg-engine/core';
 import { describe, expect, it } from 'vitest';
 
+import { PANEL_ID, PanelHostService } from '../../panel/panel-host.service';
 import { provideSvgEnginePlugin } from '../../plugin/provide-plugin';
 import { provideSvgEngineEditorScope } from '../../scope';
 import { SelectionService } from '../../selection/selection.service';
@@ -84,6 +85,29 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(ids).toContain('svge.builtin.view.toggle-rulers');
     expect(ids).toContain('svge.builtin.view.toggle-outline');
     expect(ids).toContain('svge.builtin.view.toggle-timeline');
+  });
+
+  it('populates Window ▸ Panels with reveal entries that drive PanelHostService (D-098)', () => {
+    const { reg, injector } = setupRoot();
+    const items = reg.bySlot(MENU_SLOT.WINDOW)();
+    const panelChildren = items.filter((c) => c.parentId === 'svge.window.panels');
+    const ids = panelChildren.map((c) => c.id);
+    // The 6 real right-rail panels (Transform/Assets/Plugins/Inspector/Pages/
+    // Effects roadmap placeholders were dropped, not shipped — see plugin).
+    expect(ids).toContain('svge.window.panels.layers');
+    expect(ids).toContain('svge.window.panels.history');
+    expect(ids).toContain('svge.window.panels.properties');
+    expect(ids).toContain('svge.window.panels.appearance');
+    expect(ids).toContain('svge.window.panels.export');
+    expect(ids).toContain('svge.window.panels.gradient');
+    // None are comingSoon placeholders anymore.
+    expect(panelChildren.every((c) => c.comingSoon !== true)).toBe(true);
+
+    // Firing one publishes a reveal request for the matching logical id.
+    const panelHost = injector.get(PanelHostService);
+    expect(panelHost.revealRequest()).toBeNull();
+    reg.get('svge.window.panels.gradient')!.run({ injector });
+    expect(panelHost.revealRequest()?.panelId).toBe(PANEL_ID.GRADIENT);
   });
 
   it('Show Timeline menu item toggles WorkspaceService.timeline()', () => {

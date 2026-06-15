@@ -38,6 +38,7 @@ import { SymbolSprayerPreviewService } from '../library/symbols/symbol-sprayer-p
 import { TraceProgressService } from '../autotrace/trace-progress.service';
 import { LayersService } from '../layers/layers.service';
 import { MarqueeService } from '../marquee/marquee.service';
+import { PanelHostService } from '../panel/panel-host.service';
 import { ACTIVE_PAGE_STORAGE_KEY } from '../pages/active-page.config';
 import { ActivePageService } from '../pages/active-page.service';
 import { PagesService } from '../pages/pages.service';
@@ -272,6 +273,13 @@ export function provideSvgEngineEditorScope(options?: SvgEngineEditorScopeOption
     IsolationService,
     LayersService,
     WorkspaceService,
+    // **D-098** — panel reveal indirection (Window ▸ Panels → shell).
+    // Per-editor scope so a reveal fired from editor A routes to A's shell
+    // only; the menu handler resolves THIS instance via `runCtx.injector`.
+    // Holds a `revealRequest` signal + reported `activePanelId`, both
+    // editor-specific, so two editors mounted side-by-side don't cross-
+    // trigger each other's panels.
+    PanelHostService,
     // ── edit / gestures + snap + alignment + autosave ───────────
     SnapService,
     TransformService,

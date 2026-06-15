@@ -57,6 +57,7 @@ import { SelectSameService } from '../../find-replace/select-same.service';
 import { getRenderedNodeBBox } from '../../geometry/node-bbox';
 import { LayersService } from '../../layers/layers.service';
 import { ActiveDefsService } from '../../library/active-defs.service';
+import { PANEL_ID, PanelHostService } from '../../panel/panel-host.service';
 import { ActivePageService } from '../../pages/active-page.service';
 import { type EditorPlugin } from '../../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../../plugin/plugin';
@@ -2652,6 +2653,91 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
             const links = fromCtx(SVGE_HELP_LINKS, runCtx);
             const url = item.report ? buildReportIssueUrl(links[item.key]) : links[item.key];
             openHelpLink(url);
+          },
+        }),
+      );
+    }
+
+    // ── D-098 — Window ▸ Panels (reveal real panels) ──────────────────
+    //
+    // Ship the roadmap placeholders `svge.roadmap.window.panels.*` (removed):
+    // each item now asks the active shell to reveal the matching panel via
+    // the layout-independent `PanelHostService.reveal(PANEL_ID.*)`. The menu
+    // knows ONLY the logical id — the shell maps it to wherever the panel
+    // lives today (which `<svge-panel-group>` tab, collapsed or not). When
+    // the layout changes, only the shell's mapping changes; this list is
+    // untouched. The handler is headless (no Material) so it lives edit-side.
+    //
+    // The list mirrors the **actual** right-rail tabs of `<svge-shell-pro>`
+    // (the only built-in shell with a panel rail). The previous placeholders
+    // listed panels that don't exist as docked panels (Transform — an
+    // Inspector section; Assets / Plugins — not panels; Inspector — same as
+    // Properties; Pages — an always-visible overlay; Effects — same as
+    // Appearance), so they're dropped rather than shipped as dead reveals.
+    // Children of the `svge.window.panels` structural parent (registered by
+    // `builtinRoadmapMenuPlugin`). Always enabled — reveal is a no-op when
+    // no shell hosts the panel (headless / minimal shells).
+    const PANEL_REVEAL_ITEMS: readonly {
+      readonly id: string;
+      readonly label: string;
+      readonly icon: string;
+      readonly order: number;
+      readonly panelId: string;
+    }[] = [
+      {
+        id: 'svge.window.panels.layers',
+        label: 'Layers',
+        icon: 'layers',
+        order: 10,
+        panelId: PANEL_ID.LAYERS,
+      },
+      {
+        id: 'svge.window.panels.history',
+        label: 'History',
+        icon: 'history',
+        order: 20,
+        panelId: PANEL_ID.HISTORY,
+      },
+      {
+        id: 'svge.window.panels.properties',
+        label: 'Properties',
+        icon: 'tune',
+        order: 30,
+        panelId: PANEL_ID.PROPERTIES,
+      },
+      {
+        id: 'svge.window.panels.appearance',
+        label: 'Appearance',
+        icon: 'auto_awesome',
+        order: 40,
+        panelId: PANEL_ID.APPEARANCE,
+      },
+      {
+        id: 'svge.window.panels.export',
+        label: 'Export',
+        icon: 'download',
+        order: 50,
+        panelId: PANEL_ID.EXPORT,
+      },
+      {
+        id: 'svge.window.panels.gradient',
+        label: 'Gradient',
+        icon: 'gradient',
+        order: 60,
+        panelId: PANEL_ID.GRADIENT,
+      },
+    ];
+    for (const item of PANEL_REVEAL_ITEMS) {
+      ctx.track(
+        reg.register({
+          id: item.id,
+          parentId: 'svge.window.panels',
+          slot: MENU_SLOT.WINDOW,
+          label: item.label,
+          icon: item.icon,
+          order: item.order,
+          run(runCtx) {
+            fromCtx(PanelHostService, runCtx).reveal(item.panelId);
           },
         }),
       );

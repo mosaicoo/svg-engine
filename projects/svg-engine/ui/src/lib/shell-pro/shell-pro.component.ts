@@ -27,6 +27,8 @@ import {
   LayersFilter,
   OutlineFilter,
   PageOverlay,
+  PANEL_ID,
+  PanelHostService,
   PlaybackService,
   organizationalContainerPredicate,
   resolveSelectableNodeId,
@@ -316,11 +318,20 @@ import { SvgeToolsPalette } from '../tools-palette';
           fallback when no tab is active (effectively never once a tab is
           selected).
         -->
+        <!--
+          D-098 — controlled active tab so Window > Panels > ... can reveal
+          a panel. activeRightTab starts null (panel-group falls back to its
+          own first-tab default), becomes controlled once the user clicks a
+          tab or a reveal request arrives. onRightTabChange keeps it in sync
+          and reports the active panel to PanelHostService.
+        -->
         <svge-panel-group
           class="rs-group"
           title="Panels"
           tabSide="right"
           groupId="shell-pro-right-rail"
+          [activeTab]="activeRightTab()"
+          (activeTabChange)="onRightTabChange($event)"
           [collapsible]="true"
           [collapsed]="rightCollapsed()"
           (collapsedChange)="setRightCollapsed($event)"
@@ -645,6 +656,10 @@ export class SvgeShellPro {
   private readonly toolHost = inject(ToolHostService);
   // **D-088** — Reset Workspace watcher (un-collapse rails on reset).
   private readonly workspaceLayout = inject(WorkspaceLayoutService);
+  // **D-098** — panel reveal bus. Window ▸ Panels ▸ … calls
+  // `panelHost.reveal(PANEL_ID.*)`; the effect below maps the logical id to
+  // this rail's matching tab + un-collapses it.
+  private readonly panelHost = inject(PanelHostService);
   /**
    * **PAGES-REFACTOR follow-up #5** — exposed `protected` so the
    * template can bind `.with-rulers` on the canvas-cell. When the
@@ -701,6 +716,21 @@ export class SvgeShellPro {
       this.leftCollapsed.set(false);
       this.rightCollapsed.set(false);
     });
+
+    // **D-098** — react to Window ▸ Panels ▸ … reveal requests. The menu
+    // emits a logical panel id via PanelHostService; here we map it to this
+    // shell's right-rail tab. Only ids that are right-rail panels are
+    // honored — a reveal for a panel this layout doesn't host is ignored
+    // (no-op), keeping the menu layout-agnostic. Switching the tab +
+    // un-collapsing the rail makes the panel visible in one step.
+    effect(() => {
+      const req = this.panelHost.revealRequest();
+      if (req === null) return;
+      if (!SvgeShellPro.RIGHT_RAIL_PANELS.has(req.panelId)) return;
+      this.activeRightTab.set(req.panelId);
+      this.setRightCollapsed(false);
+      this.panelHost.setActivePanel(req.panelId);
+    });
   }
 
   // ── COLLAPSE — hide/show the side panels to reclaim canvas space ────
@@ -730,6 +760,40 @@ export class SvgeShellPro {
   protected setRightCollapsed(v: boolean): void {
     this.rightCollapsed.set(v);
     SvgeShellPro.writeCollapsed(SvgeShellPro.COLLAPSE_KEY_RIGHT, v);
+  }
+
+  // ── D-098 — Window ▸ Panels reveal target ──────────────────────────
+  //
+  // The logical panel ids this rail can show, == the panel-group tab ids
+  // declared in the template. A reveal request for an id NOT in this set is
+  // ignored (the panel isn't docked here). Keep in sync with the
+  // <ng-template svgePanelGroupTabId="…"> ids below.
+  private static readonly RIGHT_RAIL_PANELS: ReadonlySet<string> = new Set<string>([
+    PANEL_ID.LAYERS,
+    PANEL_ID.HISTORY,
+    PANEL_ID.PROPERTIES,
+    PANEL_ID.APPEARANCE,
+    PANEL_ID.EXPORT,
+    PANEL_ID.GRADIENT,
+  ]);
+
+  /**
+   * Controlled active tab of the right-rail panel-group. `null` until the
+   * user clicks a tab or a reveal request arrives — while null the
+   * panel-group uses its own first-tab default (uncontrolled). Once set it
+   * stays controlled, kept in sync via {@link onRightTabChange}.
+   */
+  protected readonly activeRightTab = signal<string | null>(null);
+
+  /**
+   * The panel-group emitted a new active tab (user click, or our reveal
+   * effect flipping `activeRightTab`). Mirror it into our controlled signal
+   * and report it to {@link PanelHostService} so the menu can reflect what's
+   * open (future check mark).
+   */
+  protected onRightTabChange(tabId: string): void {
+    this.activeRightTab.set(tabId);
+    this.panelHost.setActivePanel(tabId);
   }
 
   /** Read a persisted collapsed flag. Defensive against SSR / disabled storage. */
