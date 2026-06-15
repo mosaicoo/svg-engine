@@ -653,23 +653,16 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // contributed by the ui plugin. **D-099 — SHIPPED.** The "Install
     // Plugin…" roadmap placeholder was removed: it's now a real deep-link
     // into the manager's "Install from URL…" form (no separate installer
-    // surface). Enable / Disable + Developer Mode stay roadmap below.
+    // surface). **D-100 — REMOVED.** "Enable / Disable" was dropped as
+    // redundant: each plugin row in the manager already has an
+    // enable/disable slide toggle, so a separate menu entry duplicated it.
+    // Only Developer Mode stays roadmap below.
     track(
       structuralParent({
         id: 'svge.tools.plugins',
         slot: MENU_SLOT.TOOLS,
         label: 'Plugins',
         icon: 'extension',
-        order: 30,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.tools.plugins.enable-disable',
-        parentId: 'svge.tools.plugins',
-        slot: MENU_SLOT.TOOLS,
-        label: 'Enable / Disable',
-        icon: 'toggle_on',
         order: 30,
       }),
     );

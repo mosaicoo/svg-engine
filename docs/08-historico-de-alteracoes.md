@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-06-15 — D-100 — Remover o placeholder "Enable / Disable" do menu Plugins ✅
+
+Removido o placeholder de roadmap `svge.roadmap.tools.plugins.enable-disable`
+(Tools ▸ Plugins). **Redundante**: cada linha de plugin no gerenciador
+(`<svge-plugin-manager>`) já tem um slide toggle de habilitar/desabilitar, com
+gate de dependências — um item de menu separado só duplicaria a ação. Edição
+única no
+[builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts)
+(comentário atualizado). Restou só **Developer Mode** como roadmap no submenu
+Plugins. Build + lint + suíte verdes; sem mudança no snapshot de API.
+
+---
+
 ## 2026-06-15 — D-099 — Tools ▸ Plugins ▸ Install Plugin… (dentro do gerenciador) ✅
 
 Ship o placeholder de roadmap `svge.roadmap.tools.plugins.install` como
