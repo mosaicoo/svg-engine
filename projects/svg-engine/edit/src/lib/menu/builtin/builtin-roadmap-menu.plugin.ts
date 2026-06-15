@@ -518,18 +518,17 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // Mask) is now REAL — registered with working handlers by
     // `builtinMenuContributionsPlugin` (it needs io serialization, which
     // this roadmap plugin deliberately avoids). No longer a placeholder.
-    // ── Object ▸ Apply Filter… (NEW — suggestion #3) ───────────────
-    // The visual SVG-filter editor already exists as the Effects panel
-    // (D-047); this menu-driven "apply a filter" flow is the roadmap part.
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.object.apply-filter',
-        slot: MENU_SLOT.OBJECT,
-        label: 'Apply Filter…',
-        icon: 'auto_awesome',
-        order: 95,
-      }),
-    );
+    // ── Object ▸ Apply Filter… — REMOVED (D-101) ──────────────────
+    // Dropped as redundant: applying an SVG filter to the selection is
+    // already a real, shipped capability via the **Effects panel** (D-047) —
+    // the Appearance tab in the right rail, backed by `EffectRegistry` +
+    // `ChainFilterRegistry` (add/remove/reorder/clear effects on the
+    // selection, single + composed chains, round-tripped on export). A
+    // menu-driven "apply a filter" flow would only duplicate that editor, so
+    // the placeholder was removed rather than shipped (same call as Check
+    // Updates / Enable-Disable). If a one-click "pick a single filter from
+    // the menu" affordance is ever wanted, it can wrap the same registry +
+    // `SetStylePropertyOnManyCommand('filter', …)` the panel uses.
 
     // ── Path menu — ALL REAL (D-090) ───────────────────────────────
     // Every entry dispatches a real core command. Convert to Path =

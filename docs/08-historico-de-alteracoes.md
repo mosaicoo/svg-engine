@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-06-15 — D-101 — Remover o placeholder "Apply Filter…" do menu Object ✅
+
+Removido o placeholder de roadmap `svge.roadmap.object.apply-filter`
+(Object ▸ Apply Filter…). **Redundante**: aplicar um filtro SVG à seleção já
+é uma capacidade real e completa via o **Effects panel** (D-047) — a aba
+**Appearance** no rail direito, sobre `EffectRegistry` + `ChainFilterRegistry`
+(add/remove/reorder/clear de efeitos na seleção, único + cadeia composta, com
+round-trip no export). Um fluxo "aplicar filtro" via menu só duplicaria esse
+editor — então o placeholder foi removido em vez de "shippado" (mesma decisão
+de Check Updates / Enable-Disable).
+
+Edição única em
+[builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts):
+removido o `roadmapLeaf(...)` + comentário registrando a decisão (incluindo a
+nota de que, se um dia quisermos um "pick a single filter pelo menu" em 1
+clique, ele envolve o mesmo `EffectRegistry` +
+`SetStylePropertyOnManyCommand('filter', …)` que o painel usa). Specs do
+roadmap inalterados (não havia asserção sobre esse id nem contagem do slot
+Object). Build + lint + suíte verdes; sem mudança no snapshot de API.
+
+---
+
 ## 2026-06-15 — D-100 — Remover o placeholder "Enable / Disable" do menu Plugins ✅
 
 Removido o placeholder de roadmap `svge.roadmap.tools.plugins.enable-disable`
