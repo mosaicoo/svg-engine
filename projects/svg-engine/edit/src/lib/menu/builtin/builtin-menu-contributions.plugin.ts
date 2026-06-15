@@ -32,6 +32,7 @@ import {
   SetPropertyCommand,
   SnapshotsService,
   SubtractCommand,
+  type SvgDocument,
   type SvgNode,
   type TextNode,
   type Transform,
@@ -2960,13 +2961,12 @@ function importSvgFromFile(runCtx: MenuContributionContext | undefined, fromCtx:
           if (typeof window !== 'undefined') window.alert(`Import failed: ${result.error}`);
           return;
         }
-        fromCtx(EditorStateService, runCtx).resetDocument(result.document);
-        fromCtx(HistoryService, runCtx).clear();
-        // Same reasoning as newDocument(): the imported doc has a fresh
-        // viewBox, so any prior pan/zoom is meaningless. Selection from
-        // the discarded document is also stale.
-        fromCtx(ViewportService, runCtx).reset();
-        fromCtx(SelectionService, runCtx).clear();
+        // **D-105** — ADD the imported art to the current document instead of
+        // REPLACING it. The old flow called `resetDocument(result.document)`,
+        // which wiped every page + all existing work (data loss). Now the
+        // import is inserted into the ACTIVE PAGE as one selected group,
+        // preserving every page + element.
+        placeImportedSvgIntoActivePage(runCtx, fromCtx, result.document);
         if (result.warnings.length > 0 && typeof console !== 'undefined') {
           console.warn(`[SVGEngine] Import warnings:\n${result.warnings.join('\n')}`);
         }
@@ -2976,6 +2976,57 @@ function importSvgFromFile(runCtx: MenuContributionContext | undefined, fromCtx:
   );
   document.body.appendChild(input);
   input.click();
+}
+
+/**
+ * **D-105** — insert imported SVG content **additively** into the active
+ * page (never replaces the document).
+ *
+ * - The importer already returns the file's children wrapped in a group;
+ *   we scale that group to ~60% of the smaller VISIBLE viewport dimension
+ *   (clamped `[40, 800]`) and center it there, so it lands on-screen at a
+ *   sensible size regardless of zoom.
+ * - The imported `<defs>` (gradients / filters / patterns referenced via
+ *   `url(#id)`) are merged into the document defs so the art resolves.
+ *   Done as a direct state update; on undo the inserted group is removed
+ *   and the now-unused defs linger harmlessly.
+ * - Inserts via `InsertNodeCommand(AUTO_PARENT, …)` — one undo entry, lands
+ *   inside the active page — then selects the result so the user can
+ *   immediately reposition / resize it with the normal selection handles.
+ *
+ * **Follow-up (deferred)**: interactive "drag a placement rectangle on the
+ * canvas" (Illustrator's *Place*) — a tool/overlay feature on top of this.
+ */
+function placeImportedSvgIntoActivePage(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+  doc: SvgDocument,
+): void {
+  const imported = doc.root;
+  if (imported.type !== 'group' || imported.children.length === 0) return;
+
+  const vb = fromCtx(ViewportService, runCtx).viewBox();
+  const centerX = vb.x + vb.width / 2;
+  const centerY = vb.y + vb.height / 2;
+  const target = Math.max(40, Math.min(800, Math.min(vb.width, vb.height) * 0.6));
+
+  const src = doc.viewBox; // natural bounds of the imported art
+  const span = Math.max(src.width, src.height) || 1;
+  const s = target / span;
+  const tx = centerX - s * (src.x + src.width / 2);
+  const ty = centerY - s * (src.y + src.height / 2);
+  const placed: SvgNode = { ...imported, transform: [s, 0, 0, s, tx, ty] as Transform };
+
+  const state = fromCtx(EditorStateService, runCtx);
+  const importedDefs = doc.defs;
+  if (importedDefs !== undefined && importedDefs.length > 0) {
+    const current = state.document();
+    state.setDocument({ ...current, defs: `${current.defs ?? ''}\n${importedDefs}` });
+  }
+
+  // AUTO_PARENT → the active page (or root) via the CommandBus resolver.
+  fromCtx(CommandBus, runCtx).dispatch(new InsertNodeCommand(AUTO_PARENT, placed));
+  fromCtx(SelectionService, runCtx).select(placed.id);
 }
 
 async function exportAndDownload(

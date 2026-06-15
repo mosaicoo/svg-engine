@@ -6,6 +6,39 @@
 
 ---
 
+## 2026-06-15 — D-105 — Fix CRÍTICO: File ▸ Import ▸ SVG substituía o documento (perda de dados) ✅
+
+**Bug**: File ▸ Import ▸ SVG chamava `resetDocument(result.document)` —
+**substituía o documento inteiro**, apagando todas as páginas e todo o
+trabalho já feito (perda total de dados).
+
+**Fix**: importar passou a ser uma **adição**, não substituição. O conteúdo
+importado é inserido na **página ativa**, preservando integralmente todas as
+páginas e elementos.
+
+Implementação em
+[builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)
+(`importSvgFromFile` → novo `placeImportedSvgIntoActivePage`):
+
+- O importer já entrega o conteúdo do arquivo num group; ele é **escalado a
+  ~60% da menor dimensão visível do viewport** (clamped `[40, 800]`) e
+  centralizado, então aparece on-screen num tamanho sensato a qualquer zoom.
+- Os `<defs>` importados (gradientes/filtros/patterns referenciados via
+  `url(#id)`) são **mesclados** no `defs` do documento p/ resolverem.
+- Inserção via `InsertNodeCommand(AUTO_PARENT, …)` (1 undo) na página ativa,
+  com o group **selecionado** — o usuário reposiciona/redimensiona na hora
+  pelos handles normais. Nunca toca em outras páginas/elementos.
+
+Build + lint + suíte (**2535**) verdes; sem mudança no snapshot de API (lógica
+interna, sem export novo). Fluxo via file-picker validado pelo usuário (não é
+unit-testável, como os demais handlers de I/O do navegador).
+
+**Follow-up (deferido) — placement interativo**: a inserção "arraste o
+retângulo de posicionamento no canvas" (o _Place_ do Illustrator) é uma
+feature de **ferramenta/overlay** sobre esta base — fica como próximo passo.
+
+---
+
 ## 2026-06-15 — D-104 — Remover o placeholder "Custom Shape…" (Insert ▸ Shape) ✅
 
 Removido o placeholder de roadmap `svge.roadmap.insert.shape.custom`
