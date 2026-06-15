@@ -6,6 +6,44 @@
 
 ---
 
+## 2026-06-15 — D-096 — Help ▸ Documentation / Tutorials / Plugin Development / Report Issue ✅
+
+Ship 4 dos placeholders de roadmap do menu Help como **links externos reais**
+(só Check Updates segue roadmap — precisa de backend de versão). Cada item
+abre seu URL em nova aba (`window.open(url, '_blank', 'noopener,noreferrer')`).
+
+**Host-independente + configurável** (o requisito central): os destinos vêm
+de um token DI `SVGE_HELP_LINKS`
+([help-links.config.ts](../projects/svg-engine/edit/src/lib/help/help-links.config.ts)).
+Defaults:
+
+- Documentation / Tutorials / Plugin Development → caminhos **relativos**
+  (`/docs/documentation`, `/docs/tutorials`, `/docs/plugin-development`). O
+  browser resolve contra o **origin atual** — `svgstudio.mosaicoo.tech/docs/…`
+  hoje, qualquer deploy amanhã, **sem domínio hard-coded**.
+- Report Issue → URL **absoluta** (issue tracker público), pois não é página
+  do app.
+
+Como o svg-engine é **embedável** (um `/docs/…` relativo resolveria para o
+origin do HOST terceiro), consumidores sobrescrevem via
+`provideSvgeHelpLinks({ … })` — merge parcial sobre os defaults.
+
+**Report Issue** (a dúvida do usuário): tratado como link configurável, mas
+o handler **enriquece** alvos http(s) com um `body` pré-preenchido (URL da
+página + User-Agent) para o report já chegar com diagnóstico básico; alvos
+não-web (mailto:, esquemas custom) ou que já tenham `body` passam intactos.
+
+Wiring em [builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)
+(slot Help, orders 20/30/50/60, sempre habilitados) — abrir URL não precisa
+de Material, então fica edit-side (o About SVG Studio, um dialog, segue no
+plugin ui). Placeholders removidos do `builtinRoadmapMenuPlugin`. Specs do
+token (defaults + merge); spec do plugin atualizado (Help slot agora tem os 4
+links). Build + lint + suíte (**2514**) verdes; snapshot de API regenerado
+(+`SVGE_HELP_LINKS`, `DEFAULT_HELP_LINKS`, `provideSvgeHelpLinks`,
+`SvgeHelpLinks`).
+
+---
+
 ## 2026-06-15 — D-095 — Object ▸ Distribute ▸ Spacing… (gap-based) ✅
 
 Ship o placeholder `svge.roadmap.object.distribute.spacing`. "Distribute

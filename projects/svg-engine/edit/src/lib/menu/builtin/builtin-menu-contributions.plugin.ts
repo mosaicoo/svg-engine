@@ -51,6 +51,7 @@ import {
 } from '../../alignment';
 import { AnimationService } from '../../animation/animation.service';
 import { ClipboardService } from '../../clipboard/clipboard.service';
+import { SVGE_HELP_LINKS, type SvgeHelpLinks } from '../../help';
 import { makeClipMask, releaseClipMask, topmostSelected } from '../../clip-mask/clip-mask-actions';
 import { SelectSameService } from '../../find-replace/select-same.service';
 import { getRenderedNodeBBox } from '../../geometry/node-bbox';
@@ -2567,6 +2568,94 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+
+    // ── D-096 — Help ▸ Documentation / Tutorials / Plugin Development /
+    //    Report Issue (external links) ─────────────────────────────────
+    //
+    // Ship the roadmap placeholders `svge.roadmap.help.{documentation,
+    // tutorials,plugin-development,report-issue}` (removed). Each opens its
+    // configured URL in a new tab. Destinations come from the host-independent,
+    // DI-configurable `SVGE_HELP_LINKS` token — defaults are RELATIVE `/docs/…`
+    // paths (resolve against the running app's own origin, no domain hard-coded)
+    // and Report Issue → the public issue tracker. Apps repoint via
+    // `provideSvgeHelpLinks`. Opening a URL needs no Material, so these live
+    // edit-side (About SVG Studio, a Material dialog, stays UI-side). Always
+    // enabled — Help is never gated by selection/document.
+    const openHelpLink = (url: string): void => {
+      if (typeof window === 'undefined') return;
+      window.open(url, '_blank', 'noopener,noreferrer');
+    };
+    // Report Issue: enrich an http(s) target with a pre-filled `body` (page
+    // URL + User-Agent) so reports arrive with basic diagnostics. Left
+    // verbatim for non-web schemes (mailto:, …) or when `body` is already set.
+    const buildReportIssueUrl = (base: string): string => {
+      if (typeof window === 'undefined') return base;
+      try {
+        const u = new URL(base, window.location.href);
+        if ((u.protocol === 'http:' || u.protocol === 'https:') && !u.searchParams.has('body')) {
+          const ua = typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown';
+          u.searchParams.set('body', `\n\n---\nPage: ${window.location.href}\nUser-Agent: ${ua}`);
+          return u.toString();
+        }
+      } catch {
+        /* not a parseable absolute URL — open verbatim (e.g. relative path) */
+      }
+      return base;
+    };
+    const HELP_LINK_ITEMS: readonly {
+      readonly id: string;
+      readonly label: string;
+      readonly icon: string;
+      readonly order: number;
+      readonly key: keyof SvgeHelpLinks;
+      readonly report?: boolean;
+    }[] = [
+      {
+        id: 'svge.builtin.help.documentation',
+        label: 'Documentation',
+        icon: 'menu_book',
+        order: 20,
+        key: 'documentation',
+      },
+      {
+        id: 'svge.builtin.help.tutorials',
+        label: 'Tutorials',
+        icon: 'school',
+        order: 30,
+        key: 'tutorials',
+      },
+      {
+        id: 'svge.builtin.help.plugin-development',
+        label: 'Plugin Development',
+        icon: 'code',
+        order: 50,
+        key: 'pluginDevelopment',
+      },
+      {
+        id: 'svge.builtin.help.report-issue',
+        label: 'Report Issue',
+        icon: 'bug_report',
+        order: 60,
+        key: 'reportIssue',
+        report: true,
+      },
+    ];
+    for (const item of HELP_LINK_ITEMS) {
+      ctx.track(
+        reg.register({
+          id: item.id,
+          slot: MENU_SLOT.HELP,
+          label: item.label,
+          icon: item.icon,
+          order: item.order,
+          run(runCtx) {
+            const links = fromCtx(SVGE_HELP_LINKS, runCtx);
+            const url = item.report ? buildReportIssueUrl(links[item.key]) : links[item.key];
+            openHelpLink(url);
+          },
+        }),
+      );
+    }
   },
 };
 

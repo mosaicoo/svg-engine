@@ -64,6 +64,11 @@ export * from './lib/snap';
 // Alignment + distribution (Bloco 4c)
 export * from './lib/alignment';
 
+// Help link destinations (D-096) — host-independent, DI-configurable URLs
+// for the Help menu (Documentation / Tutorials / Plugin Development / Report
+// Issue). Override per app via provideSvgeHelpLinks().
+export * from './lib/help';
+
 // Plugin scaffolding (Bloco 5a)
 export * from './lib/plugin';
 

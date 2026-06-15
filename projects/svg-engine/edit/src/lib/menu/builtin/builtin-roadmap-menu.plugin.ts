@@ -837,47 +837,16 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
       }),
     );
 
-    // ── Help (roadmap) — About SVG Studio (real) is from the ui plugin ─
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.help.documentation',
-        slot: MENU_SLOT.HELP,
-        label: 'Documentation',
-        icon: 'menu_book',
-        order: 20,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.help.tutorials',
-        slot: MENU_SLOT.HELP,
-        label: 'Tutorials',
-        icon: 'school',
-        order: 30,
-      }),
-    );
-    // **D-087 — SHIPPED.** The Help ▸ Keyboard Shortcuts placeholder was
-    // removed; the real manager lives under Window ▸ Workspace ▸ Keyboard
-    // Shortcuts… (single canonical location) — see
-    // `builtinUiMenuContributionsPlugin`.
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.help.plugin-development',
-        slot: MENU_SLOT.HELP,
-        label: 'Plugin Development',
-        icon: 'code',
-        order: 50,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.help.report-issue',
-        slot: MENU_SLOT.HELP,
-        label: 'Report Issue',
-        icon: 'bug_report',
-        order: 60,
-      }),
-    );
+    // ── Help (roadmap) ─────────────────────────────────────────────
+    // About SVG Studio (real) is registered by the ui plugin.
+    // **D-087 — SHIPPED.** Help ▸ Keyboard Shortcuts → Window ▸ Workspace ▸
+    // Keyboard Shortcuts… (single canonical location).
+    // **D-096 — SHIPPED.** Documentation / Tutorials / Plugin Development /
+    // Report Issue are now real external links registered by
+    // `builtinMenuContributionsPlugin`, opening host-independent,
+    // DI-configurable URLs (`SVGE_HELP_LINKS` / `provideSvgeHelpLinks`). No
+    // longer placeholders. Only Check Updates remains roadmap (needs a
+    // version-check backend).
     track(
       roadmapLeaf({
         id: 'svge.roadmap.help.check-updates',

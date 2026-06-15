@@ -124,14 +124,19 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
 
   it('populates Toolbar, Context Canvas, Context Node slots', () => {
     const { reg } = setupRoot();
-    // **Help slot intentionally empty on the edit-side plugin.**
-    // The only item that used to live here was "About SVGEngine"
-    // which fired an alert(). The Material-styled About dialog
-    // requires @angular/material (D-017 blocks that here), so the
-    // item migrated to `builtinUiMenuContributionsPlugin` in
-    // svg-engine/ui. Consumers wanting About should install BOTH
-    // plugins (the playground / svg-studio defaults do).
-    expect(reg.bySlot(MENU_SLOT.HELP)().length).toBe(0);
+    // **D-096** — the edit-side plugin registers the 4 Help external links
+    // (Documentation / Tutorials / Plugin Development / Report Issue), which
+    // only open a URL (no Material needed). About SVG Studio — a Material
+    // dialog — stays in `builtinUiMenuContributionsPlugin` (D-017), so it is
+    // NOT among these. Consumers wanting About install both plugins.
+    const helpIds = reg
+      .bySlot(MENU_SLOT.HELP)()
+      .map((c) => c.id);
+    expect(helpIds).toContain('svge.builtin.help.documentation');
+    expect(helpIds).toContain('svge.builtin.help.tutorials');
+    expect(helpIds).toContain('svge.builtin.help.plugin-development');
+    expect(helpIds).toContain('svge.builtin.help.report-issue');
+    expect(helpIds).not.toContain('svge.builtin.help.about'); // UI plugin only
     expect(reg.bySlot(TOOLBAR_SLOT.MAIN)().length).toBeGreaterThan(0);
     expect(reg.bySlot(CONTEXT_MENU_SLOT.CANVAS)().length).toBeGreaterThan(0);
     expect(reg.bySlot(CONTEXT_MENU_SLOT.NODE)().length).toBeGreaterThan(0);
