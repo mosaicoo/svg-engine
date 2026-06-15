@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-06-15 — D-106 — Import SVG: modo "100% natural centralizado na página" + preferência persistente ✅
+
+Parte 2 (etapa 1/2) da importação configurável. Após o fix crítico (D-105),
+o modo de posicionamento agora é **preferência persistente** e o padrão é o
+escolhido pelo usuário: **tamanho natural 1:1, centralizado na página ativa**.
+
+- **`ImportSettingsService`** (novo, `svg-engine/edit`, `providedIn:'root'`,
+  localStorage — [import-settings.service.ts](../projects/svg-engine/edit/src/lib/import-settings/import-settings.service.ts)):
+  signal `placementMode: 'centered' | 'place'` (default `'centered'`),
+  `setPlacementMode(mode)`. Preferência app-wide (como o tema), persistida.
+- **Geometria do modo `centered`**
+  ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts),
+  `placeImportedSvgIntoActivePage`): insere com **escala 1** (tamanho natural
+  do `viewBox` do arquivo) e centraliza no **centro da página ativa**
+  (`ActivePageService.activePageViewBox`); sem página → centro do viewport.
+  Substitui o "60% do viewport" provisório do D-105.
+
+Specs do serviço (default/persistência/restore). Build + lint + suíte
+(**2539**) verdes; snapshot de API regenerado (+`ImportSettingsService`,
+`ImportPlacementMode`).
+
+**Próxima etapa (D-107)**: o modo `'place'` (arrastar retângulo, estilo
+Illustrator) + o controle na UI de Workspace Settings para alternar entre os
+dois modos.
+
+---
+
 ## 2026-06-15 — D-105 — Fix CRÍTICO: File ▸ Import ▸ SVG substituía o documento (perda de dados) ✅
 
 **Bug**: File ▸ Import ▸ SVG chamava `resetDocument(result.document)` —

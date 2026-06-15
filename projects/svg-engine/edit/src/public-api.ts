@@ -95,6 +95,9 @@ export * from './lib/menu';
 // whatever shell currently hosts them (D-098).
 export * from './lib/panel';
 
+// SVG import placement preference (centered 100% vs interactive place) (D-106)
+export * from './lib/import-settings';
+
 // Keyboard shortcuts (Fase 4 Bloco 4g)
 export * from './lib/shortcut';
 

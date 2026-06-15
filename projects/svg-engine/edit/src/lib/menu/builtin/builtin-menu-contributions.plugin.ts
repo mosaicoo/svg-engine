@@ -2983,9 +2983,9 @@ function importSvgFromFile(runCtx: MenuContributionContext | undefined, fromCtx:
  * page (never replaces the document).
  *
  * - The importer already returns the file's children wrapped in a group;
- *   we scale that group to ~60% of the smaller VISIBLE viewport dimension
- *   (clamped `[40, 800]`) and center it there, so it lands on-screen at a
- *   sensible size regardless of zoom.
+ *   it's inserted at its **natural 1:1 size**, centered on the active page's
+ *   artboard (D-106 — the "100% centered" mode chosen by the user). When no
+ *   page is active it centers on the visible viewport instead.
  * - The imported `<defs>` (gradients / filters / patterns referenced via
  *   `url(#id)`) are merged into the document defs so the art resolves.
  *   Done as a direct state update; on undo the inserted group is removed
@@ -3005,17 +3005,30 @@ function placeImportedSvgIntoActivePage(
   const imported = doc.root;
   if (imported.type !== 'group' || imported.children.length === 0) return;
 
-  const vb = fromCtx(ViewportService, runCtx).viewBox();
-  const centerX = vb.x + vb.width / 2;
-  const centerY = vb.y + vb.height / 2;
-  const target = Math.max(40, Math.min(800, Math.min(vb.width, vb.height) * 0.6));
-
+  // **D-106** — insert at the file's NATURAL 1:1 size, centered on the
+  // ACTIVE PAGE's artboard (fall back to the visible viewport center when no
+  // page is active). This is the user-chosen "100% centered" default.
   const src = doc.viewBox; // natural bounds of the imported art
-  const span = Math.max(src.width, src.height) || 1;
-  const s = target / span;
-  const tx = centerX - s * (src.x + src.width / 2);
-  const ty = centerY - s * (src.y + src.height / 2);
-  const placed: SvgNode = { ...imported, transform: [s, 0, 0, s, tx, ty] as Transform };
+  const srcCx = src.x + src.width / 2;
+  const srcCy = src.y + src.height / 2;
+
+  const pageVb = fromCtx(ActivePageService, runCtx).activePageViewBox();
+  let cx: number;
+  let cy: number;
+  if (pageVb !== null) {
+    cx = pageVb.x + pageVb.width / 2;
+    cy = pageVb.y + pageVb.height / 2;
+  } else {
+    const vp = fromCtx(ViewportService, runCtx).viewBox();
+    cx = vp.x + vp.width / 2;
+    cy = vp.y + vp.height / 2;
+  }
+
+  // Scale 1 (natural); translate so the art's center lands on the page center.
+  const placed: SvgNode = {
+    ...imported,
+    transform: [1, 0, 0, 1, cx - srcCx, cy - srcCy] as Transform,
+  };
 
   const state = fromCtx(EditorStateService, runCtx);
   const importedDefs = doc.defs;
