@@ -142,6 +142,18 @@ describe('ImportPlacementService (D-107)', () => {
     expect(placement.pending()).toBeNull();
   });
 
+  it('hasDragRect is false for a bare click and true once dragged (D-108 fix)', () => {
+    const { placement } = setup();
+    placement.begin(makePending());
+    expect(placement.hasDragRect()).toBe(false); // nothing yet
+    placement.beginDrag({ x: 10, y: 10 });
+    expect(placement.hasDragRect()).toBe(false); // zero-size rect = a click
+    placement.updateDrag({ x: 12, y: 11 }); // sub-threshold nudge still a click
+    expect(placement.hasDragRect()).toBe(false);
+    placement.updateDrag({ x: 60, y: 40 }); // real drag
+    expect(placement.hasDragRect()).toBe(true);
+  });
+
   it('placedTransform reflects the Shift (stretch) mode in real time (D-108)', () => {
     const { placement } = setup();
     placement.begin(makePending());

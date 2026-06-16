@@ -113,12 +113,15 @@ export class SvgeImportPlacementOverlay {
 
   /**
    * **D-108** — the imported art with the live commit transform applied,
-   * ready to render as the ghost. `null` when nothing is being placed.
+   * ready to render as the ghost. `null` when nothing is being placed, OR
+   * (D-108 fix) while the gesture is still a bare click — no drag rectangle
+   * yet. Without that guard, pressing down (a zero-size rect) would flash
+   * the art at natural size before the user starts dragging.
    */
   protected readonly ghostNode = computed<SvgNode | null>(() => {
     const p = this.placement.pending();
     const transform = this.placement.placedTransform();
-    if (p === null || transform === null) return null;
+    if (p === null || transform === null || !this.placement.hasDragRect()) return null;
     return { ...p.group, transform };
   });
 

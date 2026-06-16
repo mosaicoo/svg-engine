@@ -119,6 +119,22 @@ export class ImportPlacementService {
   readonly stretch = this._stretch.asReadonly();
 
   /**
+   * **D-108 fix** — `true` only when the live rectangle is a real DRAG
+   * (at least one side past the click threshold), `false` for a bare click
+   * (a zero/near-zero rect) or when nothing is pending. The overlay gates
+   * its ghost preview on this so a single click doesn't flash the art at
+   * natural size before any rectangle has been drawn. Uses the SAME
+   * threshold that {@link fitImportTransform}/{@link stretchImportTransform}
+   * use to switch click→natural vs drag→fit, so the ghost appears exactly
+   * when the committed result stops being the natural-size click placement.
+   */
+  readonly hasDragRect = computed<boolean>(() => {
+    const rect = this._rect();
+    if (rect === null) return false;
+    return Math.abs(rect.width) >= CLICK_EPSILON || Math.abs(rect.height) >= CLICK_EPSILON;
+  });
+
+  /**
    * **D-108** — the transform that {@link commitDrag} would apply right now,
    * given the current rect + stretch mode. `null` when there's nothing to
    * place. Exposed so the overlay's ghost preview renders the art with the

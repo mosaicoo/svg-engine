@@ -38,6 +38,16 @@ Specs novos (`stretchImportTransform` fit/stretch/click + `placedTransform`
 reativo ao `Shift` + commit em stretch). Build + lint + suíte (**2555**) verdes;
 snapshot de API regenerado (+`stretchImportTransform`).
 
+**Fix de UX (clique sem arraste)**: ao pressionar o mouse, o `beginDrag` cria
+um retângulo 0×0, que o `placedTransform` trata como clique → 1:1 natural — então
+o ghost piscava em **tamanho real** antes de qualquer arraste. Adicionado
+`hasDragRect` (computed; `true` só quando o retângulo passa do limiar de clique,
+mesmo limiar do fit/stretch) e o overlay gateia o ghost nele: clique puro não
+mostra mais o ghost (o commit no clique segue inserindo em tamanho natural; só o
+preview estranho some); o ghost aparece quando o arraste vira retângulo de fato.
+Spec do `hasDragRect`; suíte **2556** verde (sem mudança de snapshot —
+membro de classe).
+
 ---
 
 ## 2026-06-15 — D-107 — Import SVG: modo "place" interativo (arrastar retângulo) + toggle na UI ✅
