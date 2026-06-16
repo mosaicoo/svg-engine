@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-06-16 — D-119 — `View ▸ Zoom ▸ Fit Canvas` vira fit-to-content real ✅
+
+Follow-up do D-118 (autorizado: _"pode seguir"_). O `Fit Canvas` ainda era só
+`ViewportService.fit()` (= `reset()`, zoom 1 na página) — o próprio comentário
+do D-085 reservava o slot para uma futura implementação **"fit content bounds"**.
+Agora ele faz isso: enquadra **todo o conteúdo desenhado** na canvas ativa.
+
+- **Menu** ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)):
+  novo handler `zoomFitCanvas(runCtx, fromCtx)`. Pega a página ativa
+  (`ActivePageService.activePage()`) ou, em modo legado sem páginas, a raiz do
+  documento, computa o bbox via `getNodeBBox` (model-only, multi-editor-safe) e
+  chama `ViewportService.fitBox`. Como usa o bbox **real do conteúdo** (não o
+  viewBox da página), inclui arte que extrapola a página — caso comum em SVGs
+  importados (D-115).
+- **Fallback de canvas vazia**: `getNodeBBox` de um grupo sem filhos é uma caixa
+  degenerada (área zero) na origem, o que faria o `fitBox` dar zoom num ponto.
+  Quando não há conteúdo, enquadra o viewBox da página (ou do documento, em modo
+  legado) exatamente (`fitBox(frame, 0)`) — "Fit Canvas" numa página em branco
+  ainda enquadra o artboard.
+- **`ViewportService.fit()` preservado** como `reset()` — ainda é usado pelo
+  fluxo de Open/replace-workspace (D-115) para zerar zoom/pan ao carregar um novo
+  documento. Só o item de menu foi repontado.
+
+Distinção do par de comandos: **Reset Zoom** = 100% na página · **Fit Canvas** =
+zoom-to-fit de todo o conteúdo · **Fit Selection** (D-118) = enquadra a seleção ·
+**Actual Size** = 100%. Sem novos exports (`getNodeBBox` + `fitBox` já existiam e
+já têm specs); build + lint + suíte (**2610**) verdes; playground compila.
+
+---
+
 ## 2026-06-16 — D-118 — `View ▸ Zoom ▸ Fit Selection` ✅
 
 Pergunta do usuário: já existe "Fit Selection"? **Não** — o `View ▸ Zoom`

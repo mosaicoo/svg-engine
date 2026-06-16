@@ -17,6 +17,7 @@ import {
   type FlipAxis,
   FlipNodeCommand,
   generateNodeId,
+  getNodeBBox,
   getNodesWorldBBox,
   GroupSelectionCommand,
   HistoryService,
@@ -813,10 +814,10 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     // ── View menu (D-085 — Zoom ▶ / Display ▶ / Show ▶ submenus) ────
     //
     // The existing flat Zoom/Grid/Rulers/Outline/Timeline toggles become
-    // children of three submenus (Option B). Fit Canvas + Actual Size are
-    // **real** new entries (ViewportService.fit() / setZoom(1)); Fit
-    // Selection / Preview / Pixel Preview / Full Screen / Guides-visibility
-    // / Selection Bounds / Artboard Labels are roadmap children added by
+    // children of three submenus (Option B). Fit Canvas (fit content bounds —
+    // D-119), Fit Selection (D-118) + Actual Size (setZoom(1)) are **real**
+    // entries; Preview / Pixel Preview / Full Screen / Guides-visibility /
+    // Selection Bounds / Artboard Labels are roadmap children added by
     // `builtinRoadmapMenuPlugin`.
 
     // ── View ▸ Zoom ▶ ──────────────────────────────────────────────
@@ -871,9 +872,13 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
-    // **D-085** — Fit Canvas: ViewportService.fit() recenters + resets
-    // zoom to 100% (currently identical to Reset; kept distinct so a
-    // future "fit content bounds" implementation has its menu slot).
+    // **D-085 / D-119** — Fit Canvas: zoom/pan so ALL drawn content in the
+    // active canvas (the active page, or the whole document in legacy no-page
+    // mode) fits in the window — the "fit content bounds" implementation the
+    // D-085 slot was reserved for. Distinct from Reset Zoom (which pins zoom
+    // to 100% on the page) and genuinely useful for imported SVGs whose art
+    // overflows the page viewBox (D-115). Falls back to framing the page/
+    // document viewBox when the canvas is empty.
     ctx.track(
       reg.register({
         id: 'svge.builtin.view.zoom-fit-canvas',
@@ -883,7 +888,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'crop_free',
         order: 40,
         run(runCtx) {
-          fromCtx(ViewportService, runCtx).fit();
+          zoomFitCanvas(runCtx, fromCtx);
         },
       }),
     );
@@ -3057,6 +3062,35 @@ function zoomFitSelection(runCtx: MenuContributionContext | undefined, fromCtx: 
   const root = fromCtx(EditorStateService, runCtx).document().root;
   const box = getNodesWorldBBox(root, ids);
   if (box !== null) fromCtx(ViewportService, runCtx).fitBox(box);
+}
+
+/**
+ * **D-119** — `View ▸ Zoom ▸ Fit Canvas`. Frames all drawn content in the
+ * active canvas. Model-based via {@link getNodeBBox} over the rendered tree —
+ * the active page in pages mode, or the document root in legacy (pre-D-079)
+ * mode — so it's multi-editor safe and, unlike a page-viewBox fit, includes
+ * art that overflows the page (e.g. imported SVGs whose content spills outside
+ * the artboard — D-115).
+ *
+ * **Empty-canvas fallback**: `getNodeBBox` of a content-less group is a
+ * degenerate zero-area box at the group origin, which would make `fitBox`
+ * zoom into a point. So when there's no content we frame the page's viewBox
+ * (or the document viewBox in legacy mode) exactly instead — "Fit Canvas" on
+ * a blank page still does the sensible thing (fit the artboard).
+ */
+function zoomFitCanvas(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+  const pages = fromCtx(ActivePageService, runCtx);
+  const state = fromCtx(EditorStateService, runCtx);
+  const page = pages.activePage();
+  const tree: SvgNode = page !== null ? (page as unknown as SvgNode) : state.document().root;
+  const content = getNodeBBox(tree);
+  const viewport = fromCtx(ViewportService, runCtx);
+  if (content.width > 0 && content.height > 0) {
+    viewport.fitBox(content);
+  } else {
+    const frame = pages.activePageViewBox() ?? state.document().viewBox;
+    viewport.fitBox(frame, 0);
+  }
 }
 
 function newDocument(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
