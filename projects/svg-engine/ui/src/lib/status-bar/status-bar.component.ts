@@ -15,6 +15,7 @@ import {
   IsolationService,
   PagesService,
   SelectionService,
+  type SnapMode,
   SnapService,
   ToolHostService,
   ToolRegistry,
@@ -61,7 +62,7 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
  * - `selection` — selected count + focus id (short)
  * - `cursor` — doc-coords of the cursor (from `WorkspaceService.rulerCursor`)
  * - `zoom` — viewport zoom percentage
- * - `snap` — snap enabled flag + active sources (grid / objects / guides)
+ * - `snap` — snap enabled flag + mode (grid / objects / both)
  * - `isolation` — current isolation breadcrumb when active
  * - `tracing` — D-066e: animated pill while one or more Trace Image
  *   commands are running (`TraceProgressService.running()`). Hidden
@@ -133,12 +134,14 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
       </span>
     }
     @if (showSection('snap')) {
-      <!-- D-073-fix / D-125: dropdown menu — parallel surface to the
-           View ▸ Snap submenu. Off + three independent, combinable source
-           toggles (Grid / Objects / Guides). Was a binary on/off toggle
-           pre-fix, then an exclusive mode picker; D-125 made the sources
-           independent. Active state shown via the pill label + the
-           per-row .active-item highlight. -->
+      <!-- D-073-fix: dropdown menu exposing all 4 snap states (Off /
+           Grid only / Objects only / Both) — parallel surface to the
+           View ▸ Snap submenu. Was a binary on/off toggle pre-fix;
+           upgraded so users can pick the snap MODE from the bar
+           without opening the menu bar. Active state shown via the
+           pill label and via a checkmark in the dropdown.
+           Photoshop / Illustrator / Affinity all expose mode in their
+           status bar equivalent — convergent UX. -->
       <button
         type="button"
         class="section section-snap section-toggle"
@@ -152,11 +155,12 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
         <span class="value">{{ snapLabel() }}</span>
         <mat-icon class="caret" aria-hidden="true">arrow_drop_down</mat-icon>
       </button>
-      <!-- Icons standardized to match the View ▸ Snap submenu in the menu
-           bar: Off = power_settings_new, Grid = grid_4x4, Objects = category,
-           Guides = straighten. Icons stay FIXED (no swap-to-check); the
-           active state is signalled with the .active-item class (accent +
-           bold) plus aria-checked for screen readers. -->
+      <!-- Icons standardized to match the View ▸ Snap submenu in the
+           menu bar: Enabled = power_settings_new, Grid only = grid_4x4,
+           Objects only = category, Both = apps. The icons stay FIXED
+           (no swap-to-check on the active item, mirroring the menu bar);
+           the currently-active state is signalled with the .active-item
+           class (accent + bold) plus aria-checked for screen readers. -->
       <mat-menu #snapMenu="matMenu" xPosition="before" panelClass="svge-snap-menu">
         <button
           mat-menu-item
@@ -168,39 +172,35 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
           <mat-icon>power_settings_new</mat-icon>
           <span>Off</span>
         </button>
-        <!-- **D-125** — independent, combinable source toggles (Grid /
-             Objects / Guides) mirroring the View ▸ Snap submenu. Each row is
-             its own checkable toggle (multiple can be active at once); the
-             .active-item class + aria-checked reflect each flag. -->
         <button
           mat-menu-item
           type="button"
-          [class.active-item]="snapEnabled() && snapToGrid()"
-          (click)="toggleSnapSource('grid')"
-          [attr.aria-checked]="snapEnabled() && snapToGrid()"
+          [class.active-item]="snapEnabled() && snapMode() === 'grid'"
+          (click)="setSnap('grid')"
+          [attr.aria-checked]="snapEnabled() && snapMode() === 'grid'"
         >
           <mat-icon>grid_4x4</mat-icon>
-          <span>Snap to Grid</span>
+          <span>Grid only</span>
         </button>
         <button
           mat-menu-item
           type="button"
-          [class.active-item]="snapEnabled() && snapToObjects()"
-          (click)="toggleSnapSource('objects')"
-          [attr.aria-checked]="snapEnabled() && snapToObjects()"
+          [class.active-item]="snapEnabled() && snapMode() === 'objects'"
+          (click)="setSnap('objects')"
+          [attr.aria-checked]="snapEnabled() && snapMode() === 'objects'"
         >
           <mat-icon>category</mat-icon>
-          <span>Snap to Objects</span>
+          <span>Objects only</span>
         </button>
         <button
           mat-menu-item
           type="button"
-          [class.active-item]="snapEnabled() && snapToGuides()"
-          (click)="toggleSnapSource('guides')"
-          [attr.aria-checked]="snapEnabled() && snapToGuides()"
+          [class.active-item]="snapEnabled() && snapMode() === 'both'"
+          (click)="setSnap('both')"
+          [attr.aria-checked]="snapEnabled() && snapMode() === 'both'"
         >
-          <mat-icon>straighten</mat-icon>
-          <span>Snap to Guides</span>
+          <mat-icon>apps</mat-icon>
+          <span>Both</span>
         </button>
       </mat-menu>
     }
@@ -463,55 +463,38 @@ export class SvgeStatusBar {
   // ── Snap section ────────────────────────────────────────────────
 
   protected readonly snapEnabled = computed(() => this.snap.enabled());
-  // **D-125** — per-source flags (replace the old exclusive `mode`).
-  protected readonly snapToGrid = computed(() => this.snap.snapToGrid());
-  protected readonly snapToObjects = computed(() => this.snap.snapToObjects());
-  protected readonly snapToGuides = computed(() => this.snap.snapToGuides());
+  protected readonly snapMode = computed(() => this.snap.mode());
 
-  /**
-   * **D-125** — honest label composed from the active sources:
-   * `'off'` (disabled), `'none'` (enabled, no source), `'both'` (grid +
-   * objects, the familiar shorthand), else a `+`-joined list like
-   * `'grid+guides'`.
-   */
   protected readonly snapLabel = computed(() => {
     if (!this.snap.enabled()) return 'off';
-    const parts: string[] = [];
-    if (this.snap.snapToGrid()) parts.push('grid');
-    if (this.snap.snapToObjects()) parts.push('objects');
-    if (this.snap.snapToGuides()) parts.push('guides');
-    if (parts.length === 0) return 'none';
-    if (parts.length === 2 && this.snap.snapToGrid() && this.snap.snapToObjects()) {
-      return 'both';
-    }
-    return parts.join('+');
+    const mode = this.snap.mode();
+    // Mode values are 'grid' | 'objects' | 'both' per SnapService API.
+    return mode;
   });
 
   protected readonly snapTooltip = computed(() =>
-    this.snap.enabled() ? `Snap on (${this.snapLabel()})` : 'Snap off',
+    this.snap.enabled() ? `Snap on (${this.snap.mode()})` : 'Snap off',
   );
 
-  /** **D-073-fix** — turn snap fully off from the bar's dropdown. */
-  protected setSnap(target: 'off'): void {
-    if (target === 'off' && this.snap.enabled()) this.snap.setEnabled(false);
-  }
-
   /**
-   * **D-125** — toggle a single snap source from the bar's dropdown.
-   * Turning a source ON also enables snap (saves a 2-step "enable + pick
-   * source"); the sources are independent and freely combinable.
+   * **D-073-fix**: pick snap state from the bar's dropdown.
+   *
+   * Four values mapped:
+   * - `'off'` → `setEnabled(false)` (mode preserved for next on)
+   * - `'grid' | 'objects' | 'both'` → `setMode(...)` + `setEnabled(true)`
+   *   (selecting a mode auto-enables — saves the user from a 2-click
+   *   "enable + pick mode" sequence; matches Photoshop convention).
+   *
+   * Replaces the pre-fix `toggleSnap()` which only flipped enabled —
+   * the same dropdown now serves as both on/off AND mode picker.
    */
-  protected toggleSnapSource(source: 'grid' | 'objects' | 'guides'): void {
-    if (source === 'grid') this.snap.toggleSnapToGrid();
-    else if (source === 'objects') this.snap.toggleSnapToObjects();
-    else this.snap.toggleSnapToGuides();
-    const nowOn =
-      source === 'grid'
-        ? this.snap.snapToGrid()
-        : source === 'objects'
-          ? this.snap.snapToObjects()
-          : this.snap.snapToGuides();
-    if (nowOn && !this.snap.enabled()) this.snap.setEnabled(true);
+  protected setSnap(target: SnapMode | 'off'): void {
+    if (target === 'off') {
+      if (this.snap.enabled()) this.snap.setEnabled(false);
+      return;
+    }
+    if (this.snap.mode() !== target) this.snap.setMode(target);
+    if (!this.snap.enabled()) this.snap.setEnabled(true);
   }
 
   // ── Isolation section ───────────────────────────────────────────

@@ -1,9 +1,7 @@
 export {
-  // gridTargetsNear / rectsToSnapTargets / guidesToSnapTargets: geradores
-  // puros de alvos de snap (anunciados na referência pública,
-  // 09-api-publica.md).
+  // gridTargetsNear / rectsToSnapTargets: anunciados na referência pública
+  // (09-api-publica.md) como geradores puros de alvos de snap — mantidos.
   gridTargetsNear,
-  guidesToSnapTargets,
   rectsToSnapTargets,
   resolveSnap,
   type SnapAxis,
