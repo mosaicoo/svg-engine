@@ -1235,10 +1235,21 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
-    // **D-121** — Lock Guides: a single toggle that locks AND unlocks (like
-    // Grid/Rulers/Timeline toggles). When locked, `GuidesOverlay` makes guides
-    // non-interactive — they stay visible but can't be selected, dragged, or
-    // deleted on the canvas. Add/Clear (explicit commands) keep working.
+    // **D-121 / D-122** — Lock Guides + Unlock Guides as two state-aware items
+    // (the project convention — cf. Make/Release Clipping Path / Smart Object),
+    // instead of one toggle. Each is `disabled` when it would be a no-op: Lock
+    // is disabled when already locked, Unlock when already unlocked. When
+    // locked, `GuidesOverlay` makes guides non-interactive — they stay visible
+    // but can't be selected, dragged, or deleted on the canvas. Add/Clear
+    // (explicit commands) keep working.
+    const guidesLockedFactory = (injector: Injector): Signal<boolean> => {
+      const ws = injector.get(WorkspaceService);
+      return computed(() => ws.guidesLocked());
+    };
+    const guidesUnlockedFactory = (injector: Injector): Signal<boolean> => {
+      const ws = injector.get(WorkspaceService);
+      return computed(() => !ws.guidesLocked());
+    };
     ctx.track(
       reg.register({
         id: 'svge.builtin.view.guides.lock',
@@ -1247,8 +1258,23 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         label: 'Lock Guides',
         icon: 'lock',
         order: 25,
+        disabled: guidesLockedFactory, // already locked → nothing to lock
         run(runCtx) {
-          fromCtx(WorkspaceService, runCtx).toggleGuidesLocked();
+          fromCtx(WorkspaceService, runCtx).setGuidesLocked(true);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.guides.unlock',
+        parentId: 'svge.builtin.view.guides',
+        slot: MENU_SLOT.VIEW,
+        label: 'Unlock Guides',
+        icon: 'lock_open',
+        order: 26,
+        disabled: guidesUnlockedFactory, // already unlocked → nothing to unlock
+        run(runCtx) {
+          fromCtx(WorkspaceService, runCtx).setGuidesLocked(false);
         },
       }),
     );

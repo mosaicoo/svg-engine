@@ -508,6 +508,11 @@ export class WorkspaceService {
   }
 
   clearGuides(): void {
+    // **D-122** — clearing all guides returns the lock to its default
+    // (unlocked): with no guides there's nothing to protect, so leaving the
+    // canvas "locked" would be a confusing dead state. Done first (and
+    // unconditionally) so the reset still applies on the empty-list fast path.
+    this.setGuidesLocked(false);
     if (this._guides().length === 0) return;
     this._guides.set([]);
     this._selectedGuideId.set(null);

@@ -409,11 +409,13 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
       }),
     );
     // Guides ▶ — Add H/Add V/Clear are real.
-    // **D-121 — SHIPPED.** "Lock Guides" (View ▸ Guides, order 25) is now a real
-    // toggle registered by `builtinMenuContributionsPlugin`
-    // (`svge.builtin.view.guides.lock` → `WorkspaceService.toggleGuidesLocked`):
-    // locked guides render but can't be selected/dragged/deleted on the canvas.
-    // Roadmap placeholder removed per convention.
+    // **D-121 / D-122 — SHIPPED.** "Lock Guides" is now real, split into two
+    // state-aware items by `builtinMenuContributionsPlugin`:
+    // `svge.builtin.view.guides.lock` (order 25, disabled when already locked)
+    // and `svge.builtin.view.guides.unlock` (order 26, disabled when already
+    // unlocked) → `WorkspaceService.setGuidesLocked(true/false)`. Locked guides
+    // render but can't be selected/dragged/deleted on the canvas. Roadmap
+    // placeholder removed per convention.
 
     // ── Insert (roadmap) ───────────────────────────────────────────
     // Shape ▶ — the 7 quick shapes are wired by `builtinInsertMenuPlugin`.

@@ -295,6 +295,16 @@ describe('WorkspaceService — guides locked (D-121)', () => {
     ws.setGuidesLocked(true); // no-op
     expect(ws.guidesLocked()).toBe(true);
   });
+
+  it('clearGuides resets the lock back to default/unlocked (D-122)', () => {
+    const ws = setup();
+    ws.addGuide('h', 10);
+    ws.setGuidesLocked(true);
+    expect(ws.guidesLocked()).toBe(true);
+    ws.clearGuides();
+    expect(ws.guides()).toEqual([]);
+    expect(ws.guidesLocked()).toBe(false); // cleared → back to default
+  });
 });
 
 describe('WorkspaceService — interaction (Fase 6 UX polish)', () => {

@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-06-16 — D-122 — Lock/Unlock Guides em dois itens state-aware + Clear reseta lock ✅
+
+Refinamento do D-121. O usuário pediu para seguir o **padrão do projeto** —
+dois itens separados (Lock e Unlock), como `Make/Release Clipping Path` — em vez
+de um único toggle, **mas com tratativa de estado**. E que **limpar todas as
+guias** retorne o lock ao padrão.
+
+- **Menu** ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)):
+  o item toggle único virou **dois**:
+  - `svge.builtin.view.guides.lock` — **Lock Guides**, ícone `lock` (cadeado
+    fechado), order 25, `disabled` quando **já travado** → `setGuidesLocked(true)`.
+  - `svge.builtin.view.guides.unlock` — **Unlock Guides**, ícone `lock_open`
+    (cadeado aberto), order 26, `disabled` quando **já destravado** →
+    `setGuidesLocked(false)`.
+
+  Usa o factory de `disabled` já existente (escopado por editor, D-043) — **sem
+  precisar estender a API de menu**. Assim só o item aplicável fica habilitado,
+  refletindo o estado do lock (o que o usuário chamou de "alterar nome/ícone
+  dinamicamente", resolvido pela via idiomática de dois itens).
+
+- **`clearGuides()`** ([workspace.service.ts](../projects/svg-engine/edit/src/lib/workspace/workspace.service.ts)):
+  agora reseta `guidesLocked → false` (default). Feito de forma incondicional no
+  início, então vale também no fast-path de lista vazia. Sem guias, manter a
+  canvas "travada" seria um estado morto confuso.
+- `toggleGuidesLocked()` (D-121) **mantido** no `WorkspaceService` como API
+  pública conveniente (ex.: futuro atalho de teclado), embora o menu não o use
+  mais.
+
+Specs: WorkspaceService (`clearGuides` reseta lock) + menu (Lock/Unlock — disabled
+por estado + run alterna o lock). Build + lint + suíte (**2623**, +3) verdes;
+playground compila. Sem novos exports (snapshot inalterado).
+
+---
+
 ## 2026-06-16 — D-121 — `View ▸ Guides ▸ Lock Guides` (toggle real, era roadmap) ✅
 
 O usuário perguntou se havia backing para o `Lock Guides`. **Não** — era um

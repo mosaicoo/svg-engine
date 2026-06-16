@@ -576,3 +576,39 @@ describe('builtinMenuContributionsPlugin — Make Clipping Path forbids an image
     expect(sig()).toBe(false);
   });
 });
+
+// ── D-122 — Lock / Unlock Guides as two state-aware items ─────────
+// Two separate entries (project convention, cf. Make/Release Clipping
+// Path) instead of one toggle: each is disabled when it would be a
+// no-op, and run() drives WorkspaceService.setGuidesLocked.
+
+describe('builtinMenuContributionsPlugin — Lock/Unlock Guides state-aware (D-122)', () => {
+  it('Lock Guides: enabled when unlocked, disabled once locked; running it locks', () => {
+    const { reg, injector } = setupRoot();
+    const ws = injector.get(WorkspaceService);
+    const lock = reg.get('svge.builtin.view.guides.lock')!;
+    const disabled = resolveDisabledSignal(lock, injector);
+
+    expect(ws.guidesLocked()).toBe(false);
+    expect(disabled()).toBe(false); // unlocked → can lock
+
+    lock.run({ injector });
+    expect(ws.guidesLocked()).toBe(true);
+    expect(disabled()).toBe(true); // already locked → nothing to lock
+  });
+
+  it('Unlock Guides: disabled when unlocked, enabled once locked; running it unlocks', () => {
+    const { reg, injector } = setupRoot();
+    const ws = injector.get(WorkspaceService);
+    const unlock = reg.get('svge.builtin.view.guides.unlock')!;
+    const disabled = resolveDisabledSignal(unlock, injector);
+
+    expect(disabled()).toBe(true); // unlocked → nothing to unlock
+
+    ws.setGuidesLocked(true);
+    expect(disabled()).toBe(false); // locked → can unlock
+
+    unlock.run({ injector });
+    expect(ws.guidesLocked()).toBe(false);
+  });
+});
