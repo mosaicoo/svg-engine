@@ -524,8 +524,8 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     );
 
     // ── Edit ▸ Select ▶ submenu (D-085) ─────────────────────────────
-    // Wraps Select All + the D-071a "Select Same" trio. "Invert
-    // Selection" is a roadmap child added by `builtinRoadmapMenuPlugin`.
+    // Wraps Select All, the D-071a "Select Same" trio, and Invert Selection
+    // (D-120 — real now; was a `builtinRoadmapMenuPlugin` placeholder).
     ctx.track(
       reg.register({
         id: 'svge.builtin.edit.select-menu',
@@ -549,6 +549,31 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         order: 10,
         run(runCtx) {
           selectAllTopLevel(runCtx, fromCtx);
+        },
+      }),
+    );
+    // **D-120** — Invert Selection: select the active page's top-level objects
+    // that aren't currently selected. Disabled when the page has no objects to
+    // invert into (mirrors `selectAllTopLevel`'s no-op condition, surfaced as a
+    // greyed item). Order 50 keeps the slot the roadmap placeholder used.
+    const noPageObjectsFactory = (injector: Injector): Signal<boolean> => {
+      const pages = injector.get(ActivePageService);
+      return computed(() => {
+        const container = pages.treeForRendering();
+        return container.type !== 'group' || container.children.length === 0;
+      });
+    };
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.edit.invert-selection',
+        parentId: 'svge.builtin.edit.select-menu',
+        slot: MENU_SLOT.EDIT,
+        label: 'Invert Selection',
+        icon: 'flip',
+        order: 50,
+        disabled: noPageObjectsFactory,
+        run(runCtx) {
+          invertSelection(runCtx, fromCtx);
         },
       }),
     );
@@ -2930,6 +2955,25 @@ function selectAllTopLevel(runCtx: MenuContributionContext | undefined, fromCtx:
   const container = fromCtx(ActivePageService, runCtx).treeForRendering();
   if (container.type !== 'group' || container.children.length === 0) return;
   fromCtx(SelectionService, runCtx).selectMany(container.children.map((c) => c.id));
+}
+
+/**
+ * **D-120** — `Edit ▸ Select ▸ Invert Selection`. Selects every top-level
+ * object on the active page that is NOT currently selected (and drops the
+ * ones that are). Mirrors {@link selectAllTopLevel}'s universe — the active
+ * page's direct children (`treeForRendering()`), i.e. Illustrator's "invert
+ * on the active artboard" — so Select All and Invert stay consistent.
+ *
+ * Lock-awareness is free: `SelectionService.selectMany` filters out locked
+ * ids, so a locked object never enters the inverted selection (it also can't
+ * be in the current selection, so it's simply never selectable — correct).
+ */
+function invertSelection(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+  const container = fromCtx(ActivePageService, runCtx).treeForRendering();
+  if (container.type !== 'group' || container.children.length === 0) return;
+  const selected = fromCtx(SelectionService, runCtx).selectedIds();
+  const inverted = container.children.filter((c) => !selected.has(c.id)).map((c) => c.id);
+  fromCtx(SelectionService, runCtx).selectMany(inverted);
 }
 
 function groupSelection(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {

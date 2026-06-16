@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-06-16 — D-120 — `Edit ▸ Select ▸ Invert Selection` (real, era roadmap) ✅
+
+O usuário perguntou se já existia o backing para o `Edit ▸ Select ▸ Invert
+Selection`. **Não** — era só um `roadmapLeaf` (`svge.roadmap.edit.invert-selection`,
+ícone de relógio, sem `run`), como o Fit Selection antes do D-118. Promovido a
+comando real, mesmo padrão do D-118.
+
+- **Handler** `invertSelection` em
+  [builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts):
+  seleciona os objetos top-level da **página ativa** que **não** estão
+  selecionados (e solta os que estão). Reaproveita o "universo" do
+  `selectAllTopLevel` (`ActivePageService.treeForRendering()`) — a página ativa
+  (ou a raiz, em modo legado sem páginas) — então Select All e Invert ficam
+  consistentes (Illustrator "invert on the active artboard"). **Lock-aware de
+  graça**: `SelectionService.selectMany` já filtra ids travados.
+- **Item de menu** `svge.builtin.edit.invert-selection` (order 50, ícone `flip`),
+  **desabilitado** quando a página ativa não tem objetos (factory
+  `noPageObjectsFactory` — espelha o no-op do `selectAllTopLevel`, mas como item
+  cinza).
+- **Roadmap placeholder removido** em
+  [builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts),
+  substituído por nota **"D-120 — SHIPPED"** (convenção do projeto).
+
+Specs novos (no harness do plugin): comportamento do invert (mantém não
+selecionados, solta selecionados) + factory disabled (cinza em página vazia,
+ativa com objeto). Build + lint + suíte (**2612**, +2) verdes; playground compila.
+Sem novos exports (snapshot inalterado).
+
+---
+
 ## 2026-06-16 — D-118-fix — Remover "Fit Selection" duplicado (placeholder de roadmap) ✅
 
 O usuário notou (print) que o `View ▸ Zoom` mostrava **dois** "Fit Selection":

@@ -139,6 +139,54 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(selection.selectedIds().size).toBe(1);
   });
 
+  it('Invert Selection selects the unselected page objects and drops the selected ones (D-120)', () => {
+    const { reg, state, selection, injector } = setupRoot();
+    const a = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const b = createRect({ x: 20, y: 0, width: 10, height: 10 });
+    const c = createRect({ x: 40, y: 0, width: 10, height: 10 });
+    const page = withPageFlag(createGroup([a, b, c]), { x: 0, y: 0, width: 100, height: 100 });
+    const doc = state.document();
+    state.setDocument({ ...doc, root: { ...doc.root, children: [page] } });
+    injector.get(ActivePageService).setActive(page.id);
+
+    selection.select(a.id); // a selected; b, c not
+
+    reg.get('svge.builtin.edit.invert-selection')!.run({ injector });
+
+    const sel = selection.selectedIds();
+    expect(sel.has(a.id)).toBe(false); // was selected → dropped
+    expect(sel.has(b.id)).toBe(true); // was unselected → now selected
+    expect(sel.has(c.id)).toBe(true);
+    expect(sel.size).toBe(2);
+  });
+
+  it('Invert Selection is disabled only when the active page has no objects (D-120)', () => {
+    const { reg, state, injector } = setupRoot();
+    const item = reg.get('svge.builtin.edit.invert-selection')!;
+    const disabled = resolveDisabledSignal(item, injector);
+
+    const pageId = 'page-d120' as never;
+    const vb = { x: 0, y: 0, width: 100, height: 100 };
+    const doc = state.document();
+    state.setDocument({
+      ...doc,
+      root: { ...doc.root, children: [withPageFlag(createGroup([], { id: pageId }), vb)] },
+    });
+    injector.get(ActivePageService).setActive(pageId);
+    expect(disabled()).toBe(true); // empty page → nothing to invert
+
+    // Same page id, now holding one object → enabled.
+    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    state.setDocument({
+      ...state.document(),
+      root: {
+        ...state.document().root,
+        children: [withPageFlag(createGroup([rect], { id: pageId }), vb)],
+      },
+    });
+    expect(disabled()).toBe(false);
+  });
+
   it('File ▸ New bootstraps Page 1 on the fresh document (D-111)', () => {
     const { reg, state, injector } = setupRoot();
     // Fresh editor starts with an empty, pageless document.

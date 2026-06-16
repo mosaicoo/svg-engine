@@ -311,16 +311,11 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // command registered by `builtinMenuContributionsPlugin`: pastes at the
     // original coordinates (zero offset) while a plain Paste now nudges +10px,
     // so the two are distinct. Roadmap placeholder removed per convention.
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.edit.invert-selection',
-        parentId: 'svge.builtin.edit.select-menu',
-        slot: MENU_SLOT.EDIT,
-        label: 'Invert Selection',
-        icon: 'flip',
-        order: 50,
-      }),
-    );
+    // **D-120 — SHIPPED.** "Invert Selection" (Edit ▸ Select, order 50) is now
+    // a real command registered by `builtinMenuContributionsPlugin`
+    // (`svge.builtin.edit.invert-selection`): it selects the active page's
+    // top-level objects that aren't currently selected. Roadmap placeholder
+    // removed per convention.
 
     // ── View (roadmap) ─────────────────────────────────────────────
     // **D-118 — SHIPPED.** "Fit Selection" (View ▸ Zoom, order 50) is now a
