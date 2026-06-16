@@ -4,7 +4,7 @@ import type { BoundingBox, NodeId, Point } from 'svg-engine/core';
 export type SnapAxis = 'x' | 'y';
 
 /** Where the snap target came from. */
-export type SnapSource = 'grid' | 'object';
+export type SnapSource = 'grid' | 'object' | 'guide';
 
 /**
  * A 1-D snap target — a line at `value` on `axis`. Multiple targets on
@@ -90,6 +90,31 @@ export function gridTargetsNear(
   const out: SnapTarget[] = [];
   for (let k = startK; k <= endK; k++) {
     out.push({ axis, value: origin + k * gridSize, source: 'grid' });
+  }
+  return out;
+}
+
+/**
+ * **D-125** — generate snap targets from workspace guide lines. A
+ * **horizontal** guide (`axis: 'h'`) is a constant-Y line → a target on
+ * the **y** axis; a **vertical** guide (`axis: 'v'`) is a constant-X line
+ * → a target on the **x** axis. Non-finite positions are skipped.
+ *
+ * Pure function — the caller (gesture handler) passes the current
+ * `WorkspaceService.guides()` so the resolver stays decoupled from the
+ * workspace service (same contract as {@link rectsToSnapTargets}).
+ */
+export function guidesToSnapTargets(
+  guides: readonly { readonly axis: 'h' | 'v'; readonly position: number }[],
+): readonly SnapTarget[] {
+  const out: SnapTarget[] = [];
+  for (const g of guides) {
+    if (!Number.isFinite(g.position)) continue;
+    out.push(
+      g.axis === 'h'
+        ? { axis: 'y', value: g.position, source: 'guide' }
+        : { axis: 'x', value: g.position, source: 'guide' },
+    );
   }
   return out;
 }

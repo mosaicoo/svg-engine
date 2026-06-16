@@ -6,6 +6,42 @@
 
 ---
 
+## 2026-06-16 — D-125 — Snap: modos exclusivos → 3 toggles combináveis (+ Snap to Guides) ✅
+
+O usuário pediu para transformar o snap (antes `mode` exclusivo: Grid / Objects /
+Both) em **fontes independentes e combináveis** — **Grid · Objects · Guides** —
+e implementar o **Snap to Guides**. Pixels foi **descartado** (mais atrapalha do
+que ajuda) e seu placeholder removido.
+
+- **Núcleo** ([snap-resolver.ts](../projects/svg-engine/edit/src/lib/snap/snap-resolver.ts)):
+  `SnapSource` ganha `'guide'`; novo gerador puro `guidesToSnapTargets(guides)`
+  (guia `h` → alvo no eixo **y**; `v` → eixo **x**). **Novo export público.**
+- **`SnapService`** ([snap.service.ts](../projects/svg-engine/edit/src/lib/snap/snap.service.ts)):
+  3 flags independentes `snapToGrid` / `snapToObjects` / `snapToGuides`
+  (+ `set…`/`toggle…`), default grid+objects on (= o antigo `'both'`).
+  `resolveForMove` agora ramifica nas flags e aceita `guideLines` (passado pelo
+  consumidor — mesmo contrato desacoplado do `staticRects`); objetos e guias
+  vencem o grid em empate. **`SnapMode` / `mode` / `setMode` mantidos como
+  camada de compat** (resumo grid/objects) — status-bar e o demo custom-editor
+  seguem funcionando sem mudança.
+- **Menu** ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)):
+  os 3 itens-radio (Grid only / Objects only / Both) viraram 3 **toggles**
+  (`Snap to Grid` / `Snap to Objects` / `Snap to Guides`); ligar uma fonte força
+  `enabled`. Placeholders de roadmap `snap.guides` (SHIPPED) e `snap.pixels`
+  (REMOVED) removidos.
+- **Gesto** ([shell-interactions.directive.ts](../projects/svg-engine/edit/src/lib/tool/shell-interactions.directive.ts)):
+  passa `WorkspaceService.guides()` ao `resolveForMove`.
+- **Status bar** ([status-bar.component.ts](../projects/svg-engine/ui/src/lib/status-bar/status-bar.component.ts)):
+  dropdown vira Off + 3 toggles combináveis; label honesto composto das flags
+  (`grid`/`objects`/`guides`/`both`/`none`).
+
+Specs novos: flags + `mode`/`setMode` compat + snap-to-guides no `resolveForMove`
+
+- `guidesToSnapTargets`. Build + lint + suíte (**2633**, +10) verdes; playground
+  compila; snapshot regenerado (+`guidesToSnapTargets` no edit).
+
+---
+
 ## 2026-06-16 — D-124 — Remover placeholder `View ▸ Show ▸ Selection Bounds` ✅
 
 Ao perguntar sobre o backing do `View ▸ Show ▸ Selection Bounds`, o usuário

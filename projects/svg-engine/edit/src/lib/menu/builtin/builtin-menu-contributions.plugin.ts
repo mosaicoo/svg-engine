@@ -1114,48 +1114,54 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+    // **D-125** — independent snap-source toggles (Grid / Objects / Guides),
+    // freely combinable, instead of the old exclusive Grid/Objects/Both radio.
+    // Toggling a source ON also forces snap enabled (saves a 2-step "enable +
+    // pick source"). Visual checked-state lives in the status-bar pill (the
+    // MenuContribution interface has no native `checked` field). Pixels were
+    // intentionally dropped (more confusing than helpful here).
     ctx.track(
       reg.register({
-        id: 'svge.builtin.view.snap.mode-grid',
+        id: 'svge.builtin.view.snap.grid',
         parentId: 'svge.builtin.view.snap',
         slot: MENU_SLOT.VIEW,
-        label: 'Grid only',
+        label: 'Snap to Grid',
         icon: 'grid_4x4',
         order: 30,
         run(runCtx) {
           const snap = fromCtx(SnapService, runCtx);
-          snap.setMode('grid');
-          if (!snap.enabled()) snap.setEnabled(true);
+          snap.toggleSnapToGrid();
+          if (snap.snapToGrid() && !snap.enabled()) snap.setEnabled(true);
         },
       }),
     );
     ctx.track(
       reg.register({
-        id: 'svge.builtin.view.snap.mode-objects',
+        id: 'svge.builtin.view.snap.objects',
         parentId: 'svge.builtin.view.snap',
         slot: MENU_SLOT.VIEW,
-        label: 'Objects only',
+        label: 'Snap to Objects',
         icon: 'category',
         order: 40,
         run(runCtx) {
           const snap = fromCtx(SnapService, runCtx);
-          snap.setMode('objects');
-          if (!snap.enabled()) snap.setEnabled(true);
+          snap.toggleSnapToObjects();
+          if (snap.snapToObjects() && !snap.enabled()) snap.setEnabled(true);
         },
       }),
     );
     ctx.track(
       reg.register({
-        id: 'svge.builtin.view.snap.mode-both',
+        id: 'svge.builtin.view.snap.guides',
         parentId: 'svge.builtin.view.snap',
         slot: MENU_SLOT.VIEW,
-        label: 'Both',
-        icon: 'apps',
+        label: 'Snap to Guides',
+        icon: 'straighten',
         order: 50,
         run(runCtx) {
           const snap = fromCtx(SnapService, runCtx);
-          snap.setMode('both');
-          if (!snap.enabled()) snap.setEnabled(true);
+          snap.toggleSnapToGuides();
+          if (snap.snapToGuides() && !snap.enabled()) snap.setEnabled(true);
         },
       }),
     );

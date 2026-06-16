@@ -1,5 +1,11 @@
 import { bbox, generateNodeId } from 'svg-engine/core';
-import { gridTargetsNear, rectsToSnapTargets, resolveSnap, type SnapTarget } from './snap-resolver';
+import {
+  gridTargetsNear,
+  guidesToSnapTargets,
+  rectsToSnapTargets,
+  resolveSnap,
+  type SnapTarget,
+} from './snap-resolver';
 
 describe('rectsToSnapTargets', () => {
   it('emits 6 targets per rect (low/center/high on each axis)', () => {
@@ -127,5 +133,30 @@ describe('resolveSnap', () => {
       5,
     );
     expect(r.guides[0]).toEqual({ axis: 'x', value: 10, source: 'object' });
+  });
+});
+
+describe('guidesToSnapTargets (D-125)', () => {
+  it("maps horizontal guides to y-axis targets and vertical to x-axis, source 'guide'", () => {
+    const t = guidesToSnapTargets([
+      { axis: 'h', position: 50 },
+      { axis: 'v', position: 30 },
+    ]);
+    expect(t).toEqual([
+      { axis: 'y', value: 50, source: 'guide' },
+      { axis: 'x', value: 30, source: 'guide' },
+    ]);
+  });
+
+  it('skips non-finite positions', () => {
+    const t = guidesToSnapTargets([
+      { axis: 'h', position: Number.NaN },
+      { axis: 'v', position: 10 },
+    ]);
+    expect(t).toEqual([{ axis: 'x', value: 10, source: 'guide' }]);
+  });
+
+  it('returns empty for an empty guide list', () => {
+    expect(guidesToSnapTargets([])).toEqual([]);
   });
 });
