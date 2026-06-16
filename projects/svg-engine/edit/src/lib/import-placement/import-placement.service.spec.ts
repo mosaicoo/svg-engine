@@ -9,6 +9,7 @@ import {
   ImportPlacementService,
   type PendingImport,
   rectFromPoints,
+  stretchImportTransform,
 } from './import-placement.service';
 
 const SRC: BoundingBox = { x: 0, y: 0, width: 100, height: 100 };
@@ -45,6 +46,29 @@ describe('fitImportTransform (D-107)', () => {
       { x: 0, y: 0, width: 40, height: 40 },
     );
     expect(t.every((n) => Number.isFinite(n))).toBe(true);
+  });
+});
+
+describe('stretchImportTransform (D-108)', () => {
+  it('maps the source box exactly onto the rect with independent X/Y scale', () => {
+    // 100×100 art into a 200×100 rect → sx=2, sy=1 (distorts), filling the
+    // rectangle corner-to-corner with no centering offset.
+    const t = stretchImportTransform(SRC, { x: 0, y: 0, width: 200, height: 100 });
+    expect(t).toEqual([2, 0, 0, 1, 0, 0]);
+  });
+
+  it('offsets so a non-origin rect still maps corner-to-corner', () => {
+    const t = stretchImportTransform(SRC, { x: 10, y: 20, width: 50, height: 50 });
+    // sx=sy=0.5; tx=10-0.5*0=10; ty=20.
+    expect(t).toEqual([0.5, 0, 0, 0.5, 10, 20]);
+  });
+
+  it('a near-zero rect (a click) falls back to natural 1:1 at the point', () => {
+    const t = stretchImportTransform(SRC, { x: 30, y: 40, width: 1, height: 1 });
+    expect(t[0]).toBe(1);
+    expect(t[3]).toBe(1);
+    expect(t[4]).toBeCloseTo(-19.5, 6);
+    expect(t[5]).toBeCloseTo(-9.5, 6);
   });
 });
 
@@ -116,6 +140,35 @@ describe('ImportPlacementService (D-107)', () => {
     const root = state.document().root;
     expect(root.type === 'group' && root.children.length).toBe(0);
     expect(placement.pending()).toBeNull();
+  });
+
+  it('placedTransform reflects the Shift (stretch) mode in real time (D-108)', () => {
+    const { placement } = setup();
+    placement.begin(makePending());
+    placement.beginDrag({ x: 0, y: 0 });
+    placement.updateDrag({ x: 200, y: 100 });
+    // Default: proportional fit — uniform scale 1, centered in the wider rect
+    // (the 100-wide art offsets by +50 to sit in the middle of the 200 rect).
+    expect(placement.placedTransform()).toEqual([1, 0, 0, 1, 50, 0]);
+    // Shift: distort-to-fill (sx=2, sy=1) — corner-to-corner, no centering.
+    placement.setStretch(true);
+    expect(placement.placedTransform()).toEqual([2, 0, 0, 1, 0, 0]);
+    placement.setStretch(false);
+    expect(placement.placedTransform()).toEqual([1, 0, 0, 1, 50, 0]);
+  });
+
+  it('commitDrag in stretch mode inserts the art with the distorting transform (D-108)', () => {
+    const { placement, state } = setup();
+    placement.begin(makePending());
+    placement.beginDrag({ x: 0, y: 0 });
+    placement.updateDrag({ x: 200, y: 100 });
+    placement.setStretch(true);
+    placement.commitDrag();
+    const root = state.document().root;
+    const inserted = root.type === 'group' ? root.children[0] : undefined;
+    expect(inserted?.transform).toEqual([2, 0, 0, 1, 0, 0]);
+    // Stretch resets after the gesture completes.
+    expect(placement.stretch()).toBe(false);
   });
 
   it('cancel() drops the pending import without inserting', () => {

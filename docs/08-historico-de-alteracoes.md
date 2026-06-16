@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-06-15 — D-108 — Import "place": modo esticar (Shift) + preview fiel (ghost) ✅
+
+Refina o modo `'place'` (D-107) com dois pedidos do usuário: (1) escolher entre
+**manter proporção** e **esticar/deformar** para preencher o retângulo, via
+modificador **`Shift`**; (2) um **"espelho" fiel** da imagem importada durante o
+arraste, para o usuário ver como vai ficar antes de soltar.
+
+- **Esticar com `Shift`** ([import-placement.service.ts](../projects/svg-engine/edit/src/lib/import-placement/import-placement.service.ts)):
+  novo `stretchImportTransform` (escala X/Y independente — mapeia o `src`
+  exatamente no retângulo, distorcendo) ao lado do `fitImportTransform` (fit
+  proporcional, centralizado). Sinal `stretch` + `setStretch()`; `placedTransform`
+  (computed) escolhe fit/stretch conforme o `Shift`. Um clique (retângulo ~0)
+  cai p/ 1:1 natural em ambos. `commitDrag` usa o **mesmo** `placedTransform`
+  do preview → o que o usuário vê é exatamente o que é inserido (WYSIWYG).
+- **Ghost fiel** ([import-placement-overlay.component.ts](../projects/svg-engine/edit/src/lib/import-placement/import-placement-overlay.component.ts)):
+  durante o arraste o overlay renderiza o conteúdo importado de verdade
+  (`<svg:g svgeNode>` reutilizando o `SvgeNodeRenderer` do `svg-engine/render`)
+  a 50% de opacidade, com a transform de commit, reagindo ao `Shift` em tempo
+  real. Retângulo tracejado e ghost são mostrados **sempre** (independente do
+  `Shift`). `Shift` (keydown/keyup + `pointer.shiftKey`) alterna fit↔stretch
+  mesmo sem mover o mouse.
+- **Sem sujeira no documento** (requisito do usuário): os `<defs>` importados
+  são injetados **localmente** no `<g>` do overlay (via `insertAdjacentHTML`,
+  marcados) só para o ghost resolver `url(#id)` — **nunca** em
+  `EditorStateService`. Um `effect()` os remove quando não há import pendente,
+  então `Esc`/cancelar não deixa resíduo algum no arquivo (o documento só é
+  tocado no commit, como antes).
+
+Specs novos (`stretchImportTransform` fit/stretch/click + `placedTransform`
+reativo ao `Shift` + commit em stretch). Build + lint + suíte (**2555**) verdes;
+snapshot de API regenerado (+`stretchImportTransform`).
+
+---
+
 ## 2026-06-15 — D-107 — Import SVG: modo "place" interativo (arrastar retângulo) + toggle na UI ✅
 
 Parte 2 (etapa 2/2) da importação configurável. Implementa o modo `'place'`

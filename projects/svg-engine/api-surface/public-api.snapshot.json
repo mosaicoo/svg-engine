@@ -732,6 +732,7 @@
     "starClipPath",
     "starShape",
     "starsPattern",
+    "stretchImportTransform",
     "stripAuthoredTitlesOptimizer",
     "stripesDiagonalPattern",
     "stripesVerticalPattern",

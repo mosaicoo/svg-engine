@@ -1,4 +1,4 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
 import {
   AUTO_PARENT,
   type BoundingBox,
@@ -45,6 +45,30 @@ export function fitImportTransform(src: BoundingBox, rect: BoundingBox): Transfo
   return [s, 0, 0, s, tx, ty];
 }
 
+/**
+ * **D-108** — matrix that maps `src` **exactly onto `rect`** with independent
+ * X/Y scale (non-uniform). Fills the rectangle completely, **distorting** the
+ * art when the rect's aspect ratio differs from the source's (the `Shift`
+ * variant of *place*). A near-zero rect (a click) falls back to natural 1:1
+ * centered on the click point, same as {@link fitImportTransform} — a click
+ * can't define a stretch ratio.
+ */
+export function stretchImportTransform(src: BoundingBox, rect: BoundingBox): Transform {
+  const tiny = Math.abs(rect.width) < CLICK_EPSILON && Math.abs(rect.height) < CLICK_EPSILON;
+  if (tiny) {
+    const cx = rect.x + rect.width / 2;
+    const cy = rect.y + rect.height / 2;
+    return [1, 0, 0, 1, cx - (src.x + src.width / 2), cy - (src.y + src.height / 2)];
+  }
+  const sx = Math.max(1e-4, Math.abs(rect.width) / (src.width || 1));
+  const sy = Math.max(1e-4, Math.abs(rect.height) / (src.height || 1));
+  // Map the source box's top-left onto the (already-normalized) rect's
+  // top-left: src.x → rect.x, src.x+src.width → rect.x+rect.width (idem y).
+  const tx = rect.x - sx * src.x;
+  const ty = rect.y - sy * src.y;
+  return [sx, 0, 0, sy, tx, ty];
+}
+
 /** Normalize a drag (start → current) into a positive-size box (doc coords). */
 export function rectFromPoints(a: Point, b: Point): BoundingBox {
   return {
@@ -86,6 +110,29 @@ export class ImportPlacementService {
   /** Live placement rectangle during the drag (doc coords), or null. */
   readonly rect = this._rect.asReadonly();
 
+  private readonly _stretch = signal(false);
+  /**
+   * **D-108** — when `true`, commit/preview stretch the art to fill the
+   * rectangle exactly (distorting); when `false`, it's fit proportionally
+   * (centered). Driven by the `Shift` modifier in the capture overlay.
+   */
+  readonly stretch = this._stretch.asReadonly();
+
+  /**
+   * **D-108** — the transform that {@link commitDrag} would apply right now,
+   * given the current rect + stretch mode. `null` when there's nothing to
+   * place. Exposed so the overlay's ghost preview renders the art with the
+   * EXACT transform that committing produces (WYSIWYG — preview === result).
+   */
+  readonly placedTransform = computed<Transform | null>(() => {
+    const pending = this._pending();
+    const rect = this._rect();
+    if (pending === null || rect === null) return null;
+    return this._stretch()
+      ? stretchImportTransform(pending.src, rect)
+      : fitImportTransform(pending.src, rect);
+  });
+
   /** Whether a placement gesture is currently active. */
   get isActive(): boolean {
     return this._pending() !== null;
@@ -96,6 +143,15 @@ export class ImportPlacementService {
     this._pending.set(pending);
     this.dragStart = null;
     this._rect.set(null);
+    this._stretch.set(false);
+  }
+
+  /**
+   * **D-108** — set the stretch (distort-to-fill) mode. The overlay calls
+   * this from the `Shift` modifier (keydown/keyup + pointer `shiftKey`).
+   */
+  setStretch(value: boolean): void {
+    this._stretch.set(value);
   }
 
   /** Pointer-down on the canvas: anchor the placement rectangle. */
@@ -118,15 +174,15 @@ export class ImportPlacementService {
    */
   commitDrag(): void {
     const pending = this._pending();
-    const rect = this._rect();
-    if (pending === null || this.dragStart === null || rect === null) {
+    const transform = this.placedTransform();
+    if (pending === null || this.dragStart === null || transform === null) {
       this.cancel();
       return;
     }
-    const placed: SvgNode = {
-      ...pending.group,
-      transform: fitImportTransform(pending.src, rect),
-    };
+    // **D-108** — `placedTransform()` is the SAME value the ghost preview
+    // renders (fit or stretch per the Shift modifier), so what the user saw
+    // is exactly what gets inserted.
+    const placed: SvgNode = { ...pending.group, transform };
     if (pending.defs !== undefined && pending.defs.length > 0) {
       const doc = this.state.document();
       this.state.setDocument({ ...doc, defs: `${doc.defs ?? ''}\n${pending.defs}` });
@@ -141,5 +197,6 @@ export class ImportPlacementService {
     this._pending.set(null);
     this.dragStart = null;
     this._rect.set(null);
+    this._stretch.set(false);
   }
 }
