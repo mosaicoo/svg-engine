@@ -357,16 +357,9 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
       }),
     );
     // Show ▶ roadmap children (Grid/Rulers/Timeline are real, orders 10-30).
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.view.show.guides',
-        parentId: 'svge.builtin.view.show-menu',
-        slot: MENU_SLOT.VIEW,
-        label: 'Guides',
-        icon: 'straighten',
-        order: 40,
-      }),
-    );
+    // **D-123 — REMOVED.** "Guides" (show/hide guides visibility) dropped: it's
+    // redundant with the real `View ▸ Guides ▸ …` submenu (Add / Lock / Unlock /
+    // Clear) and adds no value here — per the user.
     track(
       roadmapLeaf({
         id: 'svge.roadmap.view.show.selection-bounds',
@@ -377,16 +370,10 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
         order: 50,
       }),
     );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.view.show.artboard-labels',
-        parentId: 'svge.builtin.view.show-menu',
-        slot: MENU_SLOT.VIEW,
-        label: 'Artboard Labels',
-        icon: 'label',
-        order: 60,
-      }),
-    );
+    // **D-123 — REMOVED.** "Artboard Labels" dropped: the canvas renders one
+    // page at a time (tab model), so there's no multi-artboard surface to label
+    // — per the user. The active page's name already shows in the status bar
+    // and the page-selection overlay.
     // Snap ▶ extra targets (Enabled/Grid/Objects/Both are real).
     track(
       roadmapLeaf({

@@ -6,6 +6,30 @@
 
 ---
 
+## 2026-06-16 — D-123 — Remover placeholders `View ▸ Show ▸ Guides` e `Artboard Labels` ✅
+
+Ao perguntar sobre o backing do `View ▸ Show ▸ Artboard Labels`, ficou claro
+(após análise) que ambos os placeholders de roadmap **não fazem sentido** neste
+editor, e o usuário pediu para removê-los:
+
+- **`svge.roadmap.view.show.artboard-labels`** — o canvas renderiza **uma página
+  por vez** (modelo de abas, via `treeForRendering()`), não vários artboards numa
+  tela só como o Illustrator. Logo não há superfície multi-artboard para rotular.
+  O nome da página ativa já aparece no **status bar** e no **page-selection
+  overlay**.
+- **`svge.roadmap.view.show.guides`** — visibilidade de guias é **redundante**
+  com o submenu real `View ▸ Guides ▸ …` (Add H/V · Lock/Unlock · Clear All) e
+  não agrega aqui.
+
+Ambos eram `roadmapLeaf` (sem `run`), removidos de
+[builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts)
+com nota de remoção; `Selection Bounds` (roadmap) permanece. Comentário descritivo
+do `builtin-menu-contributions.plugin.ts` atualizado. Nenhum spec referenciava os
+ids; a guarda anti-órfão do D-085 segue passando. Build + lint + suíte (**2623**)
+verdes; playground compila.
+
+---
+
 ## 2026-06-16 — D-122 — Lock/Unlock Guides em dois itens state-aware + Clear reseta lock ✅
 
 Refinamento do D-121. O usuário pediu para seguir o **padrão do projeto** —
