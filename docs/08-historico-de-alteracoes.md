@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-06-16 — D-118-fix — Remover "Fit Selection" duplicado (placeholder de roadmap) ✅
+
+O usuário notou (print) que o `View ▸ Zoom` mostrava **dois** "Fit Selection":
+o item real do D-118 (`svge.builtin.view.zoom-fit-selection`, ícone
+`center_focus_strong`) e um placeholder de roadmap antigo com ícone de relógio
+(`svge.roadmap.view.zoom.fit-selection`, order 50 — mesma ordem, daí apareciam
+lado a lado). O placeholder não tinha `run` (era só "coming soon").
+
+Removido o `roadmapLeaf` em
+[builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts),
+substituído por nota **"D-118 — SHIPPED"** seguindo a convenção do projeto (igual
+ao "D-102 — SHIPPED" do Paste In Place / D-086 do Mask). Nenhum spec referenciava
+o id removido; a guarda anti-órfão do D-085 continua passando. Build + lint +
+suíte (**2610**) verdes; playground compila.
+
+---
+
 ## 2026-06-16 — D-119 — `View ▸ Zoom ▸ Fit Canvas` vira fit-to-content real ✅
 
 Follow-up do D-118 (autorizado: _"pode seguir"_). O `Fit Canvas` ainda era só

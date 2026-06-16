@@ -323,16 +323,12 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     );
 
     // ── View (roadmap) ─────────────────────────────────────────────
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.view.zoom.fit-selection',
-        parentId: 'svge.builtin.view.zoom-menu',
-        slot: MENU_SLOT.VIEW,
-        label: 'Fit Selection',
-        icon: 'center_focus_strong',
-        order: 50,
-      }),
-    );
+    // **D-118 — SHIPPED.** "Fit Selection" (View ▸ Zoom, order 50) is now a
+    // real command registered by `builtinMenuContributionsPlugin`
+    // (`svge.builtin.view.zoom-fit-selection`): it frames the current
+    // selection's world bbox via `ViewportService.fitBox`. Roadmap
+    // placeholder removed per convention (it shared order 50 and rendered a
+    // duplicate clock-icon entry next to the real one).
     // Display ▶ roadmap children (Outline Mode is the real one, order 20).
     track(
       roadmapLeaf({
