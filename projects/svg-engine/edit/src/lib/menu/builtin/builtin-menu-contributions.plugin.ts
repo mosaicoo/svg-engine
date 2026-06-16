@@ -326,6 +326,22 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+    // **D-116** — `File ▸ Import ▸ From URL…`. Prompts for a web image URL,
+    // detects SVG vs raster from the response, and imports it ADDITIVELY —
+    // same downstream as Import ▸ SVG… (SVG) / an embedded `<image>` (raster).
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.import-url',
+        parentId: 'svge.builtin.file.import-menu',
+        slot: MENU_SLOT.FILE,
+        label: 'From URL…',
+        icon: 'link',
+        order: 20,
+        run(runCtx) {
+          importFromUrl(runCtx, fromCtx);
+        },
+      }),
+    );
     // **D-085** — divider after the (roadmap) Save / Save As… items.
     ctx.track(
       reg.register({
@@ -3142,38 +3158,193 @@ function importSvgFromFile(runCtx: MenuContributionContext | undefined, fromCtx:
       const file = input.files?.[0];
       input.remove();
       if (file === undefined || file === null) return;
-      void file.text().then((text) => {
-        const result = svgImporter.import(text);
-        if (!result.ok) {
-          if (typeof window !== 'undefined') window.alert(`Import failed: ${result.error}`);
-          return;
-        }
-        // **D-105** — ADD the imported art to the current document instead of
-        // REPLACING it. The old flow called `resetDocument(result.document)`,
-        // which wiped every page + all existing work (data loss). Now the
-        // import is inserted into the ACTIVE PAGE as one selected group,
-        // preserving every page + element.
-        //
-        // **D-107** — branch on the persisted placement preference:
-        // - `'centered'` (default): insert at natural 1:1 size centered on the
-        //   active page (D-106).
-        // - `'place'`: hand the parsed art to `ImportPlacementService`; the
-        //   `<svge-import-placement-overlay>` then lets the user drag a
-        //   rectangle on the canvas (Illustrator's *Place*).
-        if (fromCtx(ImportSettingsService, runCtx).placementMode() === 'place') {
-          beginImportPlacement(runCtx, fromCtx, result.document);
-        } else {
-          placeImportedSvgIntoActivePage(runCtx, fromCtx, result.document);
-        }
-        if (result.warnings.length > 0 && typeof console !== 'undefined') {
-          console.warn(`[SVGEngine] Import warnings:\n${result.warnings.join('\n')}`);
-        }
-      });
+      void file.text().then((text) => importSvgTextAdditive(runCtx, fromCtx, text));
     },
     { once: true },
   );
   document.body.appendChild(input);
   input.click();
+}
+
+/**
+ * **D-105/D-116** — parse `text` as an SVG and insert it ADDITIVELY into the
+ * current document (never replaces it). Shared by `File ▸ Import ▸ SVG…` (file)
+ * and `File ▸ Import ▸ From URL…` (fetched SVG). Best-effort: a malformed SVG
+ * alerts and aborts without touching the document.
+ */
+function importSvgTextAdditive(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+  text: string,
+): void {
+  const result = svgImporter.import(text);
+  if (!result.ok) {
+    if (typeof window !== 'undefined') window.alert(`Import failed: ${result.error}`);
+    return;
+  }
+  processImportedSvgDocument(runCtx, fromCtx, result.document);
+  if (result.warnings.length > 0 && typeof console !== 'undefined') {
+    console.warn(`[SVGEngine] Import warnings:\n${result.warnings.join('\n')}`);
+  }
+}
+
+/**
+ * **D-107/D-116** — route a parsed import to the active placement mode:
+ *
+ * - `'place'`: hand the art to `ImportPlacementService` (drag a rectangle).
+ * - `'centered'` (default): insert at natural 1:1 size centered on the active
+ *   page (D-106).
+ *
+ * Either way the import is ADDITIVE — inserted into the active page, preserving
+ * every existing page + element (the old replace-the-document flow was D-105's
+ * data-loss bug).
+ */
+function processImportedSvgDocument(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+  doc: SvgDocument,
+): void {
+  if (fromCtx(ImportSettingsService, runCtx).placementMode() === 'place') {
+    beginImportPlacement(runCtx, fromCtx, doc);
+  } else {
+    placeImportedSvgIntoActivePage(runCtx, fromCtx, doc);
+  }
+}
+
+/**
+ * **D-116** — `File ▸ Import ▸ From URL…`. Prompts for a web image URL, fetches
+ * it, classifies SVG vs raster (Content-Type, then extension, then content
+ * sniff), and imports ADDITIVELY — SVG via {@link importSvgTextAdditive}
+ * (identical to `Import ▸ SVG…`), raster via an embedded `<image>`
+ * ({@link importRasterFromHref}).
+ *
+ * **CORS**: the fetch is cross-origin and may be blocked. Rasters fall back to
+ * REFERENCING the URL directly (`<image href>` loads cross-origin without CORS);
+ * SVGs need the text, so a blocked SVG fetch guides the user to download +
+ * `Import ▸ SVG…`. The URL is user-pasted (a direct user action), and SVG
+ * content is sanitised by `svgImporter`; only http(s) URLs are accepted.
+ */
+function importFromUrl(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+  if (typeof window === 'undefined') return;
+  const raw = window.prompt('Paste an image URL (SVG or raster):');
+  if (raw === null) return; // cancelled
+  const url = raw.trim();
+  if (url.length === 0) return;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    window.alert('That does not look like a valid URL.');
+    return;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    window.alert('Only http(s) image URLs are supported.');
+    return;
+  }
+  if (typeof fetch === 'undefined') {
+    window.alert('Importing from a URL is not available in this environment.');
+    return;
+  }
+  void fetch(url)
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const contentType = (res.headers.get('content-type') ?? '').toLowerCase();
+      const kind = classifyImageUrl(contentType, parsed.pathname);
+      if (kind === 'raster') {
+        return res
+          .blob()
+          .then((blob) => blobToDataUrl(blob))
+          .then((dataUrl) => importRasterFromHref(runCtx, fromCtx, dataUrl));
+      }
+      // SVG, or unknown — read the text and confirm it really is an `<svg>`
+      // root before importing; otherwise treat it as a raster reference.
+      return res.text().then((text) => {
+        if (
+          kind === 'svg' ||
+          /^\s*(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*<svg[\s>]/i.test(text)
+        ) {
+          importSvgTextAdditive(runCtx, fromCtx, text);
+        } else {
+          importRasterFromHref(runCtx, fromCtx, url);
+        }
+      });
+    })
+    .catch(() => {
+      // Fetch blocked (usually CORS) or network error. A raster can still be
+      // referenced directly; an SVG needs its text, so guide the user.
+      if (classifyImageUrl('', parsed.pathname) === 'svg') {
+        window.alert(
+          'Could not fetch that SVG — the server may block cross-origin requests. ' +
+            'Download the file and use File ▸ Import ▸ SVG… instead.',
+        );
+      } else {
+        importRasterFromHref(runCtx, fromCtx, url);
+      }
+    });
+}
+
+/**
+ * **D-116** — classify an image source as `'svg'` / `'raster'` / `'unknown'`,
+ * preferring the HTTP `Content-Type` and falling back to the URL extension.
+ * Exported for unit testing; the fetch/decode/insert path is DOM-bound.
+ */
+export function classifyImageUrl(
+  contentType: string,
+  pathname: string,
+): 'svg' | 'raster' | 'unknown' {
+  if (contentType.includes('svg')) return 'svg';
+  if (contentType.startsWith('image/')) return 'raster';
+  const ext = pathname.slice(pathname.lastIndexOf('.') + 1).toLowerCase();
+  if (ext === 'svg') return 'svg';
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif', 'ico'].includes(ext)) return 'raster';
+  return 'unknown';
+}
+
+/**
+ * **D-116** — insert a raster `<image>` (data URL or external href) ADDITIVELY,
+ * sized to the image's natural dimensions and centered on the active page
+ * (same centering as the SVG `'centered'` import). The image is loaded once to
+ * read its natural size; a load failure alerts without mutating the document.
+ */
+function importRasterFromHref(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+  href: string,
+): void {
+  if (typeof Image === 'undefined') return;
+  const img = new Image();
+  img.onload = () => {
+    // Fallback to a sane default if the browser can't report natural size.
+    const w = img.naturalWidth || 200;
+    const h = img.naturalHeight || 200;
+    const { cx, cy } = activeInsertionCenter(runCtx, fromCtx);
+    const node = createImage({ x: cx - w / 2, y: cy - h / 2, width: w, height: h, href });
+    fromCtx(CommandBus, runCtx).dispatch(new InsertNodeCommand(AUTO_PARENT, node));
+    fromCtx(SelectionService, runCtx).select(node.id);
+  };
+  img.onerror = () => {
+    if (typeof window !== 'undefined') window.alert('Could not load the image from that URL.');
+  };
+  // No crossOrigin: we only need the natural size + an <img> to display, never
+  // pixel access — so an external (non-CORS) image still loads.
+  img.src = href;
+}
+
+/**
+ * Center point for additive inserts: the active page's artboard center, or the
+ * visible viewport center when no page is active. Shared by the SVG `'centered'`
+ * import and the raster URL import.
+ */
+function activeInsertionCenter(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+): { cx: number; cy: number } {
+  const pageVb = fromCtx(ActivePageService, runCtx).activePageViewBox();
+  if (pageVb !== null) {
+    return { cx: pageVb.x + pageVb.width / 2, cy: pageVb.y + pageVb.height / 2 };
+  }
+  const vp = fromCtx(ViewportService, runCtx).viewBox();
+  return { cx: vp.x + vp.width / 2, cy: vp.y + vp.height / 2 };
 }
 
 /**
@@ -3214,17 +3385,7 @@ function placeImportedSvgIntoActivePage(
   const srcCx = src.x + src.width / 2;
   const srcCy = src.y + src.height / 2;
 
-  const pageVb = fromCtx(ActivePageService, runCtx).activePageViewBox();
-  let cx: number;
-  let cy: number;
-  if (pageVb !== null) {
-    cx = pageVb.x + pageVb.width / 2;
-    cy = pageVb.y + pageVb.height / 2;
-  } else {
-    const vp = fromCtx(ViewportService, runCtx).viewBox();
-    cx = vp.x + vp.width / 2;
-    cy = vp.y + vp.height / 2;
-  }
+  const { cx, cy } = activeInsertionCenter(runCtx, fromCtx);
 
   // Scale 1 (natural); translate so the art's center lands on the page center.
   const placed: SvgNode = {

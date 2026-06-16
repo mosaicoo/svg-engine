@@ -6,6 +6,39 @@
 
 ---
 
+## 2026-06-16 — D-116 — `File ▸ Import ▸ From URL…` (SVG ou raster da web) ✅
+
+Nova funcionalidade pedida pelo usuário: importar uma **imagem da web por URL**.
+`File ▸ Import ▸ From URL…` (filho do submenu Import, ícone `link`) pede a URL
+(`window.prompt` — mesmo padrão nativo do New/Open), faz `fetch`, **detecta SVG
+vs raster** e importa **aditivamente** (sem substituir o documento), igual ao
+`Import ▸ SVG…`.
+
+- **Detecção** (`classifyImageUrl`, pura + testada): `Content-Type` primeiro
+  (`image/svg+xml` → svg; `image/*` → raster), **extensão** como fallback
+  (`.svg` vs `.png/.jpg/.webp/…`); `unknown` cai num _sniff_ do corpo (`<svg`).
+- **SVG**: `importSvgTextAdditive` → `svgImporter` → **exatamente** o downstream
+  do `Import ▸ SVG…` (modo `place` ou `centered` conforme `ImportSettings`).
+  Refatorei o `importSvgFromFile` para compartilhar esse caminho.
+- **Raster**: `importRasterFromHref` cria um `<image>` dimensionado pelo tamanho
+  natural da imagem, **centrado na página ativa** (mesma lógica de centragem do
+  SVG — extraída para `activeInsertionCenter`), inserido via
+  `InsertNodeCommand(AUTO_PARENT)` + selecionado. Embute como **data URL**
+  (`blobToDataUrl`, auto-contido, sobrevive ao export).
+- **CORS**: o fetch é cross-origin e pode ser bloqueado. Raster cai para
+  **referência direta** (`<image href>` carrega cross-origin sem CORS); SVG
+  precisa do texto, então um fetch bloqueado orienta o usuário a baixar +
+  `Import ▸ SVG…`. Só URLs `http(s)`; conteúdo SVG é sanitizado pelo
+  `svgImporter`; a URL é ação direta do usuário (não vem de conteúdo observado).
+
+Novo `import-from-url.spec.ts` (classificação: Content-Type > extensão,
+rasters comuns, case-insensitive, `unknown`). Build + lint + suíte (**2598**)
+verdes; playground compila; snapshot de API inalterado (`classifyImageUrl` é
+interno ao plugin). O fluxo de rede/decodificação (prompt/fetch/Image) segue
+testado manualmente, como os demais fluxos de arquivo.
+
+---
+
 ## 2026-06-16 — D-115 — `File ▸ Open…` (abertura por extensão; SVG → página pelo viewBox) ✅
 
 Nova funcionalidade pedida pelo usuário: **`File ▸ Open…`** com despacho **por
