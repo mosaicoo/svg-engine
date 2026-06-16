@@ -10,6 +10,7 @@ import {
   DivideCommand,
   DuplicateNodeCommand,
   EditorStateService,
+  EnsureDefaultPageCommand,
   ExcludeCommand,
   findNodeById,
   findParent,
@@ -2985,6 +2986,15 @@ function newDocument(runCtx: MenuContributionContext | undefined, fromCtx: Resol
   // (likely off-canvas, since the new doc starts at origin) and selection
   // markers pointing at node ids that no longer exist.
   fromCtx(EditorStateService, runCtx).resetDocument();
+  // **D-111** — bootstrap Page 1 so the fresh document opens with an active
+  // page, matching the editor's mount-time bootstrap (which only fires once at
+  // construction and so does NOT re-run on New). `resetDocument()` leaves a
+  // pageless root; without this, tools would draw into the root and the page
+  // overlay would vanish. `ActivePageService`'s auto-recovery effect then makes
+  // the new Page 1 active (it auto-picks the first page when the current id is
+  // invalid). Dispatched BEFORE `history.clear()` so the page-create isn't a
+  // stray undo step — "new doc + Page 1" is the clean baseline.
+  fromCtx(CommandBus, runCtx).dispatch(new EnsureDefaultPageCommand());
   fromCtx(HistoryService, runCtx).clear();
   fromCtx(ViewportService, runCtx).reset();
   fromCtx(SelectionService, runCtx).clear();

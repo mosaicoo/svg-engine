@@ -9,6 +9,7 @@ import {
   EditorStateService,
   HistoryService,
   InsertNodeCommand,
+  isPage,
   type SvgNode,
   withLayerFlag,
   withPageFlag,
@@ -136,6 +137,23 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     reg.get('svge.builtin.edit.select-all')!.run({ injector });
     expect(selection.selectedIds().has(rect.id)).toBe(true);
     expect(selection.selectedIds().size).toBe(1);
+  });
+
+  it('File ▸ New bootstraps Page 1 on the fresh document (D-111)', () => {
+    const { reg, state, injector } = setupRoot();
+    // Fresh editor starts with an empty, pageless document.
+    expect(state.document().root.children.length).toBe(0);
+
+    // Empty document → newDocument() skips the window.confirm prompt and
+    // proceeds straight to reset + bootstrap.
+    reg.get('svge.builtin.file.new')!.run({ injector });
+
+    // The new document opens with exactly one page (Page 1) — so the canvas
+    // has an active artboard instead of a pageless root. Without the D-111
+    // EnsureDefaultPageCommand dispatch this was 0 (empty/pageless).
+    const children = state.document().root.children;
+    expect(children.length).toBe(1);
+    expect(isPage(children[0]!)).toBe(true);
   });
 
   it('populates View slot with Zoom + Toggle Grid/Rulers/Outline/Timeline', () => {

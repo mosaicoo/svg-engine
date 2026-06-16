@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-06-15 — D-111 — Fix: File ▸ New deixava o documento sem página ativa ✅
+
+**Bug** (reportado pelo usuário): `File ▸ New` avisava corretamente (descartar o
+trabalho), mas resetava para um documento **vazio e sem nenhuma página** — não
+recriava a Página 1. Tools passavam a desenhar no root e o overlay de página
+sumia.
+
+**Causa**: `newDocument()` ([builtin-menu-contributions.plugin.ts:2969](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts:2969))
+chamava `resetDocument()` (root vazio) mas **nunca despachava
+`EnsureDefaultPageCommand`**. O bootstrap da Página 1 só roda **uma vez no
+constructor** do shell (`queueMicrotask`) — é mount-time, não reativo, então não
+re-dispara ao clicar em New (o componente já está montado).
+
+**Fix**: `newDocument` agora despacha `EnsureDefaultPageCommand` logo após o
+`resetDocument()` e **antes** do `history.clear()` (para a criação da Página 1
+não virar um passo de undo). Não precisa setar a página ativa manualmente: o
+effect de auto-recuperação do `ActivePageService`
+([active-page.service.ts:103](../projects/svg-engine/edit/src/lib/pages/active-page.service.ts:103))
+**escolhe automaticamente a primeira página** quando a ativa atual é inválida —
+então a Página 1 já fica ativa. Resultado: New = documento novo + Página 1
+ativa, igual a abrir o editor do zero.
+
+Teste e2e no spec do menu plugin (New cria exatamente 1 página). Build + lint +
+suíte (**2562**) verdes; sem mudança no snapshot de API (lógica interna).
+
+---
+
 ## 2026-06-15 — D-110 — Rename "Rasterize Smart Object" → "Release Smart Object" ✅
 
 Correção de nomenclatura: o antigo `Rasterize Smart Object` **nunca rasterizou**
