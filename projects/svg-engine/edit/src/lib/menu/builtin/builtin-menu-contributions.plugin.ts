@@ -17,6 +17,7 @@ import {
   type FlipAxis,
   FlipNodeCommand,
   generateNodeId,
+  getNodesWorldBBox,
   GroupSelectionCommand,
   HistoryService,
   AUTO_PARENT,
@@ -883,6 +884,23 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         order: 40,
         run(runCtx) {
           fromCtx(ViewportService, runCtx).fit();
+        },
+      }),
+    );
+    // **D-118** — Fit Selection: zoom/pan to frame the current selection's
+    // world bounding box (model-based; multi-editor-safe). Disabled with no
+    // selection (reuses `noSelectionFactory`).
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.zoom-fit-selection',
+        parentId: 'svge.builtin.view.zoom-menu',
+        slot: MENU_SLOT.VIEW,
+        label: 'Fit Selection',
+        icon: 'center_focus_strong',
+        order: 50,
+        disabled: noSelectionFactory,
+        run(runCtx) {
+          zoomFitSelection(runCtx, fromCtx);
         },
       }),
     );
@@ -3026,6 +3044,20 @@ function duplicateSelected(runCtx: MenuContributionContext | undefined, fromCtx:
 // Browser-native I/O so the plugin stays in `edit` (no Material dep).
 // Each function defends against SSR / non-browser contexts so the
 // plugin can still register on the server (handlers just no-op).
+
+/**
+ * **D-118** — `View ▸ Zoom ▸ Fit Selection`. Frames the current selection's
+ * world bounding box in the viewport. Model-based (no DOM): reads the scoped
+ * `EditorStateService` document + `SelectionService` ids, so it's multi-editor
+ * safe. No-op for an empty selection (the menu item is also disabled then).
+ */
+function zoomFitSelection(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+  const ids = fromCtx(SelectionService, runCtx).selectedIds();
+  if (ids.size === 0) return;
+  const root = fromCtx(EditorStateService, runCtx).document().root;
+  const box = getNodesWorldBBox(root, ids);
+  if (box !== null) fromCtx(ViewportService, runCtx).fitBox(box);
+}
 
 function newDocument(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
   // Confirm before discarding work — only when document is non-empty.

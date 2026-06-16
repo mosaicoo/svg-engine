@@ -11,7 +11,7 @@ import {
 } from '../model/node-factory';
 import { rotate, scale, translate } from '../types/transform';
 import { intersectsBBox } from '../types/bounding-box';
-import { getNodeBBox } from './node-bbox';
+import { getNodeBBox, getNodesWorldBBox } from './node-bbox';
 
 function approxBox(
   a: { x: number; y: number; width: number; height: number },
@@ -181,5 +181,42 @@ describe('intersectsBBox', () => {
     const inner = { x: 25, y: 25, width: 5, height: 5 };
     expect(intersectsBBox(outer, inner)).toBe(true);
     expect(intersectsBBox(inner, outer)).toBe(true);
+  });
+});
+
+describe('getNodesWorldBBox (D-118)', () => {
+  it('returns null for an empty selection / unknown ids', () => {
+    const root = createGroup([createRect({ x: 0, y: 0, width: 10, height: 10 })]);
+    expect(getNodesWorldBBox(root, new Set())).toBeNull();
+    expect(getNodesWorldBBox(root, new Set(['nope' as never]))).toBeNull();
+  });
+
+  it('unions the world boxes of multiple selected leaves', () => {
+    const a = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const b = createRect({ x: 90, y: 90, width: 10, height: 10 });
+    const root = createGroup([a, b, createRect({ x: 500, y: 500, width: 5, height: 5 })]);
+    const box = getNodesWorldBBox(root, new Set([a.id, b.id]));
+    expect(box).not.toBeNull();
+    // a∪b spans (0,0)→(100,100); the third (unselected) rect is excluded.
+    expect(approxBox(box!, { x: 0, y: 0, width: 100, height: 100 })).toBe(true);
+  });
+
+  it('composes the ancestor transform chain (leaf inside a translated group)', () => {
+    const leaf = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const group = createGroup([leaf], { transform: translate(100, 50) });
+    const root = createGroup([group]);
+    const box = getNodesWorldBBox(root, new Set([leaf.id]));
+    // The leaf's world box reflects the group's +100/+50 translation.
+    expect(approxBox(box!, { x: 100, y: 50, width: 10, height: 10 })).toBe(true);
+  });
+
+  it('a selected group frames its whole subtree', () => {
+    const group = createGroup([
+      createRect({ x: 0, y: 0, width: 10, height: 10 }),
+      createRect({ x: 40, y: 40, width: 10, height: 10 }),
+    ]);
+    const root = createGroup([group]);
+    const box = getNodesWorldBBox(root, new Set([group.id]));
+    expect(approxBox(box!, { x: 0, y: 0, width: 50, height: 50 })).toBe(true);
   });
 });

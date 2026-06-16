@@ -26,7 +26,7 @@ export {
   decomposeTransform,
   type DecomposedTransform,
 } from './transform-decompose';
-export { getNodeBBox } from './node-bbox';
+export { getNodeBBox, getNodesWorldBBox } from './node-bbox';
 export {
   type AnchorKind,
   type AnchorPoint,

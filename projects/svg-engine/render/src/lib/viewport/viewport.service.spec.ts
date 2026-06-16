@@ -163,4 +163,44 @@ describe('ViewportService', () => {
       expect(after).toEqual(before);
     });
   });
+
+  describe('fitBox (D-118)', () => {
+    it('centers the visible window on the target center', () => {
+      viewport.fitBox(bbox(100, 100, 200, 100));
+      const v = viewport.viewBox();
+      expect(v.x + v.width / 2).toBeCloseTo(200, 5);
+      expect(v.y + v.height / 2).toBeCloseTo(150, 5);
+    });
+
+    it('zooms so the padded target fits on the limiting axis + fully contains it', () => {
+      // Content 800×600 (4:3); target 200×100 (2:1) → WIDTH limits. With 10%
+      // padding each side the window width is target × 1.2 = 240.
+      viewport.fitBox(bbox(100, 100, 200, 100));
+      expect(viewport.zoom()).toBeCloseTo(800 / 240, 5);
+      const v = viewport.viewBox();
+      expect(v.width).toBeCloseTo(240, 5);
+      expect(v.x).toBeLessThanOrEqual(100);
+      expect(v.x + v.width).toBeGreaterThanOrEqual(300);
+    });
+
+    it('paddingFraction 0 fits the target exactly on the limiting axis', () => {
+      viewport.fitBox(bbox(100, 100, 200, 100), 0);
+      expect(viewport.zoom()).toBeCloseTo(4, 5); // 800 / 200
+      expect(viewport.viewBox().width).toBeCloseTo(200, 5);
+    });
+
+    it('a degenerate (zero-area) target only re-centers, keeping zoom', () => {
+      viewport.setZoom(2);
+      viewport.fitBox(bbox(400, 300, 0, 0));
+      expect(viewport.zoom()).toBe(2);
+      const v = viewport.viewBox();
+      expect(v.x + v.width / 2).toBeCloseTo(400, 5);
+      expect(v.y + v.height / 2).toBeCloseTo(300, 5);
+    });
+
+    it('clamps zoom to maxZoom for a tiny target', () => {
+      viewport.fitBox(bbox(0, 0, 0.0001, 0.0001));
+      expect(viewport.zoom()).toBe(viewport.maxZoom());
+    });
+  });
 });

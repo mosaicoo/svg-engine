@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-06-16 — D-118 — `View ▸ Zoom ▸ Fit Selection` ✅
+
+Pergunta do usuário: já existe "Fit Selection"? **Não** — o `View ▸ Zoom`
+tinha Zoom In/Out, Reset, Fit Canvas e Actual Size, mas o `ViewportService.fit()`
+ainda era só um `reset()` (zoom 1) e não havia "fit to bounds". Criado o **Fit
+Selection** real (enquadra a seleção atual).
+
+- **Core** ([node-bbox.ts](../projects/svg-engine/core/src/lib/geometry/node-bbox.ts)):
+  `getNodesWorldBBox(root, ids)` — união das bounding boxes em **espaço mundo**
+  dos nós selecionados, compondo a cadeia de transforms dos ancestrais (um nó
+  dentro de grupos transladados/rotacionados enquadra certo). Puro, model-only,
+  multi-editor-safe (sem DOM). Nó selecionado curto-circuita a recursão (seu
+  bbox já cobre os descendentes). **Novo export público** do core.
+- **Render** ([viewport.service.ts](../projects/svg-engine/render/src/lib/viewport/viewport.service.ts)):
+  `ViewportService.fitBox(target, paddingFraction = 0.1)` — zoom para o alvo
+  caber (com margem) + pan para centralizar. Como o `viewBox` mantém o aspect
+  do `contentBox`, o fit é "meet" (a dimensão limitante encosta na borda
+  com padding). Zoom clampeado; alvo degenerado (área zero) só recentra.
+- **Menu** ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)):
+  `View ▸ Zoom ▸ Fit Selection` (order 50, ícone `center_focus_strong`) →
+  `zoomFitSelection` lê `SelectionService.selectedIds()` + o documento escopado,
+  computa `getNodesWorldBBox` e chama `fitBox`. **Disabled** sem seleção (reusa
+  `noSelectionFactory`).
+
+Specs novos: `getNodesWorldBBox` (união, composição de ancestral, grupo
+selecionado, null para vazio) + `fitBox` (centragem, fit com/sem padding,
+degenerado, clamp). Build + lint + suíte (**2610**) verdes; playground compila;
+snapshot de API regenerado (+`getNodesWorldBBox` no core).
+
+_Follow-up possível_: o `Fit Canvas` ainda é `reset()` — poderia virar um
+"fit à página/conteúdo" real reusando o `fitBox` (fora do escopo deste pedido).
+
+---
+
 ## 2026-06-16 — D-117 — `Insert ▸ Image` e `File ▸ Import ▸ Image` unificados (handler único + dimensão natural) ✅
 
 Pergunta do usuário: `File ▸ Import ▸ Image` seria o mesmo que `Insert ▸ Image`?

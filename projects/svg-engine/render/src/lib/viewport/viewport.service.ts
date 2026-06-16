@@ -141,6 +141,36 @@ export class ViewportService {
     this.reset();
   }
 
+  /**
+   * **D-118** — frame `target` (in document/content coordinates) in the visible
+   * viewBox: zoom so the box fits with `paddingFraction` margin on each side,
+   * and pan so it's centered. Powers `View ▸ Zoom ▸ Fit Selection`.
+   *
+   * The visible viewBox always keeps the content aspect ratio, so the box is
+   * fit "meet"-style — the limiting dimension touches the padded edge, the other
+   * has extra room. Zoom is clamped to `[minZoom, maxZoom]`. A degenerate
+   * (zero-area) target only re-centers, preserving the current zoom.
+   */
+  fitBox(target: BoundingBox, paddingFraction = 0.1): void {
+    const cb = this._contentBox();
+    // Center the visible window on the target's center. The viewBox center is
+    // `cb.{x,y} + cb.{w,h}/2 + pan`, independent of zoom — so this holds at any
+    // zoom level (see the `viewBox` formula).
+    const tcx = target.x + target.width / 2;
+    const tcy = target.y + target.height / 2;
+    this._panX.set(tcx - cb.x - cb.width / 2);
+    this._panY.set(tcy - cb.y - cb.height / 2);
+    // Inflate the target by the margin, then pick the zoom whose visible window
+    // (cb.{w,h}/z) just contains it on the limiting axis.
+    const margin = 1 + 2 * Math.max(0, paddingFraction);
+    const fitW = Math.abs(target.width) * margin;
+    const fitH = Math.abs(target.height) * margin;
+    if (!(fitW > 0) && !(fitH > 0)) return; // degenerate point: keep zoom
+    const zByW = fitW > 0 ? cb.width / fitW : Infinity;
+    const zByH = fitH > 0 ? cb.height / fitH : Infinity;
+    this._zoom.set(this.clampZoom(Math.min(zByW, zByH)));
+  }
+
   /** Configure clamping bounds for zoom. Throws on invalid input. */
   setZoomLimits(min: number, max: number): void {
     if (!(min > 0) || !(max > 0) || min >= max) {

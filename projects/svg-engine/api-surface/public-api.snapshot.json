@@ -109,6 +109,7 @@
     "generateNodeId",
     "getLiveBooleanOp",
     "getNodeBBox",
+    "getNodesWorldBBox",
     "getPageBackgroundNode",
     "getPageName",
     "getPageOptions",

@@ -11,6 +11,7 @@ import {
   type SvgNode,
   type TextNode,
 } from '../model';
+import type { NodeId } from '../types/node-id';
 import { applyTransform, IDENTITY_TRANSFORM, multiply, type Transform } from '../types/transform';
 import { type BoundingBox, bbox, unionBBox } from '../types/bounding-box';
 import { parsePathD } from './path-d-scaler';
@@ -318,4 +319,35 @@ function aabbOfPoints(t: Transform, points: readonly [number, number][]): Boundi
 /** Zero-size bbox at the transform's translation component. */
 function degenerateAt(t: Transform): BoundingBox {
   return bbox(t[4], t[5], 0, 0);
+}
+
+/**
+ * **D-118** — union of the WORLD (document-space) bounding boxes of every node
+ * in `root`'s subtree whose id is in `ids`. Composes the ancestor transform
+ * chain, so a node nested inside translated/rotated groups frames correctly.
+ *
+ * Pure + model-only (same over-estimate caveats as {@link getNodeBBox} — safe
+ * for "fit to selection" / culling). Returns `null` when no id resolves (empty
+ * or stale selection). A selected node short-circuits the walk into its own
+ * subtree: its bbox already contains every descendant.
+ */
+export function getNodesWorldBBox(root: SvgNode, ids: ReadonlySet<NodeId>): BoundingBox | null {
+  if (ids.size === 0) return null;
+  let union: BoundingBox | null = null;
+  const collect = (node: SvgNode, parentTransform: Transform): void => {
+    if (ids.has(node.id)) {
+      const box = getNodeBBox(node, parentTransform);
+      union = union === null ? box : unionBBox(union, box);
+      return; // node's bbox already covers its whole subtree
+    }
+    if (isGroupNode(node)) {
+      const childTransform =
+        node.transform === IDENTITY_TRANSFORM
+          ? parentTransform
+          : multiply(parentTransform, node.transform);
+      for (const child of node.children) collect(child, childTransform);
+    }
+  };
+  collect(root, IDENTITY_TRANSFORM);
+  return union;
 }
