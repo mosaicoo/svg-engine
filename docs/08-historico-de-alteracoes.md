@@ -6,6 +6,54 @@
 
 ---
 
+## 2026-06-16 — D-112 — Importação de SVGs que pintam via classes CSS (`<style>`) ✅
+
+**Bug** (reportado pelo usuário com `AdobeStock_735001143.svg`, um arquivo
+CorelDRAW): o SVG importava "como se fosse vazio". Diagnóstico confirmou
+`ok: true` com **104 nós criados** (todos os paths/polygons/rect suportados),
+porém **todos com `fill` indefinido** → renderizavam no preto-padrão do SVG
+(invisível/"vazio" no canvas).
+
+**Causa**: o arquivo pinta as formas por **classes CSS** declaradas em um bloco
+`<style>` (`.fil0 { fill:#4E6E80 }` + `<path class="fil0">`), padrão de
+CorelDRAW/Illustrator/Inkscape — **não** via `fill=` inline. O `parseStyle` do
+importador lia presentation attributes e `style="..."` inline, mas **ignorava
+tanto o atributo `class` quanto a folha `<style>`**. Sem resolver a classe,
+nenhum fill chegava ao modelo.
+
+**Fix** (escopo contido em `svg-engine/io`, **sem nova API pública**):
+
+- **Novo `css-style-resolver.ts`** — `CssStyleSheet`: parser CSS minimalista e
+  sem dependências que transforma um ou mais blocos `<style>` em regras com
+  especificidade. `addCss()` faz strip de comentários, separa blocos
+  _brace-aware_ (pulando at-rules `@media`/`@font-face`/… por completo), divide
+  listas de seletores e lê as declarações. `resolve(el)` delega o **matching** à
+  plataforma (`Element.matches`, então seletores compostos/descendentes
+  resolvem corretamente) e aplica a **cascata**: especificidade crescente, e
+  ordem de origem como desempate.
+- **`applyStylesheets()` no importador** — _pre-pass_ que, antes da travessia,
+  resolve as declarações vencedoras de cada elemento renderável e as **achata
+  como presentation attributes** no DOM descartável do parser. Isso encaixa
+  exatamente na cascata que o `parseStyle` já implementa (lê atributos
+  **primeiro**, `style=` inline **por último**): a regra de autor sobrescreve o
+  presentation attribute original do elemento e continua **abaixo** do `style=`
+  inline. Toca apenas tags de forma (`g/rect/path/polygon/…`, incluindo `<g>`
+  para herança nativa de `fill`) e **nunca** elementos dentro de `<defs>` — o
+  fragmento de defs preservado permanece fiel.
+
+Resultado: o arquivo do usuário (e qualquer SVG class-based) importa com os
+fills/strokes corretos. Cascata coberta por specs: `style=` inline > regra de
+classe > presentation attribute; seletores `.class`/`tag`/`*`/compostos; CDATA;
+`fill:none`; `@media` ignorado; herança de `fill` em grupo; e testes diretos de
+especificidade/ordem no `CssStyleSheet`.
+
+Novo spec `css-class-import.spec.ts` (replica a estrutura exata do arquivo
+CorelDRAW). Build + lint + suíte (**2578**) verdes; playground compila; snapshot
+de API inalterado (lógica interna — `CssStyleSheet` não é exportado pelo
+`public-api`).
+
+---
+
 ## 2026-06-15 — D-111 — Fix: File ▸ New deixava o documento sem página ativa ✅
 
 **Bug** (reportado pelo usuário): `File ▸ New` avisava corretamente (descartar o

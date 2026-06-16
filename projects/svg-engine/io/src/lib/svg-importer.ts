@@ -28,6 +28,7 @@ import {
   type SvgNode,
   type SvgStyle,
 } from 'svg-engine/core';
+import { CssStyleSheet } from './css-style-resolver';
 import type { Importer, ImportResult } from './io-types';
 
 /**
@@ -83,6 +84,15 @@ export const svgImporter: Importer = {
     const warnings: string[] = [];
     const unsupportedTags = new Set<string>();
     const viewBox = parseViewBoxAttr(svgRoot, warnings);
+    // **D-112 — Resolve CSS class / <style> paint.** Many editors
+    // (CorelDRAW, Illustrator, Inkscape) paint shapes through class
+    // selectors defined in a document <style> block instead of inline
+    // fill=/style=. Flatten the winning declarations onto each renderable
+    // element as presentation attributes BEFORE traversal, so the existing
+    // attribute-based parseStyle picks them up. Runs before defs extraction
+    // (which serializes <defs> as-is) and only touches renderable elements
+    // outside <defs>, so the preserved defs fragment stays byte-faithful.
+    applyStylesheets(svgRoot);
     // Capture <defs> BEFORE walking children so the renderable tree
     // doesn't emit an "Unsupported <defs>" warning. We preserve the
     // sanitized inner content as an opaque XML fragment on the
@@ -103,6 +113,83 @@ export const svgImporter: Importer = {
     return { ok: true, document, warnings };
   },
 };
+
+/**
+ * **D-112** — Renderable shape tags that `parseElement` actually models.
+ * The CSS flatten pre-pass writes resolved declarations only onto these,
+ * so it never mutates `<defs>`, `<style>`, gradients, stops, clipPaths,
+ * or other non-shape elements that the importer serializes verbatim.
+ * `<g>` is included on purpose: a `fill` on a group is natively inherited
+ * by its descendant shapes, matching how the source CSS painted them.
+ */
+const FLATTENABLE_TARGET_TAGS: ReadonlySet<string> = new Set([
+  'g',
+  'rect',
+  'circle',
+  'ellipse',
+  'line',
+  'path',
+  'polygon',
+  'polyline',
+  'text',
+  'image',
+]);
+
+/**
+ * **D-112** — CSS properties the model understands AND that are valid
+ * SVG presentation-attribute names. The flatten pre-pass only writes
+ * these: arbitrary CSS props (e.g. custom properties like `--x`) are not
+ * valid XML attribute names and would throw on `setAttribute`, and props
+ * the model doesn't read would be dropped anyway.
+ */
+const FLATTENABLE_STYLE_PROPS: ReadonlySet<string> = new Set([
+  'fill',
+  'stroke',
+  'stroke-width',
+  'opacity',
+  'fill-opacity',
+  'stroke-opacity',
+  'visibility',
+  'filter',
+]);
+
+/**
+ * **D-112** — Parse every `<style>` block in the document into a
+ * {@link CssStyleSheet} and flatten each element's winning declarations
+ * onto it as presentation attributes. Mutates ONLY the throwaway parser
+ * document (never the caller's input). No-op when the document has no
+ * usable rules.
+ *
+ * Cascade correctness: presentation attributes are what `parseStyle`
+ * reads FIRST (lowest priority) and an element's own inline `style=` is
+ * applied LAST (highest). Writing the resolved author-rule value as a
+ * presentation attribute therefore lands it exactly where the cascade
+ * wants it — above the element's original presentation attributes (which
+ * it overwrites) and below its inline `style=` (which still wins). Only
+ * renderable elements outside `<defs>` are touched, so the preserved defs
+ * fragment is unaffected.
+ */
+function applyStylesheets(svgRoot: Element): void {
+  const styleEls = svgRoot.querySelectorAll('style');
+  if (styleEls.length === 0) return;
+  const sheet = new CssStyleSheet();
+  for (const styleEl of Array.from(styleEls)) {
+    sheet.addCss(styleEl.textContent ?? '');
+  }
+  if (sheet.isEmpty) return;
+  for (const el of Array.from(svgRoot.querySelectorAll('*'))) {
+    if (!FLATTENABLE_TARGET_TAGS.has(el.tagName.toLowerCase())) continue;
+    // Never mutate elements inside <defs> — they're serialized verbatim
+    // into the preserved defs fragment.
+    if (el.closest('defs') !== null) continue;
+    const decls = sheet.resolve(el);
+    if (decls.size === 0) continue;
+    for (const [prop, value] of decls) {
+      if (!FLATTENABLE_STYLE_PROPS.has(prop)) continue;
+      el.setAttribute(prop, value);
+    }
+  }
+}
 
 /**
  * Tags emitted by editors (Inkscape, Sodipodi, Adobe Illustrator
