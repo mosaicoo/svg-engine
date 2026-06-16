@@ -360,20 +360,17 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // **D-123 — REMOVED.** "Guides" (show/hide guides visibility) dropped: it's
     // redundant with the real `View ▸ Guides ▸ …` submenu (Add / Lock / Unlock /
     // Clear) and adds no value here — per the user.
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.view.show.selection-bounds',
-        parentId: 'svge.builtin.view.show-menu',
-        slot: MENU_SLOT.VIEW,
-        label: 'Selection Bounds',
-        icon: 'select_all',
-        order: 50,
-      }),
-    );
+    // **D-124 — REMOVED.** "Selection Bounds" (show/hide the selection bounding
+    // box) dropped: no real gain and it would be confusing — the `.bbox` drawn
+    // by `<svge-selection-overlay>` is the only on-canvas selection indicator,
+    // so a toggle that hides it makes "is anything selected?" ambiguous — per
+    // the user.
     // **D-123 — REMOVED.** "Artboard Labels" dropped: the canvas renders one
     // page at a time (tab model), so there's no multi-artboard surface to label
     // — per the user. The active page's name already shows in the status bar
     // and the page-selection overlay.
+    // → With these three gone, `View ▸ Show ▸` has no roadmap children left;
+    //   Grid / Rulers / Timeline (the real toggles) are all that remain.
     // Snap ▶ extra targets (Enabled/Grid/Objects/Both are real).
     track(
       roadmapLeaf({

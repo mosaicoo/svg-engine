@@ -841,9 +841,10 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     // The existing flat Zoom/Grid/Rulers/Outline/Timeline toggles become
     // children of three submenus (Option B). Fit Canvas (fit content bounds —
     // D-119), Fit Selection (D-118) + Actual Size (setZoom(1)) are **real**
-    // entries; Preview / Pixel Preview / Full Screen / Selection Bounds are
-    // roadmap children added by `builtinRoadmapMenuPlugin`. (Show ▸ Guides and
-    // Show ▸ Artboard Labels were dropped in D-123 — see that plugin.)
+    // entries; Display ▸ Preview / Pixel Preview / Full Screen are the only
+    // roadmap children left under View (added by `builtinRoadmapMenuPlugin`).
+    // Show ▸ Guides + Artboard Labels (D-123) and Selection Bounds (D-124) were
+    // dropped — see that plugin.
 
     // ── View ▸ Zoom ▶ ──────────────────────────────────────────────
     ctx.track(

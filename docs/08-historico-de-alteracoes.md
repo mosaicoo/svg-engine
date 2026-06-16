@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-06-16 — D-124 — Remover placeholder `View ▸ Show ▸ Selection Bounds` ✅
+
+Ao perguntar sobre o backing do `View ▸ Show ▸ Selection Bounds`, o usuário
+concluiu que **não traz ganho e ficaria confuso**, e pediu para remover.
+
+Motivo técnico: a `.bbox` desenhada pelo `<svge-selection-overlay>` é o **único
+indicador visual de seleção no canvas** deste editor — um toggle que a esconde
+tornaria ambíguo "tem algo selecionado?". Era apenas um `roadmapLeaf` (sem `run`),
+removido de
+[builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts)
+com nota de remoção.
+
+Com isso (somado ao D-123), o `View ▸ Show ▸` **não tem mais nenhum filho de
+roadmap** — sobram só os toggles reais Grid / Rulers / Timeline. Comentário
+descritivo do `builtin-menu-contributions.plugin.ts` atualizado. Nenhum spec
+referenciava o id; a guarda anti-órfão do D-085 segue passando. Build + lint +
+suíte (**2623**) verdes; playground compila.
+
+---
+
 ## 2026-06-16 — D-123 — Remover placeholders `View ▸ Show ▸ Guides` e `Artboard Labels` ✅
 
 Ao perguntar sobre o backing do `View ▸ Show ▸ Artboard Labels`, ficou claro
