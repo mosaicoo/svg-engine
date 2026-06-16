@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-06-15 — D-109 — Object ▸ Rasterize: converter elemento selecionado em `<image>` ✅
+
+Nova funcionalidade pedida pelo usuário: rasterizar qualquer elemento vetorial
+selecionado, trocando-o por uma imagem bitmap embutida (`<image>` com PNG em
+data-URL) — o _Object ▸ Rasterize_ do Illustrator. Antes não existia (o
+"Rasterize Smart Object" do D-074 faz o oposto: desembrulha um Smart Object).
+
+- **`RasterizeNodeCommand`** (novo, `svg-engine/core` —
+  [rasterize-node.command.ts](../projects/svg-engine/core/src/lib/commands/rasterize-node.command.ts)):
+  substitui o nó pela `<image>` no **mesmo slot do pai**, preservando o **id**
+  (seleção/camadas sobrevivem). `isDestructive` (vetor→pixels é lossy), com
+  `undo` restaurando o original no índice capturado. Espelha o padrão
+  remove+insert do `ConvertNodeToPathCommand`.
+- **`getRenderedNodeLocalBBox`** (novo, `svg-engine/edit` —
+  [node-bbox.ts](../projects/svg-engine/edit/src/lib/geometry/node-bbox.ts)):
+  bbox do nó no espaço do **pai** (`getBBox()` + transform própria, sem os
+  ancestrais). É o `viewBox` para renderizar o nó isolado E o `x/y/w/h` da
+  `<image>` — inserir no mesmo pai faz os ancestrais (inalterados) posicionarem
+  a imagem exatamente onde o vetor estava, sem matriz inversa.
+- **Handler `rasterizeSelection`** (menu plugin): mede o bbox de cada nó pela
+  DOM **antes** de qualquer dispatch (dispatch re-renderiza), renderiza só o nó
+  num sub-documento (`renderPng`, defs compostos via `ActiveDefsService.
+buildExportDefs` p/ resolver `url(#id)`), embute o PNG como data-URL e
+  dispatcha `RasterizeNodeCommand`. A transform própria do nó (inclusive
+  rotação) é **assada** no bitmap.
+- **Menu `Object ▸ Rasterize`** com presets **1× / 2× (recomendado) / 3×**
+  (espelha os presets do Export PNG). 1× casa 1:1 com o elemento; 2× mantém
+  nítido em retina/zoom; 3× p/ densidade de impressão. Desabilitado sem seleção.
+
+Specs do comando (replace/id-preserve/undo/destructive/fail). Build + lint +
+suíte (**2561**) verdes; snapshot de API regenerado (+`RasterizeNodeCommand`, +`getRenderedNodeLocalBBox`).
+
+---
+
 ## 2026-06-15 — D-108 — Import "place": modo esticar (Shift) + preview fiel (ghost) ✅
 
 Refina o modo `'place'` (D-107) com dois pedidos do usuário: (1) escolher entre

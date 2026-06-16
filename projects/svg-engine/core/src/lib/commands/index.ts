@@ -18,6 +18,8 @@ export {
 } from './anchor.commands';
 export { ConvertNodeToPathCommand, nodeToPathD } from './convert-to-path.command';
 export { BatchConvertToPathCommand } from './batch-convert-to-path.command';
+// D-109 — Object ▸ Rasterize (replace a vector node with a raster <image>)
+export { RasterizeNodeCommand } from './rasterize-node.command';
 // D-086 — Object ▸ Mask (gesture-based clip path / opacity mask)
 export {
   type ClipMaskKind,

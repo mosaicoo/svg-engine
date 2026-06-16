@@ -1,8 +1,11 @@
 import { computed, type Injector, type ProviderToken, type Signal } from '@angular/core';
 import {
   ANIMATION_KEY,
+  type BoundingBox,
   CommandBus,
   ConvertNodeToPathCommand,
+  createGroup,
+  createImage,
   CreateLayerCommand,
   DivideCommand,
   DuplicateNodeCommand,
@@ -12,6 +15,7 @@ import {
   findParent,
   type FlipAxis,
   FlipNodeCommand,
+  generateNodeId,
   GroupSelectionCommand,
   HistoryService,
   AUTO_PARENT,
@@ -25,6 +29,7 @@ import {
   multiply,
   type NodeId,
   type Point,
+  RasterizeNodeCommand,
   RemoveNodeCommand,
   ReorderNodeCommand,
   type ReorderDirection,
@@ -41,7 +46,7 @@ import {
   UnionCommand,
   UnmakeLayerCommand,
 } from 'svg-engine/core';
-import { pngExporter, svgExporter, svgImporter } from 'svg-engine/io';
+import { pngExporter, renderPng, svgExporter, svgImporter } from 'svg-engine/io';
 import { OptimizeCommand, OptimizerRegistry } from 'svg-engine/optimize';
 import { ViewportService } from 'svg-engine/render';
 
@@ -58,7 +63,7 @@ import { ClipboardService } from '../../clipboard/clipboard.service';
 import { SVGE_HELP_LINKS, type SvgeHelpLinks } from '../../help';
 import { makeClipMask, releaseClipMask, topmostSelected } from '../../clip-mask/clip-mask-actions';
 import { SelectSameService } from '../../find-replace/select-same.service';
-import { getRenderedNodeBBox } from '../../geometry/node-bbox';
+import { getRenderedNodeBBox, getRenderedNodeLocalBBox } from '../../geometry/node-bbox';
 import { ImportPlacementService } from '../../import-placement/import-placement.service';
 import { ImportSettingsService } from '../../import-settings/import-settings.service';
 import { LayersService } from '../../layers/layers.service';
@@ -1365,6 +1370,49 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+
+    // ── D-109 — Object ▸ Rasterize ▸ {1× | 2× | 3×} ─────────────────
+    //
+    // Replace each selected vector node with a raster <image> baked at the
+    // chosen device-pixel scale (Illustrator's *Object ▸ Rasterize*). 1×
+    // matches the element 1:1 (crisp at 100% on standard-DPI screens); 2×
+    // (recommended) stays sharp on retina + moderate zoom; 3× for print-ish
+    // density. Async + browser-only (canvas render); disabled with no
+    // selection. See `rasterizeSelection`.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.object.rasterize',
+        slot: MENU_SLOT.OBJECT,
+        label: 'Rasterize',
+        icon: 'image',
+        order: 35,
+        disabled: noSelectionFactory,
+        run() {
+          /* submenu parent — children carry the resolution */
+        },
+      }),
+    );
+    const rasterizePresets = [
+      { label: '1×', scale: 1, order: 10 },
+      { label: '2× (recommended)', scale: 2, order: 20 },
+      { label: '3×', scale: 3, order: 30 },
+    ] as const;
+    for (const preset of rasterizePresets) {
+      ctx.track(
+        reg.register({
+          id: `svge.builtin.object.rasterize.${preset.scale}x`,
+          parentId: 'svge.builtin.object.rasterize',
+          slot: MENU_SLOT.OBJECT,
+          label: preset.label,
+          icon: 'image',
+          order: preset.order,
+          disabled: noSelectionFactory,
+          run(runCtx) {
+            void rasterizeSelection(runCtx, fromCtx, preset.scale);
+          },
+        }),
+      );
+    }
 
     // ── D-093 — Object ▸ Transform ▸ Reset Transform ────────────────
     //
@@ -3074,6 +3122,87 @@ function beginImportPlacement(
     group: imported,
     src: doc.viewBox,
     defs: doc.defs,
+  });
+}
+
+/**
+ * **D-109** — `Object ▸ Rasterize`. For each selected (unlocked) node, render
+ * just that node to a PNG at `scale`× and replace it with a raster `<image>`
+ * at the same parent slot ({@link RasterizeNodeCommand}, one undo each). The
+ * node's own transform (incl. rotation) is baked into the bitmap; the image
+ * inherits the unchanged ancestor transforms, so it lands exactly where the
+ * vector was — no inverse-matrix math (see `getRenderedNodeLocalBBox`).
+ *
+ * Async (canvas-based rendering). **Measures every node's bounds from the
+ * live `<svg>` BEFORE any dispatch** — a dispatch re-renders and replaces the
+ * `<g data-node-id>` elements, which would invalidate later `getBBox()`
+ * lookups. Browser-only (needs the rendered SVG + canvas); no-ops headless.
+ */
+async function rasterizeSelection(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+  scale: number,
+): Promise<void> {
+  if (typeof document === 'undefined' || typeof URL === 'undefined') return;
+  const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+  if (svg === null) return;
+  const selection = fromCtx(SelectionService, runCtx);
+  const layers = fromCtx(LayersService, runCtx);
+  const state = fromCtx(EditorStateService, runCtx);
+  const activeDefs = fromCtx(ActiveDefsService, runCtx);
+  const bus = fromCtx(CommandBus, runCtx);
+
+  const doc = state.document();
+  const targets: { id: NodeId; node: SvgNode; box: BoundingBox }[] = [];
+  for (const id of selection.selectedIds()) {
+    if (layers.isLocked(id)) continue;
+    const node = findNodeById(doc.root, id);
+    if (node === null) continue;
+    const box = getRenderedNodeLocalBBox(svg, id);
+    if (box === null) continue;
+    targets.push({ id, node, box });
+  }
+  if (targets.length === 0) return;
+
+  // Compose the full defs the SAME way the SVG exporter does (D-058) so any
+  // url(#id) references in the isolated render resolve to a real definition.
+  const defs = activeDefs.buildExportDefs(doc.defs);
+
+  for (const t of targets) {
+    // Sub-document = the node alone, viewBox = its parent-local bounds. The
+    // node keeps its own transform, so it fills the viewBox; renderPng crops
+    // to exactly that region at `scale`× device pixels.
+    const sub: SvgDocument = {
+      id: generateNodeId(),
+      viewBox: t.box,
+      root: createGroup([t.node]),
+      defs,
+    };
+    let href: string;
+    try {
+      const blob = await renderPng(sub, scale);
+      href = await blobToDataUrl(blob);
+    } catch (e) {
+      if (typeof console !== 'undefined') console.warn('[SVGEngine] Rasterize failed:', e);
+      continue;
+    }
+    const image = createImage(
+      { x: t.box.x, y: t.box.y, width: t.box.width, height: t.box.height, href },
+      // Keep the original name/metadata so the layer panel stays continuous
+      // (mirrors ConvertNodeToPathCommand preserving metadata).
+      { metadata: t.node.metadata },
+    );
+    bus.dispatch(new RasterizeNodeCommand(t.id, image));
+  }
+}
+
+/** Read a Blob as a base64 `data:` URL (self-contained; survives SVG export). */
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'));
+    reader.readAsDataURL(blob);
   });
 }
 

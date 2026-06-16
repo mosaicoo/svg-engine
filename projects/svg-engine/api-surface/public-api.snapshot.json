@@ -187,6 +187,7 @@
     "Point",
     "PolygonNode",
     "PolylineNode",
+    "RasterizeNodeCommand",
     "RasterizeSmartObjectCommand",
     "readAnimatableValue",
     "readAnimationDoc",

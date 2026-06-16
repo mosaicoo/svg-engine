@@ -51,6 +51,62 @@ export function getRenderedNodeBBox(svgRoot: SVGSVGElement, nodeId: NodeId): Bou
 }
 
 /**
+ * **D-109** — bounding box of a rendered node in its **parent's** coordinate
+ * space: `el.getBBox()` (geometry, before the node's own `transform`) with the
+ * node's OWN transform applied, but **not** the ancestor chain. Distinct from
+ * {@link getRenderedNodeBBox}, which composes ALL ancestors up to the root.
+ *
+ * Used by *Object ▸ Rasterize*: the parent-local box is both the `viewBox` to
+ * render the node in isolation AND the `x/y/width/height` for the replacement
+ * `<image>` — inserting that image into the SAME parent makes the (unchanged)
+ * ancestor transforms place it exactly where the vector was, with no
+ * inverse-matrix math.
+ *
+ * Returns `null` when the element is missing or has zero geometry.
+ */
+export function getRenderedNodeLocalBBox(
+  svgRoot: SVGSVGElement,
+  nodeId: NodeId,
+): BoundingBox | null {
+  const el = findRenderedNode(svgRoot, nodeId);
+  if (el === null) return null;
+  let local: DOMRect;
+  try {
+    local = el.getBBox();
+  } catch {
+    return null;
+  }
+  if (
+    !Number.isFinite(local.x) ||
+    !Number.isFinite(local.y) ||
+    !Number.isFinite(local.width) ||
+    !Number.isFinite(local.height) ||
+    (local.width === 0 && local.height === 0)
+  ) {
+    return null;
+  }
+  const own = parseTransformAttr(el.getAttribute('transform'));
+  const corners: readonly { readonly x: number; readonly y: number }[] = [
+    { x: local.x, y: local.y },
+    { x: local.x + local.width, y: local.y },
+    { x: local.x + local.width, y: local.y + local.height },
+    { x: local.x, y: local.y + local.height },
+  ];
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const c of corners) {
+    const p = applyTransform(own, c.x, c.y);
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return bbox(minX, minY, maxX - minX, maxY - minY);
+}
+
+/**
  * Compute a single bounding box that contains every rendered node in
  * `nodeIds`. Returns `null` when none of the ids resolve to a rendered
  * element. Used for multi-selection overlay (one bbox around the whole
