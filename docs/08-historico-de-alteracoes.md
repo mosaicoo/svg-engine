@@ -6,6 +6,55 @@
 
 ---
 
+## 2026-06-16 — D-114 — Cobertura total de presentation attributes (import↔model↔render↔export) ✅
+
+**Análise** (pedida pelo usuário com `Salvador-8-berco.svg`, export do Adobe
+Illustrator 29.8 com 2.647 paths): _"a questão stroke não é tratada em 100%"_.
+Censo do arquivo confirmou: `stroke-linejoin` (2060×), `stroke-linecap`
+(2049×), `fill-rule="evenodd"` (333×), `stroke-dasharray` (240×),
+`stroke-miterlimit` (8×) — nenhuma chegava ao modelo na importação.
+
+**Diagnóstico central**: o gargalo era o **importador**. O `model`, o `renderer`
+e o `exporter` já suportavam quase tudo, mas o `parseStyle` lia só 8 das ~15
+presentation attributes que o modelo conhece — então o que se **importava**
+perdia essas props (enquanto o que se **desenhava** no app exportava certo). Os
+renderers de folha (`path`/`rect`/`line`/…) também estavam **inconsistentes**
+(cada um bindava um subconjunto diferente; nenhum bindava dasharray ou
+fill-rule).
+
+**Fix (D-114) — paridade completa nas 4 camadas, escolha do usuário "cobrir
+100%"; sem nova API pública** (só campos novos em interface):
+
+- **Model** ([style.ts](../projects/svg-engine/core/src/lib/types/style.ts)):
+  3 campos novos — `fillRule` (`'nonzero'|'evenodd'`), `strokeMiterlimit`,
+  `strokeDashoffset`. Os demais (`strokeDasharray`/`strokeLinecap`/
+  `strokeLinejoin`) já existiam.
+- **Importer** ([svg-importer.ts](../projects/svg-engine/io/src/lib/svg-importer.ts)):
+  `parseStyle` refatorado para um `applyStyleProp` único compartilhado pelas
+  duas passadas (presentation attr **e** `style=` inline), cobrindo o conjunto
+  completo: fill-rule, stroke-linecap/linejoin/miterlimit, stroke-dasharray
+  (parser `"4 2"`/`"4,2"`/`"none"`), stroke-dashoffset, **e** clip-path / mask /
+  mix-blend-mode (gaps do D-049 que o modelo já tinha mas o importador ignorava).
+- **Renderer**: 3 bindings novos no wrapper de grupo
+  ([node-renderer.component.ts](../projects/svg-engine/render/src/lib/renderers/node-renderer.component.ts))
+  - **padronização das 7 diretivas de folha** (path/rect/ellipse/line/polygon/
+    polyline/text) para o conjunto inteiro — antes inconsistentes.
+- **Exporter** ([svg-exporter.ts](../projects/svg-engine/io/src/lib/svg-exporter.ts)):
+  emite `fill-rule`, `stroke-miterlimit`, `stroke-dashoffset` (os outros já
+  saíam).
+
+Resultado: SVGs do Illustrator/CorelDRAW importam com traços tracejados,
+pontas/cantos de traço e regra de preenchimento (`evenodd` — furos de paths
+compostos) **corretos**. Novo `presentation-attrs-roundtrip.spec.ts` (import via
+atributo, via `style=` inline, emit do exporter, e round-trip completo). Build +
+lint + suíte (**2590**) verdes; playground compila; snapshot de API inalterado.
+
+_Deferidos (não usados neste arquivo, baixo impacto)_: `stroke-dashoffset` já
+foi incluído; ainda fora do modelo: `paint-order`, `vector-effect` autoral,
+`color-interpolation`. Avaliar sob demanda.
+
+---
+
 ## 2026-06-16 — D-113 — Importação ajusta a arte ao **conteúdo**, não ao artboard ✅
 
 **Bug** (reportado pelo usuário com `Design sem nome.svg`, export do Adobe/Corel):

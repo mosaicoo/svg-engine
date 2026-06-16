@@ -704,6 +704,7 @@ function styleAttrs(style: SvgStyle): [string, string][] {
   if (style.clipPath !== undefined) out.push(['clip-path', style.clipPath]);
   if (style.fill !== undefined) out.push(['fill', style.fill]);
   if (style.fillOpacity !== undefined) out.push(['fill-opacity', fmt(style.fillOpacity)]);
+  if (style.fillRule !== undefined) out.push(['fill-rule', style.fillRule]);
   if (style.filter !== undefined) out.push(['filter', style.filter]);
   if (style.mask !== undefined) out.push(['mask', style.mask]);
   if (style.opacity !== undefined) out.push(['opacity', fmt(style.opacity)]);
@@ -711,8 +712,14 @@ function styleAttrs(style: SvgStyle): [string, string][] {
   if (style.strokeDasharray !== undefined && style.strokeDasharray.length > 0) {
     out.push(['stroke-dasharray', style.strokeDasharray.map(fmt).join(' ')]);
   }
+  if (style.strokeDashoffset !== undefined) {
+    out.push(['stroke-dashoffset', fmt(style.strokeDashoffset)]);
+  }
   if (style.strokeLinecap !== undefined) out.push(['stroke-linecap', style.strokeLinecap]);
   if (style.strokeLinejoin !== undefined) out.push(['stroke-linejoin', style.strokeLinejoin]);
+  if (style.strokeMiterlimit !== undefined) {
+    out.push(['stroke-miterlimit', fmt(style.strokeMiterlimit)]);
+  }
   if (style.strokeOpacity !== undefined) out.push(['stroke-opacity', fmt(style.strokeOpacity)]);
   if (style.strokeWidth !== undefined) out.push(['stroke-width', fmt(style.strokeWidth)]);
   if (style.visibility !== undefined) out.push(['visibility', style.visibility]);

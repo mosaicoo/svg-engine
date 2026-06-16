@@ -659,88 +659,147 @@ function parsePoints(attr: string | null): readonly { readonly x: number; readon
  */
 type MutableStyle = { -readonly [K in keyof SvgStyle]: SvgStyle[K] };
 
+/**
+ * Presentation attributes the importer reads into {@link SvgStyle}. Read FIRST
+ * (lowest CSS priority), then inline `style="..."` overrides any of them.
+ * `mix-blend-mode` is intentionally absent: it's a CSS-only property with no
+ * presentation-attribute form, so it's read from `style=` only.
+ */
+const PRESENTATION_STYLE_ATTRS: readonly string[] = [
+  'fill',
+  'fill-opacity',
+  'fill-rule',
+  'stroke',
+  'stroke-width',
+  'stroke-opacity',
+  'stroke-linecap',
+  'stroke-linejoin',
+  'stroke-miterlimit',
+  'stroke-dasharray',
+  'stroke-dashoffset',
+  'opacity',
+  'visibility',
+  'filter',
+  'clip-path',
+  'mask',
+];
+
 function parseStyle(el: Element): SvgStyle {
   const style: MutableStyle = {};
-  // Presentation attributes first.
-  const fill = el.getAttribute('fill');
-  if (fill !== null) style.fill = fill;
-  const stroke = el.getAttribute('stroke');
-  if (stroke !== null) style.stroke = stroke;
-  const strokeWidth = el.getAttribute('stroke-width');
-  if (strokeWidth !== null) {
-    const n = Number.parseFloat(strokeWidth);
-    if (Number.isFinite(n)) style.strokeWidth = n;
+  // Presentation attributes first (lowest priority).
+  for (const name of PRESENTATION_STYLE_ATTRS) {
+    const value = el.getAttribute(name);
+    if (value !== null) applyStyleProp(style, name, value);
   }
-  const opacity = el.getAttribute('opacity');
-  if (opacity !== null) {
-    const n = Number.parseFloat(opacity);
-    if (Number.isFinite(n)) style.opacity = n;
-  }
-  const fillOpacity = el.getAttribute('fill-opacity');
-  if (fillOpacity !== null) {
-    const n = Number.parseFloat(fillOpacity);
-    if (Number.isFinite(n)) style.fillOpacity = n;
-  }
-  const strokeOpacity = el.getAttribute('stroke-opacity');
-  if (strokeOpacity !== null) {
-    const n = Number.parseFloat(strokeOpacity);
-    if (Number.isFinite(n)) style.strokeOpacity = n;
-  }
-  const visibility = el.getAttribute('visibility');
-  if (visibility === 'visible' || visibility === 'hidden') {
-    style.visibility = visibility;
-  }
-  // SVG `filter` attribute (Fase 6d) — typically url(#effect-id).
-  const filter = el.getAttribute('filter');
-  if (filter !== null && filter.length > 0) style.filter = filter;
-  // Then merge inline CSS (style="...") — CSS overrides matching attrs.
+  // Then inline CSS (`style="..."`) — overrides matching presentation attrs
+  // (correct CSS cascade). `mix-blend-mode` is reachable only via this pass.
   const inline = el.getAttribute('style');
   if (inline !== null) {
     for (const decl of inline.split(';')) {
       const idx = decl.indexOf(':');
       if (idx <= 0) continue;
-      const prop = decl.slice(0, idx).trim().toLowerCase();
-      const value = decl.slice(idx + 1).trim();
-      if (value.length === 0) continue;
-      switch (prop) {
-        case 'fill':
-          style.fill = value;
-          break;
-        case 'stroke':
-          style.stroke = value;
-          break;
-        case 'stroke-width': {
-          const n = Number.parseFloat(value);
-          if (Number.isFinite(n)) style.strokeWidth = n;
-          break;
-        }
-        case 'opacity': {
-          const n = Number.parseFloat(value);
-          if (Number.isFinite(n)) style.opacity = n;
-          break;
-        }
-        case 'fill-opacity': {
-          const n = Number.parseFloat(value);
-          if (Number.isFinite(n)) style.fillOpacity = n;
-          break;
-        }
-        case 'stroke-opacity': {
-          const n = Number.parseFloat(value);
-          if (Number.isFinite(n)) style.strokeOpacity = n;
-          break;
-        }
-        case 'visibility':
-          if (value === 'visible' || value === 'hidden') {
-            style.visibility = value;
-          }
-          break;
-        case 'filter':
-          if (value.length > 0) style.filter = value;
-          break;
-      }
+      applyStyleProp(style, decl.slice(0, idx).trim().toLowerCase(), decl.slice(idx + 1));
     }
   }
   return style;
+}
+
+/**
+ * Apply one presentation/CSS declaration to the mutable style. Shared by the
+ * presentation-attribute pass AND the inline-`style=` pass so the two never
+ * drift (D-114). Unknown props and malformed values are ignored — the importer
+ * is always best-effort, never throws on foreign input.
+ */
+function applyStyleProp(style: MutableStyle, prop: string, rawValue: string): void {
+  const value = rawValue.trim();
+  if (value.length === 0) return;
+  switch (prop) {
+    case 'fill':
+      style.fill = value;
+      break;
+    case 'stroke':
+      style.stroke = value;
+      break;
+    case 'stroke-width': {
+      const n = Number.parseFloat(value);
+      if (Number.isFinite(n)) style.strokeWidth = n;
+      break;
+    }
+    case 'opacity': {
+      const n = Number.parseFloat(value);
+      if (Number.isFinite(n)) style.opacity = n;
+      break;
+    }
+    case 'fill-opacity': {
+      const n = Number.parseFloat(value);
+      if (Number.isFinite(n)) style.fillOpacity = n;
+      break;
+    }
+    case 'stroke-opacity': {
+      const n = Number.parseFloat(value);
+      if (Number.isFinite(n)) style.strokeOpacity = n;
+      break;
+    }
+    case 'fill-rule':
+      if (value === 'nonzero' || value === 'evenodd') style.fillRule = value;
+      break;
+    case 'stroke-linecap':
+      if (value === 'butt' || value === 'round' || value === 'square') {
+        style.strokeLinecap = value;
+      }
+      break;
+    case 'stroke-linejoin':
+      if (value === 'miter' || value === 'round' || value === 'bevel') {
+        style.strokeLinejoin = value;
+      }
+      break;
+    case 'stroke-miterlimit': {
+      const n = Number.parseFloat(value);
+      if (Number.isFinite(n) && n >= 1) style.strokeMiterlimit = n;
+      break;
+    }
+    case 'stroke-dashoffset': {
+      const n = Number.parseFloat(value);
+      if (Number.isFinite(n)) style.strokeDashoffset = n;
+      break;
+    }
+    case 'stroke-dasharray': {
+      const dashes = parseDashArray(value);
+      if (dashes !== null) style.strokeDasharray = dashes;
+      break;
+    }
+    case 'visibility':
+      if (value === 'visible' || value === 'hidden') style.visibility = value;
+      break;
+    case 'filter':
+      style.filter = value;
+      break;
+    case 'clip-path':
+      style.clipPath = value;
+      break;
+    case 'mask':
+      style.mask = value;
+      break;
+    case 'mix-blend-mode':
+      style.mixBlendMode = value;
+      break;
+  }
+}
+
+/**
+ * Parse an SVG `stroke-dasharray` value (`"4 2"`, `"4,2"`, `"none"`) into an
+ * array of non-negative dash lengths. Returns `null` for `none` / empty /
+ * malformed input so the caller leaves `strokeDasharray` unset (matches the
+ * exporter, which emits the array space-joined and skips empty).
+ */
+function parseDashArray(value: string): readonly number[] | null {
+  if (value.toLowerCase() === 'none') return null;
+  const parts = value
+    .split(/[\s,]+/)
+    .filter((p) => p.length > 0)
+    .map((p) => Number.parseFloat(p));
+  if (parts.length === 0 || parts.some((n) => !Number.isFinite(n) || n < 0)) return null;
+  return parts;
 }
 
 function sanitizeHref(raw: string, warnings: string[], tag: string): string {

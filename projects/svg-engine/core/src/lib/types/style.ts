@@ -16,14 +16,28 @@ export interface SvgStyle {
   readonly opacity?: number;
   /** Fill opacity in `[0, 1]`. */
   readonly fillOpacity?: number;
+  /**
+   * Fill rule for self-intersecting / compound paths (paths with holes).
+   * `'nonzero'` (the SVG default) vs `'evenodd'` (holes cut out). Common
+   * in editor exports (Illustrator/CorelDRAW emit `fill-rule="evenodd"`
+   * on most paths). Undefined = SVG default (`nonzero`).
+   */
+  readonly fillRule?: 'nonzero' | 'evenodd';
   /** Stroke opacity in `[0, 1]`. */
   readonly strokeOpacity?: number;
   /** Dash pattern (alternating dash/gap lengths in user units). */
   readonly strokeDasharray?: readonly number[];
+  /** Offset into the dash pattern (user units). Pairs with {@link strokeDasharray}. */
+  readonly strokeDashoffset?: number;
   /** Endpoint cap style. */
   readonly strokeLinecap?: 'butt' | 'round' | 'square';
   /** Corner join style. */
   readonly strokeLinejoin?: 'miter' | 'round' | 'bevel';
+  /**
+   * Miter-length limit for `strokeLinejoin: 'miter'` — beyond this ratio
+   * the join falls back to a bevel. SVG default is `4`. Must be `>= 1`.
+   */
+  readonly strokeMiterlimit?: number;
   /** Visibility (separate from {@link SvgMetadata.visible} which is editor-only). */
   readonly visibility?: 'visible' | 'hidden';
   /**
