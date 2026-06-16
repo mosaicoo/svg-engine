@@ -266,6 +266,7 @@ export class WorkspaceService {
   private readonly _grid = signal<GridConfig>(DEFAULT_GRID);
   private readonly _rulers = signal<RulersConfig>(DEFAULT_RULERS);
   private readonly _guides = signal<readonly Guide[]>([]);
+  private readonly _guidesLocked = signal(false);
   private readonly _interaction = signal<InteractionConfig>(DEFAULT_INTERACTION);
   /**
    * Live cursor position in **document coordinates**, set by the canvas
@@ -295,6 +296,15 @@ export class WorkspaceService {
 
   /** Reactive snapshot of the user-drawn guides. */
   readonly guides = this._guides.asReadonly();
+
+  /**
+   * **D-121** — whether guides are locked. When `true`, guides still
+   * render but `GuidesOverlay` makes them non-interactive (can't be
+   * selected, dragged, or deleted via the canvas). Menu actions that
+   * are explicit commands — Add Horizontal/Vertical Guide and Clear All
+   * Guides — keep working; locking only blocks direct manipulation.
+   */
+  readonly guidesLocked = this._guidesLocked.asReadonly();
 
   /**
    * Currently-selected guide id (or `null` when none). Drives both the
@@ -528,6 +538,23 @@ export class WorkspaceService {
     const id = this._selectedGuideId();
     if (id === null) return;
     this.removeGuide(id);
+  }
+
+  /**
+   * **D-121** — set the guides-locked state. Locking also clears any
+   * guide selection, so a guide that was selected before the lock can't
+   * be moved (arrow keys) or deleted (Delete key) while locked.
+   * No-op when the state is already what's requested.
+   */
+  setGuidesLocked(locked: boolean): void {
+    if (this._guidesLocked() === locked) return;
+    this._guidesLocked.set(locked);
+    if (locked) this._selectedGuideId.set(null);
+  }
+
+  /** **D-121** — toggle the guides-locked state (View ▸ Guides ▸ Lock Guides). */
+  toggleGuidesLocked(): void {
+    this.setGuidesLocked(!this._guidesLocked());
   }
 
   // ── Interaction ─────────────────────────────────────────────────

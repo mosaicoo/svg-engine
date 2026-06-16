@@ -1235,6 +1235,23 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+    // **D-121** — Lock Guides: a single toggle that locks AND unlocks (like
+    // Grid/Rulers/Timeline toggles). When locked, `GuidesOverlay` makes guides
+    // non-interactive — they stay visible but can't be selected, dragged, or
+    // deleted on the canvas. Add/Clear (explicit commands) keep working.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.guides.lock',
+        parentId: 'svge.builtin.view.guides',
+        slot: MENU_SLOT.VIEW,
+        label: 'Lock Guides',
+        icon: 'lock',
+        order: 25,
+        run(runCtx) {
+          fromCtx(WorkspaceService, runCtx).toggleGuidesLocked();
+        },
+      }),
+    );
     ctx.track(
       reg.register({
         id: 'svge.builtin.view.guides.divider1',

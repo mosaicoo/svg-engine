@@ -147,3 +147,51 @@ describe('GuidesOverlay — drag state machine', () => {
     expect(ws.guides()[0]?.position).toBe(50);
   });
 });
+
+describe('GuidesOverlay — locked (D-121)', () => {
+  it('hit-zones carry the locked class + tabindex -1 when guides are locked', () => {
+    const { fixture, ws } = setup();
+    ws.addGuide('h', 50);
+    ws.setGuidesLocked(true);
+    fixture.detectChanges();
+    const hit = hitZones(fixture.nativeElement)[0]!;
+    expect(hit.classList.contains('locked')).toBe(true);
+    expect(hit.getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('double-clicking a locked guide does NOT remove it', () => {
+    const { fixture, ws } = setup();
+    ws.addGuide('h', 50);
+    ws.setGuidesLocked(true);
+    fixture.detectChanges();
+    const hit = hitZones(fixture.nativeElement)[0]!;
+    hit.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    fixture.detectChanges();
+    expect(ws.guides().length).toBe(1); // still present — lock blocked the remove
+  });
+
+  it('Delete keydown on a locked guide does NOT remove it', () => {
+    const { fixture, ws } = setup();
+    ws.addGuide('h', 50);
+    ws.setGuidesLocked(true);
+    fixture.detectChanges();
+    const hit = hitZones(fixture.nativeElement)[0]!;
+    hit.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }));
+    fixture.detectChanges();
+    expect(ws.guides().length).toBe(1);
+  });
+
+  it('unlocking restores interactivity (dblclick removes again)', () => {
+    const { fixture, ws } = setup();
+    ws.addGuide('h', 50);
+    ws.setGuidesLocked(true);
+    fixture.detectChanges();
+    ws.setGuidesLocked(false);
+    fixture.detectChanges();
+    const hit = hitZones(fixture.nativeElement)[0]!;
+    expect(hit.classList.contains('locked')).toBe(false);
+    hit.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    fixture.detectChanges();
+    expect(ws.guides().length).toBe(0);
+  });
+});

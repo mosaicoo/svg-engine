@@ -264,6 +264,39 @@ describe('WorkspaceService — guides (Bloco 4f)', () => {
   });
 });
 
+describe('WorkspaceService — guides locked (D-121)', () => {
+  it('starts unlocked', () => {
+    expect(setup().guidesLocked()).toBe(false);
+  });
+
+  it('toggleGuidesLocked flips the state', () => {
+    const ws = setup();
+    ws.toggleGuidesLocked();
+    expect(ws.guidesLocked()).toBe(true);
+    ws.toggleGuidesLocked();
+    expect(ws.guidesLocked()).toBe(false);
+  });
+
+  it('setGuidesLocked(true) clears any guide selection', () => {
+    const ws = setup();
+    const id = ws.addGuide('h', 100)!;
+    ws.selectGuide(id);
+    expect(ws.selectedGuideId()).toBe(id);
+    ws.setGuidesLocked(true);
+    expect(ws.guidesLocked()).toBe(true);
+    expect(ws.selectedGuideId()).toBeNull();
+  });
+
+  it('setGuidesLocked is idempotent (no-op when already in the requested state)', () => {
+    const ws = setup();
+    ws.setGuidesLocked(false); // already false → no-op
+    expect(ws.guidesLocked()).toBe(false);
+    ws.setGuidesLocked(true);
+    ws.setGuidesLocked(true); // no-op
+    expect(ws.guidesLocked()).toBe(true);
+  });
+});
+
 describe('WorkspaceService — interaction (Fase 6 UX polish)', () => {
   it('starts with default wheelZoomSpeed = 5', () => {
     const ws = setup();

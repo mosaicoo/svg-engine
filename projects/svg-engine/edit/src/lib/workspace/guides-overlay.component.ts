@@ -42,13 +42,14 @@ import { WorkspaceService } from './workspace.service';
       @if (g.axis === 'h') {
         <svg:line
           class="guide-hit ns"
+          [class.locked]="guidesLocked()"
           [attr.x1]="viewBoxLeft()"
           [attr.y1]="g.position"
           [attr.x2]="viewBoxRight()"
           [attr.y2]="g.position"
           [attr.stroke-width]="hitZoneDocUnits()"
           role="slider"
-          tabindex="0"
+          [attr.tabindex]="guidesLocked() ? -1 : 0"
           focusable="true"
           [attr.aria-label]="
             'Horizontal guide at y=' +
@@ -78,13 +79,14 @@ import { WorkspaceService } from './workspace.service';
       } @else {
         <svg:line
           class="guide-hit ew"
+          [class.locked]="guidesLocked()"
           [attr.x1]="g.position"
           [attr.y1]="viewBoxTop()"
           [attr.x2]="g.position"
           [attr.y2]="viewBoxBottom()"
           [attr.stroke-width]="hitZoneDocUnits()"
           role="slider"
-          tabindex="0"
+          [attr.tabindex]="guidesLocked() ? -1 : 0"
           focusable="true"
           [attr.aria-label]="
             'Vertical guide at x=' +
@@ -140,6 +142,15 @@ import { WorkspaceService } from './workspace.service';
     }
     .guide-hit.ew {
       cursor: ew-resize;
+    }
+    /* **D-121** — when guides are locked, the hit-zone becomes inert:
+       no pointer targeting (so no select/drag/dblclick) and the resize
+       cursor reverts to default. The visible .guide line still renders
+       (it has pointer-events: none already), so guides stay visible but
+       can't be manipulated on the canvas. */
+    .guide-hit.locked {
+      pointer-events: none;
+      cursor: default;
     }
     /* Suppress the browser's native focus ring. The ring is drawn as
        a rectangle around the line's bounding box, and since the hit-
@@ -215,6 +226,15 @@ export class GuidesOverlay implements AfterViewInit, OnDestroy {
    * binding `[class.selected]="selectedGuideId() === g.id"`.
    */
   protected readonly selectedGuideId = this.ws.selectedGuideId;
+
+  /**
+   * **D-121** — whether guides are locked. Drives the `.locked` class on
+   * the hit-zones (CSS makes them non-interactive) and the `tabindex`
+   * binding (locked guides drop out of the tab order). The pointer/
+   * keyboard handlers also early-return on this as a belt-and-suspenders
+   * guard for any path that bypasses the CSS (e.g. programmatic focus).
+   */
+  protected readonly guidesLocked = this.ws.guidesLocked;
 
   /**
    * Guide line span — extends across the **entire CSS area** of the
@@ -346,6 +366,7 @@ export class GuidesOverlay implements AfterViewInit, OnDestroy {
     axis: 'h' | 'v',
     position: number,
   ): void {
+    if (this.guidesLocked()) return; // D-121 — locked guides are inert
     const docPoint = this.screenToDoc(event.clientX, event.clientY);
     if (docPoint === null) return;
     // Mark this guide as the active selection so the visible line
@@ -379,6 +400,7 @@ export class GuidesOverlay implements AfterViewInit, OnDestroy {
   }
 
   protected onDoubleClick(event: MouseEvent, id: string): void {
+    if (this.guidesLocked()) return; // D-121 — can't remove a locked guide
     event.stopPropagation();
     this.ws.removeGuide(id);
   }
@@ -394,6 +416,7 @@ export class GuidesOverlay implements AfterViewInit, OnDestroy {
    * single source of focus feedback for both pointer and keyboard.
    */
   protected onGuideFocus(id: string): void {
+    if (this.guidesLocked()) return; // D-121 — locked guides aren't selectable
     this.ws.selectGuide(id);
   }
 
@@ -414,6 +437,7 @@ export class GuidesOverlay implements AfterViewInit, OnDestroy {
     axis: 'h' | 'v',
     position: number,
   ): void {
+    if (this.guidesLocked()) return; // D-121 — no keyboard move/delete when locked
     if (event.key === 'Delete' || event.key === 'Backspace') {
       event.preventDefault();
       event.stopPropagation();

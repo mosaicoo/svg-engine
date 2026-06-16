@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-06-16 — D-121 — `View ▸ Guides ▸ Lock Guides` (toggle real, era roadmap) ✅
+
+O usuário perguntou se havia backing para o `Lock Guides`. **Não** — era um
+`roadmapLeaf` (`svge.roadmap.view.guides.lock`, sem `run`), e o `WorkspaceService`
+não tinha conceito de "locked" para guias. O usuário também notou: _"se é possível
+travar, teremos que destravar também"_ — resolvido com **um único item toggle**
+(travar ↔ destravar), no mesmo padrão dos toggles Grid/Rulers/Timeline.
+
+- **`WorkspaceService`** ([workspace.service.ts](../projects/svg-engine/edit/src/lib/workspace/workspace.service.ts)):
+  `guidesLocked` (signal) + `setGuidesLocked()` + `toggleGuidesLocked()`. Travar
+  também **limpa a seleção de guia** (`_selectedGuideId → null`), para uma guia
+  selecionada antes do lock não poder ser movida (setas) nem apagada (Delete).
+- **`GuidesOverlay`** ([guides-overlay.component.ts](../projects/svg-engine/edit/src/lib/workspace/guides-overlay.component.ts)):
+  quando travado, as hit-zones ganham `class="locked"` → `pointer-events: none` +
+  `cursor: default`, e `tabindex` vira `-1` (saem da ordem de tab). Os 4 handlers
+  (`onPointerDown`/`onDoubleClick`/`onGuideFocus`/`onGuideKeyDown`) também fazem
+  early-return (defesa extra). As guias **continuam visíveis**, só não são mais
+  selecionáveis/arrastáveis/apagáveis pelo canvas.
+- **Menu** ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)):
+  `View ▸ Guides ▸ Lock Guides` (order 25, ícone `lock`) → `toggleGuidesLocked()`.
+  **Add H/V e Clear All seguem ativos** (comandos explícitos; lock só bloqueia
+  manipulação direta). Roadmap placeholder removido (nota **"SHIPPED"**).
+
+Specs novos: WorkspaceService (toggle, set limpa seleção, idempotência) +
+GuidesOverlay (classe/tabindex travados, dblclick/Delete bloqueados, unlock
+restaura). Build + lint + suíte (**2620**, +8) verdes; playground compila. Sem
+novos exports (snapshot inalterado).
+
+---
+
 ## 2026-06-16 — D-120 — `Edit ▸ Select ▸ Invert Selection` (real, era roadmap) ✅
 
 O usuário perguntou se já existia o backing para o `Edit ▸ Select ▸ Invert
