@@ -684,7 +684,14 @@ export class SvgeShellInteractions implements OnDestroy {
     // defaults zoom=1 which under-snaps when zoomed in and over-snaps
     // when zoomed out — visible mostly on "Objects" mode because
     // grid targets are dense enough to absorb the discrepancy.
-    const result = this.snap.resolveForMove(proposed, others, this.viewport.zoom());
+    // **D-126** — pass the workspace guide lines so "Snap to Guides" can resolve
+    // against them (SnapService ignores them unless that toggle is on).
+    const result = this.snap.resolveForMove(
+      proposed,
+      others,
+      this.viewport.zoom(),
+      this.workspace.guides(),
+    );
     const snapped: Point = { x: point.x + result.delta.x, y: point.y + result.delta.y };
     this.transform.updateMove(snapped);
     this.snap.setActiveGuides(result.guides);

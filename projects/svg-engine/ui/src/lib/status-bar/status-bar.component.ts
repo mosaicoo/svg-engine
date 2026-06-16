@@ -202,6 +202,19 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
           <mat-icon>apps</mat-icon>
           <span>Both</span>
         </button>
+        <!-- **D-126** — independent "Snap to Guides" toggle, additive on top
+             of the Off/Grid/Objects/Both mode above (mirrors View ▸ Snap ▸
+             Snap to Guides). Highlighted when the toggle is on. -->
+        <button
+          mat-menu-item
+          type="button"
+          [class.active-item]="snapEnabled() && snapToGuides()"
+          (click)="toggleSnapGuides()"
+          [attr.aria-checked]="snapEnabled() && snapToGuides()"
+        >
+          <mat-icon>straighten</mat-icon>
+          <span>Snap to Guides</span>
+        </button>
       </mat-menu>
     }
     @if (showSection('isolation') && isolationActive()) {
@@ -464,17 +477,30 @@ export class SvgeStatusBar {
 
   protected readonly snapEnabled = computed(() => this.snap.enabled());
   protected readonly snapMode = computed(() => this.snap.mode());
+  /** **D-126** — additive snap-to-guides toggle (independent of `mode`). */
+  protected readonly snapToGuides = computed(() => this.snap.snapToGuides());
 
   protected readonly snapLabel = computed(() => {
     if (!this.snap.enabled()) return 'off';
+    // Mode values are 'grid' | 'objects' | 'both' per SnapService API; the
+    // D-126 guides toggle is additive, appended as "+guides" when on.
     const mode = this.snap.mode();
-    // Mode values are 'grid' | 'objects' | 'both' per SnapService API.
-    return mode;
+    return this.snap.snapToGuides() ? `${mode}+guides` : mode;
   });
 
   protected readonly snapTooltip = computed(() =>
-    this.snap.enabled() ? `Snap on (${this.snap.mode()})` : 'Snap off',
+    this.snap.enabled() ? `Snap on (${this.snapLabel()})` : 'Snap off',
   );
+
+  /**
+   * **D-126** — flip the additive snap-to-guides toggle from the bar's
+   * dropdown. Turning it on also enables snap (saves a 2-step "enable +
+   * pick"); it composes with whatever Grid/Objects/Both mode is active.
+   */
+  protected toggleSnapGuides(): void {
+    this.snap.toggleSnapToGuides();
+    if (this.snap.snapToGuides() && !this.snap.enabled()) this.snap.setEnabled(true);
+  }
 
   /**
    * **D-073-fix**: pick snap state from the bar's dropdown.

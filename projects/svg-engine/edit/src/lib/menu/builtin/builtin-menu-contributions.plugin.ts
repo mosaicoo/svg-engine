@@ -1159,6 +1159,39 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+    // **D-126** — "Snap to Guides" is an ADDITIONAL, independent toggle (it does
+    // NOT touch the Grid only / Objects only / Both mode above). Default off, so
+    // clicking it turns guide-snapping ON; clicking again turns it off. Turning
+    // it on also forces snap enabled. A divider separates it from the mode
+    // group since it's a different axis (mode = grid/objects; this = guides).
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.snap.divider2',
+        parentId: 'svge.builtin.view.snap',
+        slot: MENU_SLOT.VIEW,
+        label: '',
+        order: 55,
+        divider: true,
+        run() {
+          /* divider */
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.snap.guides',
+        parentId: 'svge.builtin.view.snap',
+        slot: MENU_SLOT.VIEW,
+        label: 'Snap to Guides',
+        icon: 'straighten',
+        order: 60,
+        run(runCtx) {
+          const snap = fromCtx(SnapService, runCtx);
+          snap.toggleSnapToGuides();
+          if (snap.snapToGuides() && !snap.enabled()) snap.setEnabled(true);
+        },
+      }),
+    );
 
     // ── View ▸ Guides submenu (PRO-GAP G2-G4) ───────────────────────
     //

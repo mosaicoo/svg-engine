@@ -6,6 +6,60 @@
 
 ---
 
+## 2026-06-16 — D-126 — Snap to Guides (aditivo, toggle independente) ✅
+
+Retomada do tema SNAP. O usuário pediu: **"implementar o SNAP para GUIDES
+(Adição) e não deve remover os demais"**. Diferente do D-125 (que tentou
+transformar Grid/Objects/Both em três toggles combináveis e **foi revertido**
+por ficar contra-intuitivo no menu — `MenuContribution` não tem campo de estado
+visual on/off, e Grid/Objects nascem ligados, então clicar "Snap to Grid"
+silenciosamente _desligava_), aqui o **modo radial Grid only / Objects only /
+Both fica intacto** e o snap a guias entra como uma **camada independente
+opt-in**, que nasce **desligada** — clicar liga (gesto intuitivo) e ela
+**compõe** com qualquer modo ativo.
+
+- **Resolver puro** ([snap-resolver.ts](../projects/svg-engine/edit/src/lib/snap/snap-resolver.ts)):
+  `SnapSource` ganhou `'guide'`; nova função `guidesToSnapTargets(guides)` mapeia
+  guia horizontal (`'h'`, linha de Y constante) → alvo no eixo `y` e vertical
+  (`'v'`, X constante) → eixo `x`, descartando posições não-finitas. **Novo export
+  público** → snapshot regenerado (`+guidesToSnapTargets`).
+- **SnapService** ([snap.service.ts](../projects/svg-engine/edit/src/lib/snap/snap.service.ts)):
+  sinal `_snapToGuides` (default `false`) + `snapToGuides` readonly +
+  `setSnapToGuides`/`toggleSnapToGuides`. `resolveForMove` ganhou 4º parâmetro
+  opcional `guideLines` e, quando o toggle está ligado, injeta os alvos de guia
+  **antes da grade** (objetos e guias vencem o empate sobre a grade — mesma
+  convenção do PRO-GAP-FIX B2). `mode`/`setMode`/grid/objects **inalterados**.
+- **Menu** ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)):
+  mantidos `Grid only`/`Objects only`/`Both`; adicionado divisor + item
+  **Snap to Guides** (ícone `straighten`) que faz `toggleSnapToGuides()` e
+  liga o master `setEnabled(true)` se necessário. O placeholder de roadmap
+  `svge.roadmap.view.snap.guides` foi **promovido** (removido de
+  [builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts));
+  `Snap to Pixels` segue como placeholder (não solicitado).
+- **Wire** ([shell-interactions.directive.ts](../projects/svg-engine/edit/src/lib/tool/shell-interactions.directive.ts)):
+  a chamada de `resolveForMove` passa `this.workspace.guides()` como 4º arg.
+- **Status bar** ([status-bar.component.ts](../projects/svg-engine/ui/src/lib/status-bar/status-bar.component.ts)):
+  novo item "Snap to Guides" no dropdown (`active-item` quando ligado); o pill
+  mostra `<modo>+guides` quando ativo.
+
+Specs novos (2 no resolver, 4 no service, incluindo composição Both+guides e o
+caso "ignora guias com toggle desligado" isolando o modo `objects`). Build +
+lint + suíte (**2629**) verdes; playground compila; snapshot regenerado.
+
+---
+
+## 2026-06-16 — D-125 (revertido) — Snap exclusivo → 3 toggles combináveis ❌
+
+Tentativa de trocar o enum exclusivo `Grid only / Objects only / Both` por três
+toggles combináveis (Grid · Objects · Guides). **Revertido** (`git revert`) a
+pedido do usuário: os itens viraram toggles mas o sistema de menu **não exibe
+estado on/off**, e como Grid+Objects nascem ligados, clicar "Snap to Grid"
+_desligava_ o que parecia que deveria ligar — além de remover o "Both". A árvore
+voltou idêntica ao estado pré-D-125. A funcionalidade de snap a guias foi
+re-entregue de forma **aditiva** no D-126 (acima).
+
+---
+
 ## 2026-06-16 — D-124 — Remover placeholder `View ▸ Show ▸ Selection Bounds` ✅
 
 Ao perguntar sobre o backing do `View ▸ Show ▸ Selection Bounds`, o usuário

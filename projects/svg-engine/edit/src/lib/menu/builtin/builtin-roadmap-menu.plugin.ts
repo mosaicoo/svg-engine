@@ -372,16 +372,11 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // → With these three gone, `View ▸ Show ▸` has no roadmap children left;
     //   Grid / Rulers / Timeline (the real toggles) are all that remain.
     // Snap ▶ extra targets (Enabled/Grid/Objects/Both are real).
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.view.snap.guides',
-        parentId: 'svge.builtin.view.snap',
-        slot: MENU_SLOT.VIEW,
-        label: 'Guides',
-        icon: 'straighten',
-        order: 60,
-      }),
-    );
+    // **D-126 — SHIPPED.** "Snap to Guides" is now a real, additive toggle
+    // registered by `builtinMenuContributionsPlugin`
+    // (`svge.builtin.view.snap.guides`, order 60) — it layers on top of the
+    // Grid/Objects/Both mode without changing it. Roadmap placeholder removed.
+    // ("Pixels" stays a roadmap placeholder — not requested.)
     track(
       roadmapLeaf({
         id: 'svge.roadmap.view.snap.pixels',

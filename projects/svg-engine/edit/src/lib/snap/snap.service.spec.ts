@@ -194,3 +194,55 @@ describe('SnapService — resolveForMove', () => {
     expect(r2.delta.x).toBe(-3);
   });
 });
+
+describe('SnapService — snap to guides (D-126, additive)', () => {
+  it('defaults off; toggle/set flip it independently of mode', () => {
+    const svc = setup();
+    expect(svc.snapToGuides()).toBe(false);
+    expect(svc.mode()).toBe('both'); // mode untouched by the guides toggle
+    svc.toggleSnapToGuides();
+    expect(svc.snapToGuides()).toBe(true);
+    expect(svc.mode()).toBe('both');
+    svc.setSnapToGuides(false);
+    expect(svc.snapToGuides()).toBe(false);
+  });
+
+  it('snaps to a vertical guide on the x axis when the toggle is on', () => {
+    const svc = setup();
+    svc.setSnapToGuides(true);
+    svc.setThresholdPx(5);
+    // vertical guide at x=10; moving low x=12 (nearest feature) → delta -2.
+    const r = svc.resolveForMove(bbox(12, 0, 4, 4), [], 1, [{ axis: 'v', position: 10 }]);
+    expect(r.delta.x).toBe(-2);
+    expect(r.guides.some((g) => g.axis === 'x' && g.value === 10 && g.source === 'guide')).toBe(
+      true,
+    );
+  });
+
+  it('ignores guides when the toggle is off (default)', () => {
+    const svc = setup();
+    // Isolate guides: 'objects' mode + empty staticRects removes the grid
+    // lattice and any object targets, so the supplied guide is the ONLY
+    // candidate. With the guides toggle off (default), it must be ignored.
+    svc.setMode('objects');
+    svc.setThresholdPx(5);
+    expect(svc.snapToGuides()).toBe(false);
+    const r = svc.resolveForMove(bbox(12, 0, 4, 4), [], 1, [{ axis: 'v', position: 10 }]);
+    expect(r.delta).toEqual({ x: 0, y: 0 });
+    expect(r.guides).toEqual([]);
+  });
+
+  it('composes with the grid/objects mode (Both + guides)', () => {
+    const svc = setup();
+    svc.setMode('both');
+    svc.setSnapToGuides(true);
+    svc.setThresholdPx(5);
+    // No grid/object near x=43 within 5 (grid lines 40/50 → dist 3 to 40);
+    // a vertical guide at x=42 is closer (dist to low feature 43 = 1) and,
+    // being emitted before grid, wins the tie-break ordering anyway.
+    const r = svc.resolveForMove(bbox(43, 0, 2, 2), [], 1, [{ axis: 'v', position: 42 }]);
+    expect(r.delta.x).toBe(-1);
+    expect(r.guides[0]?.source).toBe('guide');
+    expect(r.guides[0]?.value).toBe(42);
+  });
+});

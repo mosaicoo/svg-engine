@@ -2,13 +2,20 @@ import { computed, Injectable, signal } from '@angular/core';
 import type { BoundingBox, NodeId, Point } from 'svg-engine/core';
 import {
   gridTargetsNear,
+  guidesToSnapTargets,
   rectsToSnapTargets,
   resolveSnap,
   type SnapGuide,
   type SnapTarget,
 } from './snap-resolver';
 
-/** Where snap candidates are sourced from. */
+/**
+ * Where the GRID/OBJECT snap candidates come from. **D-126**: snapping to
+ * **guides** is an INDEPENDENT, additive toggle ({@link SnapService.snapToGuides})
+ * that layers on top of whatever mode is active — it is intentionally NOT a
+ * value of this enum, so the existing Grid / Objects / Both selection is
+ * untouched.
+ */
 export type SnapMode = 'grid' | 'objects' | 'both';
 
 /** Default grid spacing (doc units). */
@@ -41,6 +48,10 @@ export class SnapService {
 
   private readonly _enabled = signal(true);
   private readonly _mode = signal<SnapMode>('both');
+  // **D-126** — independent "snap to user-drawn guides" toggle, additive on
+  // top of the grid/object `mode`. Default off (opt-in), so it never changes
+  // existing behaviour until the user turns it on.
+  private readonly _snapToGuides = signal(false);
   private readonly _gridSize = signal(DEFAULT_GRID_SIZE);
   // Where the grid lattice is anchored (doc units) — the page's top-left.
   // Kept in sync with the rendered grid so "snap to grid" lands exactly on
@@ -50,6 +61,8 @@ export class SnapService {
 
   readonly enabled = this._enabled.asReadonly();
   readonly mode = this._mode.asReadonly();
+  /** **D-126** — whether snapping to user-drawn guides is on (additive to `mode`). */
+  readonly snapToGuides = this._snapToGuides.asReadonly();
   readonly gridSize = this._gridSize.asReadonly();
   readonly gridOrigin = this._gridOrigin.asReadonly();
   readonly thresholdPx = this._thresholdPx.asReadonly();
@@ -67,6 +80,16 @@ export class SnapService {
 
   setMode(mode: SnapMode): void {
     this._mode.set(mode);
+  }
+
+  /** **D-126** — set the (additive) snap-to-guides toggle. */
+  setSnapToGuides(on: boolean): void {
+    this._snapToGuides.set(on);
+  }
+
+  /** **D-126** — flip the snap-to-guides toggle. */
+  toggleSnapToGuides(): void {
+    this._snapToGuides.update((v) => !v);
   }
 
   setGridSize(size: number): void {
@@ -101,31 +124,38 @@ export class SnapService {
    *   would let the moving rect snap to itself.
    * @param zoom current `viewport.zoom()` so the pixel threshold can be
    *   converted to doc units. Defaults to `1` (useful for tests).
+   * @param guideLines **D-126** — the workspace guide lines (typically
+   *   `WorkspaceService.guides()`); used only when {@link snapToGuides} is on.
+   *   Passed by the consumer (same decoupling contract as `staticRects`) so the
+   *   service stays independent of `WorkspaceService`. Additive: it composes
+   *   with whatever `mode` (Grid / Objects / Both) is active.
    */
   resolveForMove(
     moving: BoundingBox,
     staticRects: readonly { readonly id: NodeId; readonly bbox: BoundingBox }[],
     zoom = 1,
+    guideLines: readonly { readonly axis: 'h' | 'v'; readonly position: number }[] = [],
   ): { readonly delta: Point; readonly guides: readonly SnapGuide[] } {
     if (!this._enabled()) return EMPTY_RESULT;
     const mode = this._mode();
     const thresholdDoc = this._thresholdPx() / Math.max(zoom, 0.0001);
 
-    // **PRO-GAP-FIX B2** — in 'both' mode, push OBJECT targets BEFORE
-    // grid targets so they win in ties. Rationale: grids are dense
-    // (every `gridSize` units, default 10), so a grid line is almost
-    // always within snap range of any moving rect. Without the
-    // ordering swap, grid pre-empts every potential object snap and
-    // 'both' degenerates into 'grid only' from the user's perspective.
-    // Illustrator / Affinity follow the same "objects > grid" rule —
-    // object alignment is semantically richer (aligning to a sibling
-    // shape vs an abstract lattice), so the visual feedback should
-    // surface it when both qualify. `resolveSnap` keeps strictly-less
-    // semantics for tie-breaking, so emitting objects first means
-    // they win when distances are equal.
+    // **PRO-GAP-FIX B2 / D-126** — push OBJECT and GUIDE targets BEFORE grid
+    // targets so they win in ties. Grids are dense (every `gridSize` units,
+    // default 10), so a grid line is almost always within snap range; without
+    // the ordering, grid would pre-empt every object/guide snap. Illustrator /
+    // Affinity follow the same "objects/guides > grid" rule — aligning to a
+    // sibling shape or an explicit user guide is semantically richer than an
+    // abstract lattice. `resolveSnap` uses strictly-less tie-breaking, so
+    // emitting these first means they win when distances are equal.
     const targets: SnapTarget[] = [];
     if (mode === 'objects' || mode === 'both') {
       targets.push(...rectsToSnapTargets(staticRects));
+    }
+    // **D-126** — guides are additive: snapped to whenever the toggle is on,
+    // independent of the grid/object mode.
+    if (this._snapToGuides()) {
+      targets.push(...guidesToSnapTargets(guideLines));
     }
     if (mode === 'grid' || mode === 'both') {
       const g = this._gridSize();
