@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-06-16 — D-127 — Tooltip em "Snap to Guides" + remover placeholder "Pixels" ✅
+
+Follow-up de UX do D-126. O usuário perguntou se `View ▸ Snap ▸ Snap to Guides`
+era **"Grid + Guides"** antes de renomeá-lo. **Resposta (confirmada no código):
+não** — `SnapService.resolveForMove` ([snap.service.ts](../projects/svg-engine/edit/src/lib/snap/snap.service.ts))
+mantém o modo `grid | objects | both` separado, e `snapToGuides` é um toggle
+**aditivo** que só acrescenta as guias por cima do modo ativo (no default `both`
+o efeito real é "Grid + Objects + Guides"). Renomear para "Grid + Guides" seria
+impreciso, então o usuário optou por **manter o nome "Snap to Guides" + adicionar
+um tooltip** explicando o objetivo, e **remover o submenu "Pixels"** (não usado).
+
+- **Tooltip no menu** ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)):
+  o item `svge.builtin.view.snap.guides` ganhou `tooltip` (campo já existente em
+  `MenuContribution`, renderizado pelo `<svge-menu-bar>` como `[attr.title]`):
+  _"Also snap to your guide lines. Independent toggle layered on top of the
+  active Grid / Objects / Both mode — it adds guides, it does not replace the
+  mode."_
+- **Tooltip no status bar** ([status-bar.component.ts](../projects/svg-engine/ui/src/lib/status-bar/status-bar.component.ts)):
+  o `<button mat-menu-item>` "Snap to Guides" do dropdown ganhou `matTooltip`
+  (+ `matTooltipPosition="left"`) com a mesma explicação.
+- **Remoção do "Pixels"** ([builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts)):
+  o `roadmapLeaf` `svge.roadmap.view.snap.pixels` foi removido (substituído por
+  comentário de remoção). Era só placeholder de roadmap (sem `run`), sem código
+  atrelado e sem plano de implementação. Com isso o `View ▸ Snap ▸` não tem mais
+  nenhum filho de roadmap — só itens reais (Enabled / Grid only / Objects only /
+  Both / Snap to Guides).
+
+Mudança UI-only: nenhum export público alterado (`tooltip` já existia; remover um
+leaf não muda a superfície) → snapshot inalterado, sem regen. Nenhum spec
+referenciava o id removido; a guarda anti-órfão do D-085 segue passando. Build +
+lint + suíte (**2629**) verdes; playground compila.
+
+---
+
 ## 2026-06-16 — D-126 — Snap to Guides (aditivo, toggle independente) ✅
 
 Retomada do tema SNAP. O usuário pediu: **"implementar o SNAP para GUIDES

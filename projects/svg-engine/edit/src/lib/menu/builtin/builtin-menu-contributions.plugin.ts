@@ -1184,6 +1184,12 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         slot: MENU_SLOT.VIEW,
         label: 'Snap to Guides',
         icon: 'straighten',
+        // **D-126** — explain the additive nature (it confused at first: this is
+        // NOT a "Grid + Guides" preset). Rendered as a native `title=` by
+        // `<svge-menu-bar>` ([attr.title]="item.tooltip").
+        tooltip:
+          'Also snap to your guide lines. Independent toggle layered on top of the ' +
+          'active Grid / Objects / Both mode — it adds guides, it does not replace the mode.',
         order: 60,
         run(runCtx) {
           const snap = fromCtx(SnapService, runCtx);

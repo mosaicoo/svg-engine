@@ -211,6 +211,8 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
           [class.active-item]="snapEnabled() && snapToGuides()"
           (click)="toggleSnapGuides()"
           [attr.aria-checked]="snapEnabled() && snapToGuides()"
+          matTooltip="Also snap to your guide lines. Independent toggle layered on top of the active mode — it adds guides, it does not replace Grid / Objects / Both."
+          matTooltipPosition="left"
         >
           <mat-icon>straighten</mat-icon>
           <span>Snap to Guides</span>

@@ -376,17 +376,12 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // registered by `builtinMenuContributionsPlugin`
     // (`svge.builtin.view.snap.guides`, order 60) — it layers on top of the
     // Grid/Objects/Both mode without changing it. Roadmap placeholder removed.
-    // ("Pixels" stays a roadmap placeholder — not requested.)
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.view.snap.pixels',
-        parentId: 'svge.builtin.view.snap',
-        slot: MENU_SLOT.VIEW,
-        label: 'Pixels',
-        icon: 'grid_4x4',
-        order: 70,
-      }),
-    );
+    // **D-127 — REMOVED.** "Pixels" (snap to integer pixel coordinates) dropped
+    // per the user: pixel snapping would fight the grid/object/guide snap rather
+    // than help, and there is no plan to implement it — so the roadmap
+    // placeholder was removed rather than left dangling. → `View ▸ Snap ▸` now
+    // has no roadmap children left; Enabled / Grid only / Objects only / Both /
+    // Snap to Guides (all real) are everything in the submenu.
     // Guides ▶ — Add H/Add V/Clear are real.
     // **D-121 / D-122 — SHIPPED.** "Lock Guides" is now real, split into two
     // state-aware items by `builtinMenuContributionsPlugin`:
