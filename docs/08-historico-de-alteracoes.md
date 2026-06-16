@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-06-15 — D-110 — Rename "Rasterize Smart Object" → "Release Smart Object" ✅
+
+Correção de nomenclatura: o antigo `Rasterize Smart Object` **nunca rasterizou**
+— ele _desembrulha_ o Smart Object, devolvendo os filhos vetoriais editáveis ao
+pai (descartando a transform do wrapper). O nome "Rasterize" foi emprestado do
+Photoshop e ficou enganoso, ainda mais depois do `Object ▸ Rasterize` real
+(D-109). Renomeado para **"Release"** (verbo do Illustrator p/ desfazer
+contêineres não-destrutivos: _Release Clipping Mask_, _Release Compound Path_).
+
+Rename **completo + alias** (escolha do usuário p/ não quebrar consumidores):
+
+- **Core** ([smart-object.commands.ts](../projects/svg-engine/core/src/lib/commands/smart-object.commands.ts)):
+  classe `RasterizeSmartObjectCommand` → **`ReleaseSmartObjectCommand`**
+  (`label` "Release Smart Object"). Em
+  [commands/index.ts](../projects/svg-engine/core/src/lib/commands/index.ts) o
+  nome antigo permanece como **alias `@deprecated`**
+  (`export { ReleaseSmartObjectCommand as RasterizeSmartObjectCommand }`) →
+  imports externos antigos seguem funcionando.
+- **Serviço** (`SmartObjectActionsService`): método `rasterize()` →
+  **`release()`** + método `rasterize()` `@deprecated` que delega (shim).
+- **Wiring**: menu (`Object ▸ Release Smart Object`, id
+  `…smart-object.release`) e Inspector (botão "Release", método
+  `releaseSmartObject`) atualizados — ambos chamam `release()`.
+
+Importante: o método/comando **não** era exclusivo do submenu — o Inspector
+(D-076) compartilha a mesma ação; ambos foram atualizados. Specs renomeados
+(core command + service). Build + lint + suíte (**2561**) verdes; snapshot de
+API regenerado (+`ReleaseSmartObjectCommand`; `RasterizeSmartObjectCommand`
+mantido via alias).
+
+---
+
 ## 2026-06-15 — D-109 — Object ▸ Rasterize: converter elemento selecionado em `<image>` ✅
 
 Nova funcionalidade pedida pelo usuário: rasterizar qualquer elemento vetorial

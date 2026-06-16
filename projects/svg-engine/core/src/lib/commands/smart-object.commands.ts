@@ -12,12 +12,14 @@ import { type Command, type CommandContext, type CommandResult, fail, ok } from 
  *
  * 1. **MakeSmartObjectCommand** — wrap 1+ selected nodes in a
  *    smart-object group. Replaces the originals with the wrapper at
- *    the position of the first node. Inverse: Rasterize.
+ *    the position of the first node. Inverse: Release.
  *
- * 2. **RasterizeSmartObjectCommand** — drop the smart-object flag
- *    AND unwrap the children into the parent (matches Photoshop's
- *    "Rasterize Smart Object" which dissolves the container). Inverse:
- *    Make again (manual — user reselects + Make).
+ * 2. **ReleaseSmartObjectCommand** (D-110, was `RasterizeSmartObjectCommand`)
+ *    — drop the smart-object flag AND unwrap the children back into the
+ *    parent: the editable vector contents are *released* (the inverse of
+ *    Make). **It does NOT rasterize** — vectors are preserved; the old
+ *    "Rasterize" name was a Photoshop borrow and now lives on as a
+ *    deprecated alias. Inverse: Make again (manual — user reselects + Make).
  *
  * 3. **EditSmartObjectContentsCommand** — replace the children
  *    array with new content (parsed from edited SVG source or
@@ -32,7 +34,7 @@ import { type Command, type CommandContext, type CommandResult, fail, ok } from 
  * `setDocument(snap)` — preserves reference equality on the unaffected
  * subtrees (structural sharing keeps memory cost cheap).
  *
- * **Why all four (not just Make + Rasterize)**: professional editors
+ * **Why all four (not just Make + Release)**: professional editors
  * separate "Edit Contents" from "Replace Contents" because the
  * history label tells the user where the change came from. Squashing
  * both into one would lose that intent.
@@ -152,22 +154,22 @@ export class MakeSmartObjectCommand implements Command {
 }
 
 /**
- * **Rasterize Smart Object**: drop the wrapper, hoist its children
- * back into the parent at the wrapper's slot. Inverse of Make.
+ * **Release Smart Object** (D-110, was *Rasterize Smart Object*): drop the
+ * wrapper, hoist its children back into the parent at the wrapper's slot.
+ * Inverse of Make.
  *
- * Same name as Photoshop ("Rasterize Smart Object" / "Convert to
- * Layers" depending on context) — the action is structurally
- * equivalent to `UngroupCommand` PLUS clearing the smart-object
- * flag, but bundled into one labeled history entry. Affinity calls
- * it "Embedded Document ▸ Edit Document" + "Release" — same intent.
+ * The action is structurally equivalent to `UngroupCommand` PLUS clearing
+ * the smart-object flag, but bundled into one labeled history entry. It
+ * **releases the editable vector contents** — it does NOT produce pixels
+ * (the old "Rasterize" name borrowed Photoshop's verb but the operation is
+ * lossless). Illustrator/Affinity call this kind of un-wrap "Release".
  *
- * No-op when target isn't actually a smart object (returns ok
- * without dispatching — keeps menus from accidentally rasterizing
- * a regular group).
+ * No-op when target isn't actually a smart object (returns ok without
+ * dispatching — keeps menus from accidentally releasing a regular group).
  */
-export class RasterizeSmartObjectCommand implements Command {
+export class ReleaseSmartObjectCommand implements Command {
   readonly id: string = generateNodeId();
-  readonly label = 'Rasterize Smart Object';
+  readonly label = 'Release Smart Object';
 
   private previousRootSnapshot: SvgNode | null = null;
 
@@ -187,8 +189,8 @@ export class RasterizeSmartObjectCommand implements Command {
 
     // Remove the wrapper, then insert each child at the wrapper's
     // slot in order. Children keep their own transform/style; the
-    // wrapper's transform is DISCARDED (intentional — rasterize is
-    // "bake the wrapper away"). If the user wanted to preserve the
+    // wrapper's transform is DISCARDED (intentional — releasing drops
+    // the wrapper entirely). If the user wanted to preserve the
     // wrapper transform, they'd use UngroupCommand instead.
     let nextRoot = removeNode(doc.root, this.nodeId);
     for (let i = 0; i < node.children.length; i++) {

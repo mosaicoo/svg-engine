@@ -2120,8 +2120,8 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     //   wrapped behind a confirm prompt).
     // - Replace Contents — file picker for SVG; replaces children
     //   preserving wrapper transform/style/name.
-    // - Rasterize Smart Object — unwraps, dropping the flag and
-    //   hoisting children. Inverse of Convert.
+    // - Release Smart Object (D-110, was "Rasterize") — unwraps, dropping
+    //   the flag and hoisting children. Inverse of Convert.
     //
     // Disabled signals gate each action to its applicable target.
     const cantConvertToSmartObjectFactory = (injector: Injector): Signal<boolean> => {
@@ -2222,10 +2222,10 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     );
     ctx.track(
       reg.register({
-        id: 'svge.builtin.object.smart-object.rasterize',
+        id: 'svge.builtin.object.smart-object.release',
         parentId: 'svge.builtin.object.smart-object',
         slot: MENU_SLOT.OBJECT,
-        label: 'Rasterize Smart Object',
+        label: 'Release Smart Object',
         icon: 'view_module',
         order: 40,
         disabled: notOnSmartObjectFactory,
@@ -2233,11 +2233,11 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
           const sel = fromCtx(SelectionService, runCtx);
           const id = sel.focusId();
           if (id === null) return;
-          // **D-076 refactor**: same service powers Inspector Rasterize
+          // **D-076 refactor**: same service powers the Inspector's Release
           // button. Kept as thin pass-through because the action is a
           // single dispatch — but funneling through the service keeps
           // the call surface uniform across plugin and panel.
-          fromCtx(SmartObjectActionsService, runCtx).rasterize(id);
+          fromCtx(SmartObjectActionsService, runCtx).release(id);
         },
       }),
     );

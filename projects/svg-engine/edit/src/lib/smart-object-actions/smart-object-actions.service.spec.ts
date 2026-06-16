@@ -20,9 +20,9 @@ import { SmartObjectActionsService } from './smart-object-actions.service';
  * `<input type="file">` (no headless way to simulate the OS file
  * dialog), so it's intentionally NOT covered here — the menu plugin
  * Manual test still exercises it. What we CAN unit-test cleanly is
- * `rasterize()`: a pure command dispatch with deterministic outcome
- * + undo semantics. The Inspector wiring delegates to the same call,
- * so coverage here proves coverage there.
+ * `release()` (D-110, was `rasterize`): a pure command dispatch with
+ * deterministic outcome + undo semantics. The Inspector wiring delegates to
+ * the same call, so coverage here proves coverage there.
  */
 
 function setup(): {
@@ -54,7 +54,7 @@ function seedWithSmartObject(state: EditorStateService): {
 }
 
 describe('D-076 — SmartObjectActionsService', () => {
-  describe('rasterize', () => {
+  describe('release', () => {
     it('removes the wrapper and hoists children to its parent slot', () => {
       const { state, actions } = setup();
       const { smartObjectId, childId } = seedWithSmartObject(state);
@@ -62,7 +62,7 @@ describe('D-076 — SmartObjectActionsService', () => {
       expect(state.document().root.children.length).toBe(1);
       expect(state.document().root.children[0]!.id).toBe(smartObjectId);
 
-      actions.rasterize(smartObjectId);
+      actions.release(smartObjectId);
 
       const root = state.document().root;
       expect(root.children.length).toBe(1);
@@ -70,12 +70,12 @@ describe('D-076 — SmartObjectActionsService', () => {
       expect(root.children[0]!.id).toBe(childId);
     });
 
-    it('is undoable via CommandBus.undo (RasterizeSmartObjectCommand bundle)', () => {
+    it('is undoable via CommandBus.undo (ReleaseSmartObjectCommand bundle)', () => {
       const { state, bus, actions } = setup();
       const { smartObjectId } = seedWithSmartObject(state);
       const beforeRoot = state.document().root;
 
-      actions.rasterize(smartObjectId);
+      actions.release(smartObjectId);
       expect(state.document().root).not.toBe(beforeRoot);
 
       bus.undo();
@@ -98,9 +98,9 @@ describe('D-076 — SmartObjectActionsService', () => {
       });
       const before = state.document().root;
 
-      actions.rasterize(plain.id);
+      actions.release(plain.id);
 
-      // Tree unchanged — RasterizeSmartObjectCommand returns ok without
+      // Tree unchanged — ReleaseSmartObjectCommand returns ok without
       // mutating when target isn't a smart object.
       expect(state.document().root).toBe(before);
     });
@@ -110,7 +110,7 @@ describe('D-076 — SmartObjectActionsService', () => {
       seedWithSmartObject(state);
       const before = state.document().root;
 
-      actions.rasterize(generateNodeId());
+      actions.release(generateNodeId());
 
       expect(state.document().root).toBe(before);
     });

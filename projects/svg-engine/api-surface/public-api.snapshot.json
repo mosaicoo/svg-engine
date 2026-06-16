@@ -197,6 +197,7 @@
     "ReleaseClipMaskCommand",
     "ReleaseCompoundPathCommand",
     "ReleaseLiveBooleanCommand",
+    "ReleaseSmartObjectCommand",
     "RemoveAnchorCommand",
     "removeCustomAttr",
     "RemoveCustomAttrCommand",

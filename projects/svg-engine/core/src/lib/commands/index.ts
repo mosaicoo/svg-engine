@@ -118,9 +118,17 @@ export { RestoreSnapshotCommand } from './restore-snapshot.command';
 export {
   EditSmartObjectContentsCommand,
   MakeSmartObjectCommand,
-  RasterizeSmartObjectCommand,
+  ReleaseSmartObjectCommand,
   ReplaceSmartObjectContentsCommand,
 } from './smart-object.commands';
+/**
+ * @deprecated D-110 — renamed to {@link ReleaseSmartObjectCommand}. The
+ * command never rasterized anything: it *releases* a Smart Object's editable
+ * vector contents back to the parent (the old name borrowed Photoshop's
+ * "Rasterize Smart Object" verb). This alias keeps existing imports working
+ * and will be removed in a future major.
+ */
+export { ReleaseSmartObjectCommand as RasterizeSmartObjectCommand } from './smart-object.commands';
 // D-089 — Custom `data-*` attributes: undoable CRUD so plugins/scripts can
 // create/update/remove a custom property via a command (read is pure).
 export {

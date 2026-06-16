@@ -512,7 +512,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
           D-076 — Smart Object contextual tab. Visible only when the
           focused group carries metadata.customData.svgeKind ===
           smart-object. Surfaces the same 3 actions (Edit / Replace /
-          Rasterize) from the menu submenu plus a quick name +
+          Release) from the menu submenu plus a quick name +
           child-count read-out so the user gets a Photoshop-style
           asset-properties panel without leaving the Inspector.
         -->
@@ -760,11 +760,11 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
                   type="button"
                   class="so-action-btn so-action-danger"
                   [disabled]="isLocked()"
-                  (click)="rasterizeSmartObject(node)"
-                  title="Unwrap the smart object (drops the flag, hoists children)"
+                  (click)="releaseSmartObject(node)"
+                  title="Release the smart object (drops the wrapper, returns its editable contents to the parent)"
                 >
                   <mat-icon aria-hidden="true">view_module</mat-icon>
-                  Rasterize
+                  Release
                 </button>
               </div>
             </section>
@@ -2527,8 +2527,8 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
       height: 16px;
     }
     .so-action-danger {
-      /* Subtle warning tint — rasterize is destructive (drops the
-         wrapper irreversibly via undo only). */
+      /* Subtle warning tint — release dissolves the smart-object wrapper
+         (reversible via undo only). */
       color: var(--mat-sys-error, #b3261e);
     }
     /* D-079 / PAGES-D — Page section. Mirrors so-summary / so-actions
@@ -2616,7 +2616,7 @@ export class SvgeInspector {
   private readonly layers = inject(LayersService);
   private readonly transformService = inject(TransformService);
   // **D-076** — Smart Object action wiring. Service powers Replace +
-  // Rasterize (shared with the menu plugin); dialog service opens the
+  // Release (shared with the menu plugin); dialog service opens the
   // Material textarea editor for Edit Contents. The host Injector is
   // forwarded to the dialog so it reads the active editor scope (D-042).
   private readonly smartObjectActions = inject(SmartObjectActionsService);
@@ -2712,12 +2712,13 @@ export class SvgeInspector {
   }
 
   /**
-   * Delegate to {@link SmartObjectActionsService.rasterize} — drops
-   * the wrapper, hoists children. Single undoable history entry.
+   * **D-110** (was `rasterizeSmartObject`) — delegate to
+   * {@link SmartObjectActionsService.release}: drops the wrapper, returns its
+   * editable contents to the parent. Single undoable history entry.
    */
-  protected rasterizeSmartObject(node: SvgNode): void {
+  protected releaseSmartObject(node: SvgNode): void {
     if (!isSmartObject(node)) return;
-    this.smartObjectActions.rasterize(node.id);
+    this.smartObjectActions.release(node.id);
   }
 
   // ── D-079 / PAGES-D — Page section helpers ───────────────────────

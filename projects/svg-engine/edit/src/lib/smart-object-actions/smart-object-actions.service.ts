@@ -3,7 +3,7 @@ import { inject, Injectable } from '@angular/core';
 import {
   CommandBus,
   type NodeId,
-  RasterizeSmartObjectCommand,
+  ReleaseSmartObjectCommand,
   ReplaceSmartObjectContentsCommand,
   type SvgNode,
 } from 'svg-engine/core';
@@ -96,16 +96,21 @@ export class SmartObjectActionsService {
   }
 
   /**
-   * Dispatch `RasterizeSmartObjectCommand` — drops the wrapper and
-   * hoists its children back into the parent at the wrapper's slot.
-   * Inverse of Convert to Smart Object. Single undoable history
-   * entry (the command bundles the unwrap + flag-clear).
+   * **D-110** (was `rasterize`) — dispatch `ReleaseSmartObjectCommand`: drops
+   * the wrapper and hoists its children (editable vectors) back into the
+   * parent at the wrapper's slot. Inverse of Convert to Smart Object. Single
+   * undoable history entry (the command bundles the unwrap + flag-clear).
    *
-   * Idempotent: dispatching on a non-smart-object target is a no-op
-   * at the command level (returns ok without mutating the tree).
+   * Idempotent: dispatching on a non-smart-object target is a no-op at the
+   * command level (returns ok without mutating the tree).
    */
+  release(smartObjectId: NodeId): void {
+    this.bus.dispatch(new ReleaseSmartObjectCommand(smartObjectId));
+  }
+
+  /** @deprecated D-110 — renamed to {@link release} (it never rasterized). */
   rasterize(smartObjectId: NodeId): void {
-    this.bus.dispatch(new RasterizeSmartObjectCommand(smartObjectId));
+    this.release(smartObjectId);
   }
 
   /** Cross-env alert — tolerates non-browser contexts. */

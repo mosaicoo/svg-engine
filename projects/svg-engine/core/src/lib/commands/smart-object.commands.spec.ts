@@ -13,7 +13,7 @@ import { findNodeById } from '../tree/tree-ops';
 import {
   EditSmartObjectContentsCommand,
   MakeSmartObjectCommand,
-  RasterizeSmartObjectCommand,
+  ReleaseSmartObjectCommand,
   ReplaceSmartObjectContentsCommand,
 } from './smart-object.commands';
 
@@ -195,7 +195,7 @@ describe('D-074 — Smart Object commands', () => {
     });
   });
 
-  describe('RasterizeSmartObjectCommand', () => {
+  describe('ReleaseSmartObjectCommand', () => {
     it('drops the wrapper and hoists children at its slot', () => {
       const { state, bus } = setup();
       const inner = createRect({ x: 0, y: 0, width: 1, height: 1 });
@@ -203,7 +203,7 @@ describe('D-074 — Smart Object commands', () => {
       const before = createRect({ x: 10, y: 0, width: 1, height: 1 });
       const after = createRect({ x: 20, y: 0, width: 1, height: 1 });
       seed(state, [before, wrapper, after]);
-      bus.dispatch(new RasterizeSmartObjectCommand(wrapper.id));
+      bus.dispatch(new ReleaseSmartObjectCommand(wrapper.id));
       const root = state.document().root;
       // before, inner, after
       expect(root.children.map((n) => n.id)).toEqual([before.id, inner.id, after.id]);
@@ -216,7 +216,7 @@ describe('D-074 — Smart Object commands', () => {
       const plain = createGroup([createRect({ x: 0, y: 0, width: 1, height: 1 })]);
       seed(state, [plain]);
       const before = state.document().root;
-      bus.dispatch(new RasterizeSmartObjectCommand(plain.id));
+      bus.dispatch(new ReleaseSmartObjectCommand(plain.id));
       // Tree unchanged
       expect(state.document().root).toBe(before);
     });
@@ -227,7 +227,7 @@ describe('D-074 — Smart Object commands', () => {
       const wrapper = withSmartObjectFlag(createGroup([inner]));
       seed(state, [wrapper]);
       const before = state.document().root;
-      bus.dispatch(new RasterizeSmartObjectCommand(wrapper.id));
+      bus.dispatch(new ReleaseSmartObjectCommand(wrapper.id));
       expect(findNodeById(state.document().root, wrapper.id)).toBeNull();
       bus.undo();
       expect(state.document().root).toBe(before);
