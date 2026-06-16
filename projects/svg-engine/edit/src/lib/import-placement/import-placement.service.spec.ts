@@ -8,6 +8,7 @@ import {
   fitImportTransform,
   ImportPlacementService,
   type PendingImport,
+  placementBounds,
   rectFromPoints,
   stretchImportTransform,
 } from './import-placement.service';
@@ -21,6 +22,43 @@ function makePending(defs?: string): PendingImport {
     defs,
   };
 }
+
+describe('placementBounds (D-113)', () => {
+  it('returns the CONTENT bbox, not the (oversized) viewBox', () => {
+    // Mirrors the reported file: a ~249×432 graphic parked in the center of a
+    // 1440×810 artboard. Placement must fit the art, not the empty artboard.
+    const viewBox: BoundingBox = { x: 0, y: 0, width: 1440, height: 810 };
+    const art = createGroup([
+      createGroup([createRect({ x: 595, y: 188, width: 249, height: 432 })]),
+    ]);
+    const b = placementBounds(art, viewBox);
+    expect(b.x).toBeCloseTo(595, 4);
+    expect(b.y).toBeCloseTo(188, 4);
+    expect(b.width).toBeCloseTo(249, 4);
+    expect(b.height).toBeCloseTo(432, 4);
+  });
+
+  it('falls back to the viewBox when the art has no measurable geometry', () => {
+    const viewBox: BoundingBox = { x: 0, y: 0, width: 800, height: 600 };
+    // Empty group → degenerate (zero-area) content box → use the viewBox.
+    expect(placementBounds(createGroup([]), viewBox)).toEqual(viewBox);
+  });
+
+  it('content box drives a real fit (art fills the rect, not a sliver)', () => {
+    // Regression guard for the "imported file looks empty" bug: fitting the
+    // CONTENT box yields a usable scale; fitting the whole viewBox would shrink
+    // the art to ~17% of the rectangle.
+    const viewBox: BoundingBox = { x: 0, y: 0, width: 1440, height: 810 };
+    const art = createGroup([createRect({ x: 595, y: 188, width: 249, height: 432 })]);
+    const rect: BoundingBox = { x: 0, y: 0, width: 249, height: 432 };
+    const contentFit = fitImportTransform(placementBounds(art, viewBox), rect);
+    const viewBoxFit = fitImportTransform(viewBox, rect);
+    // Content fit maps the art 1:1 onto the same-size rect (scale ≈ 1);
+    // the old viewBox fit would scale it down to ≈ 0.17.
+    expect(contentFit[0]).toBeCloseTo(1, 4);
+    expect(viewBoxFit[0]).toBeLessThan(0.2);
+  });
+});
 
 describe('fitImportTransform (D-107)', () => {
   it('fits preserving aspect ratio, centered in the rect', () => {

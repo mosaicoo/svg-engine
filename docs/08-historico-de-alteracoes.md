@@ -6,6 +6,46 @@
 
 ---
 
+## 2026-06-16 — D-113 — Importação ajusta a arte ao **conteúdo**, não ao artboard ✅
+
+**Bug** (reportado pelo usuário com `Design sem nome.svg`, export do Adobe/Corel):
+outro SVG importava "como se fosse vazio". Diferente do D-112 — aqui as 6 formas
+têm `fill` inline (`#ff3131`, `#cb0f0f`, …) e o importador produz um modelo
+**perfeito** (diagnóstico: `ok:true`, 6 paths com fills válidos, defs com os
+`<clipPath>` preservados). O problema é **downstream**, na colocação.
+
+**Causa**: a arte ocupa só um cantinho central do artboard — bbox de conteúdo
+≈ `249×432` dentro de um `viewBox` de `1440×810` (~17% da largura). Ambos os
+modos de importação (`File ▸ Import ▸ SVG`) usavam o **`viewBox`** como bounds
+da arte:
+
+- **Place** (`beginImportPlacement`, `src: doc.viewBox`): ao encaixar o
+  _artboard inteiro_ no retângulo desenhado, a arte vira uma fatia minúscula
+  (~17% do retângulo) — some/parece vazia. O usuário estava em _place_ mode
+  (ativado nos testes do D-107/D-108).
+- **Centered** (`placeImportedSvgIntoActivePage`, default): centrava o
+  **viewBox** na página, então arte fora do centro do artboard caía fora de
+  vista.
+
+**Fix** (`svg-engine/edit`, **sem nova API pública**): nova função pura
+`placementBounds(root, viewBox)` em
+[import-placement.service.ts](../projects/svg-engine/edit/src/lib/import-placement/import-placement.service.ts)
+que usa o **bounding box de conteúdo** da arte (via `getNodeBBox` do core —
+model-based, sem DOM, recursivo em grupos, deriva bounds do path `d`) em vez do
+`viewBox`. _Fallback_ para o `viewBox` quando o conteúdo é degenerado (arte
+vazia / dimensão de área zero). Os dois call-sites do
+[builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)
+passaram a chamar `placementBounds(imported, doc.viewBox)`. Resultado: a arte
+encaixa no retângulo (place) e centra pela arte real (centered) — igual ao
+_Place_ do Illustrator, que usa os limites da arte, não do artboard. O ghost de
+preview (D-108) já usa o mesmo `src`, então o WYSIWYG continua fiel.
+
+Specs novos para `placementBounds` (conteúdo vs viewBox, fallback de arte vazia,
+e guard de regressão "fatia minúscula"). Build + lint + suíte (**2581**) verdes;
+playground compila; snapshot de API inalterado.
+
+---
+
 ## 2026-06-16 — D-112 — Importação de SVGs que pintam via classes CSS (`<style>`) ✅
 
 **Bug** (reportado pelo usuário com `AdobeStock_735001143.svg`, um arquivo

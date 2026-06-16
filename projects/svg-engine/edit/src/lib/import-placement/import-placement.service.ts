@@ -4,6 +4,7 @@ import {
   type BoundingBox,
   CommandBus,
   EditorStateService,
+  getNodeBBox,
   InsertNodeCommand,
   type Point,
   type SvgNode,
@@ -24,6 +25,26 @@ export interface PendingImport {
 
 /** Below this drag span (doc units) a gesture counts as a click, not a drag. */
 const CLICK_EPSILON = 3;
+
+/**
+ * **D-113** — the bounds the import flow fits/centers the art to. Returns the
+ * art's actual **content** bounding box (model geometry via {@link getNodeBBox})
+ * rather than the file's `viewBox`.
+ *
+ * Many editor exports (CorelDRAW, Illustrator) park a small graphic in a large
+ * artboard — e.g. a ~250×430 logo centered on a `1440×810` viewBox. Fitting the
+ * WHOLE viewBox into the user's placement rectangle (or centering on it) shrinks
+ * the art to a tiny, near-invisible sliver (~17% of the rect) — the "imported
+ * file looks empty" symptom. The content box fits the actual artwork, matching
+ * Illustrator's *Place* (which uses artwork bounds, not the artboard).
+ *
+ * Falls back to `viewBox` when the content box is degenerate (empty art, or a
+ * zero-area dimension) so empty / single-point docs still place predictably.
+ */
+export function placementBounds(root: SvgNode, viewBox: BoundingBox): BoundingBox {
+  const content = getNodeBBox(root);
+  return content.width > 0 && content.height > 0 ? content : viewBox;
+}
 
 /**
  * **D-107** — matrix that fits `src` into `rect` **preserving aspect ratio**

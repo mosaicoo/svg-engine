@@ -65,7 +65,10 @@ import { SVGE_HELP_LINKS, type SvgeHelpLinks } from '../../help';
 import { makeClipMask, releaseClipMask, topmostSelected } from '../../clip-mask/clip-mask-actions';
 import { SelectSameService } from '../../find-replace/select-same.service';
 import { getRenderedNodeBBox, getRenderedNodeLocalBBox } from '../../geometry/node-bbox';
-import { ImportPlacementService } from '../../import-placement/import-placement.service';
+import {
+  ImportPlacementService,
+  placementBounds,
+} from '../../import-placement/import-placement.service';
 import { ImportSettingsService } from '../../import-settings/import-settings.service';
 import { LayersService } from '../../layers/layers.service';
 import { ActiveDefsService } from '../../library/active-defs.service';
@@ -3080,7 +3083,10 @@ function placeImportedSvgIntoActivePage(
   // **D-106** — insert at the file's NATURAL 1:1 size, centered on the
   // ACTIVE PAGE's artboard (fall back to the visible viewport center when no
   // page is active). This is the user-chosen "100% centered" default.
-  const src = doc.viewBox; // natural bounds of the imported art
+  // **D-113** — center on the art's CONTENT box, not the viewBox: exports that
+  // park a small graphic in a big artboard would otherwise center the empty
+  // artboard (art lands off-center / out of view).
+  const src = placementBounds(imported, doc.viewBox);
   const srcCx = src.x + src.width / 2;
   const srcCy = src.y + src.height / 2;
 
@@ -3130,7 +3136,10 @@ function beginImportPlacement(
   if (imported.type !== 'group' || imported.children.length === 0) return;
   fromCtx(ImportPlacementService, runCtx).begin({
     group: imported,
-    src: doc.viewBox,
+    // **D-113** — fit the art's CONTENT box (not the oversized artboard) to the
+    // drawn rectangle, so a small graphic on a big viewBox doesn't import as a
+    // near-invisible sliver.
+    src: placementBounds(imported, doc.viewBox),
     defs: doc.defs,
   });
 }
