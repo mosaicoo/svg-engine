@@ -6,6 +6,52 @@
 
 ---
 
+## 2026-06-16 — D-115 — `File ▸ Open…` (abertura por extensão; SVG → página pelo viewBox) ✅
+
+Nova funcionalidade pedida pelo usuário: **`File ▸ Open…`** com despacho **por
+extensão** — `.svg` agora, **formato proprietário do editor** (extensão a
+definir) depois. Diferente de `File ▸ Import ▸ SVG…` (que é **aditivo** —
+coloca arte no documento atual), o **Open substitui o ambiente de trabalho**,
+como o `New`.
+
+**Comportamento (SVG)** — espelha o `New` (confirmação de descarte + documento
+novo + página ativa), com a diferença-chave de **dimensionar a página pelo
+arquivo**:
+
+- `openFromFile` abre o file-picker e **despacha por extensão**: `svg` →
+  `openSvgText`; qualquer outra → aviso "ainda não suportado" (ponto de
+  extensão para o formato proprietário — basta um `case` + entrada no
+  `accept`).
+- `openSvgText` faz parse via `svgImporter`, **confirma o descarte** (igual ao
+  New, só quando há trabalho a perder) e chama `openSvgDocument`.
+- `openSvgDocument` reusa as primitivas existentes: `resetDocument(parsed)` (o
+  `viewBox` do arquivo vira o sistema de coordenadas do documento) +
+  **`EnsureDefaultPageCommand`**, que embrulha o conteúdo numa **`Page 1`
+  dimensionada pelo `viewBox` do arquivo** (`withPageFlag(group, doc.viewBox)`).
+  Depois: `history.clear()`, `viewport.fit()` (enquadra a página) e
+  `selection.clear()`.
+
+**Conteúdo fora do viewBox**: continua **renderizado**. A `Page 1` é um grupo
+comum (sem clip) e o renderer é `overflow: visible` — então elementos com
+coordenadas fora dos limites do `viewBox` ficam dentro da página no modelo e
+aparecem no canvas (fora do enquadramento inicial). A **página representa o
+viewBox**; o **canvas mostra o resto**. _Bônus_: para os **nossos próprios
+exports multi-página** (que importam já com flags de página),
+`EnsureDefaultPageCommand` é no-op e as páginas carregam verbatim.
+
+**Menu/atalho**: `File ▸ Open…` (order 12, ícone `file_open`) substitui o
+placeholder de roadmap. O **Ctrl+O** — atalho canônico de "abrir" — migrou de
+`Import ▸ SVG…` (ação aditiva) para o `Open` (ação que substitui).
+
+Novo `open-document.spec.ts` (contrato page-wrap: página pelo viewBox do arquivo
+
+- conteúdo fora do viewBox preservado + no-op em doc já paginado). Build + lint +
+  suíte (**2593**) verdes; playground compila; snapshot de API inalterado. O fluxo
+  interativo do file-picker (diálogo do SO) segue testado manualmente, como o
+  `Import`.
+
+---
+
 ## 2026-06-16 — D-114 — Cobertura total de presentation attributes (import↔model↔render↔export) ✅
 
 **Análise** (pedida pelo usuário com `Salvador-8-berco.svg`, export do Adobe

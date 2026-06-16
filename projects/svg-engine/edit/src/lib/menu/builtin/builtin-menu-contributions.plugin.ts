@@ -261,9 +261,27 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
-    // **D-085** — order 12/14 (Open…, Open Recent…) are roadmap items
-    // registered by `builtinRoadmapMenuPlugin`; this divider sits after
-    // them, before the Import submenu.
+    // **D-115** — `File ▸ Open…`. Replaces the current document with a file
+    // chosen from disk, dispatched by EXTENSION: `.svg` today, the editor's
+    // proprietary format later (see `openFromFile`). Ctrl+O — the canonical
+    // "open" shortcut — lives here now (it was previously a display hint on
+    // Import ▸ SVG…, which is the additive "place into current doc" action).
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.open',
+        slot: MENU_SLOT.FILE,
+        label: 'Open…',
+        icon: 'file_open',
+        shortcut: 'Ctrl+O',
+        order: 12,
+        run(runCtx) {
+          openFromFile(runCtx, fromCtx);
+        },
+      }),
+    );
+    // **D-085** — order 14 (Open Recent…) is a roadmap item registered by
+    // `builtinRoadmapMenuPlugin`; this divider sits after it, before the
+    // Import submenu.
     ctx.track(
       reg.register({
         id: 'svge.builtin.file.divider1',
@@ -299,7 +317,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         slot: MENU_SLOT.FILE,
         label: 'SVG…',
         icon: 'description',
-        shortcut: 'Ctrl+O',
+        // **D-115** — Ctrl+O moved to `File ▸ Open…` (the canonical "open
+        // replaces the document" action); Import is the additive "place into
+        // the current document" flow and no longer claims the shortcut.
         order: 10,
         run(runCtx) {
           importSvgFromFile(runCtx, fromCtx);
@@ -3000,6 +3020,110 @@ function newDocument(runCtx: MenuContributionContext | undefined, fromCtx: Resol
   fromCtx(CommandBus, runCtx).dispatch(new EnsureDefaultPageCommand());
   fromCtx(HistoryService, runCtx).clear();
   fromCtx(ViewportService, runCtx).reset();
+  fromCtx(SelectionService, runCtx).clear();
+}
+
+/**
+ * **D-115** — extension-dispatched `File ▸ Open…`. Opens a file picker and
+ * routes by file extension:
+ *
+ * - `.svg` → {@link openSvgText} (replace the workspace with the file's content
+ *   in a page sized to its viewBox).
+ * - the editor's proprietary format (extension TBD) → its own loader, once
+ *   defined. The `default` branch is the wiring point: add a `case` for the new
+ *   extension and an `accept` entry below.
+ *
+ * Unlike `File ▸ Import ▸ SVG…` (ADDITIVE — places art into the CURRENT
+ * document), Open REPLACES the workspace, mirroring `File ▸ New` (confirm +
+ * fresh document + a new active page) — but the page is sized from the file
+ * instead of the editor default.
+ */
+function openFromFile(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+  if (typeof document === 'undefined') return;
+  const input = document.createElement('input');
+  input.type = 'file';
+  // Extend `accept` when the proprietary format lands (e.g. add ',.svge').
+  input.accept = '.svg,image/svg+xml';
+  input.style.display = 'none';
+  input.addEventListener(
+    'change',
+    () => {
+      const file = input.files?.[0];
+      input.remove();
+      if (file === undefined || file === null) return;
+      const dot = file.name.lastIndexOf('.');
+      const ext = dot >= 0 ? file.name.slice(dot + 1).toLowerCase() : '';
+      switch (ext) {
+        case 'svg':
+          void file.text().then((text) => openSvgText(runCtx, fromCtx, text));
+          break;
+        // case 'svge': openProprietary(runCtx, fromCtx, file); break;  // TBD
+        default:
+          if (typeof window !== 'undefined') {
+            window.alert(`Opening ".${ext}" files is not supported yet.`);
+          }
+      }
+    },
+    { once: true },
+  );
+  document.body.appendChild(input);
+  input.click();
+}
+
+/**
+ * **D-115** — parse + open an SVG string as a fresh document. Confirms before
+ * discarding (like `File ▸ New`), then hands the parsed document to
+ * {@link openSvgDocument}. Best-effort: a malformed file alerts and aborts
+ * without touching the current workspace.
+ */
+function openSvgText(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+  text: string,
+): void {
+  const result = svgImporter.import(text);
+  if (!result.ok) {
+    if (typeof window !== 'undefined') window.alert(`Open failed: ${result.error}`);
+    return;
+  }
+  // Confirm BEFORE replacing — only when there's work to lose (matches New).
+  if (typeof window !== 'undefined') {
+    const root = fromCtx(EditorStateService, runCtx).document().root;
+    const hasContent = root.type === 'group' && root.children.length > 0;
+    if (hasContent && !window.confirm('Discard the current document and open this file?')) {
+      return;
+    }
+  }
+  openSvgDocument(runCtx, fromCtx, result.document);
+  if (result.warnings.length > 0 && typeof console !== 'undefined') {
+    console.warn(`[SVGEngine] Open warnings:\n${result.warnings.join('\n')}`);
+  }
+}
+
+/**
+ * **D-115** — install `parsed` as the editor's document, sized to the file.
+ *
+ * - `resetDocument(parsed)` replaces the workspace; `parsed.viewBox` carries the
+ *   file's viewBox, which becomes the document's coordinate system.
+ * - `EnsureDefaultPageCommand` wraps the file's top-level content into a fresh
+ *   `Page 1` **sized to `parsed.viewBox`** (its `withPageFlag(group, doc.viewBox)`
+ *   path). For our OWN multi-page exports (which import WITH page flags) the
+ *   command is a no-op and the original pages load verbatim.
+ * - Content positioned OUTSIDE the viewBox stays inside Page 1 and still
+ *   renders — the renderer is `overflow: visible` and the page is a plain group
+ *   (no clip). The page frames the viewBox; the canvas keeps showing the rest.
+ * - History is cleared (Open is a new baseline, not an undo step), the viewport
+ *   frames the page, and selection is cleared. Mirrors `newDocument`.
+ */
+function openSvgDocument(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+  parsed: SvgDocument,
+): void {
+  fromCtx(EditorStateService, runCtx).resetDocument(parsed);
+  fromCtx(CommandBus, runCtx).dispatch(new EnsureDefaultPageCommand());
+  fromCtx(HistoryService, runCtx).clear();
+  fromCtx(ViewportService, runCtx).fit();
   fromCtx(SelectionService, runCtx).clear();
 }
 
