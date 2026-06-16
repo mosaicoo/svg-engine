@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-06-16 — D-117 — `Insert ▸ Image` e `File ▸ Import ▸ Image` unificados (handler único + dimensão natural) ✅
+
+Pergunta do usuário: `File ▸ Import ▸ Image` seria o mesmo que `Insert ▸ Image`?
+Resposta: **funcionalmente sim** (ambos embutem um `<image>` raster na página
+ativa); a diferença é só **taxonomia de menu** (Insert = o que você adiciona;
+Import = de onde vem). O usuário pediu **manter os dois** apontando para o mesmo
+handler. Junto, encontrei um bug: o `Insert ▸ Image` inseria a imagem como
+**quadrado** (`width = height`), ignorando a proporção.
+
+**Fix (D-117) — handler único + dimensão natural:**
+
+- **Novo módulo compartilhado**
+  [raster-image-import.ts](../projects/svg-engine/edit/src/lib/import-image/raster-image-import.ts)
+  (injector-based, para os dois plugins): `pickAndInsertRasterImage(injector)`
+  (file-picker `image/*` → data URI) e `insertRasterImageFromHref(injector, href)`
+  — cria um `<image>` dimensionado pelo **tamanho natural** da imagem (carrega
+  via `new Image()`), centrado na página ativa, inserido via
+  `InsertNodeCommand(AUTO_PARENT)` + selecionado.
+- **`Insert ▸ Image…`** passou a usar o handler compartilhado → **corrige o
+  quadrado** (agora respeita a proporção) e remove a duplicação.
+- **`File ▸ Import ▸ Image…`** (order 15) virou item **real** (mesmo handler),
+  substituindo o placeholder de roadmap (`svge.roadmap.file.import.image`).
+- **D-116 reaproveitado**: o `File ▸ Import ▸ From URL…` (raster) agora delega
+  ao mesmo `insertRasterImageFromHref` — uma única implementação de "embutir
+  raster" em todo o app (removido o `importRasterFromHref` duplicado do plugin
+  de File).
+
+Novo `raster-image-import.spec.ts` (`buildRasterImageNode`: dimensão não-quadrada
+preservada + centragem + href/preserveAspectRatio). Build + lint + suíte
+(**2601**) verdes; playground compila; snapshot de API inalterado (funções
+internas ao `edit`). O fluxo de file-picker/`Image()` segue testado manualmente.
+
+---
+
 ## 2026-06-16 — D-116 — `File ▸ Import ▸ From URL…` (SVG ou raster da web) ✅
 
 Nova funcionalidade pedida pelo usuário: importar uma **imagem da web por URL**.

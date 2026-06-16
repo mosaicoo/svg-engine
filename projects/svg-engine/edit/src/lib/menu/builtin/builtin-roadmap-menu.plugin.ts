@@ -252,16 +252,8 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
       }),
     );
     // Import ▶ roadmap children (parent `svge.builtin.file.import-menu`).
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.file.import.image',
-        parentId: 'svge.builtin.file.import-menu',
-        slot: MENU_SLOT.FILE,
-        label: 'Image…',
-        icon: 'image',
-        order: 20,
-      }),
-    );
+    // **D-117** — `Image…` (order 15) is now REAL (shared raster handler with
+    // `Insert ▸ Image…`); the roadmap placeholder was removed.
     track(
       roadmapLeaf({
         id: 'svge.roadmap.file.import.smart-object',

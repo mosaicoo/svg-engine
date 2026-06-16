@@ -2,7 +2,6 @@ import { type Injector } from '@angular/core';
 import {
   CommandBus,
   createEllipse,
-  createImage,
   createLine,
   createPath,
   createPolygon,
@@ -15,6 +14,7 @@ import {
 } from 'svg-engine/core';
 import { ViewportService } from 'svg-engine/render';
 
+import { pickAndInsertRasterImage } from '../../import-image/raster-image-import';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../../plugin/plugin';
 import { SelectionService } from '../../selection/selection.service';
 import { MenuContributionRegistry } from '../menu-contribution-registry.service';
@@ -285,7 +285,9 @@ export const builtinInsertMenuPlugin: EditorPlugin = {
         icon: 'image',
         order: 40,
         run(runCtx) {
-          insertImageViaFilePicker(runCtx);
+          // **D-117** — shared raster-image insert (natural dimensions),
+          // also used by `File ▸ Import ▸ Image…` and the URL importer.
+          pickAndInsertRasterImage(runCtx?.injector);
         },
       }),
     );
@@ -350,67 +352,6 @@ function computeInsertPosition(injector: Injector): {
   const rawSize = Math.min(vb.width, vb.height) * 0.25;
   const size = Math.max(40, Math.min(400, rawSize));
   return { centerX, centerY, size };
-}
-
-/**
- * Browser-native image file picker → InsertNodeCommand with the
- * picked file embedded as a data URI. Mirrors the
- * `importSvgFromFile` pattern in `builtin-menu-contributions.plugin`
- * (no Material dialog → stays in `edit` headless boundary).
- *
- * **Why data URI and not a blob URL / external href**: data URI is
- * self-contained — the document round-trips through export → import
- * with the image intact, no broken external references. The trade-off
- * is document size; users who care about file size can switch to
- * an explicit asset upload later via the Asset Manager.
- *
- * **MIME types accepted**: any `image/*`. The browser's `<input
- * type="file" accept="image/*">` filters via the OS picker.
- */
-function insertImageViaFilePicker(runCtx: MenuContributionContext | undefined): void {
-  const injector = runCtx?.injector;
-  if (injector === undefined) return;
-  if (typeof document === 'undefined') return;
-
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*';
-  input.style.display = 'none';
-  input.addEventListener(
-    'change',
-    () => {
-      const file = input.files?.[0];
-      input.remove();
-      if (file === undefined || file === null) return;
-
-      const reader = new FileReader();
-      reader.onload = (): void => {
-        const dataUri = reader.result;
-        if (typeof dataUri !== 'string') return;
-        // Use the same center+size sizing as shapes, but assume a
-        // square placeholder. Real width/height can be inferred from
-        // the loaded image's natural dimensions in a follow-up; for
-        // now a square keeps the insert deterministic.
-        const { centerX, centerY, size } = computeInsertPosition(injector);
-        const node = createImage({
-          x: centerX - size / 2,
-          y: centerY - size / 2,
-          width: size,
-          height: size,
-          href: dataUri,
-          preserveAspectRatio: 'xMidYMid meet',
-        });
-        // PAGES-FIX-2: insert into the active page when one exists.
-        // PAGES-REFACTOR Fase 1: AUTO_PARENT resolves via CommandBus context.
-        injector.get(CommandBus).dispatch(new InsertNodeCommand(AUTO_PARENT, node));
-        injector.get(SelectionService).select(node.id);
-      };
-      reader.readAsDataURL(file);
-    },
-    { once: true },
-  );
-  document.body.appendChild(input);
-  input.click();
 }
 
 /**

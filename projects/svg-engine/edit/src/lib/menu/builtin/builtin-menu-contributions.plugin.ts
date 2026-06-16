@@ -69,6 +69,10 @@ import {
   ImportPlacementService,
   placementBounds,
 } from '../../import-placement/import-placement.service';
+import {
+  insertRasterImageFromHref,
+  pickAndInsertRasterImage,
+} from '../../import-image/raster-image-import';
 import { ImportSettingsService } from '../../import-settings/import-settings.service';
 import { LayersService } from '../../layers/layers.service';
 import { ActiveDefsService } from '../../library/active-defs.service';
@@ -323,6 +327,23 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         order: 10,
         run(runCtx) {
           importSvgFromFile(runCtx, fromCtx);
+        },
+      }),
+    );
+    // **D-117** — `File ▸ Import ▸ Image…`. Same action as `Insert ▸ Image…`
+    // (one shared handler) — embeds a local raster file as an `<image>` sized to
+    // its natural dimensions. Two entry points: "Insert" (add to document) and
+    // "Import" (bring an external source in).
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.import-image',
+        parentId: 'svge.builtin.file.import-menu',
+        slot: MENU_SLOT.FILE,
+        label: 'Image…',
+        icon: 'image',
+        order: 15,
+        run(runCtx) {
+          pickAndInsertRasterImage(runCtx?.injector);
         },
       }),
     );
@@ -3254,7 +3275,7 @@ function importFromUrl(runCtx: MenuContributionContext | undefined, fromCtx: Res
         return res
           .blob()
           .then((blob) => blobToDataUrl(blob))
-          .then((dataUrl) => importRasterFromHref(runCtx, fromCtx, dataUrl));
+          .then((dataUrl) => insertRasterImageFromHref(runCtx?.injector, dataUrl));
       }
       // SVG, or unknown — read the text and confirm it really is an `<svg>`
       // root before importing; otherwise treat it as a raster reference.
@@ -3265,7 +3286,7 @@ function importFromUrl(runCtx: MenuContributionContext | undefined, fromCtx: Res
         ) {
           importSvgTextAdditive(runCtx, fromCtx, text);
         } else {
-          importRasterFromHref(runCtx, fromCtx, url);
+          insertRasterImageFromHref(runCtx?.injector, url);
         }
       });
     })
@@ -3278,7 +3299,7 @@ function importFromUrl(runCtx: MenuContributionContext | undefined, fromCtx: Res
             'Download the file and use File ▸ Import ▸ SVG… instead.',
         );
       } else {
-        importRasterFromHref(runCtx, fromCtx, url);
+        insertRasterImageFromHref(runCtx?.injector, url);
       }
     });
 }
@@ -3301,39 +3322,9 @@ export function classifyImageUrl(
 }
 
 /**
- * **D-116** — insert a raster `<image>` (data URL or external href) ADDITIVELY,
- * sized to the image's natural dimensions and centered on the active page
- * (same centering as the SVG `'centered'` import). The image is loaded once to
- * read its natural size; a load failure alerts without mutating the document.
- */
-function importRasterFromHref(
-  runCtx: MenuContributionContext | undefined,
-  fromCtx: Resolver,
-  href: string,
-): void {
-  if (typeof Image === 'undefined') return;
-  const img = new Image();
-  img.onload = () => {
-    // Fallback to a sane default if the browser can't report natural size.
-    const w = img.naturalWidth || 200;
-    const h = img.naturalHeight || 200;
-    const { cx, cy } = activeInsertionCenter(runCtx, fromCtx);
-    const node = createImage({ x: cx - w / 2, y: cy - h / 2, width: w, height: h, href });
-    fromCtx(CommandBus, runCtx).dispatch(new InsertNodeCommand(AUTO_PARENT, node));
-    fromCtx(SelectionService, runCtx).select(node.id);
-  };
-  img.onerror = () => {
-    if (typeof window !== 'undefined') window.alert('Could not load the image from that URL.');
-  };
-  // No crossOrigin: we only need the natural size + an <img> to display, never
-  // pixel access — so an external (non-CORS) image still loads.
-  img.src = href;
-}
-
-/**
  * Center point for additive inserts: the active page's artboard center, or the
- * visible viewport center when no page is active. Shared by the SVG `'centered'`
- * import and the raster URL import.
+ * visible viewport center when no page is active. Used by the SVG `'centered'`
+ * import. (The raster path lives in `import-image/raster-image-import.ts`.)
  */
 function activeInsertionCenter(
   runCtx: MenuContributionContext | undefined,
