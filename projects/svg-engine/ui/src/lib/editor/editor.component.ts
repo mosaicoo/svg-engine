@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  input,
+} from '@angular/core';
 import { MatToolbar } from '@angular/material/toolbar';
 import {
   type BoundingBox,
@@ -28,6 +36,7 @@ import {
   SvgeShellInteractions,
   ToolHostService,
   WorkspaceBackground,
+  WorkspaceService,
 } from 'svg-engine/edit';
 import { CONTEXT_MENU_SLOT, SvgeContextMenuTrigger } from '../context-menu';
 import { SvgeEffectsPanel } from '../effects-panel';
@@ -404,7 +413,50 @@ import { SvgeToolOptions } from '../tool-options';
     .pages-row {
       flex: 0 0 auto;
     }
+
+    /* ── D-128 — Presentation Mode ───────────────────────────────────
+       Promote the canvas to a full-viewport fixed layer that covers
+       ALL chrome behind it (menu / toolbar / tool-options / breadcrumb
+       / pages / side rails / status), then hide every on-canvas
+       overlay so only the rendered artwork shows. Mirrors the
+       <svge-shell-pro> implementation (only the container class differs:
+       .canvas-area here vs .canvas-cell there). Exit via the same menu
+       item or Esc (capture-phase listener installed in the constructor). */
+    :host(.presentation-mode) .canvas-area {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: var(--mat-sys-surface-container-lowest, #fff);
+    }
+    /* The artwork is g[svgeNode] — deliberately NOT listed, so it stays
+       visible; everything else inside the canvas is editor chrome. */
+    :host(.presentation-mode) svge-rulers {
+      display: none;
+    }
+    :host(.presentation-mode) ::ng-deep g[svgeGridOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgePageOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgeGuidesOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgeGradientOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgePageSelectionOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgeImportPlacementOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgeSelectionOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgeAnchorOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgeRotationPivot],
+    :host(.presentation-mode) ::ng-deep g[svgeMarquee],
+    :host(.presentation-mode) ::ng-deep g[svgeSnapGuides],
+    :host(.presentation-mode) ::ng-deep g[svgePenOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgePencilOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgeShapeOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgeInlineTextEditor],
+    :host(.presentation-mode) ::ng-deep g[svgeSymbolSprayerOverlay] {
+      display: none;
+    }
   `,
+  host: {
+    // **D-128** — Presentation Mode host class, driven by the shared
+    // WorkspaceService signal (View ▸ Display ▸ Presentation Mode).
+    '[class.presentation-mode]': 'ws.presentationMode()',
+  },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SvgeEditor {
@@ -428,6 +480,10 @@ export class SvgeEditor {
   // out (default) don't pay for the lookups during view init.
   private readonly bus = inject(CommandBus);
   private readonly toolHost = inject(ToolHostService);
+  // **D-128** — read by the `.presentation-mode` host binding + the Esc-to-exit
+  // listener (constructor). Presentation Mode hides all chrome and shows only
+  // the artwork; toggled via View ▸ Display ▸ Presentation Mode.
+  protected readonly ws = inject(WorkspaceService);
 
   /**
    * **PAGES-REFACTOR Fase 5** — opt-in mount-time bootstrap. When
@@ -460,6 +516,20 @@ export class SvgeEditor {
         this.toolHost.activate(SELECT_TOOL_ID);
       }
     });
+
+    // **D-128** — Presentation Mode exit. The menu that toggles it is hidden
+    // while active, so Esc is the way out. Capture phase wins over
+    // ShortcutService's bubble-phase keydown; no-op unless presenting, so
+    // normal Esc handling is untouched. Mirrors <svge-shell-pro>.
+    const doc = inject(DOCUMENT);
+    const onPresentationEsc = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape' || !this.ws.presentationMode()) return;
+      this.ws.setPresentationMode(false);
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
+    doc.addEventListener('keydown', onPresentationEsc, true);
+    inject(DestroyRef).onDestroy(() => doc.removeEventListener('keydown', onPresentationEsc, true));
   }
 
   /**

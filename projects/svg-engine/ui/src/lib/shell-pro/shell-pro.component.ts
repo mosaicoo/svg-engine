@@ -1,7 +1,9 @@
+import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   effect,
   inject,
   input,
@@ -641,7 +643,55 @@ import { SvgeToolsPalette } from '../tools-palette';
          we keep the selector so the grid row tracking in the host doesn't
          shift if a consumer overrides via ::ng-deep. */
     }
+
+    /* ── D-128 — Presentation Mode ───────────────────────────────────
+       When active, promote the canvas to a full-viewport fixed layer
+       that covers ALL chrome behind it (menu / toolbar / panels /
+       status), then hide every on-canvas overlay so only the rendered
+       artwork shows. A fixed overlay (vs display:none on each grid
+       row) keeps this layout-agnostic and identical in spirit to the
+       <svge-editor> shell. Exit via the same menu item or Esc (the
+       component installs a capture-phase listener — see constructor). */
+    :host(.presentation-mode) .canvas-cell {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: var(--mat-sys-surface-container-lowest, #fff);
+    }
+    /* In-canvas chrome to hide in the full-screen canvas: rulers, the
+       breadcrumb + pages overlays, and every on-canvas <g> overlay
+       (selection, anchors, grid, guides, page marker/brackets,
+       gradient, snap, tool previews). The artwork itself is
+       g[svgeNode] — deliberately NOT listed, so it stays visible. */
+    :host(.presentation-mode) svge-rulers,
+    :host(.presentation-mode) .iso-breadcrumb-overlay,
+    :host(.presentation-mode) .pages-overlay {
+      display: none;
+    }
+    :host(.presentation-mode) ::ng-deep g[svgeGridOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgePageOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgeGuidesOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgeGradientOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgePageSelectionOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgeImportPlacementOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgeSelectionOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgeAnchorOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgeRotationPivot],
+    :host(.presentation-mode) ::ng-deep g[svgeMarquee],
+    :host(.presentation-mode) ::ng-deep g[svgeSnapGuides],
+    :host(.presentation-mode) ::ng-deep g[svgePenOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgePencilOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgeShapeOverlay],
+    :host(.presentation-mode) ::ng-deep g[svgeInlineTextEditor],
+    :host(.presentation-mode) ::ng-deep g[svgeSymbolSprayerOverlay] {
+      display: none;
+    }
   `,
+  host: {
+    // **D-128** — drives the Presentation Mode CSS above off the shared
+    // WorkspaceService signal (toggled via View ▸ Display ▸ Presentation Mode).
+    '[class.presentation-mode]': 'ws.presentationMode()',
+  },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SvgeShellPro {
@@ -741,6 +791,22 @@ export class SvgeShellPro {
       this.setRightCollapsed(false);
       this.panelHost.setActivePanel(req.panelId);
     });
+
+    // **D-128** — Presentation Mode exit. While presentation is active the
+    // menu that toggles it is hidden, so Esc is the only way out. Listen in
+    // the CAPTURE phase on `document` so this wins over ShortcutService's
+    // bubble-phase keydown (tool cancel / isolation exit) — leaving
+    // presentation should take priority. No-op when not presenting, so all
+    // normal Esc handling is untouched.
+    const doc = inject(DOCUMENT);
+    const onPresentationEsc = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape' || !this.ws.presentationMode()) return;
+      this.ws.setPresentationMode(false);
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
+    doc.addEventListener('keydown', onPresentationEsc, true);
+    inject(DestroyRef).onDestroy(() => doc.removeEventListener('keydown', onPresentationEsc, true));
   }
 
   // ── COLLAPSE — hide/show the side panels to reclaim canvas space ────

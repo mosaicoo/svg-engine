@@ -339,6 +339,34 @@ export class WorkspaceService {
   }
 
   /**
+   * **D-128** — Presentation Mode (Figma/Affinity "Presentation" / Illustrator
+   * Shift+F). When `true`, the shells hide ALL editor chrome — menu bar,
+   * toolbar, tool-options, side panels (tools / libraries / inspector), status
+   * bar, rulers, the isolation breadcrumb, the pages strip, and every on-canvas
+   * overlay (selection, anchors, grid, guides, page marker/brackets, snap/smart
+   * guides, tool previews) — leaving only the rendered artwork full-viewport.
+   *
+   * Like {@link outlineMode}, this service only owns the toggle state; the
+   * shells (`<svge-shell-pro>`, `<svge-editor>`) read it to apply the
+   * `.presentation-mode` host class and react in CSS. **Ephemeral** — never
+   * persisted (parity with Illustrator/Affinity, where presentation is a
+   * transient view, not a saved document preference). Exit via the same menu
+   * item or the **Esc** key (the shells listen for it, since the menu that
+   * toggles it is itself hidden while active). Default `false`.
+   */
+  private readonly _presentationMode = signal<boolean>(false);
+  readonly presentationMode = this._presentationMode.asReadonly();
+
+  setPresentationMode(enabled: boolean): void {
+    if (this._presentationMode() === enabled) return;
+    this._presentationMode.set(enabled);
+  }
+
+  togglePresentationMode(): void {
+    this.setPresentationMode(!this._presentationMode());
+  }
+
+  /**
    * **D-082 F6 follow-up** — master visibility of the Animation Timeline
    * dock (`<svge-timeline>`). Like {@link outlineMode}, this service only
    * owns the toggle state; `<svge-shell-pro>` reads it to mount/unmount the

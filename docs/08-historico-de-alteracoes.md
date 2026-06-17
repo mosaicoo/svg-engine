@@ -6,6 +6,51 @@
 
 ---
 
+## 2026-06-16 — D-128 — Presentation Mode (View ▸ Display, renomeado de "Preview") ✅
+
+O usuário perguntou se havia funcionalidade para linkar em `View ▸ Display ▸
+Preview`. Análise (fundamentada no código): era só placeholder de roadmap, **sem
+backing**, e no sentido Illustrator "Preview" seria **redundante** com o
+**Outline Mode** já existente. O usuário escolheu **implementar "presentation
+total"** (sentido Figma/Affinity) e **renomear** o item.
+
+- **Estado** ([workspace.service.ts](../projects/svg-engine/edit/src/lib/workspace/workspace.service.ts)):
+  novo sinal `presentationMode` (default off) + `setPresentationMode` /
+  `togglePresentationMode`, ao lado de `outlineMode` (estados de display
+  ortogonais). Efêmero — não persistido (paridade com Illustrator/Affinity).
+- **Menu** ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)):
+  o placeholder `Preview` virou item real **Presentation Mode**
+  (`svge.builtin.view.display.presentation`, order 10, ícone `slideshow`,
+  tooltip "…Press Esc to exit") → `togglePresentationMode()`. Placeholder de
+  roadmap removido de
+  [builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts).
+- **Shells** ([shell-pro.component.ts](../projects/svg-engine/ui/src/lib/shell-pro/shell-pro.component.ts)
+  - [editor.component.ts](../projects/svg-engine/ui/src/lib/editor/editor.component.ts)):
+    host class `.presentation-mode` (ligada ao sinal). Em CSS, o **canvas** é
+    promovido a `position: fixed; inset: 0; z-index: 1000` (cobre TODA a chrome
+    atrás — menu, toolbar, painéis, status) e cada overlay on-canvas é escondido
+    (`svge-rulers`, breadcrumb, faixa de páginas + todos os `g[svge*Overlay]` /
+    guides / marquee / pivot — **exceto** `g[svgeNode]`, a arte). Abordagem por
+    overlay fixo (em vez de `display:none` linha a linha) é **layout-agnóstica** —
+    idêntica em espírito nos dois shells (só muda a classe do container:
+    `.canvas-cell` vs `.canvas-area`). Usa `::ng-deep` (já adotado no projeto)
+    para alcançar os overlays projetados via `<ng-content>`.
+- **Sair**: como o menu fica escondido, cada shell instala um listener de
+  **Esc em fase de captura** no `document` (vence o keydown bubble do
+  `ShortcutService`); no-op quando não está em presentation, então o Esc normal
+  fica intacto.
+- **Decisão de escopo**: modo **visual** — pan/zoom seguem funcionando (permite
+  inspecionar a arte); a chrome de interação fica oculta (a seleção, p.ex.,
+  ainda ocorre, mas seu overlay não aparece).
+
+Por que "Presentation Mode" e não "Preview": Outline Mode já cobre o eixo
+preview/outline do Illustrator; o nome reflete o comportamento real
+(Figma/Affinity "Presentation"). Mudança sem novo export público (sinal/métodos
+em serviço já exportado) → snapshot inalterado. Specs novos do `presentationMode`
+no WorkspaceService. Build + lint + suíte (**2633**) verdes; playground compila.
+
+---
+
 ## 2026-06-16 — D-127 — Tooltip em "Snap to Guides" + remover placeholder "Pixels" ✅
 
 Follow-up de UX do D-126. O usuário perguntou se `View ▸ Snap ▸ Snap to Guides`

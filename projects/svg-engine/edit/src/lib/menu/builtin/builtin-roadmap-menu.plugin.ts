@@ -325,16 +325,15 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // placeholder removed per convention (it shared order 50 and rendered a
     // duplicate clock-icon entry next to the real one).
     // Display ▶ roadmap children (Outline Mode is the real one, order 20).
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.view.display.preview',
-        parentId: 'svge.builtin.view.display-menu',
-        slot: MENU_SLOT.VIEW,
-        label: 'Preview',
-        icon: 'visibility',
-        order: 10,
-      }),
-    );
+    // **D-128 — SHIPPED (renamed).** The "Preview" placeholder (order 10) was
+    // promoted to a real **Presentation Mode** toggle
+    // (`svge.builtin.view.display.presentation`) registered by
+    // `builtinMenuContributionsPlugin`: it hides ALL editor chrome and shows
+    // only the artwork full-viewport (Esc to exit). Renamed from "Preview"
+    // because, with Outline Mode already shipped, the Illustrator-sense
+    // "Preview" (the non-outline view) would have been redundant; the useful,
+    // non-redundant meaning is Figma/Affinity "Presentation". Roadmap
+    // placeholder removed per the "ship = delete the placeholder" convention.
     track(
       roadmapLeaf({
         id: 'svge.roadmap.view.display.pixel-preview',

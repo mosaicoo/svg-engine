@@ -974,6 +974,26 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+    // **D-128** — Presentation Mode (was the `Preview` roadmap placeholder,
+    // order 10). Hides ALL editor chrome and shows only the artwork
+    // full-viewport (Figma/Affinity "Presentation"). Distinct from Outline
+    // Mode (which changes how shapes RENDER) — this hides the editor UI. The
+    // shells apply a `.presentation-mode` host class from the signal and exit
+    // on Esc (this menu is hidden while active, so Esc is the way out).
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.display.presentation',
+        parentId: 'svge.builtin.view.display-menu',
+        slot: MENU_SLOT.VIEW,
+        label: 'Presentation Mode',
+        icon: 'slideshow',
+        order: 10,
+        tooltip: 'Hide all panels and chrome — show only the artwork. Press Esc to exit.',
+        run(runCtx) {
+          fromCtx(WorkspaceService, runCtx).togglePresentationMode();
+        },
+      }),
+    );
     ctx.track(
       reg.register({
         id: 'svge.builtin.view.toggle-outline',

@@ -523,3 +523,37 @@ describe('WorkspaceService — rulerCursor tracking', () => {
     expect(ws.rulerCursor()).toBeNull();
   });
 });
+
+describe('WorkspaceService — presentation mode (D-128)', () => {
+  it('defaults to off', () => {
+    const ws = setup();
+    expect(ws.presentationMode()).toBe(false);
+  });
+
+  it('setPresentationMode flips the signal', () => {
+    const ws = setup();
+    ws.setPresentationMode(true);
+    expect(ws.presentationMode()).toBe(true);
+    ws.setPresentationMode(false);
+    expect(ws.presentationMode()).toBe(false);
+  });
+
+  it('togglePresentationMode flips back and forth', () => {
+    const ws = setup();
+    ws.togglePresentationMode();
+    expect(ws.presentationMode()).toBe(true);
+    ws.togglePresentationMode();
+    expect(ws.presentationMode()).toBe(false);
+  });
+
+  it('is independent of outlineMode (orthogonal display states)', () => {
+    const ws = setup();
+    ws.setOutlineMode(true);
+    ws.setPresentationMode(true);
+    expect(ws.outlineMode()).toBe(true);
+    expect(ws.presentationMode()).toBe(true);
+    ws.setPresentationMode(false);
+    // Leaving presentation must not touch outline.
+    expect(ws.outlineMode()).toBe(true);
+  });
+});
