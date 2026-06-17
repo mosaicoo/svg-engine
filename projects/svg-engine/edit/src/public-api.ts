@@ -82,6 +82,9 @@ export * from './lib/tool';
 // Workspace presentation (D-021 — Fase 4 foundation)
 export * from './lib/workspace';
 
+// Native browser fullscreen wrapper (D-129)
+export * from './lib/fullscreen';
+
 // Per-node visibility + lock (Fase 4 Bloco 4b)
 export * from './lib/layers';
 

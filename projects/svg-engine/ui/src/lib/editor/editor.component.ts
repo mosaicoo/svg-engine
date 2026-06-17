@@ -4,6 +4,7 @@ import {
   Component,
   computed,
   DestroyRef,
+  ElementRef,
   inject,
   input,
 } from '@angular/core';
@@ -19,6 +20,7 @@ import { SvgeRenderer } from 'svg-engine/render';
 import {
   ActiveDefsService,
   ActivePageService,
+  FullscreenService,
   GradientOverlay,
   GridOverlay,
   GuidesOverlay,
@@ -530,6 +532,14 @@ export class SvgeEditor {
     };
     doc.addEventListener('keydown', onPresentationEsc, true);
     inject(DestroyRef).onDestroy(() => doc.removeEventListener('keydown', onPresentationEsc, true));
+
+    // **D-129** — register this shell's host as the Full Screen target so
+    // View ▸ Display ▸ Full Screen wraps the editor element (not the whole host
+    // page), which matters for embedded consumers. Cleared on destroy.
+    const hostEl = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+    const fullscreen = inject(FullscreenService);
+    fullscreen.setTarget(hostEl);
+    inject(DestroyRef).onDestroy(() => fullscreen.clearTarget(hostEl));
   }
 
   /**

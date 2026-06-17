@@ -6,6 +6,43 @@
 
 ---
 
+## 2026-06-16 — D-129 — Full Screen real (View ▸ Display, Fullscreen API) ✅
+
+Sequência do D-128. O usuário confirmou que Full Screen ≠ Presentation Mode (um
+esconde a chrome do **navegador**, o outro a do **editor** — ortogonais, compõem)
+e pediu para implementar de fato o `View ▸ Display ▸ Full Screen`, que era só
+placeholder de roadmap (sem backing).
+
+- **Serviço** — novo [FullscreenService](../projects/svg-engine/edit/src/lib/fullscreen/fullscreen.service.ts)
+  (`svg-engine/edit`, `providedIn: 'root'`): wrapper fino sobre a **Fullscreen
+  API** nativa (`requestFullscreen`/`exitFullscreen`). `active` é um sinal
+  sincronizado via evento `fullscreenchange` (reflete saídas por Esc/F11 também);
+  `isSupported()` degrada em SSR/jsdom/iframe sem permissão; `setTarget`/
+  `clearTarget` deixam o shell registrar o elemento alvo; `enter`/`exit`/`toggle`
+  são no-ops seguros quando indisponível. DOM puro, sem Material (D-017 ok).
+  **Novo export público** → snapshot regenerado (`+FullscreenService`).
+- **Menu** ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)):
+  o placeholder `Full Screen` virou item real
+  (`svge.builtin.view.display.full-screen`, order 40, ícone `fullscreen`,
+  tooltip "…Press Esc to exit") → `FullscreenService.toggle()`, com `disabled`
+  quando a API não existe. Placeholder removido de
+  [builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts).
+  O clique do menu chama `run()` **síncrono**, preservando o gesto que a
+  `requestFullscreen` exige.
+- **Shells** ([shell-pro.component.ts](../projects/svg-engine/ui/src/lib/shell-pro/shell-pro.component.ts)
+  - [editor.component.ts](../projects/svg-engine/ui/src/lib/editor/editor.component.ts)):
+    cada um registra seu **host** como alvo (`setTarget`) no construtor e limpa no
+    destroy — assim o fullscreen envolve o **elemento do editor** (não a página
+    inteira), o que importa para consumidores embedados. Sem `setTarget` o serviço
+    cai em `document.documentElement` (playground standalone).
+- **Sair**: o navegador sai do fullscreen no **Esc**/**F11** nativamente — sem
+  handler custom.
+
+Specs do FullscreenService (defaults, no-throw, sync por evento). Build + lint +
+suíte (**2638**) verdes; playground compila; snapshot `+FullscreenService`.
+
+---
+
 ## 2026-06-16 — D-128 — Presentation Mode (View ▸ Display, renomeado de "Preview") ✅
 
 O usuário perguntou se havia funcionalidade para linkar em `View ▸ Display ▸

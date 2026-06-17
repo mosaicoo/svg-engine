@@ -490,6 +490,7 @@
     "FindReplaceService",
     "fitImportTransform",
     "formatCombo",
+    "FullscreenService",
     "gearShape",
     "geometricHitTestElement",
     "getCombinedBBox",

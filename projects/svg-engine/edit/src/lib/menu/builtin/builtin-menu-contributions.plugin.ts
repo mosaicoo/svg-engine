@@ -84,6 +84,7 @@ import { type EditorPlugin } from '../../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../../plugin/plugin';
 import { SelectionService } from '../../selection/selection.service';
 import { SmartObjectActionsService } from '../../smart-object-actions/smart-object-actions.service';
+import { FullscreenService } from '../../fullscreen/fullscreen.service';
 import { SnapService } from '../../snap/snap.service';
 import { WorkspaceService } from '../../workspace/workspace.service';
 import { MenuContributionRegistry } from '../menu-contribution-registry.service';
@@ -1004,6 +1005,29 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         order: 20,
         run(runCtx) {
           fromCtx(WorkspaceService, runCtx).toggleOutlineMode();
+        },
+      }),
+    );
+    // **D-129** — Full Screen (was the `Full Screen` roadmap placeholder, order
+    // 40). Uses the native Fullscreen API via FullscreenService: gives the
+    // editor element the whole monitor (hides browser/OS chrome). Distinct from
+    // Presentation Mode (D-128, hides the EDITOR chrome inside the page) — the
+    // two compose. Disabled when the API is unavailable (SSR / sandboxed
+    // iframe). Browser exits on Esc/F11 natively. requestFullscreen needs a
+    // user gesture: the menu click → run() chain is synchronous, so it holds.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.display.full-screen',
+        parentId: 'svge.builtin.view.display-menu',
+        slot: MENU_SLOT.VIEW,
+        label: 'Full Screen',
+        icon: 'fullscreen',
+        order: 40,
+        tooltip: 'Fill the entire screen (browser fullscreen). Press Esc to exit.',
+        disabled: (injector: Injector) =>
+          computed(() => !injector.get(FullscreenService).isSupported()),
+        run(runCtx) {
+          fromCtx(FullscreenService, runCtx).toggle();
         },
       }),
     );

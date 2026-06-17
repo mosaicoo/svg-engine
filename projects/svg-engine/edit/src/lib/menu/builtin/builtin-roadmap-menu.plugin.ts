@@ -344,17 +344,12 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
         order: 30,
       }),
     );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.view.display.full-screen',
-        parentId: 'svge.builtin.view.display-menu',
-        slot: MENU_SLOT.VIEW,
-        label: 'Full Screen',
-        icon: 'fullscreen',
-        order: 40,
-        shortcut: 'F11',
-      }),
-    );
+    // **D-129 — SHIPPED.** "Full Screen" (order 40) is now a real toggle
+    // registered by `builtinMenuContributionsPlugin`
+    // (`svge.builtin.view.display.full-screen`) backed by the native Fullscreen
+    // API (`FullscreenService`): it gives the editor element the whole monitor.
+    // Distinct from Presentation Mode (D-128) — the two compose. Roadmap
+    // placeholder removed per the "ship = delete the placeholder" convention.
     // Show ▶ roadmap children (Grid/Rulers/Timeline are real, orders 10-30).
     // **D-123 — REMOVED.** "Guides" (show/hide guides visibility) dropped: it's
     // redundant with the real `View ▸ Guides ▸ …` submenu (Add / Lock / Unlock /
