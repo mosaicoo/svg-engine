@@ -17,3 +17,4 @@ export { GridOverlay } from './grid-overlay.component';
 export { GuidesOverlay } from './guides-overlay.component';
 export { PageOverlay } from './page-overlay.component';
 export { OutlineFilter } from './outline-filter.directive';
+export { PixelPreviewFilter } from './pixel-preview-filter.directive';

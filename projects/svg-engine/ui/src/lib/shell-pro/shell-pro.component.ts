@@ -31,6 +31,7 @@ import {
   LayersFilter,
   OutlineFilter,
   PageOverlay,
+  PixelPreviewFilter,
   PANEL_ID,
   PanelHostService,
   PlaybackService,
@@ -142,6 +143,7 @@ import { SvgeToolsPalette } from '../tools-palette';
     GridOverlay,
     GuidesOverlay,
     OutlineFilter,
+    PixelPreviewFilter,
     LayersFilter,
     IsolationFilter,
     GradientOverlay,
@@ -243,6 +245,7 @@ import { SvgeToolsPalette } from '../tools-palette';
             svgeLayersFilter
             svgeIsolationFilter
             svgeOutlineFilter
+            svgePixelPreviewFilter
             [tree]="animatedTree()"
             [viewBox]="resolvedViewBox()"
             [defs]="resolvedDefs()"

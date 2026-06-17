@@ -29,6 +29,7 @@ import {
   LayersFilter,
   OutlineFilter,
   PageOverlay,
+  PixelPreviewFilter,
   organizationalContainerPredicate,
   resolveSelectableNodeId,
   SELECT_TOOL_ID,
@@ -123,6 +124,7 @@ import { SvgeToolOptions } from '../tool-options';
     GridOverlay,
     GuidesOverlay,
     OutlineFilter,
+    PixelPreviewFilter,
     LayersFilter,
     IsolationFilter,
     GradientOverlay,
@@ -215,6 +217,7 @@ import { SvgeToolOptions } from '../tool-options';
             svgeLayersFilter
             svgeIsolationFilter
             svgeOutlineFilter
+            svgePixelPreviewFilter
             [tree]="resolvedTree()"
             [viewBox]="resolvedViewBox()"
             [defs]="resolvedDefs()"

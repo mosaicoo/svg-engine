@@ -339,6 +339,31 @@ export class WorkspaceService {
   }
 
   /**
+   * **D-130** — Pixel Preview (Illustrator's `Alt+Ctrl+Y`). When `true`, the
+   * renderer disables anti-aliasing (`shape-rendering: crispEdges`) and uses
+   * nearest-neighbour scaling for embedded raster `<image>` content
+   * (`image-rendering: pixelated`) — a preview of how the vector art looks
+   * rasterized to hard pixel edges. Applied via the {@link PixelPreviewFilter}
+   * directive (the consumer attaches it to the renderer host); this service
+   * only owns the toggle state.
+   *
+   * Orthogonal to {@link outlineMode} (which suppresses fills) and
+   * {@link presentationMode} (which hides chrome) — all three compose. Default
+   * off; **never serialized** into the exported SVG (editor presentation only).
+   */
+  private readonly _pixelPreview = signal<boolean>(false);
+  readonly pixelPreview = this._pixelPreview.asReadonly();
+
+  setPixelPreview(enabled: boolean): void {
+    if (this._pixelPreview() === enabled) return;
+    this._pixelPreview.set(enabled);
+  }
+
+  togglePixelPreview(): void {
+    this.setPixelPreview(!this._pixelPreview());
+  }
+
+  /**
    * **D-128** — Presentation Mode (Figma/Affinity "Presentation" / Illustrator
    * Shift+F). When `true`, the shells hide ALL editor chrome — menu bar,
    * toolbar, tool-options, side panels (tools / libraries / inspector), status

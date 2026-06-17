@@ -842,10 +842,10 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     // The existing flat Zoom/Grid/Rulers/Outline/Timeline toggles become
     // children of three submenus (Option B). Fit Canvas (fit content bounds —
     // D-119), Fit Selection (D-118) + Actual Size (setZoom(1)) are **real**
-    // entries; Display ▸ Preview / Pixel Preview / Full Screen are the only
-    // roadmap children left under View (added by `builtinRoadmapMenuPlugin`).
-    // Show ▸ Guides + Artboard Labels (D-123) and Selection Bounds (D-124) were
-    // dropped — see that plugin.
+    // entries. The Display ▸ submenu is now ALL real: Presentation Mode (D-128),
+    // Outline Mode, Pixel Preview (D-130), Full Screen (D-129) — no roadmap
+    // children left under View. Show ▸ Guides + Artboard Labels (D-123) and
+    // Selection Bounds (D-124) were dropped — see `builtinRoadmapMenuPlugin`.
 
     // ── View ▸ Zoom ▶ ──────────────────────────────────────────────
     ctx.track(
@@ -1005,6 +1005,26 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         order: 20,
         run(runCtx) {
           fromCtx(WorkspaceService, runCtx).toggleOutlineMode();
+        },
+      }),
+    );
+    // **D-130** — Pixel Preview (was the `Pixel Preview` roadmap placeholder,
+    // order 30). Toggles WorkspaceService.pixelPreview(), applied by the
+    // PixelPreviewFilter directive on the renderer: disables anti-aliasing
+    // (crispEdges) + nearest-neighbour raster scaling (pixelated) so the art
+    // previews as it would rasterize to the pixel grid. Orthogonal to Outline
+    // Mode (suppresses fills) — both compose.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.display.pixel-preview',
+        parentId: 'svge.builtin.view.display-menu',
+        slot: MENU_SLOT.VIEW,
+        label: 'Pixel Preview',
+        icon: 'grid_4x4',
+        order: 30,
+        tooltip: 'Preview the artwork rasterized to the pixel grid (hard, anti-alias-free edges).',
+        run(runCtx) {
+          fromCtx(WorkspaceService, runCtx).togglePixelPreview();
         },
       }),
     );

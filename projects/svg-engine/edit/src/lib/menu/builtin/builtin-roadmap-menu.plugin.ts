@@ -334,16 +334,13 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // "Preview" (the non-outline view) would have been redundant; the useful,
     // non-redundant meaning is Figma/Affinity "Presentation". Roadmap
     // placeholder removed per the "ship = delete the placeholder" convention.
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.view.display.pixel-preview',
-        parentId: 'svge.builtin.view.display-menu',
-        slot: MENU_SLOT.VIEW,
-        label: 'Pixel Preview',
-        icon: 'grid_4x4',
-        order: 30,
-      }),
-    );
+    // **D-130 — SHIPPED.** "Pixel Preview" (order 30) is now a real toggle
+    // registered by `builtinMenuContributionsPlugin`
+    // (`svge.builtin.view.display.pixel-preview`) backed by
+    // `WorkspaceService.pixelPreview()` + the `PixelPreviewFilter` directive
+    // (crispEdges + image-rendering: pixelated). Roadmap placeholder removed.
+    // → With this, the entire View ▸ Display ▸ submenu is real (Presentation /
+    //   Outline / Pixel Preview / Full Screen); no roadmap children remain.
     // **D-129 — SHIPPED.** "Full Screen" (order 40) is now a real toggle
     // registered by `builtinMenuContributionsPlugin`
     // (`svge.builtin.view.display.full-screen`) backed by the native Fullscreen

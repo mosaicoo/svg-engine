@@ -6,6 +6,47 @@
 
 ---
 
+## 2026-06-16 — D-130 — Pixel Preview real (View ▸ Display) ✅
+
+Fecha a trinca de placeholders do `View ▸ Display`. O usuário pediu para
+implementar o `Pixel Preview` (era só placeholder de roadmap, sem backing),
+confirmando que é **aditivo / sem risco**. Implementado espelhando exatamente o
+padrão consagrado do **Outline Mode** (sinal no `WorkspaceService` + diretiva
+opt-in no renderer), então é puramente aditivo e default off.
+
+- **Estado** ([workspace.service.ts](../projects/svg-engine/edit/src/lib/workspace/workspace.service.ts)):
+  sinal `pixelPreview` (default off) + `setPixelPreview`/`togglePixelPreview`,
+  ortogonal a `outlineMode` e `presentationMode` (os três compõem). Não
+  serializado no SVG exportado.
+- **Diretiva** — nova [PixelPreviewFilter](../projects/svg-engine/edit/src/lib/workspace/pixel-preview-filter.directive.ts)
+  (`[svgePixelPreviewFilter]`, irmã do `OutlineFilter`): quando ligada, aplica
+  na **`<svg>` raiz** do renderer `shape-rendering: crispEdges` (desliga o
+  anti-aliasing → bordas duras/aliased, como ficariam rasterizadas na grade de
+  pixels) e `image-rendering: pixelated` (nearest-neighbour para `<image>` raster
+  → pixels "chunky" ao dar zoom). Como ambas são **herdadas**, basta setar na
+  raiz — cobre toda a arte e novas formas automaticamente; restaura no toggle
+  off. **Novo export público** → snapshot regenerado (`+PixelPreviewFilter`).
+- **Menu** ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)):
+  placeholder `Pixel Preview` virou item real
+  (`svge.builtin.view.display.pixel-preview`, order 30, ícone `grid_4x4`,
+  tooltip explicativo) → `togglePixelPreview()`. Placeholder removido de
+  [builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts).
+- **Shells**: `svgePixelPreviewFilter` adicionado ao `<svge-renderer>` em
+  [shell-pro.component.ts](../projects/svg-engine/ui/src/lib/shell-pro/shell-pro.component.ts)
+  e [editor.component.ts](../projects/svg-engine/ui/src/lib/editor/editor.component.ts)
+  (ao lado de `svgeOutlineFilter`).
+- **Cleanup**: comentário desatualizado corrigido — o `View ▸ Display ▸` agora é
+  **100% real** (Presentation / Outline / Pixel Preview / Full Screen), sem
+  placeholders de roadmap.
+
+Sobre fidelidade (honesto): para SVG vetorial inline, `crispEdges` é a
+capacidade real do CSS — desliga o AA; não há "snapping" verdadeiro à grade de
+device-pixels sem rasterizar para canvas (que seria frágil/complexo com o zoom
+via viewBox). Para conteúdo raster (`<image>`), o `pixelated` é fiel. Specs do
+sinal + da diretiva. Build + lint + suíte (**2645**) verdes; playground compila.
+
+---
+
 ## 2026-06-16 — D-129 — Full Screen real (View ▸ Display, Fullscreen API) ✅
 
 Sequência do D-128. O usuário confirmou que Full Screen ≠ Presentation Mode (um

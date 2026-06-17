@@ -557,3 +557,37 @@ describe('WorkspaceService — presentation mode (D-128)', () => {
     expect(ws.outlineMode()).toBe(true);
   });
 });
+
+describe('WorkspaceService — pixel preview (D-130)', () => {
+  it('defaults to off', () => {
+    expect(setup().pixelPreview()).toBe(false);
+  });
+
+  it('setPixelPreview flips the signal', () => {
+    const ws = setup();
+    ws.setPixelPreview(true);
+    expect(ws.pixelPreview()).toBe(true);
+    ws.setPixelPreview(false);
+    expect(ws.pixelPreview()).toBe(false);
+  });
+
+  it('togglePixelPreview flips back and forth', () => {
+    const ws = setup();
+    ws.togglePixelPreview();
+    expect(ws.pixelPreview()).toBe(true);
+    ws.togglePixelPreview();
+    expect(ws.pixelPreview()).toBe(false);
+  });
+
+  it('is independent of outlineMode and presentationMode (orthogonal display states)', () => {
+    const ws = setup();
+    ws.setOutlineMode(true);
+    ws.setPresentationMode(true);
+    ws.setPixelPreview(true);
+    expect(ws.pixelPreview()).toBe(true);
+    ws.setPixelPreview(false);
+    // Leaving pixel preview must not touch the other two.
+    expect(ws.outlineMode()).toBe(true);
+    expect(ws.presentationMode()).toBe(true);
+  });
+});
