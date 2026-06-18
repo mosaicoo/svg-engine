@@ -6,6 +6,56 @@
 
 ---
 
+## 2026-06-18 — D-131 — Pixel Preview (Rasterized): modo "chunky" real ✅
+
+Sequência do D-130. O usuário pediu o modo **pixel-accurate ("chunky")** — uma
+rasterização real à grade de pixels, estilo Illustrator —, confirmando que deve
+ser **aditivo, sem quebrar o existente**. Implementado como **segundo item**,
+mantendo o D-130 (CSS `crispEdges`) intacto; ambos atrás do mesmo submenu Display.
+
+**Decisão de arquitetura (o que torna isso viável e robusto):**
+
+- O overlay vive **dentro do `<svg>` do renderer**, então o `<image>` é colocado
+  em coordenadas de documento e o **viewport viewBox do renderer o alinha/escala
+  de graça** — zero matemática de pan/zoom e **sem re-raster em zoom/pan** (só em
+  edição do documento/defs).
+- A rasterização vem do **modelo** via `svgExporter` (mesma serialização do File
+  ▸ Export SVG), não do DOM vivo — então esconder a arte viva para exibição nunca
+  afeta o raster.
+
+**Peças (todas aditivas, default off):**
+
+- **Sinais** ([workspace.service.ts](../projects/svg-engine/edit/src/lib/workspace/workspace.service.ts)):
+  `pixelPreviewRaster` (toggle) + `pixelPreviewRasterReady` (coordenação de
+  render, setado pelo overlay). Ortogonais aos demais display modes.
+- **Componente** — novo [SvgePixelPreviewRaster](../projects/svg-engine/edit/src/lib/workspace/pixel-preview-raster.component.ts)
+  (`g[svgePixelPreviewRaster]`): rasteriza a página ativa em resolução **nativa**
+  (canvas, cap 4096) → `<image image-rendering: pixelated>`. **Token** descarta
+  resultados assíncronos obsoletos. **Degrada graciosamente**: sem canvas 2D
+  (SSR/jsdom) ou falha de decode → não pinta nada e `ready` fica false → o shell
+  mantém a arte viva (nunca tela em branco). **Novo export público** →
+  snapshot regenerado (`+SvgePixelPreviewRaster`).
+- **Menu** ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)):
+  item real **Pixel Preview (Rasterized)** (order 35) → `togglePixelPreviewRaster()`,
+  tooltip avisando que é mais pesado e que web fonts / HTML embarcado podem não
+  aparecer.
+- **Shells** ([shell-pro](../projects/svg-engine/ui/src/lib/shell-pro/shell-pro.component.ts)
+  - [editor](../projects/svg-engine/ui/src/lib/editor/editor.component.ts)):
+    `<svg:g svgePixelPreviewRaster>` no slot front do renderer (acima da arte,
+    abaixo das overlays de interação); classe `.svge-raster-ready` no
+    `<svge-renderer>` + CSS que esconde `[data-node-id]` (a arte viva suave) só
+    **quando o bitmap está pronto** — assim falhas viram no-op, e seleção/guias
+    seguem visíveis sobre o bitmap.
+
+**Fidelidade (honesto, documentado no componente):** para SVG→canvas, web/variable
+fonts e `<foreignObject>` podem não renderizar, e `<image href="http…">` externo é
+bloqueado / "tainta" o canvas. Formas, paths, gradients/patterns (defs inline) e
+imagens data-URI rasterizam normalmente. **QA no browser fica com o usuário** (o
+núcleo de rasterização não roda em jsdom). Build + lint + suíte (**2649**) verdes;
+playground compila.
+
+---
+
 ## 2026-06-16 — D-130 — Pixel Preview real (View ▸ Display) ✅
 
 Fecha a trinca de placeholders do `View ▸ Display`. O usuário pediu para

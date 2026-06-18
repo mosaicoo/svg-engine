@@ -364,6 +364,42 @@ export class WorkspaceService {
   }
 
   /**
+   * **D-131** — Pixel Preview (Rasterized): the pixel-accurate ("chunky")
+   * variant. When `true`, the consumer mounts `<svg:g svgePixelPreviewRaster>`
+   * which rasterizes the page to a bitmap at native resolution and displays it
+   * nearest-neighbour scaled — real device pixels, like Illustrator. Distinct
+   * from {@link pixelPreview} (D-130, CSS-only anti-alias off) and orthogonal to
+   * the other display modes. Default off; never serialized.
+   */
+  private readonly _pixelPreviewRaster = signal<boolean>(false);
+  readonly pixelPreviewRaster = this._pixelPreviewRaster.asReadonly();
+
+  setPixelPreviewRaster(enabled: boolean): void {
+    if (this._pixelPreviewRaster() === enabled) return;
+    this._pixelPreviewRaster.set(enabled);
+  }
+
+  togglePixelPreviewRaster(): void {
+    this.setPixelPreviewRaster(!this._pixelPreviewRaster());
+  }
+
+  /**
+   * **D-131** — set by the `<svge-pixel-preview-raster>` overlay once a bitmap
+   * is actually painted. The shell hides the live (smooth) art ONLY while this
+   * is `true`, so a failed/unsupported raster (SSR, jsdom, decode error) leaves
+   * the live art visible instead of showing a blank canvas. Render-coordination
+   * state, not a user preference — owned here alongside the toggle so the shell
+   * directive and the overlay share one source of truth.
+   */
+  private readonly _pixelPreviewRasterReady = signal<boolean>(false);
+  readonly pixelPreviewRasterReady = this._pixelPreviewRasterReady.asReadonly();
+
+  setPixelPreviewRasterReady(ready: boolean): void {
+    if (this._pixelPreviewRasterReady() === ready) return;
+    this._pixelPreviewRasterReady.set(ready);
+  }
+
+  /**
    * **D-128** — Presentation Mode (Figma/Affinity "Presentation" / Illustrator
    * Shift+F). When `true`, the shells hide ALL editor chrome — menu bar,
    * toolbar, tool-options, side panels (tools / libraries / inspector), status

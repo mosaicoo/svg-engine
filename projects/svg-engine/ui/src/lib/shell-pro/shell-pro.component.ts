@@ -32,6 +32,7 @@ import {
   OutlineFilter,
   PageOverlay,
   PixelPreviewFilter,
+  SvgePixelPreviewRaster,
   PANEL_ID,
   PanelHostService,
   PlaybackService,
@@ -169,6 +170,7 @@ import { SvgeToolsPalette } from '../tools-palette';
     SvgeLibrariesPanel,
     SvgePanelGroup,
     SvgePanelGroupTab,
+    SvgePixelPreviewRaster,
   ],
   template: `
     <div class="menu-row">
@@ -246,6 +248,7 @@ import { SvgeToolsPalette } from '../tools-palette';
             svgeIsolationFilter
             svgeOutlineFilter
             svgePixelPreviewFilter
+            [class.svge-raster-ready]="ws.pixelPreviewRasterReady()"
             [tree]="animatedTree()"
             [viewBox]="resolvedViewBox()"
             [defs]="resolvedDefs()"
@@ -266,6 +269,20 @@ import { SvgeToolsPalette } from '../tools-palette';
               for same reason as PageOverlay (compile-time projection).
             -->
             <svg:g svgeGridOverlay svgeBehind></svg:g>
+            <!--
+              D-131 — Pixel Preview (Rasterized) overlay. Self-gated: renders
+              the chunky native-res bitmap only when
+              WorkspaceService.pixelPreviewRaster() is on. Lives in the same
+              <svg> so the viewport viewBox aligns/scales it for free. Sits
+              above the (then-hidden) live art but below the interaction
+              overlays (ng-content) so selection/guides stay usable.
+            -->
+            <svg:g
+              svgePixelPreviewRaster
+              [tree]="animatedTree()"
+              [viewBox]="resolvedViewBox()"
+              [defs]="resolvedDefs()"
+            ></svg:g>
             <ng-content />
             <!--
               Guides overlay — renders horizontal/vertical reference
@@ -690,6 +707,18 @@ import { SvgeToolsPalette } from '../tools-palette';
     :host(.presentation-mode) ::ng-deep g[svgeInlineTextEditor],
     :host(.presentation-mode) ::ng-deep g[svgeSymbolSprayerOverlay] {
       display: none;
+    }
+
+    /* ── D-131 — Pixel Preview (Rasterized) ──────────────────────────
+       While the chunky native-res bitmap is actually painted (the
+       overlay sets WorkspaceService.pixelPreviewRasterReady → the
+       .svge-raster-ready class), hide the live (smooth) art beneath it
+       so only the device pixels show. Interaction overlays (selection,
+       guides — not [data-node-id]) stay visible. If the raster never
+       becomes ready (SSR / jsdom / decode failure) the class is absent,
+       so the live art remains — never a blank canvas. */
+    :host ::ng-deep svge-renderer.svge-raster-ready [data-node-id] {
+      visibility: hidden;
     }
   `,
   host: {

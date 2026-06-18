@@ -30,6 +30,7 @@ import {
   OutlineFilter,
   PageOverlay,
   PixelPreviewFilter,
+  SvgePixelPreviewRaster,
   organizationalContainerPredicate,
   resolveSelectableNodeId,
   SELECT_TOOL_ID,
@@ -142,6 +143,7 @@ import { SvgeToolOptions } from '../tool-options';
     SvgeContextMenuTrigger,
     SvgeToolOptions,
     SvgeShellInteractions,
+    SvgePixelPreviewRaster,
   ],
   template: `
     @if (showMenuBar()) {
@@ -218,6 +220,7 @@ import { SvgeToolOptions } from '../tool-options';
             svgeIsolationFilter
             svgeOutlineFilter
             svgePixelPreviewFilter
+            [class.svge-raster-ready]="ws.pixelPreviewRasterReady()"
             [tree]="resolvedTree()"
             [viewBox]="resolvedViewBox()"
             [defs]="resolvedDefs()"
@@ -256,6 +259,14 @@ import { SvgeToolOptions } from '../tool-options';
             workspace.toggleGrid() programmatic.
           -->
             <svg:g svgeGridOverlay svgeBehind></svg:g>
+            <!-- D-131 — Pixel Preview (Rasterized) overlay. Self-gated; see
+                 <svge-shell-pro> for the detailed rationale. -->
+            <svg:g
+              svgePixelPreviewRaster
+              [tree]="resolvedTree()"
+              [viewBox]="resolvedViewBox()"
+              [defs]="resolvedDefs()"
+            ></svg:g>
             <ng-content />
             <!--
             Guides overlay — renders horizontal/vertical reference
@@ -455,6 +466,15 @@ import { SvgeToolOptions } from '../tool-options';
     :host(.presentation-mode) ::ng-deep g[svgeInlineTextEditor],
     :host(.presentation-mode) ::ng-deep g[svgeSymbolSprayerOverlay] {
       display: none;
+    }
+
+    /* ── D-131 — Pixel Preview (Rasterized) ──────────────────────────
+       Hide the live (smooth) art while the chunky native-res bitmap is
+       painted (the overlay sets the .svge-raster-ready class via
+       WorkspaceService.pixelPreviewRasterReady). Never-ready → class
+       absent → live art stays, so failures are no-ops, not blanks. */
+    :host ::ng-deep svge-renderer.svge-raster-ready [data-node-id] {
+      visibility: hidden;
     }
   `,
   host: {

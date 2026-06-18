@@ -1028,6 +1028,27 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
+    // **D-131** — Pixel Preview (Rasterized): the pixel-accurate ("chunky")
+    // variant. Toggles WorkspaceService.pixelPreviewRaster(); the shell mounts
+    // <svg:g svgePixelPreviewRaster> which rasterizes the page to a native-res
+    // bitmap shown nearest-neighbour (real device pixels, Illustrator-style).
+    // Heavier than D-130's CSS preview, and web fonts / foreignObject may not
+    // render (SVG→canvas limitation) — hence a separate item.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.view.display.pixel-preview-raster',
+        parentId: 'svge.builtin.view.display-menu',
+        slot: MENU_SLOT.VIEW,
+        label: 'Pixel Preview (Rasterized)',
+        icon: 'apps',
+        order: 35,
+        tooltip:
+          'Pixel-accurate preview: rasterizes the page to real device pixels (slower; web fonts / embedded HTML may not appear).',
+        run(runCtx) {
+          fromCtx(WorkspaceService, runCtx).togglePixelPreviewRaster();
+        },
+      }),
+    );
     // **D-129** — Full Screen (was the `Full Screen` roadmap placeholder, order
     // 40). Uses the native Fullscreen API via FullscreenService: gives the
     // editor element the whole monitor (hides browser/OS chrome). Distinct from

@@ -749,6 +749,7 @@
     "SvgeHelpLinks",
     "SvgeImportPlacementOverlay",
     "SvgePageSelectionOverlay",
+    "SvgePixelPreviewRaster",
     "SvgeShellInteractions",
     "SvgeViewportCullingDirective",
     "svgExporter",

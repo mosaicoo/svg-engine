@@ -591,3 +591,35 @@ describe('WorkspaceService — pixel preview (D-130)', () => {
     expect(ws.presentationMode()).toBe(true);
   });
 });
+
+describe('WorkspaceService — pixel preview raster (D-131)', () => {
+  it('toggle + ready default off and flip independently', () => {
+    const ws = setup();
+    expect(ws.pixelPreviewRaster()).toBe(false);
+    expect(ws.pixelPreviewRasterReady()).toBe(false);
+
+    ws.togglePixelPreviewRaster();
+    expect(ws.pixelPreviewRaster()).toBe(true);
+    // Toggling the user intent does NOT imply a bitmap is painted yet.
+    expect(ws.pixelPreviewRasterReady()).toBe(false);
+
+    ws.setPixelPreviewRasterReady(true);
+    expect(ws.pixelPreviewRasterReady()).toBe(true);
+
+    ws.setPixelPreviewRaster(false);
+    expect(ws.pixelPreviewRaster()).toBe(false);
+    // Ready is render-coordination state owned by the overlay — it persists
+    // until explicitly cleared (the overlay clears it on off/destroy).
+    expect(ws.pixelPreviewRasterReady()).toBe(true);
+  });
+
+  it('is independent of the CSS pixelPreview (D-130) and other display modes', () => {
+    const ws = setup();
+    ws.setPixelPreview(true); // D-130 fast mode
+    ws.setPixelPreviewRaster(true); // D-131 raster mode
+    expect(ws.pixelPreview()).toBe(true);
+    expect(ws.pixelPreviewRaster()).toBe(true);
+    ws.setPixelPreviewRaster(false);
+    expect(ws.pixelPreview()).toBe(true); // untouched
+  });
+});
