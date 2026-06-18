@@ -853,6 +853,7 @@
     "SvgeFindReplaceDialogService",
     "SvgeGradientEditor",
     "SvgeGradientToolOptions",
+    "SvgeHistoryPanel",
     "SvgeInspector",
     "SvgeIsolationBreadcrumb",
     "SvgeKeyboardShortcutsDialog",

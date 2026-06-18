@@ -39,6 +39,11 @@ export * from './lib/layers-panel';
 // (edit) — both already scoped via provideSvgEngineEditorScope().
 export * from './lib/snapshots-panel';
 
+// Command history panel (D-093) — Photoshop-style linear list of every
+// command on the HistoryService stacks with click-to-time-travel via
+// CommandBus.goto(). Complementary to the snapshots panel above.
+export * from './lib/history-panel';
+
 // Plugin manager panel (D-083 Fase 1) — list/enable/disable/uninstall
 // plugins grouped by type (internal/external). Reads PluginManagerService
 // (edit, root-provided). Mechanism only — access policy is the consumer's.

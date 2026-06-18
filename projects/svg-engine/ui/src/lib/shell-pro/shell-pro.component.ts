@@ -56,6 +56,7 @@ import { SvgeIsolationBreadcrumb } from '../isolation-breadcrumb';
 import { LayersPanel } from '../layers-panel';
 import { SvgeLibrariesPanel } from '../libraries-panel';
 import { SnapshotsPanel } from '../snapshots-panel';
+import { SvgeHistoryPanel } from '../history-panel';
 import { SvgeAssetExportPanel } from '../asset-export-panel';
 import { SvgeMenuBar } from '../menu-bar';
 import { SvgePagesPanel } from '../pages-panel';
@@ -163,6 +164,7 @@ import { SvgeToolsPalette } from '../tools-palette';
     SvgeTimeline,
     LayersPanel,
     SnapshotsPanel,
+    SvgeHistoryPanel,
     SvgeInspector,
     SvgeGradientEditor,
     SvgeEffectsPanel,
@@ -383,16 +385,29 @@ import { SvgeToolsPalette } from '../tools-palette';
             <svge-layers-panel [root]="layersPanelRoot()" />
           </ng-template>
           <!--
-            D-073 — History snapshots tab. Sits next to Layers because
-            both are document-scope navigators: Layers shows what
-            exists right now; History shows what existed before.
-            Photoshop / Figma collocate them similarly.
+            D-093 — History tab: the linear, automatic log of every command
+            with click-to-time-travel (Photoshop History panel pattern).
+            Sits next to Layers because both are document-scope navigators:
+            Layers shows what exists now; History shows how it got there.
           -->
           <ng-template
             svgePanelGroupTab
             svgePanelGroupTabId="history"
             label="History"
             icon="history"
+          >
+            <svge-history-panel />
+          </ng-template>
+          <!--
+            D-073 — Snapshots tab: manual, named, restorable document
+            checkpoints (complementary to the automatic History above —
+            Photoshop keeps both, snapshots being the durable ones).
+          -->
+          <ng-template
+            svgePanelGroupTab
+            svgePanelGroupTabId="snapshots"
+            label="Snapshots"
+            icon="photo_camera"
           >
             <svge-snapshots-panel />
           </ng-template>

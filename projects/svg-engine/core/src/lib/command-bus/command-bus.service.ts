@@ -128,4 +128,31 @@ export class CommandBus {
     }
     return result;
   }
+
+  /**
+   * **D-093 (History panel)** — time-travel to an arbitrary history state by
+   * replaying `undo`/`redo` until the undo stack holds exactly `targetDepth`
+   * commands. `targetDepth` is the number of APPLIED commands: `0` is the
+   * initial document (before any command), `undoStack().length` is the current
+   * state. Used by `<svge-history-panel>` when the user clicks a state.
+   *
+   * Pure navigation over the existing inverse operations — no new command is
+   * pushed and the redo branch is preserved exactly. Clamps to the valid range
+   * and stops early if an `undo`/`redo` reports failure, so a flaky command can
+   * never spin the loop. Returns the number of steps actually taken.
+   */
+  goto(targetDepth: number): number {
+    const total = this.history.undoStack().length + this.history.redoStack().length;
+    const target = Math.max(0, Math.min(Math.trunc(targetDepth), total));
+    let steps = 0;
+    while (this.history.undoStack().length > target) {
+      if (!this.undo().ok) break;
+      steps += 1;
+    }
+    while (this.history.undoStack().length < target) {
+      if (!this.redo().ok) break;
+      steps += 1;
+    }
+    return steps;
+  }
 }

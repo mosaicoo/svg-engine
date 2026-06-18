@@ -6,6 +6,43 @@
 
 ---
 
+## 2026-06-18 — D-093 — History panel (lista de comandos + time-travel, estilo Photoshop) ✅
+
+O usuário pediu um painel para **visualizar a lista de comandos** do histórico
+(além dos Snapshots). Padrão de mercado = **History panel do Photoshop** (lista
+linear de cada ação, estado atual destacado, ramo de redo esmaecido, clique =
+pular para o estado). A fundação já estava pronta: o `HistoryService` expõe
+`undoStack`/`redoStack`/`maxSize` como signals e todo `Command` tem `label`.
+
+**Peças (aditivas, sem quebrar nada):**
+
+- **Time-travel no core** — `CommandBus.goto(targetDepth)`
+  ([command-bus.service.ts](../projects/svg-engine/core/src/lib/command-bus/command-bus.service.ts)):
+  reproduz `undo`/`redo` até a pilha de undo ter `targetDepth` comandos aplicados
+  (`0` = documento inicial). Navegação pura sobre os inversos existentes — não
+  empilha comando novo, preserva o ramo de redo, clampa o alvo e para se um
+  undo/redo falhar. **Sem novo export** (método em classe já pública).
+- **`<svge-history-panel>`** ([history-panel.component.ts](../projects/svg-engine/ui/src/lib/history-panel/history-panel.component.ts)):
+  lista oldest→newest (baseline "Open" + um item por comando), estado atual
+  destacado, ramo de redo `opacity: 0.45`, clique chama `goto`, auto-scroll do
+  atual, ícone best-effort por tipo de label, contador `k/maxSize` e "Clear
+  history". Espelha o `<svge-snapshots-panel>`. **Novo export público** →
+  snapshot regenerado (`+SvgeHistoryPanel`).
+- **Right rail do `<svge-shell-pro>`**: aba **History** (a lista nova) + a aba
+  **Snapshots** (antes rotulada "History" — corrigido o nome, painel intacto).
+  São complementares: History é automático/linear/efêmero; Snapshots é
+  manual/nomeado/persistente (Photoshop mantém os dois).
+
+**Verificação no browser** (`/pro-editor`, localStorage limpo): inserir
+retângulo + elipse → a aba History mostra `Open / Insert rect / Insert ellipse`
+com a última como **current** (`2/100`); **clicar em "Insert rect"** desfez a
+elipse (canvas com só o retângulo), marcou "Insert rect" como current e "Insert
+ellipse" como **future** (esmaecido), contador `1/100` — time-travel perfeito.
+Specs: 4 no `CommandBus.goto` + 4 no painel (lista/current/future/clique→goto).
+Build + lint + suíte (**2660**, +8) verdes; auto-scroll com guard p/ jsdom.
+
+---
+
 ## 2026-06-18 — PAGES-FIX-3 — Bootstrap da Page 1 fora da pilha de undo ✅
 
 O usuário observou: ao **dar Ctrl+Z logo ao abrir o app** (sem ter feito nada), a

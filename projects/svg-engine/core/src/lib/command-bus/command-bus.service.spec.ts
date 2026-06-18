@@ -131,3 +131,54 @@ describe('CommandBus / undo + redo round-trip', () => {
     expect(history.canRedo()).toBe(false);
   });
 });
+
+describe('CommandBus / goto (time-travel, D-093)', () => {
+  function seed() {
+    const { state, history, bus } = setup();
+    const r1 = createRect({ x: 0, y: 0, width: 1, height: 1 });
+    const r2 = createRect({ x: 1, y: 1, width: 1, height: 1 });
+    const r3 = createRect({ x: 2, y: 2, width: 1, height: 1 });
+    bus.dispatch(new InsertNodeCommand(state.document().root.id, r1));
+    bus.dispatch(new InsertNodeCommand(state.document().root.id, r2));
+    bus.dispatch(new InsertNodeCommand(state.document().root.id, r3));
+    return { state, history, bus };
+  }
+
+  it('jumps back to an earlier state and preserves the redo branch', () => {
+    const { state, history, bus } = seed();
+    expect(history.undoStack().length).toBe(3);
+
+    bus.goto(1);
+
+    expect(history.undoStack().length).toBe(1);
+    expect(history.redoStack().length).toBe(2);
+    expect(state.document().root.children).toHaveLength(1);
+  });
+
+  it('jumps forward (redo) back to the latest state', () => {
+    const { state, history, bus } = seed();
+    bus.goto(0);
+    expect(state.document().root.children).toHaveLength(0);
+
+    bus.goto(3);
+
+    expect(history.undoStack().length).toBe(3);
+    expect(history.canRedo()).toBe(false);
+    expect(state.document().root.children).toHaveLength(3);
+  });
+
+  it('clamps out-of-range targets', () => {
+    const { state, history, bus } = seed();
+    bus.goto(99);
+    expect(history.undoStack().length).toBe(3);
+    bus.goto(-5);
+    expect(history.undoStack().length).toBe(0);
+    expect(state.document().root.children).toHaveLength(0);
+  });
+
+  it('returns the number of steps taken', () => {
+    const { bus } = seed();
+    expect(bus.goto(3)).toBe(0);
+    expect(bus.goto(1)).toBe(2);
+  });
+});
