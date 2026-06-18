@@ -788,7 +788,11 @@ export class SvgeShellPro {
    * bootstrapped Page 1 with its content moved inside.
    */
   constructor() {
-    this.bus.dispatch(new EnsureDefaultPageCommand());
+    // `recordHistory: false` — bootstrapping Page 1 is INITIALIZATION, not a
+    // user edit, so it must NOT land on the undo stack. Otherwise the user's
+    // first Ctrl+Z (with nothing real to undo) would undo the bootstrap,
+    // leaving a page-less document + the "Add Page" fallback out of nowhere.
+    this.bus.dispatch(new EnsureDefaultPageCommand(), { recordHistory: false });
     if (this.toolHost.activeId() === null) {
       this.toolHost.activate(SELECT_TOOL_ID);
     }

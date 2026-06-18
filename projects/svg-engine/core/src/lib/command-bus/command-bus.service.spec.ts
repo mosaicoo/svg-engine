@@ -47,6 +47,22 @@ describe('CommandBus / dispatch', () => {
     expect(history.canUndo()).toBe(false);
   });
 
+  it('does not push to history when recordHistory is false (init / bootstrap)', () => {
+    const { state, history, bus } = setup();
+    const rect = createRect({ x: 0, y: 0, width: 1, height: 1 });
+    const cmd = new InsertNodeCommand(state.document().root.id, rect);
+
+    const r = bus.dispatch(cmd, { recordHistory: false });
+
+    // The command still ran and mutated the document...
+    expect(r.ok).toBe(true);
+    expect(state.document().root.children).toHaveLength(1);
+    // ...but the undo stack stays empty: this models the mount-time
+    // EnsureDefaultPage bootstrap — the user's first Ctrl+Z must have
+    // nothing to undo, so it can never strip the bootstrapped page.
+    expect(history.canUndo()).toBe(false);
+  });
+
   it('clears redo stack on new dispatch', () => {
     const { state, history, bus } = setup();
     const rect1 = createRect({ x: 0, y: 0, width: 1, height: 1 });

@@ -55,11 +55,22 @@ export class CommandBus {
    * not the post-state — so restoring the snapshot returns to where
    * the user was before the destructive op (the "what would I have
    * undone to?" intent).
+   *
+   * **Bootstrap / init path** — pass `{ recordHistory: false }` to apply
+   * an INITIALIZATION command WITHOUT pushing it onto the undo stack (and
+   * without taking an auto-snapshot). Initialization is not an edit: the
+   * mount-time `EnsureDefaultPageCommand` bootstraps the default `Page 1`,
+   * and the user's first Ctrl+Z must NOT undo that bootstrap (which would
+   * leave the document page-less — the "Add Page" fallback appearing out
+   * of nowhere). The command still runs and mutates state; it simply
+   * leaves history untouched. Default `true` — all existing edit call
+   * sites record history exactly as before.
    */
-  dispatch(command: Command): CommandResult {
-    this.maybeAutoSnapshot(command);
+  dispatch(command: Command, options?: { recordHistory?: boolean }): CommandResult {
+    const recordHistory = options?.recordHistory ?? true;
+    if (recordHistory) this.maybeAutoSnapshot(command);
     const result = command.execute(this.buildContext());
-    if (result.ok) {
+    if (result.ok && recordHistory) {
       this.history.push(command);
     }
     return result;

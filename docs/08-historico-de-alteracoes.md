@@ -6,6 +6,47 @@
 
 ---
 
+## 2026-06-18 — PAGES-FIX-3 — Bootstrap da Page 1 fora da pilha de undo ✅
+
+O usuário observou: ao **dar Ctrl+Z logo ao abrir o app** (sem ter feito nada), a
+página ativa some e aparece o botão **"Add Page"** — em tese ele nunca deveria
+surgir, pois sempre há uma página ativa. **Análise confirmou** que era uma aresta
+real.
+
+**Causa:** o mount do shell despacha `EnsureDefaultPageCommand` pela
+`CommandBus.dispatch` (caminho normal, que **empilha no undo**). Como o comando
+tem `undo()` real (restaura o root sem páginas), num documento novo o "Bootstrap
+Page 1" ficava no **topo da pilha de undo** — então o primeiro Ctrl+Z desfazia a
+criação automática da página, deixando o doc com zero páginas → fallback "Add Page".
+
+**Decisão de design** (a pedido do usuário, antes de codar): **não** usar um flag
+de configuração. É corretude, não preferência — ninguém quer que o primeiro Ctrl+Z
+apague a Page 1. Além disso, o mesmo comando é bootstrap num call-site e ação do
+usuário em outro; a distinção certa é **por call-site**, não um booleano global.
+
+**Fix** — princípio "inicialização não é edição":
+
+- **`CommandBus.dispatch(command, { recordHistory?: boolean })`**
+  ([command-bus.service.ts](../projects/svg-engine/core/src/lib/command-bus/command-bus.service.ts)):
+  novo parâmetro opcional (default `true` → retrocompatível, **sem novo export →
+  snapshot inalterado**). Com `recordHistory: false`, executa + muta o estado mas
+  **não** empilha no undo nem tira auto-snapshot.
+- **Call-sites de mount** passam `{ recordHistory: false }`:
+  [shell-pro.component.ts](../projects/svg-engine/ui/src/lib/shell-pro/shell-pro.component.ts)
+  e [editor.component.ts](../projects/svg-engine/ui/src/lib/editor/editor.component.ts).
+- **File→New / Open / Import** ficam **inalterados** — já chamavam
+  `HistoryService.clear()` logo após o bootstrap (o page-create nunca era um undo
+  estranho). `applyTemplate` (libraries-panel) também fica undoable (ação do usuário).
+
+**Verificação no browser** (start fresco, localStorage limpo, `/pro-editor`): a
+Page 1 é criada, o botão **Undo já nasce desabilitado** (nada a desfazer), e um
+**Ctrl+Z real não remove a página** (`pageTabs: ['Page 1']`, fallback "Add Page"
+não aparece). Spec de regressão no CommandBus: `recordHistory: false` muta o doc
+mas deixa `canUndo()` falso. Build + lint + suíte (**2652**, +1) verdes; sem
+mudança de API pública.
+
+---
+
 ## 2026-06-18 — D-131-fix2 — Pixel Preview (Rasterized): loop infinito de re-raster (achado no browser) ✅
 
 Ao **testar o D-131-fix no navegador** (autorizado pelo usuário, via preview no

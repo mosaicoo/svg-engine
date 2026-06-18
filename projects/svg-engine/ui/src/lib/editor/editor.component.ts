@@ -536,7 +536,10 @@ export class SvgeEditor {
   constructor() {
     queueMicrotask(() => {
       if (!this.autoBootstrapPage()) return;
-      this.bus.dispatch(new EnsureDefaultPageCommand());
+      // `recordHistory: false` — the mount-time Page 1 bootstrap is
+      // initialization, not a user edit; keeping it off the undo stack means
+      // the first Ctrl+Z can't undo it and strand the doc with zero pages.
+      this.bus.dispatch(new EnsureDefaultPageCommand(), { recordHistory: false });
       if (this.toolHost.activeId() === null) {
         this.toolHost.activate(SELECT_TOOL_ID);
       }
