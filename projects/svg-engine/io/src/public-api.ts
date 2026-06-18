@@ -28,3 +28,5 @@ export { ExporterRegistry, ImporterRegistry } from './lib/io-registries.service'
 export { svgImporter } from './lib/svg-importer';
 export { svgExporter, nodeToSvgMarkup } from './lib/svg-exporter';
 export { pngExporter, renderPng } from './lib/png-exporter';
+// D-137 — SVGZ (gzip-compressed SVG) export + low-level gzip helpers.
+export { svgzExporter, gzipText, gunzipText } from './lib/svgz';

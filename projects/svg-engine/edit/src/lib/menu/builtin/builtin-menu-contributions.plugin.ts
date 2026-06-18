@@ -49,7 +49,14 @@ import {
   UnionCommand,
   UnmakeLayerCommand,
 } from 'svg-engine/core';
-import { pngExporter, renderPng, svgExporter, svgImporter } from 'svg-engine/io';
+import {
+  gunzipText,
+  pngExporter,
+  renderPng,
+  svgExporter,
+  svgImporter,
+  svgzExporter,
+} from 'svg-engine/io';
 import { OptimizeCommand, OptimizerRegistry } from 'svg-engine/optimize';
 import { ViewportService } from 'svg-engine/render';
 
@@ -511,6 +518,22 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         order: 10,
         run(runCtx) {
           void exportAndDownload(runCtx, fromCtx, 'svg');
+        },
+      }),
+    );
+    // D-137 — Compressed SVG (.svgz): gzip of the plain SVG export. Sits right
+    // under "SVG…" so the two SVG variants group together (the Illustrator /
+    // Inkscape convention).
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.export-svgz',
+        parentId: 'svge.builtin.file.export-menu',
+        slot: MENU_SLOT.FILE,
+        label: 'SVG (Compressed)…',
+        icon: 'folder_zip',
+        order: 15,
+        run(runCtx) {
+          void exportAndDownload(runCtx, fromCtx, 'svgz');
         },
       }),
     );
@@ -3464,8 +3487,9 @@ function openFromFile(runCtx: MenuContributionContext | undefined, fromCtx: Reso
   if (typeof document === 'undefined') return;
   const input = document.createElement('input');
   input.type = 'file';
-  // Extend `accept` when the proprietary format lands (e.g. add ',.svge').
-  input.accept = '.svg,image/svg+xml';
+  // D-137: `.svgz` (gzip-compressed SVG) joins `.svg`. Extend `accept` again
+  // when the proprietary format lands (e.g. add ',.svge').
+  input.accept = '.svg,.svgz,image/svg+xml';
   input.style.display = 'none';
   input.addEventListener(
     'change',
@@ -3475,21 +3499,43 @@ function openFromFile(runCtx: MenuContributionContext | undefined, fromCtx: Reso
       if (file === undefined || file === null) return;
       const dot = file.name.lastIndexOf('.');
       const ext = dot >= 0 ? file.name.slice(dot + 1).toLowerCase() : '';
-      switch (ext) {
-        case 'svg':
-          void file.text().then((text) => openSvgText(runCtx, fromCtx, text, file.name));
-          break;
-        // case 'svge': openProprietary(runCtx, fromCtx, file); break;  // TBD
-        default:
-          if (typeof window !== 'undefined') {
-            window.alert(`Opening ".${ext}" files is not supported yet.`);
-          }
+      // case 'svge': openProprietary(runCtx, fromCtx, file); break;  // TBD
+      if (ext !== 'svg' && ext !== 'svgz') {
+        if (typeof window !== 'undefined') {
+          window.alert(`Opening ".${ext}" files is not supported yet.`);
+        }
+        return;
       }
+      // D-137: `.svgz` is decompressed first; both branches end at SVG text.
+      void readSvgFileText(file)
+        .then((text) => openSvgText(runCtx, fromCtx, text, file.name))
+        .catch((err: unknown) => {
+          if (typeof window !== 'undefined') {
+            window.alert(
+              `Could not read "${file.name}": ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        });
     },
     { once: true },
   );
   document.body.appendChild(input);
   input.click();
+}
+
+/**
+ * **D-137** — read a picked file as SVG text. `.svgz` (gzip-compressed SVG) is
+ * decompressed via {@link gunzipText}; plain `.svg` is read as text directly.
+ * Dispatched by extension so `File ▸ Open…` and `File ▸ Import ▸ SVG…` share
+ * one decode path.
+ */
+function readSvgFileText(file: File): Promise<string> {
+  const dot = file.name.lastIndexOf('.');
+  const ext = dot >= 0 ? file.name.slice(dot + 1).toLowerCase() : '';
+  if (ext === 'svgz') {
+    return file.arrayBuffer().then((buffer) => gunzipText(buffer));
+  }
+  return file.text();
 }
 
 /**
@@ -3565,7 +3611,8 @@ function importSvgFromFile(runCtx: MenuContributionContext | undefined, fromCtx:
   // works without Material).
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = '.svg,image/svg+xml';
+  // D-137: accept compressed `.svgz` too (decompressed in readSvgFileText).
+  input.accept = '.svg,.svgz,image/svg+xml';
   input.style.display = 'none';
   input.addEventListener(
     'change',
@@ -3573,7 +3620,15 @@ function importSvgFromFile(runCtx: MenuContributionContext | undefined, fromCtx:
       const file = input.files?.[0];
       input.remove();
       if (file === undefined || file === null) return;
-      void file.text().then((text) => importSvgTextAdditive(runCtx, fromCtx, text));
+      void readSvgFileText(file)
+        .then((text) => importSvgTextAdditive(runCtx, fromCtx, text))
+        .catch((err: unknown) => {
+          if (typeof window !== 'undefined') {
+            window.alert(
+              `Could not read "${file.name}": ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        });
     },
     { once: true },
   );
@@ -3898,7 +3953,7 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 async function exportAndDownload(
   runCtx: MenuContributionContext | undefined,
   fromCtx: Resolver,
-  format: 'svg' | 'png',
+  format: 'svg' | 'png' | 'svgz',
   animated = false,
 ): Promise<void> {
   if (typeof document === 'undefined' || typeof URL === 'undefined') return;
@@ -3947,9 +4002,11 @@ async function exportAndDownload(
       };
     }
   }
-  const exporter = format === 'svg' ? svgExporter : pngExporter;
+  // D-137: SVGZ reuses the entire SVG export pipeline (defs merge, page
+  // projection) and gzips the result — `svgzExporter` returns a Blob.
+  const exporter = format === 'png' ? pngExporter : format === 'svgz' ? svgzExporter : svgExporter;
   // `Exporter.export` may return `string` (SVG) or `Promise<string | Blob>`
-  // (PNG). Normalize both branches into a Blob for download.
+  // (PNG, SVGZ). Normalize both branches into a Blob for download.
   let output: string | Blob;
   try {
     const result = exporter.export(doc);

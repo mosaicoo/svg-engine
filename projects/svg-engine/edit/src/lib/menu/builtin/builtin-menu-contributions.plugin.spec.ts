@@ -268,14 +268,19 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(ids).toContain('svge.builtin.edit.ungroup');
   });
 
-  it('populates File slot with Export SVG / Export Animated SVG (SMIL) / Export PNG (D-082 F9d)', () => {
+  it('populates File slot with Export SVG / Compressed SVG / Animated SVG (SMIL) / PNG (D-082 F9d, D-137)', () => {
     const { reg } = setupRoot();
-    const ids = reg
-      .bySlot(MENU_SLOT.FILE)()
-      .map((c) => c.id);
+    const items = reg.bySlot(MENU_SLOT.FILE)();
+    const ids = items.map((c) => c.id);
     expect(ids).toContain('svge.builtin.file.export-svg');
+    expect(ids).toContain('svge.builtin.file.export-svgz'); // D-137
     expect(ids).toContain('svge.builtin.file.export-svg-animated');
     expect(ids).toContain('svge.builtin.file.export-png');
+    // D-137: the compressed-SVG entry is a child of the Export submenu and sits
+    // right after plain SVG (order 10 < 15 < 20).
+    const svgz = items.find((c) => c.id === 'svge.builtin.file.export-svgz');
+    expect(svgz?.parentId).toBe('svge.builtin.file.export-menu');
+    expect(svgz?.order).toBe(15);
   });
 
   it('populates Toolbar, Context Canvas, Context Node slots', () => {

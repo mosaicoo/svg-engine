@@ -6,6 +6,54 @@
 
 ---
 
+## 2026-06-18 — D-137 — Export + Import de SVG compactado (SVGZ / .svgz) ✅
+
+O usuário notou que o submenu `File ▸ Export` não tinha opção de **SVG compactado**.
+Auditoria confirmou: **não existia** nenhuma geração de gzip no projeto (só um
+comentário "future improvement: gzip via CompressionStream" no autosave). SVGZ é
+o padrão W3C de SVG comprimido: o mesmo SVG passado por gzip, servido como
+`image/svg+xml` + `Content-Encoding: gzip`, salvo com extensão `.svgz`. Desenhos
+típicos encolhem ~70–90%.
+
+**Peças:**
+
+- **`svg-engine/io` — [svgz.ts](../projects/svg-engine/io/src/lib/svgz.ts)** (novo,
+  headless, zero deps Angular — D-016/D-017):
+  - `gzipText(text)` / `gunzipText(bytes)` — helpers de baixo nível sobre
+    `CompressionStream`/`DecompressionStream` (Chrome 80+/FF 113+/Safari 16.4+/
+    Node 18+). Exportados para reuso futuro (ex.: `.svge` comprimido, gzip do
+    autosave).
+  - `svgzExporter` — um `Exporter` (mesmo contrato do `pngExporter`) que serializa
+    via `svgExporter` e gzipa o resultado num Blob `.svgz`. MIME continua
+    `image/svg+xml` (é o que SVGZ **é**).
+  - Implementação via **writer/reader** das Web Streams (não `Blob.stream()` nem
+    `new Response(stream)`) → portável: funciona no browser **e** no ambiente de
+    teste (jsdom/Vitest) e Node-native.
+- **Export** ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)):
+  novo item `File ▸ Export ▸ SVG (Compressed)…` (ícone `folder_zip`, order 15 —
+  logo abaixo de "SVG…", convenção Illustrator/Inkscape). `exportAndDownload`
+  ganhou o formato `'svgz'`, reusando todo o pipeline de export (merge de defs +
+  projeção da página ativa).
+- **Import**: `File ▸ Open…` e `File ▸ Import ▸ SVG…` agora aceitam `.svgz` —
+  helper `readSvgFileText` despacha por extensão (descomprime `.svgz` via
+  `gunzipText`, lê `.svg` como texto) e ambos os fluxos terminam no mesmo handler
+  de SVG. `accept` dos file pickers atualizado para `.svg,.svgz,image/svg+xml`.
+
+**Verificação:** build + lint + suíte (**2678** specs, +5: 4 de round-trip em
+`svgz.spec.ts` — gzip↔gunzip, ArrayBuffer, compressão real, metadata do exporter,
+exporter→gunzip == svgExporter — e o teste de menu estendido) verdes; snapshot de
+API regenerado (+`gzipText`, +`gunzipText`, +`svgzExporter`). No browser
+(`/pro-editor`): o item aparece na posição certa com ícone de zip; clicar gerou
+`untitled.svgz` cujo Blob tem magic bytes gzip (`1f 8b`) e descomprime de volta
+ao SVG exato (`<?xml…?><svg…>`). Sem erros no console.
+
+> **Nota de tipos (TS 5.7+):** `Uint8Array` agora widening para
+> `Uint8Array<ArrayBufferLike>`, que `BlobPart`/`BufferSource` rejeitam por causa
+> de `SharedArrayBuffer`. Como os bytes são sempre `ArrayBuffer`-backed em runtime,
+> usamos casts pontuais (`as BlobPart` / `as BufferSource`) com comentário.
+
+---
+
 ## 2026-06-18 — D-136 — File ▸ Open Recent: submenu dinâmico real (MRU persistido) ✅
 
 O usuário perguntou se `File ▸ Open Recent` existia — era só um **placeholder de

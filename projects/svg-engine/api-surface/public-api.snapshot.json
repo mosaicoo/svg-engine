@@ -326,6 +326,8 @@
   "svg-engine/io": [
     "Exporter",
     "ExporterRegistry",
+    "gunzipText",
+    "gzipText",
     "Importer",
     "ImporterRegistry",
     "ImportResult",
@@ -333,7 +335,8 @@
     "pngExporter",
     "renderPng",
     "svgExporter",
-    "svgImporter"
+    "svgImporter",
+    "svgzExporter"
   ],
   "svg-engine/optimize": [
     "dropDefaultsOptimizer",
