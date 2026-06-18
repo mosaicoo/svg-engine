@@ -6,6 +6,46 @@
 
 ---
 
+## 2026-06-18 — D-135 — Status bar: dropdown de Zoom (input + presets + fit actions) ✅
+
+O usuário notou que a seção de **Snap** da status bar abre um dropdown útil ao
+clicar, mas a de **Zoom** era um indicador passivo (só "100%"). Pediu uma
+listagem de zoom "baseada em ferramentas do mercado" com input editável **ou**
+seleção de presets. Após mockup + proposta, escopo confirmado: **completo**.
+
+**`<svge-status-bar>` — seção zoom agora é um dropdown** (espelha o de Snap,
+`matMenuTriggerFor`), com três formas de controlar o zoom (convenção
+Illustrator / Figma / Affinity):
+
+1. **Input editável** no topo — digita `%` + Enter aplica (`viewport.setZoom`,
+   clampado a min/max). Auto-focado + selecionado ao abrir.
+2. **Presets** 25 / 50 / 75 / 100 / 150 / 200 / 400% — o atual destacado
+   (accent + bold), mesmo tratamento do item ativo do Snap.
+3. **Ações inteligentes** — **Fit to Screen**, **Fit Selection** (desabilitada
+   sem seleção) e **Actual Size (100%)**, replicando a lógica das entradas
+   `View ▸ Zoom` (Fit Canvas D-119, Fit Selection D-118, Actual Size) via
+   `getNodeBBox` / `getNodesWorldBBox` + `ViewportService.fitBox` — a barra vira
+   atalho do que já existe no menu, sem divergir.
+
+Vive em `svg-engine/ui` (limite headless D-017); lê `viewport.zoom()` de forma
+reativa. Junto com o Snap (D-044/D-073), são as duas seções interativas da
+barra — o docstring foi atualizado (antes dizia "todas passivas").
+
+**Detalhe técnico** ([status-bar.component.ts](../projects/svg-engine/ui/src/lib/status-bar/status-bar.component.ts)):
+o `panelClass` do `mat-menu` **não é aplicado** ao `.mat-mdc-menu-panel` neste
+build do Material (verificado no browser — vale para o menu de Snap também), então
+o CSS do dropdown **não** depende dele: cada regra `::ng-deep` keia na classe
+única do próprio elemento (`.svge-zoom-input`, `.svge-zoom-preset.active-item`
+etc.), que casa onde quer que o painel monte.
+
+**Verificação no browser** (`/pro-editor`): clicar no pill abre o menu;
+preset 200% → `200%`; input `75`+Enter → `75%`; Actual Size → `100%`; Fit
+Selection desabilitada sem seleção; Fit to Screen sem erro; input estilizado
+(right-align + borda) e auto-focado; preset 100% destacado. Build + lint + suíte
+(**2660**) verdes; sem mudança de API pública.
+
+---
+
 ## 2026-06-18 — D-133 — Menu Insert: remover 3 placeholders + promover Smart Object a item real ✅
 
 O usuário apontou 4 submenus de Insert sem funcionalidade (placeholders "coming

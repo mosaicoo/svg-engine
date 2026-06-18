@@ -4,12 +4,14 @@ import {
   computed,
   inject,
   input,
+  signal,
   type Signal,
 } from '@angular/core';
+import { MatDivider } from '@angular/material/divider';
 import { MatIcon } from '@angular/material/icon';
 import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatTooltip } from '@angular/material/tooltip';
-import { EditorStateService } from 'svg-engine/core';
+import { EditorStateService, getNodeBBox, getNodesWorldBBox, type SvgNode } from 'svg-engine/core';
 import {
   ActivePageService,
   IsolationService,
@@ -61,17 +63,21 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
  * - `tool` — active tool label (e.g., "Select", "Pen", "Rectangle")
  * - `selection` — selected count + focus id (short)
  * - `cursor` — doc-coords of the cursor (from `WorkspaceService.rulerCursor`)
- * - `zoom` — viewport zoom percentage
- * - `snap` — snap enabled flag + mode (grid / objects / both)
+ * - `zoom` — viewport zoom % as a **dropdown** (D-135): editable input +
+ *   preset list (25–400%) + Fit to Screen / Fit Selection / Actual Size
+ * - `snap` — snap enabled flag + mode (grid / objects / both) as a dropdown
  * - `isolation` — current isolation breadcrumb when active
  * - `tracing` — D-066e: animated pill while one or more Trace Image
  *   commands are running (`TraceProgressService.running()`). Hidden
  *   when idle so it never takes layout space during normal editing.
  * - `dirty` — document dirty indicator (`●` glyph)
  *
- * All sections are **passive** — they only read state, never mutate.
- * To act on status (e.g., toggle snap from the bar), wrap in your own
- * UI or contribute a button to the toolbar via `MenuContributionRegistry`.
+ * Most sections are **passive** (read-only display). The exceptions are the
+ * interactive **snap** (D-044/D-073) and **zoom** (D-135) sections, whose
+ * dropdowns let the user change snap mode / zoom level directly from the bar
+ * — a convenience parallel to the View ▸ Snap / View ▸ Zoom menus. Everything
+ * else only reads state; to make another section actionable, wrap it in your
+ * own UI or contribute a button via `MenuContributionRegistry`.
  *
  * **Headless guarantee**: this component lives in `svg-engine/ui` —
  * the headless entry points (`core`, `render`, `edit`, `io`, `optimize`)
@@ -90,7 +96,7 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
 @Component({
   selector: 'svge-status-bar',
   standalone: true,
-  imports: [MatIcon, MatMenu, MatMenuItem, MatMenuTrigger, MatTooltip],
+  imports: [MatDivider, MatIcon, MatMenu, MatMenuItem, MatMenuTrigger, MatTooltip],
   host: {
     role: 'status',
     'aria-label': 'Editor status bar',
@@ -128,10 +134,75 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
       </span>
     }
     @if (showSection('zoom')) {
-      <span class="section section-zoom" matTooltip="Zoom level">
+      <!-- D-135: zoom dropdown — parallel surface to the snap one. The
+           value pill opens a mat-menu offering THREE ways to set zoom
+           (Illustrator / Figma / Affinity convergent UX):
+           (1) type a % in the editable input + Enter (free value, clamped
+               to the viewport's min/max),
+           (2) pick a preset from the list (active one highlighted),
+           (3) smart actions — Fit to Screen / Fit Selection / Actual Size,
+               which reuse the SAME logic as the View ▸ Zoom submenu
+               (D-118/D-119) so the bar shortcut never diverges from the menu.
+           Was a passive read-only span pre-D-135. -->
+      <button
+        #zoomTrigger="matMenuTrigger"
+        type="button"
+        class="section section-zoom section-toggle"
+        matTooltip="Zoom level — click to change"
+        [matMenuTriggerFor]="zoomMenu"
+        [attr.aria-haspopup]="'menu'"
+        (menuOpened)="onZoomMenuOpened()"
+      >
         <mat-icon class="icon" aria-hidden="true">zoom_in</mat-icon>
         <span class="value mono">{{ zoomLabel() }}</span>
-      </span>
+        <mat-icon class="caret" aria-hidden="true">arrow_drop_down</mat-icon>
+      </button>
+      <mat-menu #zoomMenu="matMenu" xPosition="before" panelClass="svge-zoom-menu">
+        <!-- Editable % input. stopPropagation on keydown (except Enter/Escape)
+             keeps the menu's typeahead / arrow-nav from stealing the digits;
+             Enter applies + closes, Escape closes (menu handles it). Clicking
+             inside a mat-menu panel never closes it, so no click handler is
+             needed on the row (and a non-interactive div mustn't carry one). -->
+        <div class="svge-zoom-row">
+          <input
+            type="text"
+            inputmode="numeric"
+            class="svge-zoom-input"
+            [value]="zoomDraft()"
+            (input)="zoomDraft.set($any($event.target).value)"
+            (keydown)="onZoomInputKeydown($any($event), zoomTrigger)"
+            aria-label="Zoom level in percent"
+          />
+          <span class="svge-zoom-unit" aria-hidden="true">%</span>
+          <span class="svge-zoom-hint" aria-hidden="true">↵</span>
+        </div>
+        <mat-divider />
+        @for (p of zoomPresets; track p) {
+          <button
+            mat-menu-item
+            type="button"
+            class="svge-zoom-preset"
+            [class.active-item]="zoomPercent() === p"
+            (click)="setZoomPercent(p)"
+            [attr.aria-checked]="zoomPercent() === p"
+          >
+            <span>{{ p }}%</span>
+          </button>
+        }
+        <mat-divider />
+        <button mat-menu-item type="button" (click)="fitToScreen()">
+          <mat-icon>fit_screen</mat-icon>
+          <span>Fit to Screen</span>
+        </button>
+        <button mat-menu-item type="button" [disabled]="!hasSelection()" (click)="fitToSelection()">
+          <mat-icon>center_focus_strong</mat-icon>
+          <span>Fit Selection</span>
+        </button>
+        <button mat-menu-item type="button" (click)="actualSize()">
+          <mat-icon>crop_free</mat-icon>
+          <span>Actual Size (100%)</span>
+        </button>
+      </mat-menu>
     }
     @if (showSection('snap')) {
       <!-- D-073-fix: dropdown menu exposing all 4 snap states (Off /
@@ -364,6 +435,49 @@ export type StatusBarSection = (typeof STATUS_BAR_SECTIONS)[number];
     ::ng-deep .svge-snap-menu .active-item .mdc-list-item__primary-text {
       color: var(--mat-sys-primary, #1976d2);
     }
+    /* D-135: zoom dropdown. The menu panel renders in the CDK overlay; the
+       mat-menu \`panelClass\` is NOT reliably applied to the panel in this
+       Material build (verified — same for the snap menu), so we DON'T scope by
+       it. Instead each rule keys on the unique element class we control
+       (\`svge-zoom-*\`), which \`::ng-deep\` emits globally and matches wherever
+       the panel mounts. Active preset = accent + bold, mirroring the snap item. */
+    ::ng-deep .svge-zoom-preset.active-item,
+    ::ng-deep .svge-zoom-preset.active-item .mdc-list-item__primary-text {
+      color: var(--mat-sys-primary, #1976d2);
+      font-weight: 600;
+    }
+    ::ng-deep .svge-zoom-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px 10px;
+    }
+    ::ng-deep .svge-zoom-input {
+      width: 72px;
+      height: 30px;
+      text-align: right;
+      font: inherit;
+      font-variant-numeric: tabular-nums;
+      padding: 0 8px;
+      border: 1px solid var(--mat-sys-outline, rgba(0, 0, 0, 0.3));
+      border-radius: 4px;
+      background: var(--mat-sys-surface, #fff);
+      color: var(--mat-sys-on-surface, inherit);
+    }
+    ::ng-deep .svge-zoom-input:focus-visible {
+      outline: 2px solid var(--mat-sys-primary, #1976d2);
+      outline-offset: -1px;
+      border-color: transparent;
+    }
+    ::ng-deep .svge-zoom-unit {
+      font-size: 13px;
+      color: var(--mat-sys-on-surface-variant, #666);
+    }
+    ::ng-deep .svge-zoom-hint {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--mat-sys-on-surface-variant, #999);
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -471,9 +585,106 @@ export class SvgeStatusBar {
     return `${cursor.x.toFixed(1)}, ${cursor.y.toFixed(1)}`;
   });
 
-  // ── Zoom section ────────────────────────────────────────────────
+  // ── Zoom section (D-135 — dropdown: input + presets + fit actions) ─
 
   protected readonly zoomLabel = computed(() => `${Math.round(this.viewport.zoom() * 100)}%`);
+
+  /** Current zoom as an integer percent — drives the preset active-state. */
+  protected readonly zoomPercent = computed(() => Math.round(this.viewport.zoom() * 100));
+
+  /** `true` when ≥1 node is selected — gates the "Fit Selection" item. */
+  protected readonly hasSelection = computed(() => this.selection.hasSelection());
+
+  /**
+   * Market-standard zoom presets (Illustrator / Figma / Affinity). Span
+   * thumbnail → pixel-peeping without an overwhelming list; the editable
+   * input covers any value in between (clamped to the viewport's limits).
+   */
+  protected readonly zoomPresets: readonly number[] = [25, 50, 75, 100, 150, 200, 400];
+
+  /**
+   * Editable draft for the % input. Re-seeded from the live zoom every time
+   * the menu opens (so a typed-but-unapplied value never sticks) and applied
+   * on Enter. A string (not number) to allow a transiently-empty field.
+   */
+  protected readonly zoomDraft = signal('100');
+
+  /** Seed the input with the current zoom, then focus + select it. */
+  protected onZoomMenuOpened(): void {
+    this.zoomDraft.set(String(this.zoomPercent()));
+    // The panel renders in the CDK overlay (outside this view), so the input
+    // isn't reachable via a view query — grab it from the document after the
+    // panel paints. Best-effort: on failure the user just clicks the field.
+    if (typeof document === 'undefined') return;
+    setTimeout(() => {
+      try {
+        // Only the open menu's input is in the DOM (mat-menu content is lazy),
+        // so the bare class resolves to the single live field.
+        const el = document.querySelector<HTMLInputElement>('input.svge-zoom-input');
+        el?.focus();
+        el?.select();
+      } catch {
+        // focus is a nicety, never essential — swallow (e.g. jsdom).
+      }
+    });
+  }
+
+  protected onZoomInputKeydown(event: KeyboardEvent, trigger: MatMenuTrigger): void {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.applyZoomDraft();
+      trigger.closeMenu();
+      return;
+    }
+    // Let the menu handle Escape (it closes the panel); swallow every other
+    // key so the menu's typeahead / arrow-nav can't hijack the field's input.
+    if (event.key !== 'Escape') event.stopPropagation();
+  }
+
+  /** Parse the draft "%" and apply it (the viewport clamps to min/max). */
+  private applyZoomDraft(): void {
+    const pct = Number.parseFloat(this.zoomDraft().trim().replace('%', ''));
+    if (Number.isFinite(pct) && pct > 0) this.viewport.setZoom(pct / 100);
+  }
+
+  protected setZoomPercent(percent: number): void {
+    this.viewport.setZoom(percent / 100);
+  }
+
+  /** **Actual Size** — pin zoom to exactly 100% (parity with View ▸ Zoom). */
+  protected actualSize(): void {
+    this.viewport.setZoom(1);
+  }
+
+  /**
+   * **Fit to Screen** — frame all drawn content (active page in pages mode,
+   * else the document root). Mirrors `View ▸ Zoom ▸ Fit Canvas` (D-119),
+   * including its empty-canvas fallback: frame the page/document viewBox so a
+   * blank page still fits the artboard instead of zooming into a point.
+   */
+  protected fitToScreen(): void {
+    const page = this.activePage?.activePage() ?? null;
+    const tree: SvgNode = page !== null ? (page as unknown as SvgNode) : this.state.document().root;
+    const content = getNodeBBox(tree);
+    if (content.width > 0 && content.height > 0) {
+      this.viewport.fitBox(content);
+      return;
+    }
+    const frame = this.activePage?.activePageViewBox() ?? this.state.document().viewBox;
+    this.viewport.fitBox(frame, 0);
+  }
+
+  /**
+   * **Fit Selection** — frame the current selection's world bbox. Mirrors
+   * `View ▸ Zoom ▸ Fit Selection` (D-118); no-op when nothing is selected
+   * (the item is also disabled via `hasSelection`).
+   */
+  protected fitToSelection(): void {
+    const ids = this.selection.selectedIds();
+    if (ids.size === 0) return;
+    const box = getNodesWorldBBox(this.state.document().root, ids);
+    if (box !== null) this.viewport.fitBox(box);
+  }
 
   // ── Snap section ────────────────────────────────────────────────
 
