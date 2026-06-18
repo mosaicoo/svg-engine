@@ -385,7 +385,7 @@ import { SvgeToolsPalette } from '../tools-palette';
             <svge-layers-panel [root]="layersPanelRoot()" />
           </ng-template>
           <!--
-            D-093 — History tab: the linear, automatic log of every command
+            D-134 — History tab: the linear, automatic log of every command
             with click-to-time-travel (Photoshop History panel pattern).
             Sits next to Layers because both are document-scope navigators:
             Layers shows what exists now; History shows how it got there.

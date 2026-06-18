@@ -35,7 +35,7 @@ function labels(fixture: ReturnType<typeof TestBed.createComponent>): string[] {
   return rows(fixture).map((r) => r.querySelector('.label')?.textContent?.trim() ?? '');
 }
 
-describe('SvgeHistoryPanel (D-093)', () => {
+describe('SvgeHistoryPanel (D-134)', () => {
   it('shows only the Open baseline when history is empty', () => {
     const { fixture } = setup();
     expect(labels(fixture)).toEqual(['Open']);

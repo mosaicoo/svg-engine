@@ -132,7 +132,7 @@ describe('CommandBus / undo + redo round-trip', () => {
   });
 });
 
-describe('CommandBus / goto (time-travel, D-093)', () => {
+describe('CommandBus / goto (time-travel, D-134)', () => {
   function seed() {
     const { state, history, bus } = setup();
     const r1 = createRect({ x: 0, y: 0, width: 1, height: 1 });

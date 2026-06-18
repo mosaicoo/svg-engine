@@ -25,7 +25,7 @@ interface HistoryRow {
 }
 
 /**
- * **D-093 — `<svge-history-panel>`**. Photoshop-style History panel: a
+ * **D-134 — `<svge-history-panel>`**. Photoshop-style History panel: a
  * linear list of every command on the {@link HistoryService} stacks, with
  * **click-to-time-travel**.
  *

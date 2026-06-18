@@ -80,7 +80,12 @@ Insert ainda existente.
 
 ---
 
-## 2026-06-18 — D-093 — History panel (lista de comandos + time-travel, estilo Photoshop) ✅
+## 2026-06-18 — D-134 — History panel (lista de comandos + time-travel, estilo Photoshop) ✅
+
+> **Nota de renumeração:** este item foi inicialmente rotulado **D-093** por
+> engano — D-093 já era "Object ▸ Transform" (Rotate/Scale/Skew, 2026-06-14).
+> Renumerado para **D-134** (próximo livre após D-132/D-133) para eliminar a
+> colisão; todas as referências no código foram atualizadas.
 
 O usuário pediu um painel para **visualizar a lista de comandos** do histórico
 (além dos Snapshots). Padrão de mercado = **History panel do Photoshop** (lista

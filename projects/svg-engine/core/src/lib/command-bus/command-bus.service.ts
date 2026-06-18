@@ -130,7 +130,7 @@ export class CommandBus {
   }
 
   /**
-   * **D-093 (History panel)** — time-travel to an arbitrary history state by
+   * **D-134 (History panel)** — time-travel to an arbitrary history state by
    * replaying `undo`/`redo` until the undo stack holds exactly `targetDepth`
    * commands. `targetDepth` is the number of APPLIED commands: `0` is the
    * initial document (before any command), `undoStack().length` is the current
