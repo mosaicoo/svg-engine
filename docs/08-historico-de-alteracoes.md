@@ -6,6 +6,51 @@
 
 ---
 
+## 2026-06-18 — D-131-fix2 — Pixel Preview (Rasterized): loop infinito de re-raster (achado no browser) ✅
+
+Ao **testar o D-131-fix no navegador** (autorizado pelo usuário, via preview no
+`/pro-editor`), instrumentei o `Image` e descobri um bug **bem mais grave** que o
+unit test não pega: com o Pixel Preview (Rasterized) ligado, o editor entrava em
+**loop infinito de re-rasterização** — **~4440 rasterizações** em poucos segundos,
+sozinho, sem nenhuma ação (cada uma serializa o SVG + decodifica imagem +
+`canvas.toDataURL`), pregando um núcleo de CPU. Isso explica/abrange o sintoma de
+undo/redo que o usuário relatou: o "churn" constante deixava o estado instável.
+
+**Causa-raiz (footgun clássico de signals):** o `effect` chamava `reset()`
+**dentro do contexto reativo**, e `reset()` invoca
+`WorkspaceService.setPixelPreviewRasterReady(false)`, cujo **setter é guardado**
+(`if (this._pixelPreviewRasterReady() === ready) return;`). Esse `if` **lê** o
+sinal `pixelPreviewRasterReady` → o effect passou a **depender** dele. Como o
+`image.onload` assíncrono escreve `setPixelPreviewRasterReady(true)` ao terminar,
+cada raster concluído **disparava o effect de novo** → reset → re-raster →
+onload → … loop. Diagnóstico fechado no browser: `treeSame/vbSame/defsSame` davam
+**todos `true`** entre iterações (os inputs nunca mudavam — o retrigger vinha do
+sinal interno).
+
+**Fix** em [pixel-preview-raster.component.ts](../projects/svg-engine/edit/src/lib/workspace/pixel-preview-raster.component.ts):
+o effect lê as dependências **pretendidas** (`on`/`tree`/`viewBox`/`defs`) de
+forma rastreada e roda os efeitos colaterais (`reset()` + `rasterize()`) dentro de
+**`untracked(() => …)`**. Assim a leitura guardada de `pixelPreviewRasterReady`
+(e qualquer leitura de sinal no `svgExporter`) **não vira dependência**. O effect
+volta a re-rodar **só** quando toggle/edição/undo/redo realmente mudam.
+
+**Verificação no browser (após rebuild da lib + restart do dev server):** ligar o
+modo agora faz **exatamente 1 rasterização** (era 4440); undo e redo fazem
+**+1 cada** (1 → 2 → 3 no total), a **página ativa permanece** (nunca some), e
+desligar o modo retorna limpo ao vetor vivo (sem `<image>`, nós `visible`).
+Ciclo controlado completo (inserir retângulo → modo on → undo → redo → off)
+round-trip perfeito, com screenshot do vetor de volta.
+
+**Spec de regressão** ([pixel-preview-raster.component.spec.ts](../projects/svg-engine/edit/src/lib/workspace/pixel-preview-raster.component.spec.ts)):
+"does not re-run when readiness flips — no self-feedback loop (D-131-fix2)" —
+em jsdom o `rasterize` baila no canvas ausente, então simula o raster concluído
+via `setPixelPreviewRasterReady(true)` e exige que o effect **não** re-rode (a
+prontidão setada sobrevive). Falha sem o `untracked`, passa com ele. Build + lint
+
+- suíte (**2651**, +1) verdes; sem mudança de API pública.
+
+---
+
 ## 2026-06-18 — D-131-fix — Pixel Preview (Rasterized) + undo/redo: arte não voltava ✅
 
 O usuário reportou: com o Pixel Preview (Rasterized) ligado, **undo/redo "apagava

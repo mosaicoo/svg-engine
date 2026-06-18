@@ -66,4 +66,25 @@ describe('SvgePixelPreviewRaster (D-131)', () => {
     // hidden art (the undo/redo failure this fix addresses).
     expect(ws.pixelPreviewRasterReady()).toBe(false);
   });
+
+  it('does not re-run when readiness flips — no self-feedback loop (D-131-fix2)', () => {
+    const { fixture, ws } = setup();
+    ws.setPixelPreviewRaster(true);
+    fixture.detectChanges();
+    // In jsdom rasterize bails at the missing 2D context, so no <image> paints
+    // and readiness is false. Simulate a *completed* raster by flipping
+    // readiness to true exactly as the async `image.onload` would in a real
+    // browser.
+    ws.setPixelPreviewRasterReady(true);
+    fixture.detectChanges();
+    // The effect must NOT depend on `pixelPreviewRasterReady`. If it did (the
+    // guarded `setPixelPreviewRasterReady` read leaking into the reactive
+    // context), this flip would re-run the effect, whose `reset()` would stomp
+    // readiness back to false — and in a real browser, where `onload` flips it
+    // true again, that becomes an infinite re-rasterization loop (hundreds of
+    // rasters/sec, confirmed in-browser). With the untracked side-effects the
+    // effect stays subscribed only to on/tree/viewBox/defs, so the readiness we
+    // set survives untouched.
+    expect(ws.pixelPreviewRasterReady()).toBe(true);
+  });
 });

@@ -8,6 +8,7 @@ import {
   inject,
   input,
   signal,
+  untracked,
 } from '@angular/core';
 import { type BoundingBox, isGroupNode, type SvgDocument, type SvgNode } from 'svg-engine/core';
 import { svgExporter } from 'svg-engine/io';
@@ -100,8 +101,9 @@ export class SvgePixelPreviewRaster {
 
   constructor() {
     effect(() => {
+      // Register ONLY the intended dependencies (the toggle + the source
+      // inputs) in the reactive context by reading them here, tracked.
       const on = this.ws.pixelPreviewRaster();
-      // Track inputs so edits re-rasterize. Reading them registers the deps.
       const tree = this.tree();
       const viewBox = this.viewBox();
       const defs = this.defs();
@@ -113,8 +115,20 @@ export class SvgePixelPreviewRaster {
       // exposed (the old code kept the bitmap + `ready` sticky across
       // re-rasters, so any bail/empty/failed re-raster left the vector hidden
       // and never returned).
-      this.reset();
-      if (on) this.rasterize(tree, viewBox, defs);
+      //
+      // **D-131-fix2** — run the side-effects UNTRACKED. `reset()` calls the
+      // guarded `setPixelPreviewRasterReady(false)`, whose `if (current === v)`
+      // guard READS `pixelPreviewRasterReady`; `rasterize()` likewise touches
+      // signals while serializing. Without `untracked` those reads would become
+      // effect dependencies — and since the async `image.onload` later flips
+      // `pixelPreviewRasterReady` back to `true`, the effect would re-run on
+      // every completed raster, an infinite re-rasterization loop (confirmed in
+      // the browser at hundreds of rasters/sec). `untracked` keeps the effect
+      // depending solely on `on`/`tree`/`viewBox`/`defs`.
+      untracked(() => {
+        this.reset();
+        if (on) this.rasterize(tree, viewBox, defs);
+      });
     });
 
     inject(DestroyRef).onDestroy(() => this.reset());
