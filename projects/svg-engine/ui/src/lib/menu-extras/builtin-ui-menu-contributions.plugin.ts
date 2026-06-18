@@ -1,12 +1,16 @@
 import { computed, type Injector, type ProviderToken, type Signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
+  AUTO_PARENT,
   CommandBus,
+  createGroup,
+  createRect,
   DEFAULT_OFFSET_DISTANCE,
   DEFAULT_SIMPLIFY_TOLERANCE,
   EditorStateService,
   findNodeById,
   type ImageNode,
+  InsertNodeCommand,
   isSmartObject,
   type NodeId,
   OffsetPathCommand,
@@ -17,6 +21,7 @@ import {
   SimplifyPathCommand,
   SkewNodesCommand,
   type Transform,
+  withSmartObjectFlag,
 } from 'svg-engine/core';
 import {
   AlignmentService,
@@ -38,6 +43,7 @@ import {
   TraceImageCommand,
   TraceProgressService,
 } from 'svg-engine/edit';
+import { ViewportService } from 'svg-engine/render';
 
 import { SvgeAboutDialogService } from '../about-dialog';
 import { SvgeCommandPaletteService } from '../command-palette';
@@ -567,6 +573,60 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
           if (id === null) return;
           const service = fromCtx(SvgeSmartObjectEditorDialogService, runCtx);
           service.open(id, runCtx?.injector ?? ctx.injector);
+        },
+      }),
+    );
+
+    // ── D-133 — Insert ▸ Smart Object… (NEW, real) ──────────────────
+    //
+    // Replaces the removed `svge.roadmap.insert.smart-object` placeholder
+    // (see `builtinRoadmapMenuPlugin`, D-133). Whereas the Object ▸ Smart
+    // Object ▸ Edit Contents… entry above EDITS an existing smart object,
+    // this CREATES one from scratch: it wraps a placeholder rect in a
+    // group flagged `svgeKind: 'smart-object'` (so the asset is
+    // immediately visible + selectable), drops it at the viewport centre
+    // in a single undoable step (same placement heuristic as every
+    // `builtinInsertMenuPlugin` Shape item — `ViewportService.viewBox()`
+    // centre, size clamped to 25% of the smaller side), selects it, then
+    // opens the Smart Object editor so the user authors the real contents
+    // (paste / replace SVG). Lives here — not edit-side — because it opens
+    // a Material dialog (D-017), the same reason as Edit Contents… above.
+    //
+    // Always enabled (no `disabled` factory): creating a new asset never
+    // depends on the current selection, mirroring Insert ▸ Shape / Text.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.ui.insert.smart-object',
+        slot: MENU_SLOT.INSERT,
+        // After Shape / Text / Image / New Layer — keeps the old roadmap
+        // order (90) so the item lands where users last saw the placeholder.
+        order: 90,
+        label: 'Smart Object…',
+        icon: 'inventory_2',
+        run(runCtx) {
+          const injector = runCtx?.injector ?? ctx.injector;
+
+          const vb = injector.get(ViewportService).viewBox();
+          const cx = vb.x + vb.width / 2;
+          const cy = vb.y + vb.height / 2;
+          const size = Math.max(40, Math.min(400, Math.min(vb.width, vb.height) * 0.25));
+
+          // The placeholder rect uses DEFAULT_STYLE (light grey fill + dark
+          // stroke), which reads clearly as "drop your content here" until the
+          // user replaces it via the editor dialog.
+          const placeholder = createRect({
+            x: cx - size / 2,
+            y: cy - size / 2,
+            width: size,
+            height: size,
+          });
+          const smartObject = withSmartObjectFlag(
+            createGroup([placeholder], { metadata: { name: 'Smart Object' } }),
+          );
+
+          injector.get(CommandBus).dispatch(new InsertNodeCommand(AUTO_PARENT, smartObject));
+          injector.get(SelectionService).select(smartObject.id);
+          injector.get(SvgeSmartObjectEditorDialogService).open(smartObject.id, injector);
         },
       }),
     );

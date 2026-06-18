@@ -6,6 +6,51 @@
 
 ---
 
+## 2026-06-18 — D-133 — Menu Insert: remover 3 placeholders + promover Smart Object a item real ✅
+
+O usuário apontou 4 submenus de Insert sem funcionalidade (placeholders "coming
+soon", desabilitados: **Artboard**, **Symbol**, **Component**, **Smart Object…**).
+Após explicar cada um, a decisão foi **"remover e transformar o Smart Object
+abrindo o editor"**:
+
+- **Artboard** → já existe como **Pages** (D-079): artboards multi-superfície
+  vivem no painel Pages + comandos de página; um "Insert ▸ Artboard" duplicaria.
+- **Symbol** → já existe como **Symbol Library** (D-059/D-062): masters/instâncias
+  são criados pelo painel de Libraries + Sprayer.
+- **Component** → **não planejado**. "Components" (primitivos de design-system com
+  variantes, à la Figma) está fora de escopo; nada mapeia para ele, então o
+  placeholder pendente foi descartado em vez de ficar "coming soon".
+- **Smart Object…** → agora **REAL**.
+
+**Mudanças:**
+
+- [builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts):
+  removidos os 4 `roadmapLeaf` de Insert. O spec do contrato roadmap
+  (comingSoon/disabled), que o D-132 havia reapontado para `insert.component`,
+  foi reapontado para `svge.roadmap.file.save` (placeholder de File ainda existente).
+- **Insert ▸ Smart Object… (novo, real)** em
+  [builtin-ui-menu-contributions.plugin.ts](../projects/svg-engine/ui/src/lib/menu-extras/builtin-ui-menu-contributions.plugin.ts)
+  (lado **ui** porque abre um Material dialog — D-017): cria um smart object do
+  zero — um `GroupNode` flagado `svgeKind: 'smart-object'` (`withSmartObjectFlag`)
+  envolvendo um rect placeholder (`DEFAULT_STYLE`, cinza-claro, visível e
+  selecionável), solta no centro do viewport em um passo undoable
+  (`InsertNodeCommand(AUTO_PARENT)`, mesma heurística de posição dos itens
+  Insert ▸ Shape via `ViewportService.viewBox()`), seleciona o nó e abre o
+  **Smart Object editor** (`SvgeSmartObjectEditorDialogService.open`) para o
+  usuário autorar o conteúdo (colar/substituir SVG). **Sempre habilitado**
+  (criar asset não depende da seleção). **Sem novo export público** (só reúso de
+  símbolos já públicos do core/render) → snapshot de API inalterado.
+
+**Verificação no browser** (`/pro-editor`): o menu Insert mostra agora só
+**Shape ▸ / Text / Image… / Layer / Smart Object…** (Artboard/Symbol/Component
+sumiram). Clicar em **Smart Object…** inseriu o placeholder cinza centralizado e
+selecionado (handles no canvas), criou a camada **"Smart Object"** no Layers
+panel e abriu o dialog **"Edit Smart Object Contents"** (source SVG, 234 bytes,
+Cancel/Apply) — fluxo criar→inserir→selecionar→editar completo. Build + lint +
+suíte (**2660**) verdes.
+
+---
+
 ## 2026-06-18 — D-132 — Remoção de 4 placeholders de roadmap do menu Tools ✅
 
 O usuário apontou 4 submenus de Tools sem funcionalidade (placeholders "coming

@@ -390,42 +390,21 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // via **File ▸ Import ▸ SVG…**, or pick a preset from the **Shapes**
     // library panel (D-048). A menu entry would only duplicate those (same
     // call as Apply Filter / Check Updates).
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.insert.artboard',
-        slot: MENU_SLOT.INSERT,
-        label: 'Artboard',
-        icon: 'dashboard',
-        order: 60,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.insert.symbol',
-        slot: MENU_SLOT.INSERT,
-        label: 'Symbol',
-        icon: 'widgets',
-        order: 70,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.insert.component',
-        slot: MENU_SLOT.INSERT,
-        label: 'Component',
-        icon: 'category',
-        order: 80,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.insert.smart-object',
-        slot: MENU_SLOT.INSERT,
-        label: 'Smart Object…',
-        icon: 'inventory_2',
-        order: 90,
-      }),
-    );
+    // **D-133 — REMOVED (3 placeholders) + 1 PROMOTED to real.** The four
+    // Insert placeholders were resolved per the user ("remover e transformar
+    // o Smart Object abrindo o editor"):
+    //   • **Artboard** → already shipped as **Pages** (D-079): multi-surface
+    //     artboards live in the Pages panel + `menu` page commands, so a
+    //     separate "Insert ▸ Artboard" would duplicate that.
+    //   • **Symbol** → already shipped as the **Symbol Library** (D-059/D-062):
+    //     masters/instances are created from the Libraries panel + Sprayer.
+    //   • **Component** → not planned. "Components" (variant-aware design-system
+    //     primitives, à la Figma) are out of scope; nothing maps to it, so the
+    //     dangling placeholder is dropped rather than left "coming soon".
+    //   • **Smart Object…** → now **REAL**, registered by
+    //     `builtinUiMenuContributionsPlugin` (it needs a Material dialog — D-017):
+    //     it creates a new smart object, inserts it, and opens the Smart Object
+    //     editor so the user authors its contents from scratch.
 
     // ── Object (roadmap) ───────────────────────────────────────────
     // Transform ▶ — SHIPPED (D-093). Flip H/V (edit-side, orders 10/20)
