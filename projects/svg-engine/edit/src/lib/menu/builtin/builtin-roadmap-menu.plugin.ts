@@ -203,16 +203,10 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // **D-115** — `File ▸ Open…` (order 12) is now a REAL item registered by
     // `builtinMenuContributionsPlugin` (extension-based open: SVG today, the
     // editor's proprietary format later). The roadmap placeholder was removed
-    // to avoid a duplicate entry. `Open Recent…` stays roadmap for now.
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.file.open-recent',
-        slot: MENU_SLOT.FILE,
-        label: 'Open Recent…',
-        icon: 'history',
-        order: 14,
-      }),
-    );
+    // to avoid a duplicate entry.
+    // **D-136** — `File ▸ Open Recent` (order 14) is now a REAL dynamic submenu,
+    // also registered by `builtinMenuContributionsPlugin` (backed by
+    // `RecentFilesService`). Its roadmap placeholder was removed here.
     track(
       roadmapLeaf({
         id: 'svge.roadmap.file.save',

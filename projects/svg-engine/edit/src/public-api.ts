@@ -131,6 +131,9 @@ export * from './lib/anchor-editor';
 // Auto-save + recovery (localStorage-backed)
 export * from './lib/autosave';
 
+// D-136 — Recent files (MRU) backing `File ▸ Open Recent` (localStorage-backed)
+export * from './lib/recent-files';
+
 // D-073 — Snapshots persistence (round-trip SnapshotsService through localStorage)
 export * from './lib/snapshots';
 

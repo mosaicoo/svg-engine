@@ -1,4 +1,4 @@
-import { computed, type Injector, type ProviderToken, type Signal } from '@angular/core';
+import { computed, type Injector, type ProviderToken, signal, type Signal } from '@angular/core';
 import {
   ANIMATION_KEY,
   type BoundingBox,
@@ -63,6 +63,7 @@ import {
 } from '../../alignment';
 import { AnimationService } from '../../animation/animation.service';
 import { ClipboardService } from '../../clipboard/clipboard.service';
+import { RecentFilesService } from '../../recent-files/recent-files.service';
 import { SVGE_HELP_LINKS, type SvgeHelpLinks } from '../../help';
 import { makeClipMask, releaseClipMask, topmostSelected } from '../../clip-mask/clip-mask-actions';
 import { SelectSameService } from '../../find-replace/select-same.service';
@@ -286,9 +287,115 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
-    // **D-085** — order 14 (Open Recent…) is a roadmap item registered by
-    // `builtinRoadmapMenuPlugin`; this divider sits after it, before the
-    // Import submenu.
+    // **D-136** — `File ▸ Open Recent ▶`. A REAL dynamic submenu backed by
+    // `RecentFilesService` (replaces the roadmap placeholder removed from
+    // `builtinRoadmapMenuPlugin`). The parent is always present + enabled; its
+    // children are (re)registered reactively from the MRU list via the effect
+    // below — one row per recent file (reopens by replaying the stored SVG),
+    // plus a divider + "Clear Recent Files", or a single disabled
+    // "No recent files" row when empty (so the submenu never collapses into a
+    // dead leaf). The reopen lands in the editor that fired the item
+    // (`runCtx.injector`); the shared `RecentFilesService` (root-scoped) is the
+    // app-wide MRU, mirroring the color history.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.open-recent',
+        slot: MENU_SLOT.FILE,
+        label: 'Open Recent',
+        icon: 'history',
+        order: 14,
+        run() {
+          /* submenu parent — the children carry the actions */
+        },
+      }),
+    );
+    {
+      const recent = ctx.injector.get(RecentFilesService);
+      // Constant signal for the always-disabled "No recent files" row.
+      const emptyRowDisabled = signal(true);
+      let recentChildHandles: { dispose(): void }[] = [];
+      // Rebuild the submenu children from the current MRU. Driven by an explicit
+      // observer (`recent.onChange`), NOT an Angular `effect`: an effect would
+      // write the `MenuContributionRegistry` signal from inside change
+      // detection (the menu-bar reads that same signal), which can spin CD into
+      // a loop. This runs once now + only on `record`/`clear` (user actions,
+      // off the render path), so the registry writes stay out of the reactive
+      // graph. Reading `recent.files()` here is a plain read (no effect → no
+      // tracking).
+      const syncRecentChildren = (): void => {
+        for (const handle of recentChildHandles) handle.dispose();
+        recentChildHandles = [];
+        const files = recent.files();
+        if (files.length === 0) {
+          recentChildHandles.push(
+            reg.register({
+              id: 'svge.builtin.file.open-recent.empty',
+              parentId: 'svge.builtin.file.open-recent',
+              slot: MENU_SLOT.FILE,
+              label: 'No recent files',
+              order: 0,
+              disabled: emptyRowDisabled,
+              run() {
+                /* no-op placeholder */
+              },
+            }),
+          );
+          return;
+        }
+        files.forEach((file, index) => {
+          recentChildHandles.push(
+            reg.register({
+              id: `svge.builtin.file.open-recent.item-${index}`,
+              parentId: 'svge.builtin.file.open-recent',
+              slot: MENU_SLOT.FILE,
+              label: file.name,
+              tooltip: file.name,
+              icon: 'description',
+              order: index,
+              run(runCtx) {
+                // Replay the stored SVG into the active editor; this also
+                // re-records the file, moving it back to the top (MRU).
+                openSvgText(runCtx, fromCtx, file.svg, file.name);
+              },
+            }),
+          );
+        });
+        recentChildHandles.push(
+          reg.register({
+            id: 'svge.builtin.file.open-recent.divider',
+            parentId: 'svge.builtin.file.open-recent',
+            slot: MENU_SLOT.FILE,
+            label: '',
+            order: 9000,
+            divider: true,
+            run() {
+              /* divider */
+            },
+          }),
+        );
+        recentChildHandles.push(
+          reg.register({
+            id: 'svge.builtin.file.open-recent.clear',
+            parentId: 'svge.builtin.file.open-recent',
+            slot: MENU_SLOT.FILE,
+            label: 'Clear Recent Files',
+            icon: 'delete_sweep',
+            order: 9001,
+            run(runCtx) {
+              fromCtx(RecentFilesService, runCtx).clear();
+            },
+          }),
+        );
+      };
+      syncRecentChildren();
+      ctx.track({ dispose: recent.onChange(syncRecentChildren) });
+      ctx.track({
+        dispose: () => {
+          for (const handle of recentChildHandles) handle.dispose();
+        },
+      });
+    }
+    // **D-085 / D-136** — divider after Open Recent, before the Import submenu.
     ctx.track(
       reg.register({
         id: 'svge.builtin.file.divider1',
@@ -3370,7 +3477,7 @@ function openFromFile(runCtx: MenuContributionContext | undefined, fromCtx: Reso
       const ext = dot >= 0 ? file.name.slice(dot + 1).toLowerCase() : '';
       switch (ext) {
         case 'svg':
-          void file.text().then((text) => openSvgText(runCtx, fromCtx, text));
+          void file.text().then((text) => openSvgText(runCtx, fromCtx, text, file.name));
           break;
         // case 'svge': openProprietary(runCtx, fromCtx, file); break;  // TBD
         default:
@@ -3395,6 +3502,9 @@ function openSvgText(
   runCtx: MenuContributionContext | undefined,
   fromCtx: Resolver,
   text: string,
+  // **D-136** — file name (when known) to record in the recent-files MRU after
+  // a successful open. Omitted for paste-style opens with no source name.
+  sourceName?: string,
 ): void {
   const result = svgImporter.import(text);
   if (!result.ok) {
@@ -3410,6 +3520,12 @@ function openSvgText(
     }
   }
   openSvgDocument(runCtx, fromCtx, result.document);
+  // **D-136** — record only after the document was actually replaced (past the
+  // confirm + successful import), so a cancelled open never pollutes the MRU.
+  // Reopening from a recent entry re-records it → it moves back to the top.
+  if (sourceName !== undefined) {
+    fromCtx(RecentFilesService, runCtx).record(sourceName, text);
+  }
   if (result.warnings.length > 0 && typeof console !== 'undefined') {
     console.warn(`[SVGEngine] Open warnings:\n${result.warnings.join('\n')}`);
   }

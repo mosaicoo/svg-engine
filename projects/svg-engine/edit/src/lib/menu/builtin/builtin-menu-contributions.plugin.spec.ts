@@ -15,6 +15,7 @@ import {
   withPageFlag,
 } from 'svg-engine/core';
 import { ClipboardService } from '../../clipboard/clipboard.service';
+import { RecentFilesService } from '../../recent-files/recent-files.service';
 import { ActivePageService } from '../../pages/active-page.service';
 import { describe, expect, it } from 'vitest';
 
@@ -610,5 +611,45 @@ describe('builtinMenuContributionsPlugin — Lock/Unlock Guides state-aware (D-1
 
     unlock.run({ injector });
     expect(ws.guidesLocked()).toBe(false);
+  });
+});
+
+describe('D-136 — File ▸ Open Recent dynamic submenu', () => {
+  const PARENT = 'svge.builtin.file.open-recent';
+  const childrenOf = (reg: MenuContributionRegistry) =>
+    reg
+      .bySlot(MENU_SLOT.FILE)()
+      .filter((c) => c.parentId === PARENT);
+
+  it('registers the parent + an empty-state child when there are no recent files', () => {
+    localStorage.clear();
+    const { reg } = setupRoot();
+    expect(reg.get(PARENT)).toBeTruthy();
+    expect(childrenOf(reg).map((c) => c.id)).toEqual(['svge.builtin.file.open-recent.empty']);
+  });
+
+  it('rebuilds children synchronously when files are recorded (no effect → no CD loop)', () => {
+    localStorage.clear();
+    const { reg, injector } = setupRoot();
+    const recent = injector.get(RecentFilesService);
+    recent.record('alpha.svg', '<svg/>');
+    recent.record('beta.svg', '<svg/>');
+    // newest-first files, then the divider (empty label) + Clear Recent Files.
+    expect(childrenOf(reg).map((c) => c.label)).toEqual([
+      'beta.svg',
+      'alpha.svg',
+      '',
+      'Clear Recent Files',
+    ]);
+  });
+
+  it('Clear Recent Files empties the submenu back to the empty state', () => {
+    localStorage.clear();
+    const { reg, injector } = setupRoot();
+    const recent = injector.get(RecentFilesService);
+    recent.record('alpha.svg', '<svg/>');
+    reg.get('svge.builtin.file.open-recent.clear')!.run({ injector });
+    expect(recent.files()).toEqual([]);
+    expect(childrenOf(reg).map((c) => c.id)).toEqual(['svge.builtin.file.open-recent.empty']);
   });
 });

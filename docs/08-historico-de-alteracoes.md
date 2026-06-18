@@ -6,6 +6,53 @@
 
 ---
 
+## 2026-06-18 — D-136 — File ▸ Open Recent: submenu dinâmico real (MRU persistido) ✅
+
+O usuário perguntou se `File ▸ Open Recent` existia — era só um **placeholder de
+roadmap** (`svge.roadmap.file.open-recent`, "coming soon"). Implementado de
+verdade. Como app web não reabre arquivo por caminho de disco (sem File System
+Access API), guarda-se o **conteúdo SVG** de cada arquivo aberto.
+
+**Peças:**
+
+- **`RecentFilesService`** (novo, `svg-engine/edit`,
+  [recent-files.service.ts](../projects/svg-engine/edit/src/lib/recent-files/recent-files.service.ts)):
+  MRU `{ name, svg, openedAt }` persistido em localStorage (chave via token
+  `RECENT_FILES_STORAGE_KEY`, default `svge:recent-files`). `record()` faz dedupe
+  por nome (case-insensitive, move pro topo), limita a **10** itens e **256 KB/
+  arquivo**, guards de SSR/privacidade/quota. `clear()`. **Root-shared** (como o
+  color history), NÃO no scope provider. Expõe `files()` (signal) + `onChange()`
+  (observer simples). 10 specs.
+- **Hook no Open**: `openFromFile`/`openSvgText` registram o arquivo no MRU após
+  abrir com sucesso (só File ▸ Open…, conforme escopo escolhido).
+- **Submenu real** ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)):
+  removido o placeholder de roadmap; registrado um `structuralParent`
+  "Open Recent" (order 14) + filhos sincronizados a partir do MRU — um item por
+  arquivo (clique reabre via `openSvgText`, re-registrando → sobe pro topo),
+  divisor + **Clear Recent Files**, ou **No recent files** (desabilitado) quando
+  vazio. 3 specs de integração.
+
+**Decisão técnica importante (zero alucinação):** a sincronização dos filhos do
+submenu usa um **observer síncrono** (`recent.onChange`), **não** um Angular
+`effect`. Um `effect` escreveria o signal do `MenuContributionRegistry` dentro do
+ciclo de change-detection (o menu-bar lê o mesmo signal), arriscando loop de CD.
+O observer dispara só em `record`/`clear` (ações do usuário, fora do render),
+mantendo as escritas no registry fora do grafo reativo.
+
+**Verificação no browser** (`/pro-editor`): vazio → "No recent files"; com 2
+arquivos semeados (localStorage) + reload → submenu lista **beta.svg / alpha.svg
+/ Clear Recent Files**; clicar em **beta.svg** reabriu o arquivo (rect verde no
+canvas + nó "rect" no Layers panel). Build + lint + suíte (**2673**) verdes;
+snapshot de API regenerado (+`RecentFile`, +`RecentFilesService`, +`RECENT_FILES_STORAGE_KEY`).
+
+> **Nota de processo:** durante a verificação, o canal do preview (CDP) travou
+> por `location.assign`/reload mid-eval na MESMA URL — falsos "hangs". Diagnóstico:
+> `1+1` ainda respondia e o conteúdo do `<mat-menu>` é lazy (não renderiza no
+> load), provando que a página estava sã. Reiniciar o preview + navegar limpo
+> resolveu.
+
+---
+
 ## 2026-06-18 — D-135 — Status bar: dropdown de Zoom (input + presets + fit actions) ✅
 
 O usuário notou que a seção de **Snap** da status bar abre um dropdown útil ao
