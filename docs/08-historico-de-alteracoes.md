@@ -6,6 +6,35 @@
 
 ---
 
+## 2026-06-18 — D-132 — Remoção de 4 placeholders de roadmap do menu Tools ✅
+
+O usuário apontou 4 submenus de Tools sem funcionalidade (placeholders "coming
+soon", desabilitados). Após explicar cada um, a decisão foi **remover todos**:
+
+- **Quick Search** (Ctrl+K) — redundante com o **Command Palette** (Ctrl+Shift+P,
+  já real, busca de ações) e com a busca do Layers panel.
+- **Developer Mode** / **Plugin Console** / **Developer Tools** — o cluster de
+  **desenvolvedor de plugin**. O SVGEngine mira **consumidores** de plugin
+  (Manage Plugins + Install from URL, ambos reais); experiência de plugin-dev
+  não está no roadmap, e um app web já tem o DevTools do navegador + o History
+  panel + o SVG Source viewer.
+
+**Mudança** em [builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts):
+removidos os 4 `roadmapLeaf` (`quick-search`, `plugins.developer-mode`,
+`plugin-console`, `developer-tools`). O `structuralParent` **Plugins ▶ foi
+mantido** — seus filhos reais (Manage Plugins…, Install Plugin…, contribuídos
+pelo ui plugin) precisam do submenu para se ancorar. Comentários de
+`menu-slots.ts` e do ui plugin atualizados; o spec do contrato roadmap
+(comingSoon/disabled) foi reapontado de `quick-search` para um placeholder de
+Insert ainda existente.
+
+**Verificação no browser** (`/pro-editor`): o menu Tools agora mostra só
+**Command Palette…** + **Plugins ▸** (Manage Plugins… / Install Plugin…) —
+`hasDeveloperMode: false`, os 4 placeholders sumiram. Build + lint + suíte
+(**2660**) verdes; sem mudança de API pública (snapshot inalterado).
+
+---
+
 ## 2026-06-18 — D-093 — History panel (lista de comandos + time-travel, estilo Photoshop) ✅
 
 O usuário pediu um painel para **visualizar a lista de comandos** do histórico

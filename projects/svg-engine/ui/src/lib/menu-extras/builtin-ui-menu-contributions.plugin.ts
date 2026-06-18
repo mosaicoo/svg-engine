@@ -221,9 +221,10 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
     // Opens <svge-plugin-manager-dialog> — the Material dialog wrapper
     // around <svge-plugin-manager>. Lives here (not edit-side) because it
     // needs MatDialog (D-017). **Relocated** from File to Tools ▸ Plugins
-    // (Option B). The "Plugins ▶" parent + roadmap siblings (Install
-    // Plugin…, Enable / Disable, Developer Mode) are registered by
-    // `builtinRoadmapMenuPlugin`. Id kept for backward compat. Always
+    // (Option B). The "Plugins ▶" structural parent is registered by
+    // `builtinRoadmapMenuPlugin`; the real siblings — Manage Plugins (here) +
+    // Install Plugin… (D-099) — attach to it. (D-132 removed the Developer
+    // Mode roadmap placeholder.) Id kept for backward compat. Always
     // enabled — managing plugins never depends on selection/document.
     //
     // **Mechanism, not policy** (D-083): this just surfaces the manager.

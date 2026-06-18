@@ -56,10 +56,11 @@ export const MENU_SLOT = {
    */
   PATH: 'menu.path',
   /**
-   * **D-085** — "Tools" menu: app-level utilities (Command Palette,
-   * Quick Search, Plugins submenu, Plugin Console, Developer Tools).
-   * Distinct from the canvas `toolbar.main` drawing tools — these are
-   * editor/IDE-style commands, not shape tools.
+   * **D-085** — "Tools" menu: app-level utilities (Command Palette, Plugins
+   * submenu). Distinct from the canvas `toolbar.main` drawing tools — these
+   * are editor/IDE-style commands, not shape tools. (D-132 removed the
+   * Quick Search / Plugin Console / Developer Tools / Developer Mode roadmap
+   * placeholders.)
    */
   TOOLS: 'menu.tools',
   /**

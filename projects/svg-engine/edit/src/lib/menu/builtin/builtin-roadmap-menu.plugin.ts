@@ -568,24 +568,22 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // (`svge.builtin.ui.tools.command-palette`, Ctrl+Shift+P) is
     // registered by `builtinUiMenuContributionsPlugin` (it opens a
     // Material dialog, so it must live in `svg-engine/ui` per D-017).
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.tools.quick-search',
-        slot: MENU_SLOT.TOOLS,
-        label: 'Quick Search',
-        icon: 'search',
-        order: 20,
-        shortcut: 'Ctrl+K',
-      }),
-    );
+    //
+    // **D-132 — REMOVED.** Four roadmap placeholders were dropped from the
+    // Tools menu by product decision (keep it lean + 100% real):
+    // - "Quick Search" (Ctrl+K) — redundant with the shipped Command
+    //   Palette (action search) and the Layers panel's own search.
+    // - "Developer Mode" / "Plugin Console" / "Developer Tools" — the
+    //   plugin-DEVELOPER cluster. SVGEngine targets plugin CONSUMERS
+    //   (Manage Plugins + Install from URL, both real); a developer
+    //   experience isn't on the roadmap, and a web app already exposes the
+    //   browser DevTools + the History panel + the SVG Source viewer.
+    //
     // Plugins ▶ — Manage Plugins (real) + Install Plugin… (real, D-099) are
-    // contributed by the ui plugin. **D-099 — SHIPPED.** The "Install
-    // Plugin…" roadmap placeholder was removed: it's now a real deep-link
-    // into the manager's "Install from URL…" form (no separate installer
-    // surface). **D-100 — REMOVED.** "Enable / Disable" was dropped as
-    // redundant: each plugin row in the manager already has an
-    // enable/disable slide toggle, so a separate menu entry duplicated it.
-    // Only Developer Mode stays roadmap below.
+    // contributed by the ui plugin. **D-100 — REMOVED.** "Enable / Disable"
+    // was dropped as redundant (each plugin row already has an enable/disable
+    // toggle). The structural parent stays so those real children have a
+    // submenu to attach to.
     track(
       structuralParent({
         id: 'svge.tools.plugins',
@@ -593,34 +591,6 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
         label: 'Plugins',
         icon: 'extension',
         order: 30,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.tools.plugins.developer-mode',
-        parentId: 'svge.tools.plugins',
-        slot: MENU_SLOT.TOOLS,
-        label: 'Developer Mode',
-        icon: 'developer_mode',
-        order: 40,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.tools.plugin-console',
-        slot: MENU_SLOT.TOOLS,
-        label: 'Plugin Console',
-        icon: 'code',
-        order: 40,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.tools.developer-tools',
-        slot: MENU_SLOT.TOOLS,
-        label: 'Developer Tools',
-        icon: 'build',
-        order: 50,
       }),
     );
 
