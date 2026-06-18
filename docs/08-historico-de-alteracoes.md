@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-06-18 — D-131-fix — Pixel Preview (Rasterized) + undo/redo: arte não voltava ✅
+
+O usuário reportou: com o Pixel Preview (Rasterized) ligado, **undo/redo "apagava
+a imagem e não voltava para o vetor"** (a página ativa parecia sumir). **Bug real**
+(não impressão), confirmado por análise.
+
+**Causa:** o overlay escondia a arte viva (`[data-node-id]`) sempre que
+`pixelPreviewRasterReady` estava `true`, e o bitmap era assíncrono e **sticky** —
+mantido entre re-rasters. Em "state churn" (undo/redo), se o novo raster
+bailasse / falhasse / saísse vazio, ficava-se preso vendo um bitmap velho (ou
+nada) **sobre a arte escondida**, sem retorno.
+
+**Fix (correto por construção)** em
+[pixel-preview-raster.component.ts](../projects/svg-engine/edit/src/lib/workspace/pixel-preview-raster.component.ts):
+o effect agora chama `reset()` em **toda** mudança (toggle/edição/undo/redo) —
+revela a arte viva na hora (`bitmap=null` + `ready=false`, invalidando o load em
+voo) e só então dispara o novo raster, que **re-esconde a arte apenas quando um
+bitmap fresco realmente pinta**. Assim é impossível ficar com bitmap obsoleto
+sobre arte oculta: depois de qualquer undo/redo você vê o vetor correto
+imediatamente, e os pixels "chunky" reaparecem em seguida. Os caminhos de bail/
+erro deixam a arte viva visível (não há mais bitmap velho a esconder).
+
+Trade-off: um leve "flash" do vetor suave durante o re-raster de cada edição —
+aceitável (e, no undo/redo, é o comportamento desejado). Spec novo cobre
+"mudança de fonte com raster ligado revela a arte (ready=false)". Build + lint +
+suíte (**2650**) verdes; sem mudança de API pública. **QA visual no browser fica
+com o usuário** (núcleo de raster não roda em jsdom).
+
+---
+
 ## 2026-06-18 — D-131 — Pixel Preview (Rasterized): modo "chunky" real ✅
 
 Sequência do D-130. O usuário pediu o modo **pixel-accurate ("chunky")** — uma

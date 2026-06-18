@@ -23,13 +23,14 @@ class HostComponent {
 
 function setup(): {
   fixture: ReturnType<typeof TestBed.createComponent<HostComponent>>;
+  host: HostComponent;
   ws: WorkspaceService;
 } {
   TestBed.configureTestingModule({ imports: [HostComponent] });
   const fixture = TestBed.createComponent(HostComponent);
   const ws = TestBed.inject(WorkspaceService);
   fixture.detectChanges();
-  return { fixture, ws };
+  return { fixture, host: fixture.componentInstance, ws };
 }
 
 describe('SvgePixelPreviewRaster (D-131)', () => {
@@ -47,6 +48,22 @@ describe('SvgePixelPreviewRaster (D-131)', () => {
     // No Canvas 2D context in jsdom → no bitmap painted, readiness stays false,
     // so the shell would keep the live art visible (never a blank canvas).
     expect((fixture.nativeElement as HTMLElement).querySelector('image')).toBeNull();
+    expect(ws.pixelPreviewRasterReady()).toBe(false);
+  });
+
+  it('reveals the live art (clears ready) on any source change while on — undo/redo safety', () => {
+    const { fixture, host, ws } = setup();
+    ws.setPixelPreviewRaster(true);
+    fixture.detectChanges();
+    // Simulate a previously-painted bitmap state (a real browser would have set
+    // this true after a raster completed).
+    ws.setPixelPreviewRasterReady(true);
+    // A document change (edit / undo / redo) flips the [tree] input...
+    host.tree.set({ type: 'group', id: 'root2', children: [] } as unknown as SvgNode);
+    fixture.detectChanges();
+    // ...which must reveal the live art again (ready=false) until a fresh bitmap
+    // paints — guaranteeing we never get stuck showing a stale raster over
+    // hidden art (the undo/redo failure this fix addresses).
     expect(ws.pixelPreviewRasterReady()).toBe(false);
   });
 });

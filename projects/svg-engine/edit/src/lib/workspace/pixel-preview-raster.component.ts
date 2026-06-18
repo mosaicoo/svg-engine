@@ -105,33 +105,44 @@ export class SvgePixelPreviewRaster {
       const tree = this.tree();
       const viewBox = this.viewBox();
       const defs = this.defs();
-      if (!on) {
-        this.clear();
-        return;
-      }
-      this.rasterize(tree, viewBox, defs);
+      // **D-131-fix** — On EVERY change (toggle / edit / undo / redo) first
+      // reveal the live art and drop the previous bitmap, THEN (if on) kick off
+      // a fresh raster which re-hides the art only once it actually paints.
+      // This is correct-by-construction: we can never get stuck showing a
+      // stale/blank bitmap over hidden art — the exact failure undo/redo
+      // exposed (the old code kept the bitmap + `ready` sticky across
+      // re-rasters, so any bail/empty/failed re-raster left the vector hidden
+      // and never returned).
+      this.reset();
+      if (on) this.rasterize(tree, viewBox, defs);
     });
 
-    inject(DestroyRef).onDestroy(() => this.clear());
+    inject(DestroyRef).onDestroy(() => this.reset());
   }
 
-  /** Reset to the off state (keeps existing behaviour byte-for-byte). */
-  private clear(): void {
+  /**
+   * Reveal the live art again: invalidate any in-flight load, drop the bitmap
+   * (removes the `<svg:image>`), and clear readiness (un-hides `[data-node-id]`
+   * in the shell). Called on every source change and on destroy.
+   */
+  private reset(): void {
     this.rasterToken++; // invalidate any in-flight load
     this._bitmap.set(null);
     this.ws.setPixelPreviewRasterReady(false);
   }
 
   private rasterize(tree: SvgNode, viewBox: BoundingBox | null, defs: string | null): void {
+    // Every bail here just leaves the live art visible — `reset()` already ran
+    // in the effect, so there is no stale bitmap to worry about.
     // svgExporter renders `document.root.children`; the page/root is always a
-    // group in practice — bail (no-op) otherwise rather than risk a throw.
+    // group in practice — bail otherwise rather than risk a throw.
     if (viewBox === null || !isGroupNode(tree)) return;
     const w = viewBox.width;
     const h = viewBox.height;
     if (!(w > 0) || !(h > 0)) return;
 
     const ctx = this.makeContext(w, h);
-    if (ctx === null) return; // Canvas API unavailable (SSR / jsdom) → no-op.
+    if (ctx === null) return; // Canvas API unavailable (SSR / jsdom).
     const { canvas, context } = ctx;
 
     let svg: string;
@@ -142,24 +153,26 @@ export class SvgePixelPreviewRaster {
       if (typeof exported !== 'string') return;
       svg = exported;
     } catch {
-      return; // serialization failed — leave the live art visible.
+      return; // serialization failed — live art stays visible.
     }
 
-    const token = ++this.rasterToken;
+    // `reset()` (in the effect) already bumped the token; capture the current
+    // value so a later change that bumps it again discards this stale load.
+    const token = this.rasterToken;
     const image = new Image();
     image.onload = (): void => {
-      if (token !== this.rasterToken) return; // superseded by a newer edit.
+      if (token !== this.rasterToken) return; // superseded by a newer change.
       try {
         context.clearRect(0, 0, canvas.width, canvas.height);
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
         this._bitmap.set(canvas.toDataURL('image/png'));
         this.ws.setPixelPreviewRasterReady(true);
       } catch {
-        // Tainted canvas (e.g., external <image>) — keep the previous bitmap.
+        // Tainted canvas (external <image>) — leave the live art visible.
       }
     };
     image.onerror = (): void => {
-      /* decode failed — keep previous bitmap; readiness unchanged. */
+      /* decode failed — live art stays visible (reset already revealed it). */
     };
     image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   }
