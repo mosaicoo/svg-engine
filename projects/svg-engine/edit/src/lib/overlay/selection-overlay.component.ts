@@ -14,11 +14,13 @@ import {
   CommandBus,
   EditorStateService,
   findNodeById,
+  isIdentityOrTranslate,
   isPage,
   type Point,
   RotateNodeCommand,
   RotateNodesCommand,
   type TextNode,
+  type Transform,
 } from 'svg-engine/core';
 import { composeAncestorMatrix } from '../anchor-editor/compose-ancestor-matrix';
 import { screenToDoc, ViewportService } from 'svg-engine/render';
@@ -27,7 +29,9 @@ import { allAnchors, type BBoxAnchor } from '../geometry/bbox-anchors';
 import {
   getCombinedBBox,
   getRenderedNodeBBox,
+  getRenderedNodeOBB,
   getRenderedParentMatrix,
+  type RenderedOBB,
 } from '../geometry/node-bbox';
 import { KeyObjectService } from '../alignment/key-object.service';
 import { LayersService } from '../layers/layers.service';
@@ -127,7 +131,53 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
       ></svg:rect>
     }
 
-    @if (focusBBox(); as b) {
+    <!--
+      **D-141 — oriented (OBB) chrome.** For a single ROTATED node the box +
+      handles + rotation stem are drawn in the node's LOCAL frame inside a
+      <g matrix="..."> so the whole transform widget rotates WITH the object
+      (Illustrator/Figma/Affinity). Resize handles route to the OBB gesture
+      (scale along local axes). Non-rotated single + multi-selection keep the
+      axis-aligned chrome in the @else if below.
+    -->
+    @if (obb(); as o) {
+      <svg:g [attr.transform]="obbTransform()">
+        <svg:rect
+          class="bbox"
+          aria-hidden="true"
+          [attr.x]="o.localBBox.x"
+          [attr.y]="o.localBBox.y"
+          [attr.width]="o.localBBox.width"
+          [attr.height]="o.localBBox.height"
+          fill="none"
+        ></svg:rect>
+
+        @if (showsTransformHandles()) {
+          @for (h of obbResizeHandles(); track h.anchor) {
+            <svg:rect
+              [class]="'handle resize handle-' + h.anchor"
+              [attr.x]="h.x - obbHandleHalf()"
+              [attr.y]="h.y - obbHandleHalf()"
+              [attr.width]="obbHandleSize()"
+              [attr.height]="obbHandleSize()"
+              [attr.data-svge-handle]="h.anchor"
+              [attr.aria-label]="
+                'Resize handle, ' +
+                anchorLabel(h.anchor) +
+                '. Arrow keys to resize 1 unit, Shift+arrow for 10 units.'
+              "
+              aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
+              role="button"
+              tabindex="0"
+              focusable="true"
+              (pointerdown)="onResizeHandlePointerDown($event, h.anchor)"
+              (pointermove)="onHandlePointerMove($event)"
+              (pointerup)="onHandlePointerUp($event)"
+              (keydown)="onResizeHandleKeyDown($event, h.anchor)"
+            ></svg:rect>
+          }
+        }
+      </svg:g>
+    } @else if (focusBBox(); as b) {
       <svg:rect
         class="bbox"
         aria-hidden="true"
@@ -162,34 +212,48 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
             (keydown)="onResizeHandleKeyDown($event, h.anchor)"
           ></svg:rect>
         }
-
-        @if (showsRotationHandle() && rotationHandle(); as r) {
-          <svg:line
-            class="rotation-stem"
-            aria-hidden="true"
-            [attr.x1]="r.stemX1"
-            [attr.y1]="r.stemY1"
-            [attr.x2]="r.x"
-            [attr.y2]="r.y"
-          ></svg:line>
-          <svg:circle
-            class="handle rotation"
-            [attr.cx]="r.x"
-            [attr.cy]="r.y"
-            [attr.r]="handleHalf()"
-            [attr.data-svge-handle]="'rotation'"
-            aria-label="Rotation handle. Left/right arrows rotate by 1 degree, Shift+arrow rotates by 15 degrees."
-            aria-keyshortcuts="ArrowLeft ArrowRight"
-            role="button"
-            tabindex="0"
-            focusable="true"
-            (pointerdown)="onRotationHandlePointerDown($event)"
-            (pointermove)="onHandlePointerMove($event)"
-            (pointerup)="onHandlePointerUp($event)"
-            (keydown)="onRotationHandleKeyDown($event)"
-          ></svg:circle>
-        }
       }
+    }
+
+    <!--
+      D-141 persistent rotation handle + stem. Rendered ONCE, OUTSIDE the
+      AABB/oriented conditional above, in DOCUMENT space (not inside the
+      oriented matrix group). This is deliberate: the pointer-capture taken on
+      the handle at gesture start would be lost if the element were destroyed
+      mid-drag — and the conditional DOES swap when a rotation crosses the
+      identity-to-rotated boundary (a non-rotated node becomes oriented on the
+      first move). Keeping the rotation handle persistent preserves capture and
+      lets rotationHandlePersistent() recompute its position each frame so the
+      stem visually FOLLOWS the mouse during rotation, then settles oriented
+      with the element (the user's explicit D-141 requirement). The pivot is the
+      bbox centre, invariant under rotation (AABB centre == OBB centre), so the
+      rotation gesture itself is unaffected.
+    -->
+    @if (showsRotationHandle() && rotationHandlePersistent(); as r) {
+      <svg:line
+        class="rotation-stem"
+        aria-hidden="true"
+        [attr.x1]="r.stemX1"
+        [attr.y1]="r.stemY1"
+        [attr.x2]="r.x"
+        [attr.y2]="r.y"
+      ></svg:line>
+      <svg:circle
+        class="handle rotation"
+        [attr.cx]="r.x"
+        [attr.cy]="r.y"
+        [attr.r]="handleHalf()"
+        [attr.data-svge-handle]="'rotation'"
+        aria-label="Rotation handle. Left/right arrows rotate by 1 degree, Shift+arrow rotates by 15 degrees."
+        aria-keyshortcuts="ArrowLeft ArrowRight"
+        role="button"
+        tabindex="0"
+        focusable="true"
+        (pointerdown)="onRotationHandlePointerDown($event)"
+        (pointermove)="onHandlePointerMove($event)"
+        (pointerup)="onHandlePointerUp($event)"
+        (keydown)="onRotationHandleKeyDown($event)"
+      ></svg:circle>
     }
   `,
   styles: `
@@ -299,6 +363,12 @@ export class SelectionOverlay {
   private readonly _focusBBox = signal<BoundingBox | null>(null);
   private readonly _hoverBBox = signal<BoundingBox | null>(null);
   private readonly _keyBBox = signal<BoundingBox | null>(null);
+  /**
+   * **D-141** — the focused single node's oriented box (local bbox +
+   * full matrix). Drives the rotated selection chrome. `null` for
+   * multi-selection or when the node has no rendered geometry.
+   */
+  private readonly _obb = signal<RenderedOBB | null>(null);
 
   /** Accented outline of the key object (only while a multi-selection has one). */
   readonly keyBBox = this._keyBBox.asReadonly();
@@ -434,17 +504,112 @@ export class SelectionOverlay {
     ];
   });
 
-  protected readonly rotationHandle = computed(() => {
-    const b = this._focusBBox();
+  /**
+   * **D-141** — single persistent rotation handle, expressed in DOCUMENT
+   * space, that adapts to the selection's orientation:
+   *
+   * - **Oriented single node** (`obb()` non-null): the stem starts at the
+   *   object's LOCAL top-center projected to doc space and points along the
+   *   object's rotated "up" axis (the matrix's negated y-basis vector,
+   *   normalized). So the stem rotates WITH the element — and, because
+   *   `_obb` recomputes from the live previewed matrix every frame, it
+   *   tracks the mouse continuously during a rotation drag.
+   * - **AABB** (non-rotated single OR multi-selection): straight up from the
+   *   focus/combined bbox top-center (legacy behaviour).
+   *
+   * Rendered outside the AABB/oriented conditional so the DOM element is
+   * stable across the mode swap → the pointer capture taken on drag-start
+   * survives a rotation crossing the identity boundary.
+   */
+  protected readonly rotationHandlePersistent = computed(() => {
+    if (!this.showsRotationHandle()) return null;
+    const gapDoc = ROTATION_HANDLE_GAP_PX / this.viewport.zoom();
+    const o = this.obb();
+    if (o !== null) {
+      const m = o.matrix;
+      const tc = allAnchors(o.localBBox).tc;
+      const tcDoc = applyTransform(m, tc.x, tc.y);
+      // Local +y points DOWN in SVG user space, so the box's visual "up" is
+      // the negated y-basis vector (-c, -d) of the matrix. Normalize it and
+      // step a screen-constant gap so the stem length stays pixel-stable.
+      let ux = -m[2];
+      let uy = -m[3];
+      const len = Math.hypot(ux, uy);
+      if (len > 1e-6) {
+        ux /= len;
+        uy /= len;
+      }
+      return {
+        x: tcDoc.x + ux * gapDoc,
+        y: tcDoc.y + uy * gapDoc,
+        stemX1: tcDoc.x,
+        stemY1: tcDoc.y,
+      };
+    }
+    // AABB path — use the gated focusBBox so the handle inherits the same
+    // hidden/page suppression as the rest of the chrome.
+    const b = this.focusBBox();
     if (b === null) return null;
     const tc = allAnchors(b).tc;
-    const gap = ROTATION_HANDLE_GAP_PX / this.viewport.zoom();
-    return {
-      x: tc.x,
-      y: tc.y - gap,
-      stemX1: tc.x,
-      stemY1: tc.y,
-    };
+    return { x: tc.x, y: tc.y - gapDoc, stemX1: tc.x, stemY1: tc.y };
+  });
+
+  // ── D-141 — oriented (OBB) chrome for a single rotated node ────────
+
+  /**
+   * Oriented box for the focused single node — non-null ONLY when the
+   * node is genuinely rotated/skewed (its matrix isn't identity-or-
+   * translate). Inherits the visibility / page / single-selection gating
+   * from {@link focusBBox} (returns null whenever that does), so the
+   * oriented chrome appears under exactly the same conditions as the
+   * axis-aligned one it replaces.
+   */
+  protected readonly obb = computed<RenderedOBB | null>(() => {
+    if (!this.singleSelection()) return null;
+    if (this.focusBBox() === null) return null;
+    const o = this._obb();
+    if (o === null) return null;
+    if (isIdentityOrTranslate(o.matrix)) return null; // axis-aligned → keep the AABB path
+    return o;
+  });
+
+  /** Uniform screen scale of the OBB matrix (length of its x-axis basis vector). */
+  private readonly obbScale = computed(() => {
+    const o = this.obb();
+    if (o === null) return 1;
+    const s = Math.hypot(o.matrix[0], o.matrix[1]);
+    return s > 1e-6 ? s : 1;
+  });
+
+  /** `matrix(...)` transform that orients the whole chrome group. */
+  protected readonly obbTransform = computed<string | null>(() => {
+    const o = this.obb();
+    if (o === null) return null;
+    const m = o.matrix;
+    return `matrix(${m[0]} ${m[1]} ${m[2]} ${m[3]} ${m[4]} ${m[5]})`;
+  });
+
+  /** Handle size in LOCAL units — pixel-constant under zoom AND the matrix scale. */
+  protected readonly obbHandleSize = computed(
+    () => HANDLE_PX / (this.viewport.zoom() * this.obbScale()),
+  );
+  protected readonly obbHandleHalf = computed(() => this.obbHandleSize() / 2);
+
+  /** Resize handles in the node's LOCAL frame (rendered inside the oriented group). */
+  protected readonly obbResizeHandles = computed(() => {
+    const o = this.obb();
+    if (o === null) return [];
+    const a = allAnchors(o.localBBox);
+    return [
+      { anchor: 'tl' as ResizeAnchor, ...a.tl },
+      { anchor: 'tc' as ResizeAnchor, ...a.tc },
+      { anchor: 'tr' as ResizeAnchor, ...a.tr },
+      { anchor: 'ml' as ResizeAnchor, ...a.ml },
+      { anchor: 'mr' as ResizeAnchor, ...a.mr },
+      { anchor: 'bl' as ResizeAnchor, ...a.bl },
+      { anchor: 'bc' as ResizeAnchor, ...a.bc },
+      { anchor: 'br' as ResizeAnchor, ...a.br },
+    ];
   });
 
   constructor() {
@@ -471,6 +636,20 @@ export class SelectionOverlay {
   // ── Resize handle interactions ───────────────────────────────────
 
   protected onResizeHandlePointerDown(event: PointerEvent, anchor: ResizeAnchor): void {
+    // **D-141 — oriented (OBB) resize** for a single rotated node. `obb()`
+    // is non-null only for single selection with a genuinely rotated matrix,
+    // so this branch never collides with the multi/AABB paths below. Scale
+    // happens along the object's OWN axes (see `startResizeObb`).
+    const o = this.obb();
+    if (o !== null) {
+      const focus = this.selection.focusId();
+      if (focus === null) return;
+      this.transform.startResizeObb(focus, anchor, o.localBBox, o.matrix);
+      capturePointer(event);
+      event.stopPropagation();
+      return;
+    }
+
     const b = this._focusBBox();
     if (b === null) return;
     const svg = this.elRef.nativeElement.ownerSVGElement;
@@ -570,6 +749,23 @@ export class SelectionOverlay {
     }
     event.preventDefault();
     event.stopPropagation();
+
+    // **D-141 — oriented keyboard resize**: when the focused node is rotated,
+    // nudge the LOCAL handle by (dx, dy) in the node's own frame and project
+    // it to doc space, so the OBB gesture scales along the object's rotated
+    // axes (consistent with the pointer path). One full gesture = one undo.
+    const o = this.obb();
+    if (o !== null) {
+      const focus = this.selection.focusId();
+      if (focus === null) return;
+      const lh = allAnchors(o.localBBox)[anchor];
+      const targetDoc = applyTransform(o.matrix, lh.x + dx, lh.y + dy);
+      this.transform.startResizeObb(focus, anchor, o.localBBox, o.matrix);
+      this.transform.updateResizeObb(targetDoc);
+      this.transform.endResizeObb();
+      return;
+    }
+
     const bbox = this._focusBBox();
     if (bbox === null) return;
     const svg = this.elRef.nativeElement.ownerSVGElement;
@@ -673,6 +869,7 @@ export class SelectionOverlay {
     const point = this.screenToDoc(event.clientX, event.clientY);
     if (point === null) return;
     if (ds.kind === 'resize') this.transform.updateResize(point);
+    else if (ds.kind === 'resize-obb') this.transform.updateResizeObb(point);
     else if (ds.kind === 'resize-many') this.transform.updateResizeMany(point);
     else if (ds.kind === 'rotate') this.transform.updateRotate(point);
     else if (ds.kind === 'rotate-many') this.transform.updateRotateMany(point);
@@ -682,6 +879,7 @@ export class SelectionOverlay {
     const ds = this.transform.dragState();
     if (ds === null) return;
     if (ds.kind === 'resize') this.transform.endResize();
+    else if (ds.kind === 'resize-obb') this.transform.endResizeObb();
     else if (ds.kind === 'resize-many') this.transform.endResizeMany();
     else if (ds.kind === 'rotate') this.transform.endRotate();
     else if (ds.kind === 'rotate-many') this.transform.endRotateMany();
@@ -726,6 +924,18 @@ export class SelectionOverlay {
     }
     this.maybeSet(this._focusBBox, focusBBox);
 
+    // **D-141** — oriented box source for a single selection. Only the
+    // single-selection case carries orientation (a multi-selection's
+    // combined box is axis-aligned by definition). `getRenderedNodeOBB`
+    // returns the local geometry bbox + the full (own × ancestors) matrix;
+    // the `obb()` computed downstream filters out identity-or-translate
+    // matrices so non-rotated nodes keep the axis-aligned chrome + bake
+    // resize. Guarded by `maybeSetObb` so this afterEveryRender pass does
+    // NOT re-trigger itself (the matrix is compared element-wise).
+    const obb =
+      this.selection.isSingleSelection() && focus !== null ? getRenderedNodeOBB(svg, focus) : null;
+    this.maybeSetObb(this._obb, obb);
+
     const hoverBBox = hover !== null && !ids.has(hover) ? getRenderedNodeBBox(svg, hover) : null;
     this.maybeSet(this._hoverBBox, hoverBBox);
 
@@ -764,10 +974,41 @@ export class SelectionOverlay {
     if (cur !== null && next !== null && bboxesEqual(cur, next)) return;
     target.set(next);
   }
+
+  /**
+   * Same change-guard as {@link maybeSet} but for the oriented box — compares
+   * BOTH the local bbox and the full matrix element-wise. Without this, the
+   * `afterEveryRender` re-measure would set `_obb` to a fresh (but equal)
+   * object every frame, re-triggering the render and spinning the CPU.
+   */
+  private maybeSetObb(
+    target: { set(v: RenderedOBB | null): void; (): RenderedOBB | null },
+    next: RenderedOBB | null,
+  ): void {
+    const cur = target();
+    if (cur === next) return;
+    if (cur !== null && next !== null && obbsEqual(cur, next)) return;
+    target.set(next);
+  }
 }
 
 function bboxesEqual(a: BoundingBox, b: BoundingBox): boolean {
   return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
+function transformsEqual(a: Transform, b: Transform): boolean {
+  return (
+    a[0] === b[0] &&
+    a[1] === b[1] &&
+    a[2] === b[2] &&
+    a[3] === b[3] &&
+    a[4] === b[4] &&
+    a[5] === b[5]
+  );
+}
+
+function obbsEqual(a: RenderedOBB, b: RenderedOBB): boolean {
+  return bboxesEqual(a.localBBox, b.localBBox) && transformsEqual(a.matrix, b.matrix);
 }
 
 /**

@@ -3,6 +3,7 @@ import {
   findRenderedNode,
   getCombinedBBox,
   getRenderedNodeBBox,
+  getRenderedNodeOBB,
   getRenderedParentMatrix,
 } from './node-bbox';
 
@@ -167,6 +168,61 @@ describe('getRenderedParentMatrix — ancestor-only matrix for ResizeNodeCommand
     // Parent matrix should NOT include shape's own (7,7) — only the
     // ancestor chain. translate(100,0) * translate(0,50) = translate(100,50).
     expect(getRenderedParentMatrix(svg, toNodeId('shape'))).toEqual([1, 0, 0, 1, 100, 50]);
+    svg.remove();
+  });
+});
+
+describe('getRenderedNodeOBB — oriented box source (D-141)', () => {
+  it('returns null for missing nodes', () => {
+    const svg = buildSvg();
+    expect(getRenderedNodeOBB(svg, toNodeId('nope'))).toBeNull();
+    svg.remove();
+  });
+
+  it('returns null for zero-area geometry', () => {
+    const svg = buildSvg();
+    makeG(svg, 'a', '0,0,0,0', 'rotate(45)');
+    expect(getRenderedNodeOBB(svg, toNodeId('a'))).toBeNull();
+    svg.remove();
+  });
+
+  it('keeps the LOCAL bbox (pre-transform) and the identity matrix for an untransformed node', () => {
+    const svg = buildSvg();
+    makeG(svg, 'a', '10,20,100,50');
+    const obb = getRenderedNodeOBB(svg, toNodeId('a'))!;
+    expect(obb.localBBox).toEqual({ x: 10, y: 20, width: 100, height: 50 });
+    expect(obb.matrix).toEqual([1, 0, 0, 1, 0, 0]);
+    svg.remove();
+  });
+
+  it('preserves orientation: localBBox stays axis-aligned, matrix carries the rotation', () => {
+    const svg = buildSvg();
+    // Contrast with getRenderedNodeBBox, which collapses this to an AABB.
+    makeG(svg, 'a', '10,0,20,10', 'rotate(90)');
+    const obb = getRenderedNodeOBB(svg, toNodeId('a'))!;
+    // The local bbox is unchanged (orientation lives in the matrix).
+    expect(obb.localBBox).toEqual({ x: 10, y: 0, width: 20, height: 10 });
+    // rotate(90) → [cos90, sin90, -sin90, cos90, 0, 0] = [0, 1, -1, 0, 0, 0].
+    expect(obb.matrix[0]).toBeCloseTo(0, 4);
+    expect(obb.matrix[1]).toBeCloseTo(1, 4);
+    expect(obb.matrix[2]).toBeCloseTo(-1, 4);
+    expect(obb.matrix[3]).toBeCloseTo(0, 4);
+    svg.remove();
+  });
+
+  it('composes the FULL chain (own transform × ancestors) into the matrix', () => {
+    const svg = buildSvg();
+    const group = makeG(svg, 'g1', '0,0,0,0', 'translate(100, 50)');
+    makeG(group, 'shape', '0,0,10,10', 'rotate(90)');
+    const obb = getRenderedNodeOBB(svg, toNodeId('shape'))!;
+    expect(obb.localBBox).toEqual({ x: 0, y: 0, width: 10, height: 10 });
+    // group translate(100,50) × own rotate(90) → [0,1,-1,0,100,50].
+    expect(obb.matrix[0]).toBeCloseTo(0, 4);
+    expect(obb.matrix[1]).toBeCloseTo(1, 4);
+    expect(obb.matrix[2]).toBeCloseTo(-1, 4);
+    expect(obb.matrix[3]).toBeCloseTo(0, 4);
+    expect(obb.matrix[4]).toBeCloseTo(100, 4);
+    expect(obb.matrix[5]).toBeCloseTo(50, 4);
     svg.remove();
   });
 });

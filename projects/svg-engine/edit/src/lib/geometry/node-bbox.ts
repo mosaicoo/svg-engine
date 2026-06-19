@@ -107,6 +107,53 @@ export function getRenderedNodeLocalBBox(
 }
 
 /**
+ * **D-141** — the node's **oriented** bounding box source: its LOCAL
+ * (pre-transform) geometry bbox PLUS the full matrix that maps that local
+ * frame into the SVG root's user space (the node's OWN `transform` AND its
+ * whole ancestor chain). Distinct from {@link getRenderedNodeBBox}, which
+ * collapses the transformed corners into an axis-aligned (AABB) box and so
+ * discards the orientation.
+ *
+ * Consumers (the selection overlay) render the selection chrome inside a
+ * `<g transform="matrix(...)">` using `matrix`, drawing the box + handles
+ * in `localBBox` coordinates — so the whole transform widget rotates WITH
+ * the object (Illustrator/Figma/Affinity-style OBB) instead of snapping to
+ * the axis-aligned enclosure. The resize math projects the pointer through
+ * `invert(matrix)` to scale along the object's LOCAL axes.
+ *
+ * Returns `null` when the element is missing or has zero geometry.
+ */
+export interface RenderedOBB {
+  /** The node's local, axis-aligned geometry bbox (before any transform). */
+  readonly localBBox: BoundingBox;
+  /** Maps the node's local coords → SVG root user space (own transform × ancestors). */
+  readonly matrix: Transform;
+}
+
+export function getRenderedNodeOBB(svgRoot: SVGSVGElement, nodeId: NodeId): RenderedOBB | null {
+  const el = findRenderedNode(svgRoot, nodeId);
+  if (el === null) return null;
+  let local: DOMRect;
+  try {
+    local = el.getBBox();
+  } catch {
+    return null;
+  }
+  if (
+    !Number.isFinite(local.x) ||
+    !Number.isFinite(local.y) ||
+    !Number.isFinite(local.width) ||
+    !Number.isFinite(local.height) ||
+    (local.width === 0 && local.height === 0)
+  ) {
+    return null;
+  }
+  const matrix = composedAncestorMatrix(el, svgRoot);
+  if (matrix === null) return null;
+  return { localBBox: bbox(local.x, local.y, local.width, local.height), matrix };
+}
+
+/**
  * Compute a single bounding box that contains every rendered node in
  * `nodeIds`. Returns `null` when none of the ids resolve to a rendered
  * element. Used for multi-selection overlay (one bbox around the whole

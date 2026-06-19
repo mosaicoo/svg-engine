@@ -6,6 +6,66 @@
 
 ---
 
+## 2026-06-19 — D-141 — Caixa de transformação orientada (OBB) acompanha a rotação ✅
+
+O usuário reportou que, ao **rotacionar** uma forma, as hastes/handlers de
+manipulação **não acompanhavam a rotação**: o retângulo de seleção e os 8 handles
+de resize passavam a se adaptar ao **bounding box AABB** resultante (a “caixa que
+envolve” o objeto girado), em vez de girar **junto** com o elemento. O esperado
+(padrão Illustrator/Figma/Affinity) é manter o retângulo de transformação
+associado ao objeto e aplicar a **mesma rotação** aos controles — handles de
+resize, haste de rotação acompanhando o mouse, e pivot, todos coerentes com a
+orientação.
+
+**Causa-raiz** (análise confirmada): a overlay de seleção
+([selection-overlay.component.ts](../projects/svg-engine/edit/src/lib/overlay/selection-overlay.component.ts))
+desenhava a chrome a partir do `getRenderedNodeBBox`, que projeta os 4 cantos pelo
+matrix completo e faz **min/max → AABB**, descartando a orientação. Logo, para um
+nó girado a caixa era sempre axis-aligned.
+
+**Solução — OBB completo (transform-composition, sem bake de geometria):**
+
+- **`edit/geometry/node-bbox.ts`** — novo `getRenderedNodeOBB` + interface
+  `RenderedOBB`: devolve o **bbox local** (pré-transform, via `getBBox()`) **e o
+  matrix completo** (transform próprio × cadeia de ancestrais). A orientação vive
+  no matrix, não no bbox.
+- **`edit/overlay/selection-overlay.component.ts`** — quando a seleção é um único
+  nó **genuinamente girado** (`!isIdentityOrTranslate(matrix)`), a chrome (box + 8
+  handles de resize) é desenhada **dentro de um `<g transform="matrix(…)">`** em
+  coordenadas locais, então gira junto com o objeto. Nó não-girado e
+  multi-seleção mantêm a chrome AABB (`@else if`) — caminho legado intocado. A
+  **haste/handle de rotação** foi extraída para **um único elemento persistente em
+  doc-space** (`rotationHandlePersistent`), renderizado FORA do condicional: como
+  o `pointer capture` é tomado no elemento da haste, destruí-lo no meio do gesto
+  (quando a rotação cruza a fronteira identity↔girado) abortaria o arraste —
+  mantê-lo persistente preserva o capture e deixa a haste **seguir o mouse**
+  durante a rotação (recomputa a cada frame), pousando orientada ao soltar.
+- **`edit/transform/transform.service.ts`** — novo gesto `resize-obb`
+  (`startResizeObb`/`updateResizeObb`/`endResizeObb`): projeta o cursor por
+  `invert(matrix)` para o frame local, deriva `sx/sy` no eixo local e compõe o
+  _anchored scale_ à **direita** do transform (`T' = T · T(a)·S·T(-a)`) — escala
+  nos eixos próprios do objeto **mantendo a rotação**, sem bake de geometria.
+- **`core/commands/resize-node.command.ts`** — flag opcional `localFrame` (último
+  parâmetro, retrocompatível): no commit, interpreta o anchor como **local** e
+  compõe a escala à direita do transform (mesma matemática do preview). Nó
+  não-girado continua no caminho de **bake** de geometria de sempre.
+
+O pivot continua sendo o **centro do bbox**, que é invariante sob rotação (centro
+do AABB == centro do OBB), então o gesto de rotação em si não muda — só a chrome
+agora reflete a orientação.
+
+**Verificação:** build + lint + suíte (**2733**, +15 specs: `getRenderedNodeOBB`
+com rotação/ancestrais, gesto `resize-obb` — estado/escala-local/preview/
+negligível/cancel/lock/undo, e `ResizeNodeCommand.localFrame`) verdes; sem mudança
+de nomes exportados na superfície pública. No browser (`/pro-editor`): retângulo
+**não-girado** → chrome AABB (`rect.bbox` simples, **0 grupos matrix**, 8 handles,
+1 haste), `obb()` nulo; o **mesmo** retângulo girado 45° → chrome orientada (box +
+8 handles dentro de um `<g matrix(0.707 0.707 -0.707 0.707 …)>` que casa exatamente
+com a rotação) e a haste de rotação inclinada com o elemento (`dx≈dy`, não reta pra
+cima) — confirmando que toda a caixa de transformação gira junto com a forma.
+
+---
+
 ## 2026-06-19 — D-140-fix-2 — Opções de página persistem no Save Workspace / Export ✅
 
 O usuário salvou o workspace após editar o **Document Settings** e, ao reabrir, as

@@ -9,5 +9,7 @@ export {
   findRenderedNode,
   getCombinedBBox,
   getRenderedNodeBBox,
+  getRenderedNodeOBB,
   getRenderedParentMatrix,
+  type RenderedOBB,
 } from './node-bbox';

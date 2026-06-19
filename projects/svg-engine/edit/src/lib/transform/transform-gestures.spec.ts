@@ -638,6 +638,103 @@ describe('TransformService — resize gesture', () => {
   });
 });
 
+describe('TransformService — OBB resize gesture (single rotated node, D-141)', () => {
+  /** Round each matrix slot to kill float noise (sin/cos). */
+  function round6(t: readonly number[]): number[] {
+    return t.map((n) => Math.round(n * 1e6) / 1e6);
+  }
+
+  /** Seed a single 100×100 rect rotated +90° about the origin. */
+  function setupRotatedRect() {
+    const ctx = setup();
+    const rect = createRect({ x: 0, y: 0, width: 100, height: 100 });
+    const rotated = { ...rect, transform: rotate(Math.PI / 2) }; // [0,1,-1,0,0,0]
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup([rotated], { id: ctx.state.document().root.id }),
+    });
+    return { ...ctx, rect: rotated };
+  }
+
+  const LOCAL_BBOX = { x: 0, y: 0, width: 100, height: 100 };
+  const MATRIX = rotate(Math.PI / 2); // node's full matrix (no ancestor transforms)
+
+  it('startResizeObb seeds a resize-obb drag state for the rotated node', () => {
+    const { transform, rect } = setupRotatedRect();
+    transform.startResizeObb(rect.id, 'br', LOCAL_BBOX, MATRIX);
+    const ds = transform.dragState();
+    expect(ds?.kind).toBe('resize-obb');
+    expect((ds as { nodeId: string }).nodeId).toBe(rect.id);
+    transform.cancelGesture();
+  });
+
+  it('scales along the LOCAL axes while keeping the rotation (scale rides the transform, geometry untouched)', () => {
+    const { transform, state, history, rect } = setupRotatedRect();
+    transform.startResizeObb(rect.id, 'br', LOCAL_BBOX, MATRIX);
+    // Local 'br' is (100,100); doubling means the cursor sits at local
+    // (200,200), which in DOC space is rotate90·(200,200) = (-200, 200).
+    transform.updateResizeObb({ x: -200, y: 200 });
+    transform.endResizeObb();
+
+    expect(history.undoStack()).toHaveLength(1);
+    const updated = findNodeById(state.document().root, rect.id) as typeof rect;
+    // Geometry stays 100×100 — the 2× scale composes onto the RIGHT of the
+    // rotation: rotate90 · scale2 = [0,2,-2,0,0,0].
+    expect(updated.width).toBe(100);
+    expect(updated.height).toBe(100);
+    expect(round6(updated.transform)).toEqual([0, 2, -2, 0, 0, 0]);
+    // The local anchor 'tl' (0,0) is the fixed point: it maps to doc (0,0)
+    // before and after; the dragged corner doubled its distance from it.
+    const corner = applyTransform(updated.transform, 100, 100);
+    expect(round6([corner.x, corner.y])).toEqual([-200, 200]);
+  });
+
+  it('previews live during the drag (transform updated before commit)', () => {
+    const { transform, state, rect } = setupRotatedRect();
+    transform.startResizeObb(rect.id, 'br', LOCAL_BBOX, MATRIX);
+    transform.updateResizeObb({ x: -200, y: 200 });
+    const midDrag = findNodeById(state.document().root, rect.id) as typeof rect;
+    expect(round6(midDrag.transform)).toEqual([0, 2, -2, 0, 0, 0]);
+    transform.cancelGesture();
+  });
+
+  it('negligible scale (handle click, no drag) dispatches no command', () => {
+    const { transform, state, history, rect } = setupRotatedRect();
+    transform.startResizeObb(rect.id, 'br', LOCAL_BBOX, MATRIX);
+    // Cursor at local 'br' (100,100) → doc rotate90·(100,100) = (-100,100):
+    // sx = sy = 1, so the commit is a no-op.
+    transform.updateResizeObb({ x: -100, y: 100 });
+    transform.endResizeObb();
+    expect(history.canUndo()).toBe(false);
+    expect(findNodeById(state.document().root, rect.id)?.transform).toEqual(rotate(Math.PI / 2));
+  });
+
+  it('cancelGesture reverts the preview to the starting rotation (no command)', () => {
+    const { transform, state, history, rect } = setupRotatedRect();
+    transform.startResizeObb(rect.id, 'br', LOCAL_BBOX, MATRIX);
+    transform.updateResizeObb({ x: -500, y: 500 });
+    transform.cancelGesture();
+    expect(history.canUndo()).toBe(false);
+    expect(findNodeById(state.document().root, rect.id)?.transform).toEqual(rotate(Math.PI / 2));
+  });
+
+  it('refuses a locked node (no drag state set)', () => {
+    const { transform, layers, rect } = setupRotatedRect();
+    layers.setLocked(rect.id, true);
+    transform.startResizeObb(rect.id, 'br', LOCAL_BBOX, MATRIX);
+    expect(transform.dragState()).toBeNull();
+  });
+
+  it('undo restores the pre-resize rotation', () => {
+    const { transform, state, bus, rect } = setupRotatedRect();
+    transform.startResizeObb(rect.id, 'br', LOCAL_BBOX, MATRIX);
+    transform.updateResizeObb({ x: -200, y: 200 });
+    transform.endResizeObb();
+    bus.undo();
+    expect(findNodeById(state.document().root, rect.id)?.transform).toEqual(rotate(Math.PI / 2));
+  });
+});
+
 describe('TransformService — lock enforcement (Bloco 4b-Lock)', () => {
   it('startMove refuses a locked node (no drag state set)', () => {
     const { transform, state, layers } = setup();

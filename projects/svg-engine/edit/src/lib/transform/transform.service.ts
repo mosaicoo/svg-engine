@@ -121,6 +121,29 @@ export type DragState =
     }
   | {
       /**
+       * **D-141 — OBB resize** (single rotated node). Kept fully separate
+       * from the axis-aligned `'resize'` path so the well-tested bake path
+       * is untouched. The handle anchors live in the node's LOCAL geometry
+       * frame; the pointer is projected through `invMatrix` (doc → local)
+       * so scaling happens along the object's OWN axes, and the commit
+       * composes the anchored scale onto the right of the node's transform
+       * (keeps the rotation — see `ResizeNodeCommand` `localFrame` mode).
+       */
+      readonly kind: 'resize-obb';
+      readonly nodeId: NodeId;
+      readonly startTransform: Transform;
+      /** Inverse of the node's full matrix (own × ancestors): doc → local. */
+      readonly invMatrix: Transform;
+      /** Fixed pivot = the local anchor opposite the dragged handle (LOCAL coords). */
+      readonly localAnchor: Point;
+      /** Dragged handle's local-frame position at gesture start. */
+      readonly localHandle: Point;
+      /** Which axes scale (corner: both; edge: one). */
+      readonly scaleAxes: { readonly x: boolean; readonly y: boolean };
+      currentScale: { readonly sx: number; readonly sy: number };
+    }
+  | {
+      /**
        * **Group resize** (multi-selection). A dedicated kind kept fully
        * separate from the single-node `'resize'` so the well-tested
        * geometry-bake path is never touched. Uses the pure matrix
@@ -631,6 +654,90 @@ export class TransformService {
         currentScale.sy,
         finalParentMatrix,
       ),
+    );
+  }
+
+  // ── OBB resize gesture (single rotated node, D-141) ─────────────
+
+  /**
+   * Begin an **oriented** resize gesture for a single rotated node.
+   * `localBBox` is the node's own (pre-transform) geometry bbox and
+   * `matrix` maps that local frame → document space (the node's own
+   * transform composed with its ancestors — i.e. `getRenderedNodeOBB`).
+   * `handle` is the grabbed anchor; the OPPOSITE local anchor is the
+   * fixed scaling pivot.
+   *
+   * Unlike {@link startResize}, all anchors stay in the node's LOCAL
+   * frame and the pointer is projected via `invMatrix` so scaling runs
+   * along the object's own (rotated) axes.
+   */
+  startResizeObb(
+    nodeId: NodeId,
+    handle: Exclude<BBoxAnchor, 'mc'>,
+    localBBox: { x: number; y: number; width: number; height: number },
+    matrix: Transform,
+  ): void {
+    if (this._dragState() !== null) return;
+    if (this.layers.isLocked(nodeId)) return;
+    const node = findNodeById(this.state.document().root, nodeId);
+    if (node === null) return;
+    let invMatrix: Transform;
+    try {
+      invMatrix = invert(matrix);
+    } catch {
+      return; // non-invertible — bail (no gesture)
+    }
+    const anchors = allAnchors(localBBox);
+    this._dragState.set({
+      kind: 'resize-obb',
+      nodeId,
+      startTransform: node.transform,
+      invMatrix,
+      localAnchor: anchors[OPPOSITE_ANCHOR[handle]],
+      localHandle: anchors[handle],
+      scaleAxes: SCALE_AXES_FOR_HANDLE[handle],
+      currentScale: { sx: 1, sy: 1 },
+    });
+  }
+
+  /**
+   * Update an OBB resize. Projects the doc-space pointer into the node's
+   * LOCAL frame, derives `sx/sy` from the local-anchor → local-handle
+   * span, and previews by composing the anchored scale onto the RIGHT of
+   * the node's start transform (rotation preserved).
+   */
+  updateResizeObb(currentPoint: Point): void {
+    const ds = this._dragState();
+    if (ds === null || ds.kind !== 'resize-obb') return;
+    const { invMatrix, localAnchor, localHandle, scaleAxes, startTransform, nodeId } = ds;
+    const cursorLocal = applyTransform(invMatrix, currentPoint.x, currentPoint.y);
+    const denomX = localHandle.x - localAnchor.x;
+    const denomY = localHandle.y - localAnchor.y;
+    const sx = scaleAxes.x && denomX !== 0 ? (cursorLocal.x - localAnchor.x) / denomX : 1;
+    const sy = scaleAxes.y && denomY !== 0 ? (cursorLocal.y - localAnchor.y) / denomY : 1;
+    if (!Number.isFinite(sx) || !Number.isFinite(sy)) return;
+    const next = multiply(
+      startTransform,
+      composeAnchoredScale(translate(0, 0), sx, sy, localAnchor),
+    );
+    this.applyPreviewTransform(nodeId, next);
+    ds.currentScale = { sx, sy };
+  }
+
+  /**
+   * Finish an OBB resize: revert the preview, then dispatch ONE
+   * {@link ResizeNodeCommand} in `localFrame` mode (anchor already local,
+   * scale composed onto the transform). Negligible scale is a no-op.
+   */
+  endResizeObb(): void {
+    const ds = this._dragState();
+    if (ds === null || ds.kind !== 'resize-obb') return;
+    const { nodeId, startTransform, localAnchor, currentScale } = ds;
+    this._dragState.set(null);
+    this.applyPreviewTransform(nodeId, startTransform);
+    if (Math.abs(currentScale.sx - 1) < 1e-4 && Math.abs(currentScale.sy - 1) < 1e-4) return;
+    this.bus.dispatch(
+      new ResizeNodeCommand(nodeId, localAnchor, currentScale.sx, currentScale.sy, null, true),
     );
   }
 

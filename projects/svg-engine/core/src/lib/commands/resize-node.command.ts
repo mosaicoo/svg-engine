@@ -68,6 +68,21 @@ export class ResizeNodeCommand implements Command {
      * document root. Backward compatible.
      */
     private readonly parentMatrix: Transform | null = null,
+    /**
+     * **D-141 — OBB resize.** When `true`, `anchor` is interpreted in the
+     * node's **own LOCAL geometry frame** (NOT document space), and the
+     * resize is applied by composing the anchored scale onto the RIGHT of
+     * the node's existing transform — `T' = T · T(a)·S(sx,sy)·T(-a)` — so a
+     * **rotated** node scales along ITS OWN axes and keeps the rotation.
+     * Geometry fields are left untouched (the scale rides in the transform,
+     * stroke stays declared via the renderer's non-scaling-stroke). Used by
+     * the oriented selection overlay; `parentMatrix` is ignored in this
+     * mode (the caller already projected the anchor into the local frame).
+     *
+     * `false` (default) keeps the document-space geometry-bake / legacy
+     * behaviour for axis-aligned (non-rotated) selections — unchanged.
+     */
+    private readonly localFrame = false,
   ) {
     if (!Number.isFinite(sx) || !Number.isFinite(sy)) {
       throw new RangeError(
@@ -83,6 +98,24 @@ export class ResizeNodeCommand implements Command {
       return fail(`ResizeNodeCommand: node "${this.nodeId}" not found`);
     }
     this.previousNode = target;
+
+    // **D-141** — OBB (local-frame) resize: scale along the node's own
+    // axes by composing the anchored scale onto the RIGHT of its
+    // transform. Keeps geometry + rotation; bypasses the doc-space bake.
+    if (this.localFrame) {
+      const nextRoot = updateNode<SvgNode>(doc.root, this.nodeId, () => ({
+        ...target,
+        transform: multiply(
+          target.transform,
+          composeAnchoredScale(translate(0, 0), this.sx, this.sy, this.anchor),
+        ),
+      }));
+      if (nextRoot === doc.root) {
+        return fail(`ResizeNodeCommand: failed to update node "${this.nodeId}"`);
+      }
+      ctx.state.setDocument({ ...doc, root: nextRoot });
+      return ok();
+    }
 
     // Try the bake path first. Returns null for rotated/skewed nodes
     // OR rotated ancestor matrices — fall back to scale-transform

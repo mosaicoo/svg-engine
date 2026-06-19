@@ -191,4 +191,48 @@ describe('ResizeNodeCommand', () => {
     const cmd = new ResizeNodeCommand(generateNodeId(), { x: 0, y: 0 }, 2, 2);
     expect(cmd.execute(ctx).ok).toBe(false);
   });
+
+  describe('localFrame mode (D-141 — OBB resize)', () => {
+    /** Round each matrix slot to kill float noise. */
+    function round6(t: readonly number[]): number[] {
+      return t.map((n) => Math.round(n * 1e6) / 1e6);
+    }
+
+    it('composes the anchored scale onto the RIGHT of the transform, keeping the rotation', () => {
+      const { state, ctx } = setup();
+      const rect = createRect({ x: 0, y: 0, width: 100, height: 100 });
+      const rotated = { ...rect, transform: rotate(Math.PI / 2) }; // [0,1,-1,0,0,0]
+      state.setDocument({
+        ...state.document(),
+        root: createGroup([rotated], { id: state.document().root.id }),
+      });
+
+      // localFrame=true (last arg), parentMatrix=null, anchor is LOCAL (0,0).
+      const cmd = new ResizeNodeCommand(rotated.id, { x: 0, y: 0 }, 2, 2, null, true);
+      expect(cmd.execute(ctx).ok).toBe(true);
+
+      const updated = findNodeById(state.document().root, rotated.id) as typeof rect;
+      // Geometry untouched — the scale rides on the transform.
+      expect(updated.width).toBe(100);
+      expect(updated.height).toBe(100);
+      // rotate90 · scale2 = [0,2,-2,0,0,0] (right-composition keeps rotation).
+      expect(round6(updated.transform)).toEqual([0, 2, -2, 0, 0, 0]);
+    });
+
+    it('undo restores the original rotation', () => {
+      const { state, ctx } = setup();
+      const rect = createRect({ x: 0, y: 0, width: 100, height: 100 });
+      const rotated = { ...rect, transform: rotate(Math.PI / 2) };
+      state.setDocument({
+        ...state.document(),
+        root: createGroup([rotated], { id: state.document().root.id }),
+      });
+
+      const cmd = new ResizeNodeCommand(rotated.id, { x: 0, y: 0 }, 2, 2, null, true);
+      cmd.execute(ctx);
+      cmd.undo(ctx);
+
+      expect(findNodeById(state.document().root, rotated.id)?.transform).toEqual(rotated.transform);
+    });
+  });
 });
