@@ -297,6 +297,18 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(saveAs?.order).toBe(32);
   });
 
+  it('registers a real Import ▸ Smart Object… and no External Asset placeholder (D-139)', () => {
+    const { reg } = setupRoot();
+    const items = reg.bySlot(MENU_SLOT.FILE)();
+    const so = items.find((c) => c.id === 'svge.builtin.file.import-smart-object');
+    expect(so).toBeTruthy();
+    expect(so?.parentId).toBe('svge.builtin.file.import-menu');
+    expect(so?.comingSoon ?? false).toBe(false);
+    expect(so?.order).toBe(30);
+    // D-139 — External Asset was dropped, not implemented: no item carries it.
+    expect(items.some((c) => /external-asset/.test(c.id))).toBe(false);
+  });
+
   it('populates Toolbar, Context Canvas, Context Node slots', () => {
     const { reg } = setupRoot();
     // **D-096** — the edit-side plugin registers the 4 Help external links

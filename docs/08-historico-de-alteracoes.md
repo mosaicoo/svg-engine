@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-06-19 — D-139 — File ▸ Import ▸ Smart Object… (real) + External Asset… removido ✅
+
+O usuário perguntou se `File ▸ Import ▸ Smart Object…` e `… ▸ External Asset…`
+estavam ligados — eram dois **placeholders de roadmap**. Naturezas diferentes:
+
+- **Smart Object… → implementado.** Escolhe um SVG/SVGZ, importa e **embrulha o
+  conteúdo como um único Smart Object** (D-074) na página ativa — distinto do
+  `Import ▸ SVG…` (insere solto) e do `Object ▸ Smart Object ▸ Convert` (embrulha
+  a seleção). Reusa o picker + `svgImporter` + o flag puro `withSmartObjectFlag`.
+- **External Asset… → removido.** "External asset" não tem significado fixo na
+  library e o `Import ▸ From URL…` já traz fontes externas; um host com asset
+  manager/DAM próprio registra a própria contribuição de menu (mesma decisão do
+  Exit).
+
+**Peças** ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)):
+`placeImportedSvgIntoActivePage` ganhou um flag opcional `asSmartObject` (aplica
+`withSmartObjectFlag` no grupo importado antes de inserir); `importSvgFromFile`
+ficou parametrizável com um handler de texto; novo `importSmartObjectText`
+(parse → insere como Smart Object, sempre centralizado). Item real
+`svge.builtin.file.import-smart-object` (order 30, ícone `inventory_2`). Ambos os
+`roadmapLeaf` removidos do
+[builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts).
+
+**Verificação:** build + lint + suíte (**2692**, +1 spec de menu) verdes; sem
+mudança de API. No browser (`/pro-editor`): submenu Import mostra
+**SVG… / Image… / From URL… / Smart Object…** e **sem External Asset…**; importar
+um SVG via Smart Object… inseriu, no modelo vivo, **1 nó com
+`svgeKind:'smart-object'`** contendo o conteúdo importado (rect azul). Sem erros
+no console.
+
+---
+
 ## 2026-06-19 — D-138 follow-up — File ▸ Exit removido ✅
 
 O usuário perguntou se o `File ▸ Exit` estava ligado a algo — era só **placeholder

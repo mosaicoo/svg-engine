@@ -48,6 +48,7 @@ import {
   UngroupCommand,
   UnionCommand,
   UnmakeLayerCommand,
+  withSmartObjectFlag,
 } from 'svg-engine/core';
 import {
   gunzipText,
@@ -485,6 +486,23 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         order: 20,
         run(runCtx) {
           importFromUrl(runCtx, fromCtx);
+        },
+      }),
+    );
+    // **D-139** — `File ▸ Import ▸ Smart Object…`. Picks an SVG/SVGZ and embeds
+    // it as a single Smart Object (D-074) — distinct from `Import ▸ SVG…` (loose
+    // additive) and `Insert ▸ Smart Object…` (create from scratch). Replaces the
+    // former roadmap placeholder.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.import-smart-object',
+        parentId: 'svge.builtin.file.import-menu',
+        slot: MENU_SLOT.FILE,
+        label: 'Smart Object…',
+        icon: 'inventory_2',
+        order: 30,
+        run(runCtx) {
+          importSvgFromFile(runCtx, fromCtx, importSmartObjectText);
         },
       }),
     );
@@ -3652,7 +3670,18 @@ function openSvgDocument(
   fromCtx(SelectionService, runCtx).clear();
 }
 
-function importSvgFromFile(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
+function importSvgFromFile(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+  // **D-139** — the text handler is pluggable: `importSvgTextAdditive` (default,
+  // `Import ▸ SVG…`) inserts loose; `importSmartObjectText` wraps the import as a
+  // single Smart Object (`Import ▸ Smart Object…`). Both share this picker.
+  handle: (
+    runCtx: MenuContributionContext | undefined,
+    fromCtx: Resolver,
+    text: string,
+  ) => void = importSvgTextAdditive,
+): void {
   if (typeof document === 'undefined') return;
   // Programmatic <input type="file"> — no UI scaffolding required.
   // Pattern matches what `/svg-viewer` route does (browser-native flow,
@@ -3669,7 +3698,7 @@ function importSvgFromFile(runCtx: MenuContributionContext | undefined, fromCtx:
       input.remove();
       if (file === undefined || file === null) return;
       void readSvgFileText(file)
-        .then((text) => importSvgTextAdditive(runCtx, fromCtx, text))
+        .then((text) => handle(runCtx, fromCtx, text))
         .catch((err: unknown) => {
           if (typeof window !== 'undefined') {
             window.alert(
@@ -3703,6 +3732,30 @@ function importSvgTextAdditive(
   processImportedSvgDocument(runCtx, fromCtx, result.document);
   if (result.warnings.length > 0 && typeof console !== 'undefined') {
     console.warn(`[SVGEngine] Import warnings:\n${result.warnings.join('\n')}`);
+  }
+}
+
+/**
+ * **D-139** — parse `text` as an SVG and insert it ADDITIVELY as a single Smart
+ * Object (D-074) on the active page. Unlike {@link importSvgTextAdditive}, the
+ * imported art is wrapped as one non-destructive, editable-in-isolation unit;
+ * and it always uses the centered insertion (not the interactive `place`
+ * gesture) for predictable behavior. Best-effort: a malformed SVG alerts and
+ * aborts without touching the document.
+ */
+function importSmartObjectText(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+  text: string,
+): void {
+  const result = svgImporter.import(text);
+  if (!result.ok) {
+    if (typeof window !== 'undefined') window.alert(`Import failed: ${result.error}`);
+    return;
+  }
+  placeImportedSvgIntoActivePage(runCtx, fromCtx, result.document, true);
+  if (result.warnings.length > 0 && typeof console !== 'undefined') {
+    console.warn(`[SVGEngine] Import (Smart Object) warnings:\n${result.warnings.join('\n')}`);
   }
 }
 
@@ -3859,6 +3912,10 @@ function placeImportedSvgIntoActivePage(
   runCtx: MenuContributionContext | undefined,
   fromCtx: Resolver,
   doc: SvgDocument,
+  // **D-139** — when true, the imported group is flagged as a Smart Object
+  // (D-074) so it lands as a single non-destructive, editable-in-isolation unit
+  // (File ▸ Import ▸ Smart Object…). Default false = plain additive import.
+  asSmartObject = false,
 ): void {
   const imported = doc.root;
   if (imported.type !== 'group' || imported.children.length === 0) return;
@@ -3876,10 +3933,12 @@ function placeImportedSvgIntoActivePage(
   const { cx, cy } = activeInsertionCenter(runCtx, fromCtx);
 
   // Scale 1 (natural); translate so the art's center lands on the page center.
-  const placed: SvgNode = {
+  const placedBase = {
     ...imported,
     transform: [1, 0, 0, 1, cx - srcCx, cy - srcCy] as Transform,
   };
+  // **D-139** — wrap the imported group as a Smart Object (D-074) when requested.
+  const placed: SvgNode = asSmartObject ? withSmartObjectFlag(placedBase) : placedBase;
 
   const state = fromCtx(EditorStateService, runCtx);
   const importedDefs = doc.defs;

@@ -230,26 +230,13 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // Import ▶ roadmap children (parent `svge.builtin.file.import-menu`).
     // **D-117** — `Image…` (order 15) is now REAL (shared raster handler with
     // `Insert ▸ Image…`); the roadmap placeholder was removed.
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.file.import.smart-object',
-        parentId: 'svge.builtin.file.import-menu',
-        slot: MENU_SLOT.FILE,
-        label: 'Smart Object…',
-        icon: 'inventory_2',
-        order: 30,
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.file.import.external-asset',
-        parentId: 'svge.builtin.file.import-menu',
-        slot: MENU_SLOT.FILE,
-        label: 'External Asset…',
-        icon: 'link',
-        order: 40,
-      }),
-    );
+    // **D-139** — `Smart Object…` (order 30) is now REAL too (imports an SVG and
+    // embeds it as a Smart Object — D-074), registered by
+    // `builtinMenuContributionsPlugin`; its placeholder was removed.
+    // **D-139** — `External Asset…` (order 40) was REMOVED, not implemented:
+    // "external asset" has no fixed meaning in the library, and `Import ▸ From
+    // URL…` already brings in external sources. A host with its own asset
+    // manager/DAM registers its own menu contribution.
     // Export ▶ roadmap children (parent `svge.builtin.file.export-menu`).
     track(
       roadmapLeaf({
