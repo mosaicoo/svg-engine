@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { CommandBus } from '../command-bus/command-bus.service';
 import { createEmptyDocument } from '../document/document-factory';
 import { createGroup } from '../model';
-import { getPageOptions, withPageFlag } from '../model/page';
+import { getPageOptions, getPageViewBox, withPageFlag } from '../model/page';
 import { EditorStateService } from '../state/editor-state.service';
 import { findNodeById } from '../tree/tree-ops';
 import { SetPageOptionsCommand } from './page.commands';
@@ -94,5 +94,64 @@ describe('PAGES-REFACTOR Fase 3 — SetPageOptionsCommand', () => {
     });
     const result = bus.dispatch(new SetPageOptionsCommand(plain.id, { orientation: 'portrait' }));
     expect(result.ok).toBe(false);
+  });
+
+  // ── D-140-fix — Format & Orientation drive the viewBox geometry ─────
+
+  it('selecting a named format resizes the page (orientation derived from shape)', () => {
+    const { state, bus } = setup();
+    const page = seedPage(state); // 800×600 — wider than tall (landscape shape)
+    bus.dispatch(new SetPageOptionsCommand(page.id, { format: 'a4' }));
+    const after = findNodeById(state.document().root, page.id)!;
+    // 800×600 is landscape-shaped → A4 landscape (842×595).
+    expect(getPageViewBox(after)).toEqual({ x: 0, y: 0, width: 842, height: 595 });
+    expect(getPageOptions(after).format).toBe('a4');
+    expect(getPageOptions(after).orientation).toBe('landscape');
+  });
+
+  it('flipping orientation on a named-format page resizes accordingly', () => {
+    const { state, bus } = setup();
+    const page = seedPage(state);
+    bus.dispatch(new SetPageOptionsCommand(page.id, { format: 'a4' })); // → 842×595 landscape
+    bus.dispatch(new SetPageOptionsCommand(page.id, { orientation: 'portrait' }));
+    const after = findNodeById(state.document().root, page.id)!;
+    expect(getPageViewBox(after)).toEqual({ x: 0, y: 0, width: 595, height: 842 });
+    expect(getPageOptions(after).orientation).toBe('portrait');
+  });
+
+  it('orientation on a CUSTOM page swaps width/height (keeps origin)', () => {
+    const { state, bus } = setup();
+    const page = seedPage(state); // 800×600 custom
+    bus.dispatch(new SetPageOptionsCommand(page.id, { orientation: 'portrait' }));
+    const after = findNodeById(state.document().root, page.id)!;
+    expect(getPageViewBox(after)).toEqual({ x: 0, y: 0, width: 600, height: 800 });
+  });
+
+  it('background / margins changes never touch the geometry', () => {
+    const { state, bus } = setup();
+    const page = seedPage(state);
+    bus.dispatch(
+      new SetPageOptionsCommand(page.id, { background: { kind: 'solid', color: '#123456' } }),
+    );
+    bus.dispatch(
+      new SetPageOptionsCommand(page.id, { margins: { top: 10, right: 0, bottom: 0, left: 0 } }),
+    );
+    expect(getPageViewBox(findNodeById(state.document().root, page.id)!)).toEqual({
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    });
+  });
+
+  it('selecting Custom keeps the current size (no resize)', () => {
+    const { state, bus } = setup();
+    const page = seedPage(state);
+    bus.dispatch(new SetPageOptionsCommand(page.id, { format: 'a4' })); // resized
+    bus.dispatch(new SetPageOptionsCommand(page.id, { format: 'custom' }));
+    const after = findNodeById(state.document().root, page.id)!;
+    expect(getPageOptions(after).format).toBe('custom');
+    // Stays at the A4 size it had — 'custom' means "whatever size it is now".
+    expect(getPageViewBox(after)).toEqual({ x: 0, y: 0, width: 842, height: 595 });
   });
 });

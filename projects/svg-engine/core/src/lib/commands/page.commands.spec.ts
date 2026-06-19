@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { CommandBus } from '../command-bus/command-bus.service';
 import { createEmptyDocument } from '../document/document-factory';
 import { createGroup } from '../model';
-import { getPageName, getPageViewBox, isPage, withPageFlag } from '../model/page';
+import { getPageName, getPageOptions, getPageViewBox, isPage, withPageFlag } from '../model/page';
 import { EditorStateService } from '../state/editor-state.service';
 import { findNodeById } from '../tree/tree-ops';
 import type { NodeId } from '../types/node-id';
@@ -155,6 +155,35 @@ describe('D-079 — ResizePageCommand', () => {
     bus.dispatch(new ResizePageCommand(id, { x: 0, y: 0, width: 100, height: 100 }));
     bus.undo();
     expect(getPageViewBox(findNodeById(state.document().root, id)!)).toEqual(VB);
+  });
+});
+
+describe('D-140-fix — ResizePageCommand syncs format & orientation', () => {
+  // Resizing is the single geometry authority: it re-derives the named
+  // format (or 'custom') + the orientation from the new shape. Templates
+  // apply through this command too, so this also covers "template with a
+  // different orientation propagates to the Format/Orientation controls".
+  it('derives a named format + orientation from the new size', () => {
+    const { state, bus } = setup();
+    const create = new CreatePageCommand(VB);
+    bus.dispatch(create);
+    const id = create.getCreatedPageId()!;
+    // A4 landscape dimensions (matches the built-in A4 template).
+    bus.dispatch(new ResizePageCommand(id, { x: 0, y: 0, width: 842, height: 595 }));
+    const opts = getPageOptions(findNodeById(state.document().root, id)!);
+    expect(opts.format).toBe('a4');
+    expect(opts.orientation).toBe('landscape');
+  });
+
+  it('a non-standard size yields format custom + derived orientation', () => {
+    const { state, bus } = setup();
+    const create = new CreatePageCommand(VB);
+    bus.dispatch(create);
+    const id = create.getCreatedPageId()!;
+    bus.dispatch(new ResizePageCommand(id, { x: 0, y: 0, width: 500, height: 900 }));
+    const opts = getPageOptions(findNodeById(state.document().root, id)!);
+    expect(opts.format).toBe('custom');
+    expect(opts.orientation).toBe('portrait');
   });
 });
 

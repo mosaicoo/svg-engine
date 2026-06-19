@@ -6,6 +6,52 @@
 
 ---
 
+## 2026-06-19 — D-140-fix — Format/Orientation/Templates/Background da página sincronizados ✅
+
+O usuário reportou que os controles de **Format & Orientation** das propriedades
+de página (Inspector + dialog Document Settings) **não faziam nada**: escolher um
+formato não redimensionava a página nem atualizava os demais controles; aplicar um
+**template** com orientação diferente não propagava; e o combobox de **Background**
+parecia incompleto.
+
+**Causa-raiz** (auditoria): `format`, `orientation` e a **viewBox** estavam
+totalmente **desacoplados**. Não existia tabela `PageFormat → dimensões` no core;
+`SetPageOptionsCommand({format})`/`{orientation}` só gravava o enum nos metadados,
+**nunca recalculava a geometria**; e `ResizePageCommand` (edição manual de W/H +
+aplicação de templates) **nunca atualizava** `format`/`orientation` → drift total.
+O background (solid/image) **já renderizava** corretamente — o gap era a UX do
+controle (input de texto cru pra cor).
+
+**Correção (no core → uniforme p/ Inspector + dialog + templates):**
+
+- **`page.ts`**: nova tabela `PAGE_FORMAT_SIZES` (tamanhos portrait canônicos em
+  pontos 72-DPI, alinhados aos templates) + helpers `pageFormatSize(format,
+orientation)`, `detectPageFormat(w,h)` (±0.5 de tolerância) e
+  `pageOrientationFromSize(w,h)`. Exportados de `svg-engine/core`.
+- **`SetPageOptionsCommand`**: ao mudar **format** (≠custom) → redimensiona a
+  viewBox pro tamanho do formato, derivando a orientação da **forma atual** da
+  página (e persistindo-a); ao mudar **orientation** → redimensiona (formato
+  nomeado) ou faz **swap de W/H** (página custom). Tudo num único comando undoable.
+- **`ResizePageCommand`**: passou a **derivar e gravar** `format` (detectado, ou
+  'custom') + `orientation` a partir do novo W/H. Como o `applyTemplate` da
+  Libraries panel dispatcha `ResizePageCommand`, **templates agora propagam
+  formato/orientação automaticamente** ([libraries-panel.component.ts](../projects/svg-engine/ui/src/lib/libraries-panel/libraries-panel.component.ts)).
+- **UX de Background** (dialog Document Settings): cor sólida agora tem um **swatch
+  nativo `<input type=color>`** + campo de texto (cores nomeadas/rgb), e a imagem
+  ganhou **preview thumbnail** + texto explicativo. (A aba Page do Inspector — em
+  vias de aposentadoria — herda o fix de geometria via core; sua UX de cor segue
+  como input de texto por ora.)
+
+**Verificação:** build + lint + suíte (**2715**, +13 specs: helpers de formato +
+sync de SetPageOptions/ResizePage) verdes; API snapshot +4 exports do core. No
+browser (`/pro-editor`, via Document Settings): **Format A4** numa página 800×600
+(landscape) → **842×595** com os campos Size mostrando 842/595; **Orientation →
+portrait** → **595×842**; **template A4-landscape** → `format:'a4' orientation:
+'landscape'`; **Background Solid #00cc44** pintou o `.page-rect` de
+`rgb(0,204,68)` no canvas e o swatch refletiu a cor. Sem erros no console.
+
+---
+
 ## 2026-06-19 — D-140 — File ▸ Document Settings… (dialog) ✅
 
 O usuário pediu um diálogo ligado ao `File ▸ Document Settings…` (até então o

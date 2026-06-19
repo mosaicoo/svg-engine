@@ -363,6 +363,81 @@ export function withPageOptions(group: GroupNode, patch: Partial<PageOptions>): 
   };
 }
 
+// ── Format ↔ dimensions (D-140-fix) ────────────────────────────────
+
+/**
+ * **D-140-fix** — canonical **portrait** dimensions (document units, in
+ * 72-DPI PostScript points to match the built-in print/social templates
+ * in `svg-engine/edit`) for each named {@link PageFormat}. `width ≤
+ * height` (squares equal); landscape is derived by swapping via
+ * {@link pageFormatSize}. `'custom'` has no fixed size and is
+ * intentionally absent.
+ *
+ * Keeping these aligned with the template sizes means applying the "A4
+ * (portrait)" template and picking "A4" in the Format dropdown produce
+ * the **same** page geometry — so {@link detectPageFormat} round-trips a
+ * template back to its format name.
+ */
+export const PAGE_FORMAT_SIZES: Readonly<
+  Record<Exclude<PageFormat, 'custom'>, { readonly width: number; readonly height: number }>
+> = {
+  a4: { width: 595, height: 842 },
+  a5: { width: 420, height: 595 },
+  a3: { width: 842, height: 1191 },
+  letter: { width: 612, height: 792 },
+  legal: { width: 612, height: 1008 },
+  tabloid: { width: 792, height: 1224 },
+  'square-1080': { width: 1080, height: 1080 },
+  'square-1200': { width: 1200, height: 1200 },
+  'square-2048': { width: 2048, height: 2048 },
+};
+
+/**
+ * **D-140-fix** — resolve a named format + orientation to concrete
+ * dimensions. Returns `null` for `'custom'` (no preset). Landscape swaps
+ * the canonical portrait width/height (no-op for squares).
+ */
+export function pageFormatSize(
+  format: PageFormat,
+  orientation: PageOrientation,
+): { readonly width: number; readonly height: number } | null {
+  if (format === 'custom') return null;
+  const base = PAGE_FORMAT_SIZES[format];
+  if (orientation === 'landscape') return { width: base.height, height: base.width };
+  return { width: base.width, height: base.height };
+}
+
+/**
+ * **D-140-fix** — orientation implied by a width/height pair: landscape
+ * when strictly wider than tall, portrait otherwise (squares → portrait
+ * by convention). Used to keep the Orientation control in sync with the
+ * page's actual shape after a manual resize / template apply.
+ */
+export function pageOrientationFromSize(width: number, height: number): PageOrientation {
+  return width > height ? 'landscape' : 'portrait';
+}
+
+/**
+ * **D-140-fix** — reverse of {@link pageFormatSize}: find the named
+ * format whose canonical size matches the given dimensions (in EITHER
+ * orientation), within a 0.5-unit tolerance for float drift. Returns
+ * `'custom'` when nothing matches. Lets a manual viewBox edit (or a
+ * template apply) re-sync the Format dropdown instead of drifting.
+ */
+export function detectPageFormat(width: number, height: number): PageFormat {
+  // Normalize to portrait (w ≤ h) so one comparison covers both
+  // orientations — PAGE_FORMAT_SIZES entries are all stored portrait.
+  const w = Math.min(width, height);
+  const h = Math.max(width, height);
+  for (const key of Object.keys(PAGE_FORMAT_SIZES) as Exclude<PageFormat, 'custom'>[]) {
+    const base = PAGE_FORMAT_SIZES[key];
+    if (Math.abs(base.width - w) <= 0.5 && Math.abs(base.height - h) <= 0.5) {
+      return key;
+    }
+  }
+  return 'custom';
+}
+
 // ── Validation helpers ─────────────────────────────────────────────
 
 function isValidPageBackground(value: unknown): value is PageBackground {

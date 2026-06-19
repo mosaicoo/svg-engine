@@ -190,30 +190,52 @@ import { SvgeDialogShell } from '../dialog-shell';
               </mat-select>
             </mat-form-field>
             @if (pageBackgroundKind(node) === 'solid') {
-              <mat-form-field appearance="outline" class="bg-value-field">
-                <mat-label>Color</mat-label>
+              <div class="bg-solid">
                 <input
-                  matInput
-                  type="text"
-                  placeholder="#000000 / rgb() / named"
-                  [value]="pageBackgroundColor(node)"
+                  type="color"
+                  class="bg-swatch"
+                  aria-label="Pick page background color"
+                  [value]="pageBackgroundColorHex(node)"
                   (change)="onPageBackgroundColorChange(node, $event)"
                 />
-              </mat-form-field>
+                <mat-form-field appearance="outline" class="bg-value-field">
+                  <mat-label>Color</mat-label>
+                  <input
+                    matInput
+                    type="text"
+                    placeholder="#000000 / rgb() / named"
+                    [value]="pageBackgroundColor(node)"
+                    (change)="onPageBackgroundColorChange(node, $event)"
+                  />
+                </mat-form-field>
+              </div>
             }
             @if (pageBackgroundKind(node) === 'image') {
-              <mat-form-field appearance="outline" class="bg-value-field">
-                <mat-label>Image URL</mat-label>
-                <input
-                  matInput
-                  type="text"
-                  placeholder="https://… or data:image/…"
-                  [value]="pageBackgroundHref(node)"
-                  (change)="onPageBackgroundHrefChange(node, $event)"
-                />
-              </mat-form-field>
+              <div class="bg-image">
+                <mat-form-field appearance="outline" class="bg-value-field">
+                  <mat-label>Image URL</mat-label>
+                  <input
+                    matInput
+                    type="text"
+                    placeholder="https://… or data:image/…"
+                    [value]="pageBackgroundHref(node)"
+                    (change)="onPageBackgroundHrefChange(node, $event)"
+                  />
+                </mat-form-field>
+                @if (pageBackgroundHref(node)) {
+                  <img
+                    class="bg-image-preview"
+                    [src]="pageBackgroundHref(node)"
+                    alt="Background preview"
+                  />
+                }
+              </div>
             }
           </div>
+          <p class="info">
+            The background is part of the artwork — it renders behind the page content and is
+            included when you export the page.
+          </p>
         </section>
 
         <section class="group">
@@ -341,6 +363,45 @@ import { SvgeDialogShell } from '../dialog-shell';
     .bg-value-field {
       flex: 1 1 200px;
     }
+    /* Solid / Image rows wrap onto their own line below the kind dropdown. */
+    .bg-solid,
+    .bg-image {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex: 1 1 100%;
+      flex-wrap: wrap;
+    }
+    .bg-swatch {
+      width: 40px;
+      height: 40px;
+      flex: 0 0 auto;
+      padding: 0;
+      border: 1px solid var(--mat-sys-outline-variant, #ccc);
+      border-radius: 4px;
+      background: transparent;
+      cursor: pointer;
+    }
+    .bg-image-preview {
+      width: 48px;
+      height: 48px;
+      flex: 0 0 auto;
+      object-fit: cover;
+      border: 1px solid var(--mat-sys-outline-variant, #ccc);
+      border-radius: 4px;
+      /* Checkerboard behind transparent PNGs so the preview reads clearly. */
+      background-image:
+        linear-gradient(45deg, #ccc 25%, transparent 25%),
+        linear-gradient(-45deg, #ccc 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #ccc 75%),
+        linear-gradient(-45deg, transparent 75%, #ccc 75%);
+      background-size: 10px 10px;
+      background-position:
+        0 0,
+        0 5px,
+        5px -5px,
+        -5px 0;
+    }
     .info {
       margin: 8px 0 0;
       color: var(--mat-sys-on-surface-variant, #777);
@@ -442,6 +503,25 @@ export class SvgeDocumentSettings {
   protected pageBackgroundColor(node: SvgNode): string {
     const bg = getPageOptions(node).background;
     return bg.kind === 'solid' ? bg.color : '';
+  }
+
+  /**
+   * A valid `#rrggbb` hex for the native `<input type="color">` swatch.
+   * The stored color may be a named color or `rgb()/hsl()` typed into the
+   * text field; the swatch can only render a hex, so non-hex values fall
+   * back to white (the text field stays the source of truth for arbitrary
+   * CSS colors). 3-digit hex is expanded to 6.
+   */
+  protected pageBackgroundColorHex(node: SvgNode): string {
+    const color = this.pageBackgroundColor(node).trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(color)) return color.toLowerCase();
+    if (/^#[0-9a-fA-F]{3}$/.test(color)) {
+      const r = color[1]!;
+      const g = color[2]!;
+      const b = color[3]!;
+      return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+    }
+    return '#ffffff';
   }
 
   /** Current background image URL when kind === 'image'; empty otherwise. */

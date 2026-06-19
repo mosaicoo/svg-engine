@@ -1,11 +1,14 @@
 import type { GroupNode } from '../model/group-node';
 import { createGroup } from '../model/node-factory';
 import {
+  detectPageFormat,
   getPageName,
   getPageOptions,
   getPageViewBox,
   isPage,
   type PageOptions,
+  pageFormatSize,
+  pageOrientationFromSize,
   withPageFlag,
   withPageName,
   withPageOptions,
@@ -254,8 +257,21 @@ export class ResizePageCommand implements Command {
       return ok(); // no-op
     }
     this.previousRootSnapshot = doc.root;
+    // **D-140-fix** — keep the Format & Orientation page options in sync
+    // with the new geometry. A manual W/H edit (Inspector / Document
+    // Settings) or a template apply (which dispatches this command) now
+    // re-derives the named format (or 'custom') + the orientation from
+    // the resulting shape, so the dropdowns never drift from the page.
+    const derivedFormat = detectPageFormat(this.newViewBox.width, this.newViewBox.height);
+    const derivedOrientation = pageOrientationFromSize(
+      this.newViewBox.width,
+      this.newViewBox.height,
+    );
     const nextRoot = updateNode<GroupNode>(doc.root, this.nodeId, (g) =>
-      withPageViewBox(g, this.newViewBox),
+      withPageOptions(withPageViewBox(g, this.newViewBox), {
+        format: derivedFormat,
+        orientation: derivedOrientation,
+      }),
     );
     ctx.state.setDocument({ ...doc, root: nextRoot });
     return ok();
@@ -372,17 +388,81 @@ export class SetPageOptionsCommand implements Command {
     if (node === null) return fail(`${this.label}: node "${this.nodeId}" not found`);
     if (!isPage(node)) return fail(`${this.label}: node "${this.nodeId}" is not a page`);
     const current = getPageOptions(node);
-    const next: PageOptions = {
-      background: this.patch.background ?? current.background,
-      margins: this.patch.margins ?? current.margins,
-      orientation: this.patch.orientation ?? current.orientation,
-      format: this.patch.format ?? current.format,
+    const currentVB = getPageViewBox(node);
+
+    // **D-140-fix** — Format & Orientation drive geometry. Selecting a
+    // named format (or flipping orientation) recomputes the page viewBox
+    // so the Format/Orientation dropdowns, the W/H fields, and the
+    // rendered page stay consistent (the bug was that these only stored
+    // an enum hint and never resized). Background / margins are
+    // presentation-only and never touch geometry.
+    // Writable copy (PageOptions fields are readonly) so a format-only
+    // patch can also persist the derived orientation.
+    const effectivePatch: { -readonly [K in keyof PageOptions]?: PageOptions[K] } = {
+      ...this.patch,
     };
-    if (samePageOptions(current, next)) return ok();
+    let nextViewBox: BoundingBox | null = null;
+    const originX = currentVB?.x ?? 0;
+    const originY = currentVB?.y ?? 0;
+
+    if (this.patch.format !== undefined && this.patch.format !== 'custom') {
+      // Snapping to a named format: respect an explicit orientation in the
+      // same patch, else derive it from the page's current shape so "A4"
+      // keeps how the page already looks (portrait vs landscape) — then
+      // persist that derived orientation so the dropdown reflects it too.
+      const orientation =
+        this.patch.orientation ??
+        (currentVB !== null
+          ? pageOrientationFromSize(currentVB.width, currentVB.height)
+          : current.orientation);
+      effectivePatch.orientation = orientation;
+      const size = pageFormatSize(this.patch.format, orientation);
+      if (size !== null) {
+        nextViewBox = { x: originX, y: originY, width: size.width, height: size.height };
+      }
+    } else if (this.patch.orientation !== undefined) {
+      // Orientation-only change. Honor the resulting format: a named
+      // format resizes to that format in the new orientation; a custom
+      // page just swaps W/H so the toggle still reshapes the page.
+      const targetFormat = effectivePatch.format ?? current.format;
+      const size = pageFormatSize(targetFormat, this.patch.orientation);
+      if (size !== null) {
+        nextViewBox = { x: originX, y: originY, width: size.width, height: size.height };
+      } else if (currentVB !== null && currentVB.width !== currentVB.height) {
+        const wantLandscape = this.patch.orientation === 'landscape';
+        const isLandscape = currentVB.width > currentVB.height;
+        if (wantLandscape !== isLandscape) {
+          nextViewBox = {
+            x: currentVB.x,
+            y: currentVB.y,
+            width: currentVB.height,
+            height: currentVB.width,
+          };
+        }
+      }
+    }
+
+    const next: PageOptions = {
+      background: effectivePatch.background ?? current.background,
+      margins: effectivePatch.margins ?? current.margins,
+      orientation: effectivePatch.orientation ?? current.orientation,
+      format: effectivePatch.format ?? current.format,
+    };
+    const geometryChanged =
+      nextViewBox !== null &&
+      (currentVB === null ||
+        nextViewBox.width !== currentVB.width ||
+        nextViewBox.height !== currentVB.height ||
+        nextViewBox.x !== currentVB.x ||
+        nextViewBox.y !== currentVB.y);
+    if (samePageOptions(current, next) && !geometryChanged) return ok();
+
     this.previousRootSnapshot = doc.root;
-    const nextRoot = updateNode<GroupNode>(doc.root, this.nodeId, (g) =>
-      withPageOptions(g, this.patch),
-    );
+    const vb = nextViewBox;
+    const nextRoot = updateNode<GroupNode>(doc.root, this.nodeId, (g) => {
+      const withOpts = withPageOptions(g, effectivePatch);
+      return vb !== null ? withPageViewBox(withOpts, vb) : withOpts;
+    });
     ctx.state.setDocument({ ...doc, root: nextRoot });
     return ok();
   }
