@@ -6,6 +6,25 @@
 
 ---
 
+## 2026-06-19 — D-138 follow-up — File ▸ Exit removido ✅
+
+O usuário perguntou se o `File ▸ Exit` estava ligado a algo — era só **placeholder
+de roadmap** (`svge.roadmap.file.exit`, "coming soon"). Decisão: **remover**, não
+implementar. Diferente de Save/Open, "Exit" não tem significado universal num
+editor **embedável/web** — não há "aplicação para fechar": `window.close()` só
+funciona em janelas abertas por script, e o que "sair" significa (fechar modal,
+voltar rota, descartar o editor) é decisão do **host**, não da library. Um item
+morto seria enganoso; hosts que quiserem um "Exit" registram a própria
+contribuição de menu.
+
+Removido o `roadmapLeaf` em
+[builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts)
+(nenhuma spec dependia dele). Build + lint + suíte (**2691**) verdes; sem mudança
+de API. No browser (`/pro-editor`): menu File agora termina em "Document
+Settings…", sem "Exit", resto intacto; sem erros no console.
+
+---
+
 ## 2026-06-19 — D-138 follow-up — atalho Ctrl+S → Save Workspace ✅
 
 D-138 deixou Save/Save As… só por clique. Agora **Ctrl+S** salva o workspace

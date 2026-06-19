@@ -220,15 +220,13 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
         order: 72,
       }),
     );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.file.exit',
-        slot: MENU_SLOT.FILE,
-        label: 'Exit',
-        icon: 'logout',
-        order: 90,
-      }),
-    );
+    // **D-138 follow-up** — `File ▸ Exit` (order 90) was REMOVED, not made real.
+    // An embeddable/web editor has no "application to quit": `window.close()`
+    // only works for script-opened windows, and what "exit" means (close a
+    // modal, navigate away, dispose the editor) is the HOST's call, not the
+    // library's. Hosts that want an exit affordance register their own menu
+    // contribution (or wire it into their surrounding chrome) — keeping a dead
+    // placeholder here would be misleading.
     // Import ▶ roadmap children (parent `svge.builtin.file.import-menu`).
     // **D-117** — `Image…` (order 15) is now REAL (shared raster handler with
     // `Insert ▸ Image…`); the roadmap placeholder was removed.
