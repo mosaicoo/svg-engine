@@ -51,6 +51,7 @@ import {
 } from 'svg-engine/core';
 import {
   gunzipText,
+  gzipText,
   pngExporter,
   renderPng,
   svgExporter,
@@ -88,6 +89,7 @@ import { LayersService } from '../../layers/layers.service';
 import { ActiveDefsService } from '../../library/active-defs.service';
 import { PANEL_ID, PanelHostService } from '../../panel/panel-host.service';
 import { ActivePageService } from '../../pages/active-page.service';
+import { PagesService } from '../../pages/pages.service';
 import { type EditorPlugin } from '../../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../../plugin/plugin';
 import { SelectionService } from '../../selection/selection.service';
@@ -95,6 +97,12 @@ import { SmartObjectActionsService } from '../../smart-object-actions/smart-obje
 import { FullscreenService } from '../../fullscreen/fullscreen.service';
 import { SnapService } from '../../snap/snap.service';
 import { WorkspaceService } from '../../workspace/workspace.service';
+import {
+  parseWorkspace,
+  serializeWorkspace,
+  type WorkspaceConfigState,
+  type WorkspaceEditorState,
+} from '../../workspace/workspace-file';
 import { MenuContributionRegistry } from '../menu-contribution-registry.service';
 import type { MenuContributionContext } from '../menu-contribution';
 import { CONTEXT_MENU_SLOT, MENU_SLOT, TOOLBAR_SLOT } from '../menu-slots';
@@ -490,6 +498,38 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         divider: true,
         run() {
           /* divider */
+        },
+      }),
+    );
+    // ── File ▸ Save / Save As… (D-138) ──────────────────────────────
+    // Workspace round-trip. In a browser (no File System Access API) both are
+    // downloads, so the meaningful axis is FORMAT: Save → readable `.svge`
+    // JSON; Save As… → gzipped `.svgez`. No keyboard shortcut is wired yet
+    // (Ctrl+Shift+S already drives Take Snapshot — D-073 — and Ctrl+S needs
+    // browser-intercept handling; deferred to a focused follow-up).
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.save',
+        slot: MENU_SLOT.FILE,
+        label: 'Save',
+        icon: 'save',
+        tooltip: 'Save workspace (.svge — readable JSON)',
+        order: 30,
+        run(runCtx) {
+          void saveWorkspace(runCtx, fromCtx, false);
+        },
+      }),
+    );
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.file.save-as',
+        slot: MENU_SLOT.FILE,
+        label: 'Save As… (Compressed)',
+        icon: 'save_as',
+        tooltip: 'Save compressed workspace (.svgez — gzipped)',
+        order: 32,
+        run(runCtx) {
+          void saveWorkspace(runCtx, fromCtx, true);
         },
       }),
     );
@@ -3487,9 +3527,9 @@ function openFromFile(runCtx: MenuContributionContext | undefined, fromCtx: Reso
   if (typeof document === 'undefined') return;
   const input = document.createElement('input');
   input.type = 'file';
-  // D-137: `.svgz` (gzip-compressed SVG) joins `.svg`. Extend `accept` again
-  // when the proprietary format lands (e.g. add ',.svge').
-  input.accept = '.svg,.svgz,image/svg+xml';
+  // D-137/D-138: `.svgz` (compressed SVG) plus `.svge`/`.svgez` (workspace,
+  // readable + gzipped) join `.svg` — `File ▸ Open…` opens any of them.
+  input.accept = '.svg,.svgz,.svge,.svgez,image/svg+xml';
   input.style.display = 'none';
   input.addEventListener(
     'change',
@@ -3499,7 +3539,20 @@ function openFromFile(runCtx: MenuContributionContext | undefined, fromCtx: Reso
       if (file === undefined || file === null) return;
       const dot = file.name.lastIndexOf('.');
       const ext = dot >= 0 ? file.name.slice(dot + 1).toLowerCase() : '';
-      // case 'svge': openProprietary(runCtx, fromCtx, file); break;  // TBD
+      const fail = (err: unknown): void => {
+        if (typeof window !== 'undefined') {
+          window.alert(
+            `Could not read "${file.name}": ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      };
+      // D-138: workspace file (JSON envelope; `.svgez` is the gzipped variant).
+      if (ext === 'svge' || ext === 'svgez') {
+        void readWorkspaceFileText(file)
+          .then((text) => openWorkspaceText(runCtx, fromCtx, text))
+          .catch(fail);
+        return;
+      }
       if (ext !== 'svg' && ext !== 'svgz') {
         if (typeof window !== 'undefined') {
           window.alert(`Opening ".${ext}" files is not supported yet.`);
@@ -3509,13 +3562,7 @@ function openFromFile(runCtx: MenuContributionContext | undefined, fromCtx: Reso
       // D-137: `.svgz` is decompressed first; both branches end at SVG text.
       void readSvgFileText(file)
         .then((text) => openSvgText(runCtx, fromCtx, text, file.name))
-        .catch((err: unknown) => {
-          if (typeof window !== 'undefined') {
-            window.alert(
-              `Could not read "${file.name}": ${err instanceof Error ? err.message : String(err)}`,
-            );
-          }
-        });
+        .catch(fail);
     },
     { once: true },
   );
@@ -4026,6 +4073,184 @@ async function exportAndDownload(
   anchor.remove();
   // Defer revoke so the browser has a chance to start the download.
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ── D-138 — Save / Open Workspace (.svge / .svgez) ────────────────
+//
+// The workspace round-trip wraps the FULL multi-page SVG (used defs already
+// materialized — the same `ActiveDefsService` merge the Export commands use)
+// in a versioned JSON envelope, plus the editor-only state SVG can't hold:
+// active page, viewport (pan/zoom) and the `WorkspaceService` presentation
+// config. See `workspace-file.ts` for the codec + format rationale; `.svgez`
+// is the gzipped variant (D-137 helpers).
+
+/** Capture the editor-only state that travels alongside the document. */
+function captureEditorState(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+): WorkspaceEditorState {
+  const pages = fromCtx(PagesService, runCtx).pages();
+  const activeId = fromCtx(ActivePageService, runCtx).activePageId();
+  // Page ids don't survive the SVG round-trip (the exporter omits group ids)
+  // but child order does — anchor the active page by INDEX.
+  const index = activeId === null ? -1 : pages.findIndex((p) => p.id === activeId);
+  const viewport = fromCtx(ViewportService, runCtx);
+  const ws = fromCtx(WorkspaceService, runCtx);
+  return {
+    activePageIndex: index >= 0 ? index : null,
+    viewport: {
+      zoom: viewport.zoom(),
+      panX: viewport.panX(),
+      panY: viewport.panY(),
+      contentBox: viewport.contentBox(),
+    },
+    workspace: {
+      background: ws.background(),
+      page: ws.page(),
+      grid: ws.grid(),
+      rulers: ws.rulers(),
+      guides: ws.guides(),
+      guidesLocked: ws.guidesLocked(),
+      interaction: ws.interaction(),
+    },
+  };
+}
+
+/**
+ * Restore the `WorkspaceService` presentation config from a parsed file.
+ * The service's own setters re-validate each value (defense in depth), so a
+ * partially-corrupt file degrades field-by-field instead of throwing.
+ */
+function applyWorkspaceConfigState(
+  ws: WorkspaceService,
+  cfg: WorkspaceConfigState | undefined,
+): void {
+  if (cfg === undefined) return;
+  if (cfg.background !== undefined) ws.setBackground(cfg.background);
+  if (cfg.page !== undefined) ws.patchPage(cfg.page);
+  if (cfg.grid !== undefined) ws.patchGrid(cfg.grid);
+  if (cfg.rulers !== undefined) ws.setRulersEnabled(cfg.rulers.enabled);
+  if (cfg.interaction !== undefined) ws.patchInteraction(cfg.interaction);
+  // Replace any existing guides with the saved set. `clearGuides` resets the
+  // lock, so re-apply it afterwards. Guide ids regenerate — only axis +
+  // position are meaningful.
+  ws.clearGuides();
+  if (cfg.guides !== undefined) {
+    for (const g of cfg.guides) ws.addGuide(g.axis, g.position);
+  }
+  if (cfg.guidesLocked !== undefined) ws.setGuidesLocked(cfg.guidesLocked);
+}
+
+/** Trigger a browser download of `blob` saved as `filename`. */
+function downloadBlob(blob: Blob, filename: string): void {
+  if (typeof document === 'undefined' || typeof URL === 'undefined') return;
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/**
+ * **D-138** — serialize the whole workspace to `.svge` (readable JSON) or
+ * `.svgez` (gzipped) and download it. The document is the FULL multi-page SVG
+ * with used defs materialized — NOT the active-page projection used by Export.
+ */
+async function saveWorkspace(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+  compressed: boolean,
+): Promise<void> {
+  if (typeof document === 'undefined' || typeof URL === 'undefined') return;
+  const raw = fromCtx(EditorStateService, runCtx).document();
+  const activeDefs = fromCtx(ActiveDefsService, runCtx);
+  const docWithDefs: SvgDocument = { ...raw, defs: activeDefs.buildExportDefs(raw.defs) };
+  const svg = svgExporter.export(docWithDefs);
+  if (typeof svg !== 'string') {
+    if (typeof window !== 'undefined') window.alert('Save failed: exporter returned non-string.');
+    return;
+  }
+  const json = serializeWorkspace(svg, captureEditorState(runCtx, fromCtx));
+  try {
+    if (compressed) {
+      const bytes = await gzipText(json);
+      downloadBlob(new Blob([bytes as BlobPart], { type: 'application/gzip' }), 'untitled.svgez');
+    } else {
+      downloadBlob(new Blob([json], { type: 'application/json' }), 'untitled.svge');
+    }
+  } catch (err) {
+    if (typeof window !== 'undefined')
+      window.alert(`Save failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/**
+ * **D-138** — parse `.svge` JSON text, import its document, and restore the
+ * editor state (workspace config, active page by index, viewport). Confirms
+ * before discarding a non-empty document (like {@link openSvgText}).
+ */
+function openWorkspaceText(
+  runCtx: MenuContributionContext | undefined,
+  fromCtx: Resolver,
+  text: string,
+): void {
+  const parsed = parseWorkspace(text);
+  if (!parsed.ok) {
+    if (typeof window !== 'undefined') window.alert(`Open failed: ${parsed.error}`);
+    return;
+  }
+  const result = svgImporter.import(parsed.document);
+  if (!result.ok) {
+    if (typeof window !== 'undefined') window.alert(`Open failed: ${result.error}`);
+    return;
+  }
+  if (typeof window !== 'undefined') {
+    const root = fromCtx(EditorStateService, runCtx).document().root;
+    const hasContent = root.type === 'group' && root.children.length > 0;
+    if (hasContent && !window.confirm('Discard the current document and open this workspace?')) {
+      return;
+    }
+  }
+  // Install the document — mirrors `openSvgDocument` but restores the saved
+  // viewport / active page instead of framing + fitting.
+  fromCtx(EditorStateService, runCtx).resetDocument(result.document);
+  fromCtx(CommandBus, runCtx).dispatch(new EnsureDefaultPageCommand());
+  fromCtx(HistoryService, runCtx).clear();
+  fromCtx(SelectionService, runCtx).clear();
+  applyWorkspaceConfigState(fromCtx(WorkspaceService, runCtx), parsed.editor.workspace);
+  const pages = fromCtx(PagesService, runCtx).pages();
+  const index = parsed.editor.activePageIndex;
+  if (index !== null && index >= 0 && index < pages.length) {
+    fromCtx(ActivePageService, runCtx).setActive(pages[index]!.id);
+  }
+  const vp = parsed.editor.viewport;
+  const viewport = fromCtx(ViewportService, runCtx);
+  if (vp !== undefined) {
+    viewport.setContentBox(vp.contentBox);
+    viewport.setZoom(vp.zoom);
+    viewport.setPan(vp.panX, vp.panY);
+  } else {
+    viewport.fit();
+  }
+  if (result.warnings.length > 0 && typeof console !== 'undefined') {
+    console.warn(`[SVGEngine] Open workspace warnings:\n${result.warnings.join('\n')}`);
+  }
+}
+
+/**
+ * **D-138** — read a picked workspace file as JSON text. `.svgez` (gzipped) is
+ * decompressed via {@link gunzipText}; `.svge` is read as text directly.
+ */
+function readWorkspaceFileText(file: File): Promise<string> {
+  const dot = file.name.lastIndexOf('.');
+  const ext = dot >= 0 ? file.name.slice(dot + 1).toLowerCase() : '';
+  if (ext === 'svgez') {
+    return file.arrayBuffer().then((buffer) => gunzipText(buffer));
+  }
+  return file.text();
 }
 
 // ── D-074 — Smart Object: Replace Contents (file picker) ──────────

@@ -283,6 +283,20 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(svgz?.order).toBe(15);
   });
 
+  it('populates File slot with real Save / Save As… workspace items (D-138)', () => {
+    const { reg } = setupRoot();
+    const items = reg.bySlot(MENU_SLOT.FILE)();
+    const save = items.find((c) => c.id === 'svge.builtin.file.save');
+    const saveAs = items.find((c) => c.id === 'svge.builtin.file.save-as');
+    expect(save).toBeTruthy();
+    expect(saveAs).toBeTruthy();
+    // Real (not roadmap) items: top-level File children, not coming-soon.
+    expect(save?.parentId).toBeUndefined();
+    expect(save?.comingSoon ?? false).toBe(false);
+    expect(save?.order).toBe(30);
+    expect(saveAs?.order).toBe(32);
+  });
+
   it('populates Toolbar, Context Canvas, Context Node slots', () => {
     const { reg } = setupRoot();
     // **D-096** — the edit-side plugin registers the 4 Help external links

@@ -207,26 +207,10 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // **D-136** — `File ▸ Open Recent` (order 14) is now a REAL dynamic submenu,
     // also registered by `builtinMenuContributionsPlugin` (backed by
     // `RecentFilesService`). Its roadmap placeholder was removed here.
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.file.save',
-        slot: MENU_SLOT.FILE,
-        label: 'Save',
-        icon: 'save',
-        order: 30,
-        shortcut: 'Ctrl+S',
-      }),
-    );
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.file.save-as',
-        slot: MENU_SLOT.FILE,
-        label: 'Save As…',
-        icon: 'save_as',
-        order: 32,
-        shortcut: 'Ctrl+Shift+S',
-      }),
-    );
+    // **D-138** — `File ▸ Save` (order 30) and `Save As…` (order 32) are now
+    // REAL items registered by `builtinMenuContributionsPlugin` (workspace
+    // round-trip: `.svge` readable JSON + `.svgez` gzipped). Their roadmap
+    // placeholders were removed here to avoid duplicate entries.
     track(
       roadmapLeaf({
         id: 'svge.roadmap.file.document-settings',

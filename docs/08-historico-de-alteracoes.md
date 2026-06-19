@@ -6,6 +6,56 @@
 
 ---
 
+## 2026-06-19 — D-138 — Save / Open Workspace (.svge / .svgez) ✅
+
+Formato nativo de workspace para guardar **o documento inteiro** (todas as
+páginas, objetos, defs) **+ o estado de editor** que o SVG não expressa. Decisão
+(Approach A, após auditoria): **envelope JSON** cujo `document` é o **SVG
+multi-page com os defs materializados**, não a árvore-modelo crua. Por quê: o payload SVG é gerado pelo mesmo exporter que o
+editor já usa, então todo gradiente/pattern/symbol/effect que uma forma referencia
+faz round-trip de graça (a árvore crua referenciaria por id e perderia a
+definição). O arquivo é `.svge` (JSON) — outras ferramentas nunca o renderizam
+como imagem, então o problema de "multi-page abre torto" não existe.
+
+**Por que NÃO se salvam as libraries:** o catálogo (acervo escolhível) é estado
+app-level; o que precisa viajar são os **defs usados**, e esses são materializados
+no `<defs>` pelo mesmo merge `ActiveDefsService.buildExportDefs()` que o Export usa.
+
+**Peças:**
+
+- **`workspace/workspace-file.ts`** (novo, codec puro — sem Angular/DOM):
+  envelope `{ format:'svge-workspace', schemaVersion:1, app, document:<svg>, editor }`.
+  `serializeWorkspace()` / `parseWorkspace()` com validação defensiva (arquivo é
+  entrada não-confiável: rejeita JSON inválido / formato errado / versão futura /
+  document vazio; normaliza o bloco `editor` campo-a-campo). `editor` =
+  `{ activePageIndex, viewport{zoom,panX,panY,contentBox}, workspace{background,
+page,grid,rulers,guides,guidesLocked,interaction} }`. Exportado do public-api.
+  **9 specs** de round-trip + validação.
+- **Estado de editor**: capturado/restaurado do `ViewportService` + `WorkspaceService`
+  (os 7 configs persistíveis; view-modes efêmeros como outline/pixel/presentation
+  ficam de fora por design). A **página ativa é salva por ÍNDICE** — ids de página
+  não sobrevivem ao round-trip SVG (o exporter omite id de grupo), mas a ordem dos
+  filhos sim.
+- **Save** ([builtin-menu-contributions.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts)):
+  `File ▸ Save` → `.svge` (JSON legível); `File ▸ Save As… (Compressed)` → `.svgez`
+  (gzip via D-137). Em web sem File System Access API ambos são download, então o
+  eixo útil é **formato** (legível vs compacto). Placeholders de roadmap removidos.
+- **Open**: `File ▸ Open…` agora aceita `.svg` / `.svgz` / `.svge` / `.svgez`
+  (auto-detecção por extensão); o caminho de workspace restaura config + página
+  ativa + viewport (em vez de `fit()`). Confirma antes de descartar doc não-vazio.
+
+**Verificação:** build + lint + suíte (**2688**, +10: 9 do codec + 1 do menu) verdes;
+snapshot de API regenerado. No browser (`/pro-editor`): **Save** gerou `untitled.svge`
+com documento multi-page (`data-svge-kind="page"`) + `editor` completo; **Open** de um
+`.svge` com marcadores (zoom 250%, fundo sólido) injetado no file picker **restaurou
+o viewport (250%) e o documento (Page 1)** sem erros no console.
+
+**Pendência consciente (follow-up):** atalhos de teclado Ctrl+S / Ctrl+Shift+S não
+foram ligados — Ctrl+Shift+S já é Take Snapshot (D-073) e Ctrl+S exige intercept do
+"salvar página" do browser; os itens funcionam por clique.
+
+---
+
 ## 2026-06-18 — D-137 — Export + Import de SVG compactado (SVGZ / .svgz) ✅
 
 O usuário notou que o submenu `File ▸ Export` não tinha opção de **SVG compactado**.

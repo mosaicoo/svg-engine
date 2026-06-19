@@ -19,3 +19,15 @@ export { PageOverlay } from './page-overlay.component';
 export { OutlineFilter } from './outline-filter.directive';
 export { PixelPreviewFilter } from './pixel-preview-filter.directive';
 export { SvgePixelPreviewRaster } from './pixel-preview-raster.component';
+// D-138 — `.svge` / `.svgez` workspace file codec.
+export {
+  parseWorkspace,
+  serializeWorkspace,
+  WORKSPACE_FORMAT,
+  WORKSPACE_SCHEMA_VERSION,
+  type WorkspaceConfigState,
+  type WorkspaceEditorState,
+  type WorkspaceEnvelope,
+  type WorkspaceParseResult,
+  type WorkspaceViewportState,
+} from './workspace-file';
