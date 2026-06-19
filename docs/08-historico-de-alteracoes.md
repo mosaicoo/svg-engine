@@ -6,6 +6,45 @@
 
 ---
 
+## 2026-06-19 — D-140-fix-2 — Opções de página persistem no Save Workspace / Export ✅
+
+O usuário salvou o workspace após editar o **Document Settings** e, ao reabrir, as
+configurações não voltaram. Diagnóstico: **caso (a) — não estavam sendo gravadas**.
+O exporter SVG emitia só `data-svge-kind="page"` + `data-svge-page-viewbox` +
+`data-svge-page-name` para os `<g>` de página; as **opções** (background / margins
+/ orientation / format, em `metadata.customData.svgePageOptions`) ficavam de fora
+do round-trip. Como o Save Workspace serializa o documento via `svgExporter` e
+reabre via `svgImporter`, as opções eram perdidas no save (o `Size`/viewBox e o
+`Name` voltavam; o resto resetava pro default).
+
+**Correção (round-trip no `io`, mesmo padrão do `data-svge-animation`):**
+
+- [svg-exporter.ts](../projects/svg-engine/io/src/lib/svg-exporter.ts): emite
+  `data-svge-page-options` = `JSON.stringify(getPageOptions(node))` quando a página
+  tem o slot de opções (escapado por `escapeAttr`; página fresca/default fica
+  limpa). Posicionado após a cadeia `isLayer/isSmartObject/isPage` porque guards
+  encadeados `is GroupNode` estreitam `node` para `never` dentro do branch da
+  página — o `isPage(node)` ali re-estreita a partir do `SvgNode` pós-cadeia.
+- [svg-importer.ts](../projects/svg-engine/io/src/lib/svg-importer.ts): lê
+  `data-svge-page-options` de volta (best-effort `JSON.parse`; `getPageOptions`
+  valida/defaulta cada campo na leitura, então JSON malformado/estrangeiro é
+  ignorado sem lançar).
+
+Como `saveWorkspace` serializa o **documento completo** (`svgExporter.export(raw)`)
+e `openWorkspaceText` faz `svgImporter.import(parsed.document)` → `resetDocument`,
+o fix conserta **as duas pontas** (salvar e carregar) — e também o Export SVG →
+re-import e o AutoSave, que usam o mesmo pipeline.
+
+**Verificação:** build + lint + suíte (**2719**, +4 specs de round-trip de opções)
+verdes; sem mudança de API (`SVGE_PAGE_OPTIONS_KEY`/`getPageOptions`/
+`withPageOptions` já eram exportados). No browser (`/pro-editor`): editar Document
+Settings (format A4, portrait, background solid `#ff00aa`) → **File ▸ Save** gerou
+um `.svge` cujo SVG (`envelope.document`) contém
+`data-svge-page-options="{…&quot;color&quot;:&quot;#ff00aa&quot;…&quot;format&quot;:&quot;a4&quot;…}"`
+— ou seja, as opções agora são gravadas. Sem erros no console.
+
+---
+
 ## 2026-06-19 — D-140-fix — Format/Orientation/Templates/Background da página sincronizados ✅
 
 O usuário reportou que os controles de **Format & Orientation** das propriedades

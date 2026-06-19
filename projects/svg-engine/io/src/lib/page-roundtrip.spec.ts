@@ -3,6 +3,7 @@ import {
   createGroup,
   createRect,
   getPageName,
+  getPageOptions,
   getPageViewBox,
   isLayer,
   isPage,
@@ -11,6 +12,7 @@ import {
   type SvgNode,
   withLayerFlag,
   withPageFlag,
+  withPageOptions,
   withSmartObjectFlag,
 } from 'svg-engine/core';
 import { svgExporter } from './svg-exporter';
@@ -131,5 +133,61 @@ describe('D-079 — Page flag round-trip via exporter + importer', () => {
     expect(isPage(kids[3]!)).toBe(false);
     expect(isLayer(kids[3]!)).toBe(false);
     expect(isSmartObject(kids[3]!)).toBe(false);
+  });
+});
+
+/**
+ * **D-140-fix** — Page presentation options (background / margins /
+ * orientation / format) must survive export → re-import, since that's
+ * exactly how Save Workspace and AutoSave persist. The bug: the exporter
+ * emitted only kind + viewBox + name, dropping the options.
+ */
+describe('D-140-fix — Page options round-trip via exporter + importer', () => {
+  const OPTS = {
+    background: { kind: 'solid', color: '#ff0000' },
+    margins: { top: 10, right: 5, bottom: 0, left: 0 },
+    orientation: 'portrait',
+    format: 'a4',
+  } as const;
+
+  it('exporter emits data-svge-page-options when the page has a stored options slot', () => {
+    const page = withPageOptions(withPageFlag(createGroup([]), PAGE_VB), OPTS);
+    const out = exportNode([page]);
+    expect(out).toContain('data-svge-page-options');
+  });
+
+  it('exporter does NOT emit page options for a fresh page (no options slot)', () => {
+    const page = withPageFlag(createGroup([]), PAGE_VB);
+    const out = exportNode([page]);
+    expect(out).not.toContain('data-svge-page-options');
+  });
+
+  it('round-trip preserves background / margins / orientation / format', () => {
+    const page = withPageOptions(withPageFlag(createGroup([]), PAGE_VB), OPTS);
+    const result = svgImporter.import(exportNode([page]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const imported = result.document.root.children[0];
+    expect(imported).toBeDefined();
+    if (!imported) return;
+    expect(isPage(imported)).toBe(true);
+    expect(getPageOptions(imported)).toEqual(OPTS);
+  });
+
+  it('importer ignores malformed data-svge-page-options gracefully (defaults)', () => {
+    const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <g data-svge-kind="page" data-svge-page-viewbox="0 0 800 600" data-svge-page-options="{not json}">
+    <rect x="0" y="0" width="10" height="10"/>
+  </g>
+</svg>`;
+    const result = svgImporter.import(svg);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const page = result.document.root.children[0];
+    if (!page) return;
+    // Malformed JSON ignored → getPageOptions falls back to defaults.
+    expect(getPageOptions(page).format).toBe('custom');
+    expect(getPageOptions(page).background).toEqual({ kind: 'transparent' });
   });
 });

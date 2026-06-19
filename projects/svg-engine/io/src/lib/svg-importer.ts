@@ -23,6 +23,7 @@ import {
   SVGE_KIND_PAGE,
   SVGE_KIND_SMART_OBJECT,
   SVGE_PAGE_NAME_KEY,
+  SVGE_PAGE_OPTIONS_KEY,
   SVGE_PAGE_VIEWBOX_KEY,
   type SvgDocument,
   type SvgNode,
@@ -487,6 +488,23 @@ function parseElement(
         const rawName = el.getAttribute('data-svge-page-name');
         if (rawName !== null && rawName.length > 0) {
           customData[SVGE_PAGE_NAME_KEY] = rawName;
+        }
+        // **D-140-fix** — read the page presentation options back
+        // (background / margins / orientation / format) so Document
+        // Settings survive Save Workspace / Export → re-import. Best-effort:
+        // malformed / foreign JSON is ignored; `getPageOptions()` validates
+        // and defaults each field defensively on read, so storing the raw
+        // parsed object here is safe.
+        const rawOpts = el.getAttribute('data-svge-page-options');
+        if (rawOpts !== null && rawOpts.length > 0) {
+          try {
+            const parsed: unknown = JSON.parse(rawOpts);
+            if (typeof parsed === 'object' && parsed !== null) {
+              customData[SVGE_PAGE_OPTIONS_KEY] = parsed;
+            }
+          } catch {
+            // ignore malformed page options
+          }
         }
         opts.metadata = {
           ...(opts.metadata ?? {}),

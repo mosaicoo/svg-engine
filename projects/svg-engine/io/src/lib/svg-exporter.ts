@@ -5,6 +5,7 @@ import {
   customAttrToDataName,
   type EllipseNode,
   getPageName,
+  getPageOptions,
   getPageViewBox,
   type GroupNode,
   type ImageNode,
@@ -23,6 +24,7 @@ import {
   type RectNode,
   roundPathCorners,
   type SvgDocument,
+  SVGE_PAGE_OPTIONS_KEY,
   type SvgNode,
   type SvgStyle,
   type SymbolUseNode,
@@ -417,6 +419,19 @@ function renderGroup(node: GroupNode, depth: number, ctx: ExportContext): string
   // 'page' group can also carry animation. The attribute value is escaped
   // by `escapeAttr` (the JSON's `"` become `&quot;`), so it's valid SVG and
   // is ignored by renderers + preserved by other editors.
+  // **D-140-fix** — persist the page presentation options (background /
+  // margins / orientation / format) so Document Settings survive an
+  // export → re-import round-trip (which is exactly how Save Workspace and
+  // AutoSave persist). Same JSON-in-data-attr transport as
+  // `data-svge-animation` (escapeAttr turns the `"` into `&quot;`). Emitted
+  // ONLY when the page actually has a stored options slot, so a fresh /
+  // default page stays clean. Lives here (after the isLayer/isSmartObject/
+  // isPage chain) because chained `is GroupNode` guards narrow `node` to
+  // `never` inside the isPage branch — the `isPage(node)` guard here
+  // re-narrows it to GroupNode from the post-chain SvgNode type.
+  if (isPage(node) && node.metadata.customData?.[SVGE_PAGE_OPTIONS_KEY] != null) {
+    attrs.push(['data-svge-page-options', JSON.stringify(getPageOptions(node))]);
+  }
   const animDoc = node.metadata.customData?.[ANIMATION_KEY];
   if (isAnimationDoc(animDoc)) {
     attrs.push(['data-svge-animation', JSON.stringify(animDoc)]);
