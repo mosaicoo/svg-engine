@@ -514,6 +514,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         label: 'Save',
         icon: 'save',
         tooltip: 'Save workspace (.svge — readable JSON)',
+        shortcut: 'Ctrl+S',
         order: 30,
         run(runCtx) {
           void saveWorkspace(runCtx, fromCtx, false);

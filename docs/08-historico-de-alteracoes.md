@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-06-19 — D-138 follow-up — atalho Ctrl+S → Save Workspace ✅
+
+D-138 deixou Save/Save As… só por clique. Agora **Ctrl+S** salva o workspace
+(`.svge`). Ligado no `builtinEditorShortcutsPlugin`
+([builtin-editor-shortcuts.plugin.ts](../projects/svg-engine/edit/src/lib/shortcut/builtin-editor-shortcuts.plugin.ts)),
+ao lado de Ctrl+Z/Y/G/A.
+
+**Como:** o atalho **delega ao item de menu** `svge.builtin.file.save` via
+`MenuContributionRegistry.get()` + `runContribution()` — reusa o mesmo code-path
+do clique (`saveWorkspace`) e o escopo por-editor (D-042/D-043), sem duplicar
+lógica nem expor a função interna. Faz `event.preventDefault()` para suprimir o
+"salvar página" do navegador. **No-op gracioso** quando o menu plugin não está
+instalado (não dá preventDefault → o save nativo do browser continua valendo).
+
+**Decisões:** **só Ctrl+S** — `Ctrl+Shift+S` já é Take Snapshot (D-073), então o
+`.svgez` comprimido segue só por clique (File ▸ Save As…). O `ShortcutService` já
+ignora alvos editáveis (não dispara enquanto se digita num input) e deixa o
+`preventDefault` a cargo do handler. Hint visual `Ctrl+S` re-adicionado ao item
+de menu Save.
+
+**Verificação:** build + lint + suíte (**2691**, +3 specs: registro/match,
+delegação+preventDefault, no-op sem o item) verdes. No browser (`/pro-editor`):
+`keydown` Ctrl+S real → baixou `untitled.svge` **e** `defaultPrevented === true`
+(diálogo do navegador suprimido); sem erros no console.
+
+---
+
 ## 2026-06-19 — D-138 — Save / Open Workspace (.svge / .svgez) ✅
 
 Formato nativo de workspace para guardar **o documento inteiro** (todas as

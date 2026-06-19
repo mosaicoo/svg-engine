@@ -8,6 +8,8 @@ import {
   SnapshotsService,
   UngroupCommand,
 } from 'svg-engine/core';
+import { MenuContributionRegistry } from '../menu/menu-contribution-registry.service';
+import { runContribution } from '../menu/menu-context';
 import { ActivePageService } from '../pages/active-page.service';
 import type { EditorPlugin } from '../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../plugin/plugin';
@@ -30,6 +32,7 @@ import { ShortcutRegistry } from './shortcut-registry.service';
  * | `Ctrl+G`        | Group current selection (`GroupSelectionCommand`)        |
  * | `Ctrl+Shift+G` | Ungroup focused selection (`UngroupCommand`)              |
  * | `Ctrl+A`        | Select all top-level nodes in the document root          |
+ * | `Ctrl+S`        | Save Workspace (.svge) — delegates to File ▸ Save (D-138) |
  *
  * **Why opt-in (not auto-installed by the shell)**: consumers may want
  * different bindings (e.g., remap to Cmd+ on macOS via custom plugin;
@@ -57,7 +60,6 @@ import { ShortcutRegistry } from './shortcut-registry.service';
  *   keyboard shortcuts aren't wired here yet. Can be added later as
  *   the same plugin or as a follow-up — gives the consumer a chance
  *   to opt in/out per editor.
- * - `Ctrl+S` (save) — depends on consumer's save strategy.
  * - `Ctrl+D` (duplicate) — `DuplicateNodeCommand` exists since D-044,
  *   but the keyboard binding isn't registered here yet (same rationale
  *   as the clipboard shortcuts above).
@@ -217,6 +219,34 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
           const target = list.find((s) => s.source !== 'auto-restore') ?? list[0]!;
           event.preventDefault();
           fromCtx(runCtx, CommandBus).dispatch(new RestoreSnapshotCommand(target.id, snaps));
+        },
+      }),
+    );
+
+    // ── D-138 — File: Save Workspace ───────────────────────────────
+    // Ctrl+S saves the workspace (.svge). Delegates to the File ▸ Save
+    // menu contribution so the shortcut reuses the EXACT save code path
+    // (`saveWorkspace`) and per-editor scope — no duplicate logic.
+    //
+    // `Ctrl+Shift+S` is deliberately NOT bound here — it already drives
+    // Take Snapshot (D-073). The compressed `.svgez` variant stays
+    // click-only (File ▸ Save As…).
+    //
+    // Graceful no-op when the menu plugin isn't installed: we DON'T
+    // `preventDefault`, so the browser's native Save dialog still works
+    // instead of silently swallowing the keystroke.
+    ctx.track(
+      shortcuts.register({
+        id: 'svge.builtin.shortcut.save-workspace',
+        combo: 'Ctrl+S',
+        description: 'Save workspace (.svge)',
+        category: 'File',
+        run(event, runCtx) {
+          const injector = runCtx?.injector ?? ctx.injector;
+          const item = injector.get(MenuContributionRegistry).get('svge.builtin.file.save');
+          if (item === null) return;
+          event.preventDefault();
+          runContribution(item, injector);
         },
       }),
     );
