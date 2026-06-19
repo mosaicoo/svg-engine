@@ -47,6 +47,7 @@ import { ViewportService } from 'svg-engine/render';
 
 import { SvgeAboutDialogService } from '../about-dialog';
 import { SvgeCommandPaletteService } from '../command-palette';
+import { SvgeDocumentSettingsDialogService } from '../document-settings';
 import { SvgeFindReplaceDialogService } from '../find-replace-dialog';
 import { SvgeKeyboardShortcutsDialogService } from '../keyboard-shortcuts-dialog';
 import { SvgeNumberPromptDialogService } from '../number-prompt-dialog';
@@ -72,7 +73,8 @@ import { WorkspaceLayoutService } from '../workspace-layout';
  * | Slot         | Item                  | Action                                                  |
  * | ------------ | --------------------- | ------------------------------------------------------- |
  * | `menu.file`  | View Source…          | Opens `<svge-svg-source-dialog>` via MatDialog          |
- * | `menu.file`  | Workspace Settings…   | Opens `<svge-workspace-settings>` via MatDialog         |
+ * | `menu.file`  | Document Settings…    | Opens `<svge-document-settings>` via MatDialog (D-140)  |
+ * | `menu.window`| Workspace Settings…   | Opens `<svge-workspace-settings>` via MatDialog         |
  *
  * **Why a separate plugin** instead of merging into the edit-side one:
  *
@@ -140,6 +142,34 @@ export const builtinUiMenuContributionsPlugin: EditorPlugin = {
           // injector wiring). Custom routes use the same service so
           // both paths stay aligned automatically.
           const service = fromCtx(SvgeSvgSourceDialogService, runCtx);
+          service.open(runCtx?.injector ?? ctx.injector);
+        },
+      }),
+    );
+
+    // ── File ▸ Document Settings… (D-140) ────────────────────────
+    //
+    // Ships the roadmap placeholder `svge.roadmap.file.document-settings`
+    // (order 72, removed from `builtinRoadmapMenuPlugin`). Opens
+    // `<svge-document-settings>` — a dialog that surfaces every property of
+    // the Inspector "Page" tab (name / size / format / orientation /
+    // background / margins / delete) but bound to the ACTIVE page, so the
+    // controls are reachable from the File menu without first selecting the
+    // page via the Page tool (Shift+O). Illustrator-style "Document Setup".
+    // Lives here (not edit-side) because it's a Material dialog (D-017).
+    // **Deliberately redundant** with the Inspector Page tab for now — the
+    // user accepted this, planning to retire the tab later if the dialog
+    // proves the better UX. Always enabled — document config never depends
+    // on the current selection. Order 72 keeps the placeholder's slot.
+    ctx.track(
+      reg.register({
+        id: 'svge.builtin.ui.file.document-settings',
+        slot: MENU_SLOT.FILE,
+        label: 'Document Settings…',
+        icon: 'description',
+        order: 72,
+        run(runCtx) {
+          const service = fromCtx(SvgeDocumentSettingsDialogService, runCtx);
           service.open(runCtx?.injector ?? ctx.injector);
         },
       }),

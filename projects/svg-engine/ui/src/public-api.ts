@@ -75,6 +75,10 @@ export * from './lib/theme-toggle';
 // Workspace settings dialog (Item 2 — débito 4f)
 export * from './lib/workspace-settings';
 
+// Document settings dialog — File ▸ Document Settings… (D-140); mirrors
+// the Inspector Page tab, bound to the active page.
+export * from './lib/document-settings';
+
 // Workspace layout reset — Window ▸ Workspace ▸ Reset Workspace (D-088)
 export * from './lib/workspace-layout';
 

@@ -110,20 +110,21 @@ describe('D-085 menubar reorg — no orphaned contributions', () => {
 describe('D-085 roadmap items — visible but disabled', () => {
   // D-090 relocated every Path entry to a REAL command, D-132 removed the Tools
   // roadmap placeholders, D-133 removed the Insert placeholders (Smart Object
-  // became real), and D-138 made File ▸ Save / Save As… real (workspace
-  // round-trip). The surviving File roadmap leaf is Document Settings…, so use
-  // `svge.roadmap.file.document-settings` to exercise the comingSoon /
+  // became real), D-138 made File ▸ Save / Save As… real (workspace round-trip),
+  // and D-140 made File ▸ Document Settings… real (opens the ui dialog). The
+  // surviving File roadmap leaves are the Export submenu children, so use
+  // `svge.roadmap.file.export.selection` to exercise the comingSoon /
   // always-disabled contract.
   it('a roadmap leaf is marked comingSoon and is always disabled', () => {
     const { reg, injector } = setupAllEditMenus();
-    const item = reg.get('svge.roadmap.file.document-settings')!;
+    const item = reg.get('svge.roadmap.file.export.selection')!;
     expect(item.comingSoon).toBe(true);
     expect(resolveDisabledSignal(item, injector)()).toBe(true);
   });
 
   it('roadmap leaves never throw when activated (no-op run)', () => {
     const { reg, injector } = setupAllEditMenus();
-    const item = reg.get('svge.roadmap.file.document-settings')!;
+    const item = reg.get('svge.roadmap.file.export.selection')!;
     expect(() => runContribution(item, injector)).not.toThrow();
   });
 });

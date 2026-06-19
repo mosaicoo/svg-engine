@@ -6,6 +6,47 @@
 
 ---
 
+## 2026-06-19 — D-140 — File ▸ Document Settings… (dialog) ✅
+
+O usuário pediu um diálogo ligado ao `File ▸ Document Settings…` (até então o
+último **placeholder de roadmap** do menu File) com **todas as propriedades da aba
+Page do Inspector** — assumindo a redundância conscientemente, com o plano de
+**aposentar a aba Page depois** se o diálogo provar ser a melhor UX.
+
+**Por que o diálogo (e não só a aba):** a aba Page do Inspector é **condicional** —
+só aparece quando a própria página é o nó selecionado (o que normalmente exige a
+Page tool, Shift+O). Iniciantes não descobrem esse caminho, então os controles de
+documento (tamanho/formato/fundo/margens) ficavam escondidos. O
+`File ▸ Document Settings…` é o ponto de entrada estilo Illustrator ("Document
+Setup"): sempre acessível pelo menu, sem dança de seleção.
+
+**Peças** (novo módulo
+[document-settings](../projects/svg-engine/ui/src/lib/document-settings)):
+`<svge-document-settings>` espelha exatamente os campos da aba Page (Name, viewBox
+X/Y/Width/Height, Format, Orientation, Background, Margins + Delete Page), mas
+ligado à **página ativa** (`ActivePageService.activePage()`) em vez do nó focado.
+Cada controle lê pelos mesmos `getPage*` e grava pelos **mesmos comandos undoable**
+do Inspector (`RenamePageCommand` / `ResizePageCommand` / `SetPageOptionsCommand`
+/ `DeletePageCommand`) — então uma mudança aqui é idêntica à feita no Inspector e
+o Ctrl+Z reverte igual. Sem página ativa, mostra empty-state. `SvgeDocumentSettingsDialogService.open(injector)`
+abre via `svgeDialogConfig('md')` com injector scope-aware (D-042/D-043). Item de
+menu real `svge.builtin.ui.file.document-settings` (slot File, order 72, ícone
+`description`) registrado no
+[builtinUiMenuContributionsPlugin](../projects/svg-engine/ui/src/lib/menu-extras/builtin-ui-menu-contributions.plugin.ts)
+— **lado ui** porque é um dialog Material (D-017). `roadmapLeaf` removido do
+[builtin-roadmap-menu.plugin.ts](../projects/svg-engine/edit/src/lib/menu/builtin/builtin-roadmap-menu.plugin.ts).
+
+**Verificação:** build + lint + suíte (**2701**, +9 specs do novo dialog: 8 de
+field-wiring na página ativa + 1 de delegação do service; primeiros specs de UI do
+projeto) verdes. API snapshot regenerado (+`SvgeDocumentSettings`, +`SvgeDocumentSettingsDialogService` no `svg-engine/ui`). No browser
+(`/pro-editor`): menu File mostra **Document Settings…** (após Optimize…); abrir
+renderiza os grupos **Name · Size · Format & Orientation · Background · Margins ·
+Danger zone** com os 12 campos da aba Page lidos da página ativa ("Page 1"); editar
+**Name → "Hero Page"** propagou para a status bar (`1/1 · Hero Page`) e para a aba
+da Pages strip. Sem erros no console.
+
+---
+
 ## 2026-06-19 — D-139 — File ▸ Import ▸ Smart Object… (real) + External Asset… removido ✅
 
 O usuário perguntou se `File ▸ Import ▸ Smart Object…` e `… ▸ External Asset…`

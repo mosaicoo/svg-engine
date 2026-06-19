@@ -860,6 +860,8 @@
     "SvgeDialogShell",
     "SvgeDialogSize",
     "SvgeDirectSelectOptions",
+    "SvgeDocumentSettings",
+    "SvgeDocumentSettingsDialogService",
     "SvgeEditor",
     "SvgeEffectsPanel",
     "SvgeEllipseOptions",

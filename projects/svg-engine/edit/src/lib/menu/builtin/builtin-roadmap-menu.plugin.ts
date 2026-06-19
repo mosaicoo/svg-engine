@@ -211,15 +211,11 @@ export const builtinRoadmapMenuPlugin: EditorPlugin = {
     // REAL items registered by `builtinMenuContributionsPlugin` (workspace
     // round-trip: `.svge` readable JSON + `.svgez` gzipped). Their roadmap
     // placeholders were removed here to avoid duplicate entries.
-    track(
-      roadmapLeaf({
-        id: 'svge.roadmap.file.document-settings',
-        slot: MENU_SLOT.FILE,
-        label: 'Document Settings…',
-        icon: 'settings',
-        order: 72,
-      }),
-    );
+    // **D-140** — `File ▸ Document Settings…` (order 72) is now a REAL item
+    // registered by `builtinUiMenuContributionsPlugin` (svg-engine/ui) — opens
+    // the `<svge-document-settings>` Material dialog (D-017: dialogs live in
+    // ui) which mirrors the Inspector Page tab bound to the ACTIVE page. Its
+    // roadmap placeholder was removed here to avoid a duplicate entry.
     // **D-138 follow-up** — `File ▸ Exit` (order 90) was REMOVED, not made real.
     // An embeddable/web editor has no "application to quit": `window.close()`
     // only works for script-opened windows, and what "exit" means (close a

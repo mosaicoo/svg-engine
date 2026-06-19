@@ -653,10 +653,11 @@ seção 2026-05-18.
 
 #### Dialog
 
-| Selector / símbolo      | Descrição                                                                                                                                                                                                                                  |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `SvgeWorkspaceSettings` | Material dialog: page (width/height/orientation) + grid (enabled/spacing/majorEvery) + rulers + guides                                                                                                                                     |
-| `SvgeSvgSourceDialog`   | **(2026-05-20)** Visualizador live de SVG exportado via `ExporterRegistry.byMediaType('image/svg+xml')` (fallback `svgExporter`). Reativo a `state.document()`. Copy-to-clipboard com fallback `execCommand`. Inkscape "XML Editor" parity |
+| Selector / símbolo      | Descrição                                                                                                                                                                                                                                                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SvgeWorkspaceSettings` | Material dialog: page (width/height/orientation) + grid (enabled/spacing/majorEvery) + rulers + guides                                                                                                                                                                                                                                      |
+| `SvgeDocumentSettings`  | **(D-140, 2026-06-19)** Material dialog `File ▸ Document Settings…`: espelha a aba Page do Inspector (name + viewBox X/Y/W/H + format + orientation + background + margins + delete) ligado à **página ativa** (`ActivePageService`); grava pelos comandos undoable de página. Abrir via `SvgeDocumentSettingsDialogService.open(injector)` |
+| `SvgeSvgSourceDialog`   | **(2026-05-20)** Visualizador live de SVG exportado via `ExporterRegistry.byMediaType('image/svg+xml')` (fallback `svgExporter`). Reativo a `state.document()`. Copy-to-clipboard com fallback `execCommand`. Inkscape "XML Editor" parity                                                                                                  |
 
 #### Services
 
