@@ -20,6 +20,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltip } from '@angular/material/tooltip';
 import {
   detectLanguage,
+  isVagueForRuleBased,
   LlmIntentResolverService,
   type NluCandidate,
   type NluExecuteResult,
@@ -205,6 +206,19 @@ function initialVoiceLanguage(): string {
               <mat-icon>{{
                 voice.modelLoading() ? 'hourglass_empty' : voice.listening() ? 'mic_off' : 'mic'
               }}</mat-icon>
+            </button>
+          }
+          @if (llm.isAvailable) {
+            <button
+              mat-icon-button
+              type="button"
+              class="svge-nlu-ask-ai"
+              matTooltip="Pedir à IA (ignora o reconhecimento por regras)"
+              aria-label="Pedir à IA"
+              [disabled]="text().trim().length === 0 || llmThinking()"
+              (click)="askAi()"
+            >
+              <mat-icon>auto_awesome</mat-icon>
             </button>
           }
           <button
@@ -722,6 +736,14 @@ export class SvgeNluInput {
     const t = this.text().trim();
     if (t.length === 0) return;
     this.llmError.set(null);
+    // **D-093 Fase 3 — roteamento antecipado**: pedidos "vagos" (ricos em
+    // conteúdo mas que o rule-based só casaria no verbo, ex.: "crie um card
+    // de KPI…") vão DIRETO ao LLM, ANTES de executar — senão o rule-based
+    // criaria uma forma genérica (90% em create-shape) e nunca escalaria.
+    if (this.enableLlmFallback() && this.llm.isAvailable && isVagueForRuleBased(t)) {
+      await this.escalateToLlm(t);
+      return;
+    }
     // **Multi-comando**: executeSequence divide a frase nos conectores e
     // executa cada cláusula (cada forma = 1 passo de undo). Frase simples
     // = 1 resultado, comportamento idêntico ao execute() anterior.
@@ -778,6 +800,17 @@ export class SvgeNluInput {
     } finally {
       this.llmThinking.set(false);
     }
+  }
+
+  /**
+   * **D-093 Fase 3** — escape hatch explícito: manda o texto **direto**
+   * ao LLM, ignorando o rule-based. Útil quando o usuário sabe que quer a
+   * IA (ex.: composição complexa) independente do que o rule-based acharia.
+   */
+  protected async askAi(): Promise<void> {
+    const t = this.text().trim();
+    if (t.length === 0 || !this.llm.isAvailable) return;
+    await this.escalateToLlm(t);
   }
 
   /**

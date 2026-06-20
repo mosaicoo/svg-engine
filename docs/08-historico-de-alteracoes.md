@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-06-20 — D-093 (Fase 3) — Refino do gatilho de escalonamento + botão "Pedir à IA" ✅
+
+Corrige o **GAP crítico** da Fase 2: o rule-based é guloso com verbos de criação e
+"crie um card de KPI…" casava `create-shape` a 90% (1 retângulo genérico) sem escalar.
+Pior: **"card"/"kpi" resolvem como aliases de forma** nos dicionários NLU — então até a
+heurística de "fração reconhecida" falhava.
+
+- **`escalation.ts` (`svg-engine/ai/nlu`)** — `isVagueForRuleBased(text)` puro/testável.
+  Vago quando: (1) contém um **substantivo composto** (`COMPOSITE_KEYWORDS`: card, kpi,
+  dashboard, organograma, fluxograma, diagrama, banner, formulario, grafico, tabela,
+  mockup, …) — coisas feitas de várias primitivas; OU (2) tem ≥3 tokens significativos e
+  <50% reconhecidos (forma/cor/número/ação). Constantes exportadas pra tuning.
+- **`<svge-nlu-input>` (roteamento antecipado)**: o `runNow()` agora chama
+  `isVagueForRuleBased(t)` ANTES de executar — se vago + LLM disponível, escala **direto**
+  (pula o rule-based → sem forma genérica fantasma). `no-match` continua escalando.
+- **Botão "Pedir à IA"** (`auto_awesome`) — escape hatch explícito que sempre manda ao
+  LLM, ignorando o rule-based. Inputs `enableLlmFallback`/`llmModel` (Fase 2) mantidos.
+
+**Verificação:** build (9 entry points) + lint (3 projetos) + suíte (**2783**, +novos
+specs de `isVagueForRuleBased`) verdes. Snapshot de API regenerado (+`isVagueForRuleBased`,
+`COMPOSITE_KEYWORDS`, `VAGUE_MIN_MEANINGFUL_TOKENS`, `VAGUE_RECOGNIZED_FRACTION`).
+**Browser (`/nlu-test`)**: "crie um card de KPI moderno com título e valor" agora dispara
+`llmThinking=true` **imediatamente** e **não cria** o retângulo do rule-based (nós=1, só a
+página) — **o gap está corrigido ao vivo**. Erro amigável (`llmError`) confirmado no
+caminho de falha.
+
+**Pendência (infra, não código):** o round-trip LLM bem-sucedido (plano → formas) ainda
+não foi capturado — o servidor Ollama caiu de novo no meio do teste (timeout em
+`/api/version`), como recorreu a sessão toda. Quando o servidor estiver estável, o caminho
+completo deve fechar. (Nota de preview: navegar via `location.assign` saindo de um editor
+dispara `beforeunload` e **trava o renderer**; usar navegação SPA via link de nav.)
+
+---
+
 ## 2026-06-20 — D-093 (Fase 2) — Wire do LLM no playground + escalonamento no `<svge-nlu-input>` ✅
 
 Segunda fatia: ligar o resolver LLM (D-093 Fase 1) na UI real.
