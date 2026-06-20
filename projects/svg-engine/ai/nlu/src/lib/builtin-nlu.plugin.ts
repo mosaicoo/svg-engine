@@ -418,9 +418,22 @@ export const builtinNluPlugin: EditorPlugin = {
           // Suporta tipo (linear/radial), direção (horizontal/vertical/
           // diagonal) e 1..N cores. Vide buildGradientFill().
           gradient: { kind: 'gradient', optional: true },
+          // **`content`** (D-093 Fase 5) — texto literal do nó `text`. Usado
+          // pelos planos do LLM ("título"/"valor" de um card) e ignorado por
+          // outras formas. **Anchor-only** de propósito: `kind:'string'`
+          // posicional seria catch-all e roubaria tokens de comandos normais
+          // ("criar retângulo vermelho" → content='criar'); com âncoras só
+          // preenche quando precedido por "texto/conteúdo/dizendo/escrito".
+          // O LLM passa `content` direto no slot (bypassa o extractor), então
+          // a âncora cobre só o caminho rule-based ("texto dizendo Vendas").
+          content: {
+            kind: 'string',
+            optional: true,
+            anchorKeywords: ['texto', 'conteudo', 'content', 'dizendo', 'escrito', 'label'],
+          },
         },
         description:
-          'Criar forma (retângulo, círculo, elipse, etc.) — suporta fill/stroke/espessura/posição',
+          'Criar forma (retângulo, círculo, elipse, texto, etc.) — suporta fill/stroke/espessura/posição; para texto, o slot content define o texto literal',
         execute(slots, runCtx) {
           const bus = runCtx.injector.get(CommandBus);
           const state = runCtx.injector.get(EditorStateService);
@@ -444,6 +457,11 @@ export const builtinNluPlugin: EditorPlugin = {
           const stroke = slots['stroke'] as string | undefined;
           const strokeWidth = slots['strokeWidth'] as number | undefined;
           const position = slots['position'] as { x: number; y: number } | undefined;
+          // **D-093 Fase 5** — texto literal do nó `text` (planos do LLM).
+          // Defensivo: só strings não-vazias; senão cai no placeholder.
+          const rawContent = slots['content'];
+          const textContent =
+            typeof rawContent === 'string' && rawContent.trim().length > 0 ? rawContent : undefined;
 
           // Compose style omitting undefined keys — manter `style:
           // undefined` quando nenhum apresentável (factory aplica
@@ -571,7 +589,7 @@ export const builtinNluPlugin: EditorPlugin = {
                   {
                     x: cx,
                     y: cy + fontSize / 3, // alinhamento baseline visual aproximado
-                    content: 'Texto',
+                    content: textContent ?? 'Texto',
                     fontSize,
                     textAnchor: 'middle',
                   },

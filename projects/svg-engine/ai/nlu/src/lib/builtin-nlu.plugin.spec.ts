@@ -114,6 +114,40 @@ describe('builtinNluPlugin', () => {
     }
   });
 
+  it('create-shape text usa o slot content (caminho do plano LLM)', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const intent = nlu.getIntent('svge.builtin.nlu.create-shape');
+    expect(intent).toBeTruthy();
+
+    const before = state.document().root.children.length;
+    // O resolver LLM despacha via intent.execute(slots) com content já no slot.
+    await intent!.execute(
+      { shape: 'text', content: 'Vendas', width: 200, height: 40 },
+      { injector },
+    );
+    const after = state.document().root.children.length;
+    expect(after).toBe(before + 1);
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('text');
+    if (added.type === 'text') {
+      expect(added.content).toBe('Vendas');
+    }
+  });
+
+  it('create-shape text cai no placeholder "Texto" quando content ausente/vazio', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const intent = nlu.getIntent('svge.builtin.nlu.create-shape');
+
+    await intent!.execute({ shape: 'text', content: '   ' }, { injector });
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('text');
+    if (added.type === 'text') {
+      expect(added.content).toBe('Texto');
+    }
+  });
+
   it('survives fuzzy typos: "criar retangulo" → create-shape', async () => {
     const { plugins, nlu, injector, state } = setup();
     plugins.install(builtinNluPlugin);

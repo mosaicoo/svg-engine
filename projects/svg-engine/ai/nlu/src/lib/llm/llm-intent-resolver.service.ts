@@ -298,11 +298,23 @@ function buildFewShot(catalog: readonly LlmIntentCatalogEntry[]): string {
       },
       {
         intentId: id,
-        slots: { shape: 'text', width: 180, height: 20, position: { x: 320, y: 250 } },
+        slots: {
+          shape: 'text',
+          content: 'Receita',
+          width: 180,
+          height: 20,
+          position: { x: 320, y: 250 },
+        },
       },
       {
         intentId: id,
-        slots: { shape: 'text', width: 200, height: 40, position: { x: 320, y: 320 } },
+        slots: {
+          shape: 'text',
+          content: 'R$ 1,2M',
+          width: 200,
+          height: 40,
+          position: { x: 320, y: 320 },
+        },
       },
     ],
     confidence: 0.75,

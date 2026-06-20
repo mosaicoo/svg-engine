@@ -6,6 +6,30 @@
 
 ---
 
+## 2026-06-20 — D-093 (Fase 5) — Slot `content`: o card de KPI ganha texto real ✅
+
+Fecha a limitação conhecida da Fase 4 (o texto saía como placeholder "Texto"). O nó
+`text` do `create-shape` agora aceita o **conteúdo literal**, então o LLM preenche
+"título"/"valor" de verdade.
+
+- **`builtin-nlu.plugin.ts`:** novo slot `content` (`kind:'string'`) no `create-shape`.
+  Usado só pelo nó `text` (ignorado pelas outras formas), com fallback ao placeholder
+  "Texto" quando ausente/vazio. **Anchor-only** de propósito (`anchorKeywords:
+['texto','conteudo','content','dizendo','escrito','label']`): um `string` posicional
+  seria catch-all e roubaria tokens de comandos normais ("criar retângulo vermelho" →
+  content='criar'); a âncora restringe o rule-based, e o LLM passa `content` direto no
+  slot (bypassa o extractor).
+- **Few-shot (resolver):** os dois passos de texto do exemplo agora trazem
+  `content` ("Receita" / "R$ 1,2M") — ensina o modelo a preencher.
+
+**Verificação:** build (9 entry points) + lint (3 projetos) + suíte (**2788**, +2 specs do
+content: plano-LLM e fallback) verdes. Sem mudança de API pública (slot interno ao plugin).
+**Ao vivo (`/nlu-test`, 3b default):** "crie um card de KPI moderno com título e valor" →
+plano com `"content":"Receita"` e `"content":"R$ 1,2M"`, nós 1→4, canvas renderiza o card
+**com os textos reais** (não mais "Texto"). Round-trip de composição com conteúdo completo.
+
+---
+
 ## 2026-06-20 — D-093 (Fase 4) — Cura do catálogo + few-shot: o 3b passa a seguir o contrato ✅
 
 Fecha o **round-trip LLM end-to-end** com o modelo barato. Diagnóstico ao vivo da Fase 3:
