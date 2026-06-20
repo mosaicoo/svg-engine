@@ -20,6 +20,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltip } from '@angular/material/tooltip';
 import {
   detectLanguage,
+  LlmIntentResolverService,
   type NluCandidate,
   type NluExecuteResult,
   NaturalLanguageService,
@@ -260,6 +261,20 @@ function initialVoiceLanguage(): string {
         </div>
       }
 
+      @if (llmThinking()) {
+        <div class="svge-nlu-status" role="status" aria-live="polite">
+          <mat-icon class="svge-nlu-llm-icon" aria-hidden="true">auto_awesome</mat-icon>
+          <span class="svge-nlu-status-text"
+            >IA interpretando o pedido… pode levar alguns segundos.</span
+          >
+        </div>
+        <mat-progress-bar mode="indeterminate" class="svge-nlu-confidence-bar" />
+      }
+
+      @if (llmError(); as msg) {
+        <p class="svge-nlu-voice-error" role="alert">{{ msg }}</p>
+      }
+
       @if (alternatives().length > 0) {
         <details class="svge-nlu-alts">
           <summary>{{ alternatives().length }} alternativa(s)</summary>
@@ -476,10 +491,27 @@ export class SvgeNluInput {
     null,
   );
 
+  /**
+   * **D-093** — habilita o **fallback LLM**: quando o NLU rule-based não
+   * reconhece o pedido (`no-match`), escala para o
+   * {@link LlmIntentResolverService}, que pede um plano de comandos ao LLM
+   * e o executa pelo mesmo pipeline seguro. Só dispara se um provider LLM
+   * estiver registrado (`AI_CHAT_PROVIDER`); senão é no-op. Default `true`.
+   */
+  readonly enableLlmFallback = input<boolean>(true);
+
+  /**
+   * **D-093** — modelo a usar no fallback LLM (roteamento por
+   * complexidade). `null` = usa o default do provider. O consumer pode
+   * passar `qwen2.5:7b` para pedidos pesados, por exemplo.
+   */
+  readonly llmModel = input<string | null>(null);
+
   /** Evento emitido após cada execute (sucesso ou rejeição). */
   readonly executed = output<NluExecuteResult>();
 
   protected readonly nlu = inject(NaturalLanguageService);
+  protected readonly llm = inject(LlmIntentResolverService);
   protected readonly voice = inject(VoiceEngineService);
   private readonly hostInjector = inject(Injector);
   private readonly textInputRef = viewChild<ElementRef<HTMLInputElement>>('textInput');
@@ -494,6 +526,10 @@ export class SvgeNluInput {
   protected readonly debouncedText = signal('');
   private debounceHandle: ReturnType<typeof setTimeout> | undefined;
   protected readonly lastResult = signal<NluExecuteResult | null>(null);
+  /** **D-093** — `true` enquanto o fallback LLM está interpretando (spinner). */
+  protected readonly llmThinking = signal(false);
+  /** **D-093** — mensagem de erro do fallback LLM (rede / JSON inválido / sem comandos). */
+  protected readonly llmError = signal<string | null>(null);
   /**
    * Candidates ordenados por confidence — recomputa quando
    * `debouncedText` muda OU quando o registry de intents muda.
@@ -685,6 +721,7 @@ export class SvgeNluInput {
   protected async runNow(): Promise<void> {
     const t = this.text().trim();
     if (t.length === 0) return;
+    this.llmError.set(null);
     // **Multi-comando**: executeSequence divide a frase nos conectores e
     // executa cada cláusula (cada forma = 1 passo de undo). Frase simples
     // = 1 resultado, comportamento idêntico ao execute() anterior.
@@ -696,7 +733,51 @@ export class SvgeNluInput {
     for (const r of results) this.executed.emit(r);
     this.lastResult.set(results[results.length - 1] ?? null);
     // Se ao menos um comando executou, limpa o input pro próximo.
-    if (results.some((r) => r.executed)) this.setTextProgrammatically('');
+    if (results.some((r) => r.executed)) {
+      this.setTextProgrammatically('');
+      return;
+    }
+    // **D-093 — fallback LLM**: o rule-based não reconheceu NADA (todos
+    // `no-match`). Escala para o LLM, que mapeia o texto para um plano de
+    // comandos já registrados. `below-threshold`/destrutivo NÃO escalam —
+    // ficam com o fluxo "Confirmar" pra não duplicar ação.
+    const allNoMatch = results.length > 0 && results.every((r) => r.rejection === 'no-match');
+    if (this.enableLlmFallback() && this.llm.isAvailable && allNoMatch) {
+      await this.escalateToLlm(t);
+    }
+  }
+
+  /**
+   * **D-093** — fallback LLM. Pede um plano de comandos ao
+   * {@link LlmIntentResolverService} e o executa pelo mesmo pipeline
+   * seguro. Mostra spinner enquanto interpreta (pode levar segundos no
+   * hardware local) e mensagem amigável em caso de erro/sem-comandos.
+   * Não limpa o input em falha (o usuário pode reformular).
+   */
+  private async escalateToLlm(text: string): Promise<void> {
+    this.llmThinking.set(true);
+    this.llmError.set(null);
+    try {
+      const results = await this.llm.resolveAndExecute(
+        text,
+        { injector: this.hostInjector },
+        {
+          model: this.llmModel() ?? undefined,
+          confirmGate: this.executeOptions().confirmGate,
+        },
+      );
+      for (const r of results) this.executed.emit(r);
+      if (results.length > 0) this.lastResult.set(results[results.length - 1]);
+      if (results.length === 0) {
+        this.llmError.set('A IA não encontrou comandos aplicáveis para esse pedido.');
+      } else if (results.some((r) => r.executed)) {
+        this.setTextProgrammatically('');
+      }
+    } catch {
+      this.llmError.set('A IA não conseguiu interpretar o pedido. Tente reformular.');
+    } finally {
+      this.llmThinking.set(false);
+    }
   }
 
   /**

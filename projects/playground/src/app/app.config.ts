@@ -7,8 +7,16 @@ import {
   provideSvgEnginePlugin,
 } from 'svg-engine/edit';
 import { provideSvgeUiBuiltins } from 'svg-engine/ui';
-import { builtinNluPlugin } from 'svg-engine/ai/nlu';
+import { builtinNluPlugin, provideOllamaChat } from 'svg-engine/ai/nlu';
 import { provideWhisperVoiceEngine } from 'svg-engine/ai/nlu-voice-wasm';
+
+/**
+ * **D-093** — endereço do servidor Ollama local (DEV). Troque para o seu
+ * (ou `http://localhost:11434` se rodar na mesma máquina). Requer
+ * `OLLAMA_ORIGINS` liberado no servidor para o fetch do browser passar.
+ */
+const OLLAMA_BASE_URL = 'http://192.168.1.21:11434';
+const OLLAMA_MODEL = 'qwen2.5:3b';
 
 import { LOADER_DEMO_ORIGIN, loaderDemoModuleLoader } from './pages/plugins/loader-demo';
 import { stampToolPlugin } from './plugins/stamp-tool.plugin';
@@ -50,6 +58,12 @@ export const appConfig: ApplicationConfig = {
     // Whisper só baixa na primeira vez que a voz local é acionada.
     provideSvgEnginePlugin(builtinNluPlugin),
     ...provideWhisperVoiceEngine(),
+    // ── D-093 — LLM fallback (Ollama local) ───────────────────────
+    // Liga o "fallback inteligente" no <svge-nlu-input>: quando o NLU
+    // rule-based não reconhece o pedido, ele escala para o LLM, que
+    // devolve um plano de comandos já registrados. Opt-in: sem este
+    // provider, o NLU segue só rule-based (zero rede).
+    ...provideOllamaChat({ baseUrl: OLLAMA_BASE_URL, model: OLLAMA_MODEL }),
 
     // ── Demo-only — Stamp tool (D-038 Phase 3 showcase). Press K. ──
     provideSvgEnginePlugin(stampToolPlugin),

@@ -6,6 +6,41 @@
 
 ---
 
+## 2026-06-20 — D-093 (Fase 2) — Wire do LLM no playground + escalonamento no `<svge-nlu-input>` ✅
+
+Segunda fatia: ligar o resolver LLM (D-093 Fase 1) na UI real.
+
+- **`app.config.ts` (playground):** `provideOllamaChat({ baseUrl: 'http://192.168.1.21:11434',
+model: 'qwen2.5:3b' })` no tier AI. Opt-in — constantes `OLLAMA_BASE_URL`/`OLLAMA_MODEL`
+  no topo do arquivo para troca fácil. Sem este provider, o NLU segue só rule-based.
+- **`<svge-nlu-input>` (nlu-ui):** novo **escalonamento**. Quando o `runNow()` rule-based
+  volta **tudo `no-match`** e há provider LLM (`llm.isAvailable`), escala para
+  `LlmIntentResolverService.resolveAndExecute()`. Spinner ("IA interpretando…") +
+  mensagem amigável em erro/sem-comandos. Inputs novos: `enableLlmFallback` (default
+  `true`) e `llmModel` (override por complexidade). `below-threshold`/destrutivo **não**
+  escalam — ficam com o fluxo "Confirmar" (não duplica ação).
+
+**Verificação:** build (9 entry points) + lint (3 projetos) + suíte (**2778**) verdes.
+No browser (`/nlu-test`): app sobe sem erro; `LlmIntentResolverService.isAvailable ===
+true`, catálogo com **222 intents**, fallback habilitado — **wiring confirmado ao vivo**.
+
+**Ressalvas honestas (descobertas no teste de browser):**
+
+1. **Round-trip ao vivo não capturado:** o servidor Ollama ficou **inacessível** no meio
+   do teste (timeout em `GET /api/version` E `POST /api/show` → servidor caiu, não é CORS).
+   O componente degradou como esperado (erro amigável via `llmError`). A pendência é
+   infra (servidor de pé), não código.
+2. **Trigger do escalonamento é raso demais para o caso-alvo:** o rule-based é **guloso**
+   com verbos de criação — "crie um card de KPI…" deu **90%** em `create-shape` (cria 1
+   rect default) e **NÃO** escala. Ou seja, pedidos complexos que contêm "criar/crie"
+   nunca chegam ao LLM hoje. **Próxima fatia precisa refinar o gatilho** (heurística de
+   complexidade, OU detectar match degenerado de `create-shape` sem slot de forma real,
+   OU um botão explícito "pedir à IA").
+3. **Catálogo de 222 intents** é um prompt grande para um 3b nessa GPU → latência/qualidade
+   sofrem; curar/filtrar o catálogo é candidato a otimização.
+
+---
+
 ## 2026-06-20 — D-093 (Fase 1) — Camada LLM: resolver de intents via Ollama ✅
 
 Primeira fatia da "camada de inteligência" pedida pelo usuário (LLM local
