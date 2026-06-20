@@ -863,4 +863,17 @@ describe('TransformService — multi-selection custom pivot (D-142-fix)', () => 
     transform.endMove(); // no updateMove → zero delta
     expect(transform.resolvePivot(combined)).toEqual({ x: 10, y: 0 });
   });
+
+  it('DEFAULT centre is promoted to a fixed pivot on rotation (no pre-set custom pivot)', () => {
+    const { transform, a, b, combined } = setupMulti();
+    // No setPivot — default pivot is the combined-bbox centre (55,5).
+    expect(transform.resolvePivot(combined)).toEqual({ x: 55, y: 5 });
+
+    // Rotating about that centre promotes it to an absolute point, so it no
+    // longer drifts with the (changing) combined AABB — D-142-fix2.
+    transform.startRotateMany(entries(a, b), { x: 55, y: 5 }, { x: 110, y: 5 });
+    transform.updateRotateMany({ x: 55, y: 105 });
+    transform.endRotateMany();
+    expect(transform.resolvePivot(bbox(-999, -999, 9999, 9999))).toEqual({ x: 55, y: 5 });
+  });
 });

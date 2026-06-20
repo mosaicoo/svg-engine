@@ -1024,6 +1024,16 @@ export class TransformService {
       captured.push({ id: e.id, startTransform: node.transform, parentMatrix: e.parentMatrix });
     }
     if (captured.length < 2) return; // not a group → let the single path handle it
+    // **D-142-fix2** — without a custom multi pivot the crosshair is the
+    // combined-AABB centre, which is recomputed from the live (changing) AABB
+    // each frame and so DRIFTS while rotating. Promote that centre to the
+    // absolute pivot now: the rotation runs about `pivot`, so the point is
+    // invariant under it → the crosshair stays put during AND after the
+    // gesture (matching the custom-pivot behaviour). Resets on selection
+    // composition change, like any multi pivot.
+    if (this._multiPivotAbs() === null) {
+      this._multiPivotAbs.set({ x: pivot.x, y: pivot.y });
+    }
     this._dragState.set({
       kind: 'rotate-many',
       entries: captured,

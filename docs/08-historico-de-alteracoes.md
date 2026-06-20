@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-06-20 — D-142-fix2 — Pivô **default** da multi-seleção também fixo sob rotação ✅
+
+O usuário notou que, ao selecionar múltiplos elementos, o pivô **ainda desloca ao
+rotacionar** — mas, depois de mover o pivô ao menos 1px, fica fixo. Causa exata:
+o D-142-fix só cobriu o pivô **custom** (absoluto). **Sem** pivô custom,
+`_multiPivotAbs` é `null` e o `resolvePivot` cai no fallback `center(bbox)` = o
+centro do **AABB combinado vivo** — que muda de forma sob rotação, então o
+crosshair deriva. Ao mover 1px, grava-se um `_multiPivotAbs` absoluto → fixo (por
+isso "depois de mexer funciona").
+
+**Correção (`transform.service.ts`, `startRotateMany`):** ao iniciar a rotação de
+grupo sem pivô custom, **promover o centro a ponto absoluto** (`_multiPivotAbs =
+pivot`). Como a rotação ocorre em torno desse `pivot`, o ponto é invariante sob ela
+→ o crosshair fica fixo **durante e depois** do gesto, igual ao pivô custom (e
+reseta na troca de composição da seleção). Move/resize do default já acompanhavam
+corretamente (translação/escala preservam o mapeamento do AABB), então só a
+rotação precisava da promoção.
+
+**Verificação:** build + lint + suíte (**2744**, +1 spec: centro default promovido
+a pivô fixo na rotação) verdes; sem mudança de superfície pública. No browser
+(`/custom-editor`): 2 retângulos selecionados **sem** pivô custom → centro default
+**(369.97, 239.26)**; durante e depois de rotacionar a multi-seleção o `pivotPos()`
+e o crosshair renderizado permanecem **(369.97, 239.26)** (sem drift). Antes, esses
+valores deslocavam.
+
+---
+
 ## 2026-06-20 — D-142-fix — Pivô da multi-seleção fixo sob rotação (preso à seleção, estilo Figma) ✅
 
 Sequência do D-142. Análise solicitada pelo usuário: por que o pivô da
