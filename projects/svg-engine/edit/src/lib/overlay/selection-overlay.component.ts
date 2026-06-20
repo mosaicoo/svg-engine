@@ -36,12 +36,14 @@ import {
 import { KeyObjectService } from '../alignment/key-object.service';
 import { LayersService } from '../layers/layers.service';
 import { SelectionService } from '../selection/selection.service';
+import { SelectionAppearanceService } from '../selection-appearance';
 import { DIRECT_SELECT_TOOL_ID } from '../tool/builtin-tools';
 import { ToolHostService } from '../tool/tool-host.service';
 import { TransformService } from '../transform/transform.service';
 
-/** Pixel size of resize/rotation handles (CSS pixels, kept constant via 1/zoom factor). */
-const HANDLE_PX = 8;
+// D-143 — the resize/rotation handle PIXEL size is no longer a constant
+// here; it comes from the app-wide `SelectionAppearanceService` preference
+// (default 8) so users can resize the handles from Workspace Settings.
 /** Distance (in CSS pixels) from the top-center anchor to the rotation handle. */
 const ROTATION_HANDLE_GAP_PX = 24;
 /**
@@ -363,6 +365,9 @@ export class SelectionOverlay {
   private readonly viewport = inject(ViewportService);
   private readonly transform = inject(TransformService);
   private readonly toolHost = inject(ToolHostService);
+  // D-143 — app-wide handle-size preference (drives the resize squares +
+  // rotation knob). Root-scoped service; the dialog writes it, this reads.
+  private readonly appearance = inject(SelectionAppearanceService);
   private readonly bus = inject(CommandBus);
   private readonly layers = inject(LayersService);
   // D-094 — "Align to Key Object" highlight: the designated anchor among
@@ -494,8 +499,17 @@ export class SelectionOverlay {
    */
   protected readonly showsRotationHandle = this.showsTransformHandles;
 
-  /** Handle size in document units (kept constant in screen pixels via 1/zoom). */
-  protected readonly handleSize = computed(() => HANDLE_PX / this.viewport.zoom());
+  /**
+   * Handle size in document units (kept constant in screen pixels via
+   * 1/zoom). **D-143** — the pixel size now comes from the app-wide
+   * {@link SelectionAppearanceService} preference (default 8) instead of a
+   * hard-coded constant, so users can pick Small/Medium/Large (or a custom
+   * value) from Workspace Settings. Driving both the 8 resize squares and
+   * the rotation knob off this one computed keeps them consistent.
+   */
+  protected readonly handleSize = computed(
+    () => this.appearance.handleSizePx() / this.viewport.zoom(),
+  );
   protected readonly handleHalf = computed(() => this.handleSize() / 2);
 
   protected readonly resizeHandles = computed(() => {

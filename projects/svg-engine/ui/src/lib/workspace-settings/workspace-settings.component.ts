@@ -7,8 +7,13 @@ import { MatInput } from '@angular/material/input';
 import { MatRadioModule } from '@angular/material/radio';
 import { MatSelectModule } from '@angular/material/select';
 import {
+  HANDLE_SIZE_MAX,
+  HANDLE_SIZE_MIN,
+  HANDLE_SIZE_PRESETS,
+  type HandleSizePreset,
   type ImportPlacementMode,
   ImportSettingsService,
+  SelectionAppearanceService,
   WHEEL_ZOOM_SPEED_MAX,
   WHEEL_ZOOM_SPEED_MIN,
   WorkspaceService,
@@ -87,7 +92,7 @@ const PRESET_COLORS: Readonly<
     <svge-dialog-shell
       icon="tune"
       title="Workspace settings"
-      subtitle="Background · Page · Grid · Rulers · Guides · Import · Interaction"
+      subtitle="Background · Page · Grid · Rulers · Guides · Import · Interaction · Selection"
     >
       <!-- Body (default slot) -->
       <!--
@@ -285,6 +290,68 @@ const PRESET_COLORS: Readonly<
         </p>
       </section>
 
+      <!--
+        D-143 — Selection handle size. App-wide UI preference (root-scoped
+        SelectionAppearanceService, persisted to localStorage). Sets the
+        on-screen pixel size of the 8 resize squares + the rotation knob
+        drawn by the selection overlay. The three quick presets mirror the
+        size affordance pro tools expose (Illustrator's Selection & Anchor
+        Display, Inkscape/Affinity handle size); the slider exposes a free
+        value between the min/max bounds.
+      -->
+      <section class="group">
+        <h3>Selection handles</h3>
+        <div class="preset-row">
+          <button
+            mat-stroked-button
+            type="button"
+            [class.active]="handlePreset() === 'small'"
+            (click)="setHandlePreset('small')"
+          >
+            Small
+          </button>
+          <button
+            mat-stroked-button
+            type="button"
+            [class.active]="handlePreset() === 'medium'"
+            (click)="setHandlePreset('medium')"
+          >
+            Medium
+          </button>
+          <button
+            mat-stroked-button
+            type="button"
+            [class.active]="handlePreset() === 'large'"
+            (click)="setHandlePreset('large')"
+          >
+            Large
+          </button>
+        </div>
+        <label class="slider-row">
+          <span class="slider-label">
+            Size: <strong>{{ handleSize() }} px</strong>
+          </span>
+          <input
+            type="range"
+            class="speed-slider"
+            [min]="handleSizeMin"
+            [max]="handleSizeMax"
+            step="1"
+            [value]="handleSize()"
+            (input)="setHandleSize($any($event.target).value)"
+            aria-label="Selection handle size"
+          />
+          <span class="slider-hints">
+            <span>{{ handleSizeMin }}px</span>
+            <span>{{ handleSizeMax }}px</span>
+          </span>
+        </label>
+        <p class="info">
+          Size of the resize and rotation handles on the selection box. Larger handles are easier to
+          grab; smaller ones obscure less of the artwork. Applies to every editor view.
+        </p>
+      </section>
+
       <!-- Footer actions slot -->
       <ng-container svgeDialogFooterActions>
         <button mat-button type="button" (click)="resetAll()">Reset defaults</button>
@@ -355,6 +422,20 @@ const PRESET_COLORS: Readonly<
       display: flex;
       flex-direction: column;
       gap: 4px;
+    }
+    /* D-143 — Selection handle size quick presets (horizontal button row) */
+    .preset-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .preset-row button {
+      flex: 1 1 0;
+    }
+    .preset-row button.active {
+      border-color: var(--mat-sys-primary, #1976d2);
+      color: var(--mat-sys-primary, #1976d2);
+      font-weight: 600;
     }
     /* D-107 — SVG import placement radios (vertical, same as bg-presets) */
     .import-modes {
@@ -428,6 +509,13 @@ export class SvgeWorkspaceSettings {
    * not per-editor) and persisted to localStorage by the service.
    */
   private readonly importSettings = inject(ImportSettingsService);
+  /**
+   * **D-143** — selection-box handle size preference. Root-scoped (a
+   * global UI preference, not per-editor) and persisted to localStorage
+   * by the service. The overlay reads it to size the resize squares +
+   * rotation knob.
+   */
+  private readonly appearance = inject(SelectionAppearanceService);
   /**
    * Kept injected (even though the Done button uses `mat-dialog-close`)
    * so callers wiring `afterClosed()` can still distinguish "Done"
@@ -517,6 +605,26 @@ export class SvgeWorkspaceSettings {
 
   protected readonly placementMode = computed(() => this.importSettings.placementMode());
 
+  // ── Selection handle readers (D-143) ──────────────────────────
+
+  /** Current handle size in CSS px (drives both the slider value + the strong label). */
+  protected readonly handleSize = computed(() => this.appearance.handleSizePx());
+  /** Slider bounds, surfaced as template fields. */
+  protected readonly handleSizeMin = HANDLE_SIZE_MIN;
+  protected readonly handleSizeMax = HANDLE_SIZE_MAX;
+  /**
+   * Map the current size back to a named preset (or `null` for a custom
+   * value) so the matching quick-preset button highlights. Mirrors the
+   * `backgroundPreset` snap-to-preset pattern above.
+   */
+  protected readonly handlePreset = computed<HandleSizePreset | null>(() => {
+    const px = this.appearance.handleSizePx();
+    if (px === HANDLE_SIZE_PRESETS.small) return 'small';
+    if (px === HANDLE_SIZE_PRESETS.medium) return 'medium';
+    if (px === HANDLE_SIZE_PRESETS.large) return 'large';
+    return null;
+  });
+
   // ── Mutators (delegate validation to WorkspaceService) ────────
 
   /**
@@ -605,6 +713,19 @@ export class SvgeWorkspaceSettings {
   protected setPlacementMode(mode: ImportPlacementMode): void {
     this.importSettings.setPlacementMode(mode);
   }
+
+  /**
+   * D-143 — set the handle size from the free slider. The service clamps
+   * + rounds, so passing the raw `<input type="range">` string is safe.
+   */
+  protected setHandleSize(raw: string | number): void {
+    const n = typeof raw === 'number' ? raw : Number.parseFloat(raw);
+    this.appearance.setHandleSize(n);
+  }
+  /** D-143 — set the handle size from one of the three quick presets. */
+  protected setHandlePreset(preset: HandleSizePreset): void {
+    this.appearance.setPreset(preset);
+  }
   protected resetAll(): void {
     // PRO-GAP G1 — include background in "Reset defaults" so users
     // expect the dialog to revert ALL workspace settings (not just
@@ -622,5 +743,8 @@ export class SvgeWorkspaceSettings {
     // 'centered' default so "Reset defaults" reverts every control in
     // this dialog (including the Import section), not just some.
     this.importSettings.setPlacementMode('centered');
+    // D-143 — revert the selection-handle size to its default so the
+    // Selection section participates in "Reset defaults" too.
+    this.appearance.reset();
   }
 }

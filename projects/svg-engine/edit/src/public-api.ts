@@ -101,6 +101,9 @@ export * from './lib/panel';
 // SVG import placement preference (centered 100% vs interactive place) (D-106)
 export * from './lib/import-settings';
 
+// Selection-box handle appearance (size preference) (D-143)
+export * from './lib/selection-appearance';
+
 // Interactive "place" gesture for SVG import (drag rectangle) (D-107)
 export * from './lib/import-placement';
 

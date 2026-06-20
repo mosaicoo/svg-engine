@@ -6,6 +6,45 @@
 
 ---
 
+## 2026-06-20 — D-143 — Tamanho configurável dos handles da seleção ✅
+
+Resposta ao pedido do usuário (após o D-141-fix): permitir que o usuário ajuste o
+**tamanho** dos handles da caixa de seleção — recurso que ferramentas pro expõem
+(Illustrator _Selection & Anchor Display_ com 3 tamanhos; Inkscape/Affinity com
+handle size). **Só o tamanho** nesta iteração; cor de handle é rara e normalmente
+deriva do tema, então fica para evolução futura (via CSS custom properties).
+
+**`SelectionAppearanceService`** (`svg-engine/edit`, `providedIn: 'root'` —
+preferência de UI app-wide como o tema / `ImportSettingsService`, persistida em
+`localStorage` na chave `svge:selection:handle-size`):
+
+- `handleSizePx: Signal<number>` (default **8** = antigo `HANDLE_PX`).
+- `setHandleSize(px)` — clampa a `[4, 24]` e arredonda; `setPreset('small'|'medium'
+|'large')` (6/8/11); `reset()`.
+- Helper puro exportado `clampHandleSize(px)` (NaN/Infinity → default).
+- Constantes exportadas: `HANDLE_SIZE_PRESETS`, `HANDLE_SIZE_MIN/MAX/DEFAULT`,
+  tipo `HandleSizePreset`.
+
+**Wiring no overlay** (`selection-overlay.component.ts`): o computed `handleSize`
+passou de `HANDLE_PX / zoom` para `appearance.handleSizePx() / zoom` — dirige os 8
+quadrados de resize **e** o knob de rotação a partir da mesma preferência (constante
+local `HANDLE_PX` removida). Comportamento default idêntico (8px).
+
+**UI** (`<svge-workspace-settings>` em `svg-engine/ui`): nova seção **"Selection
+handles"** com 3 botões-preset (Small/Medium/Large, o ativo destacado) + um slider
+livre 4–24px com o valor exibido; incluída no "Reset defaults". Aberta por
+**Window ▸ Workspace**.
+
+**Verificação:** build (9 entry points) + lint + suíte (**2755**, +11 specs novos do
+serviço: default/set/preset/clamp hi-lo/round/NaN/persist/restore/garbage/reset)
+verdes. Snapshot de API regenerado (`+ SelectionAppearanceService, HandleSizePreset,
+HANDLE_SIZE_PRESETS/MIN/MAX/DEFAULT, clampHandleSize` em `svg-engine/edit`). No
+browser (`/pro-editor`): o `handleSize()` do overlay rastreia a preferência ao vivo
+(8→16 via set, →11 via preset large, →4 por clamp do mínimo, →8 no reset) e persiste
+no `localStorage`.
+
+---
+
 ## 2026-06-20 — D-141-fix — Handles do OBB com tamanho fixo (não esticam sob escala não-uniforme) ✅
 
 O usuário notou que, após o D-141 (caixa orientada/OBB), os **handles de resize
