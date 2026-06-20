@@ -150,33 +150,43 @@ type ResizeAnchor = Exclude<BBoxAnchor, 'mc'>;
           [attr.height]="o.localBBox.height"
           fill="none"
         ></svg:rect>
-
-        @if (showsTransformHandles()) {
-          @for (h of obbResizeHandles(); track h.anchor) {
-            <svg:rect
-              [class]="'handle resize handle-' + h.anchor"
-              [attr.x]="h.x - obbHandleHalf()"
-              [attr.y]="h.y - obbHandleHalf()"
-              [attr.width]="obbHandleSize()"
-              [attr.height]="obbHandleSize()"
-              [attr.data-svge-handle]="h.anchor"
-              [attr.aria-label]="
-                'Resize handle, ' +
-                anchorLabel(h.anchor) +
-                '. Arrow keys to resize 1 unit, Shift+arrow for 10 units.'
-              "
-              aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
-              role="button"
-              tabindex="0"
-              focusable="true"
-              (pointerdown)="onResizeHandlePointerDown($event, h.anchor)"
-              (pointermove)="onHandlePointerMove($event)"
-              (pointerup)="onHandlePointerUp($event)"
-              (keydown)="onResizeHandleKeyDown($event, h.anchor)"
-            ></svg:rect>
-          }
-        }
       </svg:g>
+
+      <!--
+        D-142-fix3 — resize handles for the oriented box are drawn in DOCUMENT
+        space (NOT inside the <g matrix>) as fixed-size squares positioned at
+        the box corners and rotated by the box ANGLE only. Inside the matrix
+        group they inherited its scale/skew, so a non-uniformly scaled object
+        stretched the handle squares. Doc-space + angle-only keeps them
+        pixel-constant and square under any transform (the box outline above
+        still rides the matrix, since it must trace the object's real bounds).
+      -->
+      @if (showsTransformHandles()) {
+        @for (h of obbResizeHandlesDoc(); track h.anchor) {
+          <svg:rect
+            [class]="'handle resize handle-' + h.anchor"
+            [attr.x]="h.x - handleHalf()"
+            [attr.y]="h.y - handleHalf()"
+            [attr.width]="handleSize()"
+            [attr.height]="handleSize()"
+            [attr.transform]="obbHandleTransform(h.x, h.y)"
+            [attr.data-svge-handle]="h.anchor"
+            [attr.aria-label]="
+              'Resize handle, ' +
+              anchorLabel(h.anchor) +
+              '. Arrow keys to resize 1 unit, Shift+arrow for 10 units.'
+            "
+            aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
+            role="button"
+            tabindex="0"
+            focusable="true"
+            (pointerdown)="onResizeHandlePointerDown($event, h.anchor)"
+            (pointermove)="onHandlePointerMove($event)"
+            (pointerup)="onHandlePointerUp($event)"
+            (keydown)="onResizeHandleKeyDown($event, h.anchor)"
+          ></svg:rect>
+        }
+      }
     } @else if (focusBBox(); as b) {
       <svg:rect
         class="bbox"
@@ -573,14 +583,6 @@ export class SelectionOverlay {
     return o;
   });
 
-  /** Uniform screen scale of the OBB matrix (length of its x-axis basis vector). */
-  private readonly obbScale = computed(() => {
-    const o = this.obb();
-    if (o === null) return 1;
-    const s = Math.hypot(o.matrix[0], o.matrix[1]);
-    return s > 1e-6 ? s : 1;
-  });
-
   /** `matrix(...)` transform that orients the whole chrome group. */
   protected readonly obbTransform = computed<string | null>(() => {
     const o = this.obb();
@@ -589,28 +591,39 @@ export class SelectionOverlay {
     return `matrix(${m[0]} ${m[1]} ${m[2]} ${m[3]} ${m[4]} ${m[5]})`;
   });
 
-  /** Handle size in LOCAL units — pixel-constant under zoom AND the matrix scale. */
-  protected readonly obbHandleSize = computed(
-    () => HANDLE_PX / (this.viewport.zoom() * this.obbScale()),
-  );
-  protected readonly obbHandleHalf = computed(() => this.obbHandleSize() / 2);
+  /**
+   * **D-142-fix3** — the box rotation in degrees (`atan2` of the matrix's
+   * x-basis), WITHOUT its scale. Used to rotate the fixed-size handle squares
+   * so they align with the oriented box edges but never inherit the object's
+   * scale/skew (which would stretch them).
+   */
+  protected readonly obbAngleDeg = computed(() => {
+    const o = this.obb();
+    if (o === null) return 0;
+    return (Math.atan2(o.matrix[1], o.matrix[0]) * 180) / Math.PI;
+  });
 
-  /** Resize handles in the node's LOCAL frame (rendered inside the oriented group). */
-  protected readonly obbResizeHandles = computed(() => {
+  /**
+   * **D-142-fix3** — the 8 resize anchors in DOCUMENT coordinates (local
+   * anchor projected through the OBB matrix). Rendered in doc space at a
+   * fixed pixel size (`handleSize`), so they stay square regardless of the
+   * node's scale; only their POSITION follows the oriented box.
+   */
+  protected readonly obbResizeHandlesDoc = computed(() => {
     const o = this.obb();
     if (o === null) return [];
     const a = allAnchors(o.localBBox);
-    return [
-      { anchor: 'tl' as ResizeAnchor, ...a.tl },
-      { anchor: 'tc' as ResizeAnchor, ...a.tc },
-      { anchor: 'tr' as ResizeAnchor, ...a.tr },
-      { anchor: 'ml' as ResizeAnchor, ...a.ml },
-      { anchor: 'mr' as ResizeAnchor, ...a.mr },
-      { anchor: 'bl' as ResizeAnchor, ...a.bl },
-      { anchor: 'bc' as ResizeAnchor, ...a.bc },
-      { anchor: 'br' as ResizeAnchor, ...a.br },
-    ];
+    const order: ResizeAnchor[] = ['tl', 'tc', 'tr', 'ml', 'mr', 'bl', 'bc', 'br'];
+    return order.map((anchor) => {
+      const p = applyTransform(o.matrix, a[anchor].x, a[anchor].y);
+      return { anchor, x: p.x, y: p.y };
+    });
   });
+
+  /** `rotate(angle cx cy)` for a doc-space oriented handle — angle only, no scale. */
+  protected obbHandleTransform(cx: number, cy: number): string {
+    return `rotate(${this.obbAngleDeg()} ${cx} ${cy})`;
+  }
 
   constructor() {
     afterEveryRender({

@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-06-20 — D-141-fix — Handles do OBB com tamanho fixo (não esticam sob escala não-uniforme) ✅
+
+O usuário notou que, após o D-141 (caixa orientada/OBB), os **handles de resize
+esticavam**. Causa: os 8 quadradinhos eram desenhados **dentro** do
+`<g transform="matrix(…)">`, herdando a escala/skew do objeto. O `obbHandleSize`
+só normalizava o eixo X (`hypot(m[0],m[1])`), então com escala **não-uniforme**
+(sx≠sy — o que ocorre após um resize OBB de um eixo só) o quadrado era esticado por
+`sy/sx` no eixo Y. Sob rotação pura não esticava (sx=sy=1).
+
+**Correção (`selection-overlay.component.ts`):** os handles de resize do OBB saem
+do grupo do matrix e passam a ser desenhados em **doc-space** como quadrados de
+tamanho fixo (`handleSize` = `HANDLE_PX/zoom`), posicionados nos cantos orientados
+(`applyTransform(matrix, anchorLocal)`) e rotacionados **apenas pelo ângulo** da
+caixa (`rotate(atan2(m[1],m[0]) cx cy)`) — nunca pela escala. A **caixa-outline**
+continua dentro do grupo do matrix (ela deve traçar os limites reais do objeto). Os
+computeds `obbScale`/`obbHandleSize`/`obbHandleHalf`/`obbResizeHandles` (local) foram
+substituídos por `obbAngleDeg` + `obbResizeHandlesDoc` + `obbHandleTransform`.
+
+**Verificação:** build + lint + suíte (**2744**) verdes; sem mudança de superfície
+pública. No browser (`/custom-editor`): retângulo com matrix `rotate(30°)·scale(2.5,
+0.6)` → os 8 handles ficam todos **8×8 (iguais)** com `transform="rotate(30° …)"`
+(só rotação), quadrados na tela; antes esticariam por `sy/sx≈0.24`. A caixa-outline
+segue o objeto (paralelogramo), como esperado.
+
+> **Nota (config de handles):** ferramentas pro têm preferência de **tamanho** de
+> handle/anchor (Illustrator: Selection & Anchor Display → 3 tamanhos; Inkscape e
+> Affinity: handle size). Cor de handle direta é rara (normalmente via tema/cor de
+> seleção). Customização de tamanho/cor dos handles no SVGEngine fica registrada
+> como possível evolução futura (não implementada neste fix).
+
+---
+
 ## 2026-06-20 — D-142-fix2 — Pivô **default** da multi-seleção também fixo sob rotação ✅
 
 O usuário notou que, ao selecionar múltiplos elementos, o pivô **ainda desloca ao
