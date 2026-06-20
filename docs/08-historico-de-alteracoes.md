@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-06-20 — D-093 (Fase 7) — Few-shot enriquecido: ícone + status badge (visão completa do KPI card) ✅
+
+Realiza a **visão original do pedido** ("crie um card moderno de KPI com **ícone**, título,
+valor e **status**"). Mudança **somente no few-shot** do resolver — sem novos slots nem
+mudança de API; usa só primitivas `create-shape` já existentes.
+
+- **`llm-intent-resolver.service.ts` (`buildFewShot`):** o exemplo de card passou de 3 → 6
+  passos: container + **ícone** (círculo de acento azul) + título + valor + **status badge**
+  (elipse verde-clara + rótulo "Ativo" verde). O prompt do exemplo virou "…com ícone,
+  título, valor e status".
+
+**Verificação:** build (9 entry points) + lint (3 projetos) + suíte (**2789**) verdes; sem
+mudança de API. **Ao vivo (`/nlu-test`, 3b):** "crie um card de KPI moderno com ícone,
+título, valor e status" → plano com 6 passos, **nós 1→7**, canvas renderiza o KPI card
+completo: círculo (ícone) + "Receita" + "R$ 1,2M" (bold) + pill "Ativo". Decomposição em 6
+nós heterogêneos (rect/circle/text/ellipse) — o 3b segue o few-shot fielmente.
+
+**Nota:** o "ícone" é um círculo de acento (placeholder) — não há sistema de glyphs/ícones
+ainda; um conjunto real de ícones seria trabalho futuro.
+
+---
+
 ## 2026-06-20 — D-093 (Fase 6) — Texto rico: `fontSize` + `fontWeight` (hierarquia no card) ✅
 
 Polimento visual: o card de KPI agora tem **hierarquia tipográfica** (rótulo pequeno +

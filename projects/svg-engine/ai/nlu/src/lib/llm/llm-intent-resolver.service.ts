@@ -285,6 +285,7 @@ function buildFewShot(catalog: readonly LlmIntentCatalogEntry[]): string {
   const id = shape.id;
   const plan = {
     steps: [
+      // container
       {
         intentId: id,
         slots: {
@@ -296,6 +297,18 @@ function buildFewShot(catalog: readonly LlmIntentCatalogEntry[]): string {
           stroke: '#d0d7de',
         },
       },
+      // icon (accent circle)
+      {
+        intentId: id,
+        slots: {
+          shape: 'circle',
+          width: 32,
+          height: 32,
+          position: { x: 295, y: 255 },
+          fill: '#3b82f6',
+        },
+      },
+      // title (small, muted)
       {
         intentId: id,
         slots: {
@@ -303,9 +316,10 @@ function buildFewShot(catalog: readonly LlmIntentCatalogEntry[]): string {
           content: 'Receita',
           fontSize: 14,
           fill: '#6b7280',
-          position: { x: 320, y: 250 },
+          position: { x: 345, y: 252 },
         },
       },
+      // value (large, bold)
       {
         intentId: id,
         slots: {
@@ -314,7 +328,29 @@ function buildFewShot(catalog: readonly LlmIntentCatalogEntry[]): string {
           fontSize: 32,
           fontWeight: 'bold',
           fill: '#111827',
-          position: { x: 320, y: 320 },
+          position: { x: 305, y: 315 },
+        },
+      },
+      // status badge background
+      {
+        intentId: id,
+        slots: {
+          shape: 'ellipse',
+          width: 80,
+          height: 26,
+          position: { x: 495, y: 350 },
+          fill: '#dcfce7',
+        },
+      },
+      // status badge label
+      {
+        intentId: id,
+        slots: {
+          shape: 'text',
+          content: 'Ativo',
+          fontSize: 12,
+          fill: '#16a34a',
+          position: { x: 495, y: 354 },
         },
       },
     ],
@@ -323,7 +359,7 @@ function buildFewShot(catalog: readonly LlmIntentCatalogEntry[]): string {
   return [
     '',
     'EXAMPLE — a request and the ONLY acceptable output shape:',
-    'User: "crie um card de KPI com título e valor"',
+    'User: "crie um card de KPI com ícone, título, valor e status"',
     JSON.stringify(plan),
   ].join('\n');
 }
