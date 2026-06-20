@@ -6,6 +6,54 @@
 
 ---
 
+## 2026-06-20 — D-093 (Fase 1) — Camada LLM: resolver de intents via Ollama ✅
+
+Primeira fatia da "camada de inteligência" pedida pelo usuário (LLM local
+Ollama/`qwen2.5` rodando em `192.168.1.21`). É o **fallback inteligente** do NLU:
+quando o rule-based não resolve, o texto livre vai ao LLM, que devolve um **plano
+de comandos já registrados** (não SVG cru) — cada passo validado e executado pelo
+pipeline seguro existente. **O LLM nunca inventa comando.**
+
+Tudo em `svg-engine/ai/nlu/src/lib/llm/` (mesmo entry point — sem scaffolding novo;
+o `OllamaProvider` é só `fetch`, sem dep pesada que justifique separar, ao contrário
+do Whisper):
+
+- **`llm-provider.ts`** — contrato headless `AiChatProvider` (`chat(messages, opts)`)
+  - token DI opcional `AI_CHAT_PROVIDER` (default `null`). Espelho do
+    `voice-provider.ts`. `AiChatOptions.model` permite **trocar de modelo por
+    requisição** (roteamento por complexidade — requisito do usuário).
+- **`ollama-provider.ts`** — `OllamaChatProvider` (`POST /api/chat`, `format:"json"`)
+  com `baseUrl`/`model` em **signals settáveis em runtime** (`setModel`/`setBaseUrl`)
+  - helper `provideOllamaChat({ baseUrl, model })`. Defaults `http://localhost:11434`
+    / `qwen2.5:3b`.
+- **`llm-intent-resolver.service.ts`** — `LlmIntentResolverService` (root): monta
+  catálogo compacto de `nlu.intents()` → pede plano JSON → valida `intentId` contra
+  o registry (desconhecidos vão pra `dropped`) → `resolvePlan` (preview) e
+  `resolveAndExecute` (despacha via `nlu.executeCandidate`, gate de destrutivos
+  preservado, 1 undo por passo). Parser tolerante (`parsePlan`: tira fences, fatia o
+  `{...}`, aceita array/single/aliases). **Opcional**: sem provider, `isAvailable ===
+false` e o app segue só com o rule-based.
+
+**Decisões de produto registradas:** v1 = resolver de intents (não geração de SVG
+cru — marginal no 3b e lenta nessa GPU); provider/model **trocáveis** conforme a
+complexidade; geração livre de SVG fica para fase posterior.
+
+**Infra validada no D-093 (testes reais contra o servidor):** CORS ok no browser
+(`fetch` de `localhost:4200` → 200, com `OLLAMA_ORIGINS=*`); `qwen2.5:7b` gera SVG
+limpo mas ~2 tok/s (46% GPU, não cabe na VRAM); `qwen2.5:3b` cabe 100% na GPU porém
+~5 tok/s (GPU de entrada) e SVG cru com defeitos → reforça a escolha do plano-de-
+intents.
+
+**Verificação:** build (9 entry points) + lint + suíte (**2778**, +23 specs novos:
+resolver com provider fake + `OllamaChatProvider` com `fetch` mockado — zero rede no
+CI) verdes. Snapshot de API regenerado (17 nomes novos em `svg-engine/ai/nlu`).
+
+**Pendente (próximas fatias):** wire opt-in no playground (`provideOllamaChat` +
+escalonamento rule-based→LLM no `<svge-nlu-input>`), preview do plano antes de
+executar, e roteamento automático 3b/7b por complexidade.
+
+---
+
 ## 2026-06-20 — D-143 — Tamanho configurável dos handles da seleção ✅
 
 Resposta ao pedido do usuário (após o D-141-fix): permitir que o usuário ajuste o

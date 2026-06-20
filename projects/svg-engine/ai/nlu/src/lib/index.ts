@@ -33,3 +33,5 @@ export * from './dictionaries';
 // permanecem (anunciados no docstring como extensíveis por consumidores).
 export * from './dictionary-registry.service';
 export * from './voice-provider';
+// D-093 — LLM intent-resolver layer (Ollama provider + contract + resolver).
+export * from './llm';
