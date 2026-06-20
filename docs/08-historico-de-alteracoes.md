@@ -6,6 +6,35 @@
 
 ---
 
+## 2026-06-20 — D-093 (Fase 8) — Sistema de ícones/glyphs vetoriais (self-contained) ✅
+
+Substitui o "ícone" placeholder (círculo de acento da Fase 7) por **glyphs vetoriais
+reais**. Decisão de arquitetura: **paths self-contained** (não fonte de ícones via
+ligadura) — renderiza igual no editor E no SVG exportado, sem dependência externa, alinhado
+à filosofia "self-contained" das libraries.
+
+- **`icons.ts` (`svg-engine/ai/nlu`, novo):** registro de **drawers paramétricos** —
+  cada ícone desenhado numa grade de 24u centrada na origem e escalado p/ a caixa pedida
+  (coords verificáveis, **zero path-data opaco/hallucinado**). 12 ícones curados
+  (KPI/dashboard): `trending-up/down`, `bar-chart`, `check`, `close`, `plus`, `minus`,
+  `arrow-up/down/right`, `circle`, `user`. `resolveIconName` com aliases PT/EN/semânticos
+  (deaccent + lowercase): "gráfico"→bar-chart, "tendência"→trending-up, "usuário"→user, etc.
+- **`builtin-nlu.plugin.ts`:** `create-shape` com `shape:'icon'` + slot `icon` (nome,
+  anchor-only). Handler resolve o nome → `createPath(d)` traçado; a cor (slot `fill`) vira
+  o **stroke** (line icon), `fill:none`; nome desconhecido → fallback `circle`.
+- **Few-shot:** o passo do ícone virou `shape:'icon', icon:'trending-up'`.
+
+**Verificação:** build (9 entry points) + lint (3 projetos) + suíte (**2797**, +8: 6 de
+`icons` + 2 do plugin) verdes; sem mudança de API pública (módulo interno ao plugin).
+**Ao vivo (`/nlu-test`, 3b):** "crie um card de KPI… com ícone, título, valor e status" →
+nós 1→7, tipos = rect×2 + **path×1 (ícone)** + ellipse×1 + text×3; o ícone renderiza como
+**linha de tendência azul** (não mais círculo). `d` = `M284.5 257.83 L291.5 250.83 …`.
+
+**Nota:** conjunto de 12 ícones traçados (linha). Ampliar = +1 drawer + aliases. Ícones
+"filled"/glifos complexos (sino, engrenagem) ficariam para um set maior futuro.
+
+---
+
 ## 2026-06-20 — D-093 (Fase 7) — Few-shot enriquecido: ícone + status badge (visão completa do KPI card) ✅
 
 Realiza a **visão original do pedido** ("crie um card moderno de KPI com **ícone**, título,

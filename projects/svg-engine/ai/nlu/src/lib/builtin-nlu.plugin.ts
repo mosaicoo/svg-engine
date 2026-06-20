@@ -4,6 +4,7 @@ import {
   CommandBus,
   createEllipse,
   createLine,
+  createPath,
   createPolygon,
   createPolyline,
   createRect,
@@ -32,6 +33,7 @@ import {
   regularPolygonPoints,
   regularStarPoints,
 } from './dictionaries/shapes-canonical';
+import { drawIcon } from './icons';
 import { adjustHexLightness, HEX_COLOR_RE } from './parsers/color-functions';
 import { registerProfessionalIntents } from './intents/professional-intents';
 import { discoverMenuIntentsReactive } from './menu-intent-discovery';
@@ -448,6 +450,15 @@ export const builtinNluPlugin: EditorPlugin = {
             optional: true,
             fuzzy: false,
           },
+          // **`icon`** (D-093 Fase 8) — nome do glyph vetorial quando
+          // `shape:'icon'` (PT/EN; vide {@link drawIcon}). Anchor-only
+          // ('icone'/'icon'/'glifo') p/ não roubar tokens posicionais; o LLM
+          // passa direto no slot. Nome desconhecido → fallback p/ círculo.
+          icon: {
+            kind: 'string',
+            optional: true,
+            anchorKeywords: ['icone', 'icon', 'glifo', 'glyph'],
+          },
         },
         description:
           'Criar forma (retângulo, círculo, elipse, texto, etc.) — suporta fill/stroke/espessura/posição; para texto: content (texto literal), fontSize e fontWeight (bold)',
@@ -487,6 +498,9 @@ export const builtinNluPlugin: EditorPlugin = {
               : undefined;
           // fontWeight é enum ('bold'/'negrito'); presença ⇒ bold.
           const isBold = slots['fontWeight'] !== undefined;
+          // **D-093 Fase 8** — nome do ícone (quando shape:'icon').
+          const iconName =
+            typeof slots['icon'] === 'string' ? (slots['icon'] as string) : undefined;
 
           // Compose style omitting undefined keys — manter `style:
           // undefined` quando nenhum apresentável (factory aplica
@@ -603,6 +617,21 @@ export const builtinNluPlugin: EditorPlugin = {
                   { x: cx + w / 2, y: cy + h / 4 },
                 ];
                 const node = createPolyline(points, style ? { style } : {});
+                bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
+                break;
+              }
+              // **D-093 Fase 8** — ícone vetorial: path traçado a partir do
+              // registro {@link drawIcon}, escalado p/ a caixa min(w,h). A cor
+              // (slot fill) vira o STROKE (ícones são line icons); nome
+              // desconhecido cai no 'circle'. Self-contained (sem fonte externa).
+              case 'icon': {
+                const sz = Math.min(w, h);
+                const d = drawIcon(iconName, cx, cy, sz) ?? drawIcon('circle', cx, cy, sz) ?? '';
+                if (d.length === 0) break;
+                const iconColor = fill ?? '#334155';
+                const node = createPath(d, {
+                  style: { fill: 'none', stroke: iconColor, strokeWidth: Math.max(1.5, sz / 12) },
+                });
                 bus.dispatch(new InsertNodeCommand(AUTO_PARENT, node));
                 break;
               }

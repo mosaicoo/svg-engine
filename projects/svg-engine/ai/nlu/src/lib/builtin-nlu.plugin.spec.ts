@@ -165,6 +165,37 @@ describe('builtinNluPlugin', () => {
     }
   });
 
+  it('create-shape icon cria um path vetorial (cor do slot fill vira stroke)', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const intent = nlu.getIntent('svge.builtin.nlu.create-shape');
+
+    await intent!.execute(
+      { shape: 'icon', icon: 'trending-up', width: 28, height: 28, fill: '#3b82f6' },
+      { injector },
+    );
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('path');
+    if (added.type === 'path') {
+      expect(added.d.length).toBeGreaterThan(0);
+      expect(added.d.startsWith('M')).toBe(true);
+      expect(added.style?.stroke).toBe('#3b82f6');
+      expect(added.style?.fill).toBe('none');
+    }
+  });
+
+  it('create-shape icon com nome desconhecido cai no fallback (ainda cria path)', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const intent = nlu.getIntent('svge.builtin.nlu.create-shape');
+
+    const before = state.document().root.children.length;
+    await intent!.execute({ shape: 'icon', icon: 'xpto-desconhecido' }, { injector });
+    const after = state.document().root.children.length;
+    expect(after).toBe(before + 1);
+    expect(state.document().root.children.at(-1)!.type).toBe('path');
+  });
+
   it('survives fuzzy typos: "criar retangulo" → create-shape', async () => {
     const { plugins, nlu, injector, state } = setup();
     plugins.install(builtinNluPlugin);

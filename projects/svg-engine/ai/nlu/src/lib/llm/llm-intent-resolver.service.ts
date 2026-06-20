@@ -297,14 +297,15 @@ function buildFewShot(catalog: readonly LlmIntentCatalogEntry[]): string {
           stroke: '#d0d7de',
         },
       },
-      // icon (accent circle)
+      // icon (vector glyph — shape:'icon' + icon name; color → stroke)
       {
         intentId: id,
         slots: {
-          shape: 'circle',
-          width: 32,
-          height: 32,
-          position: { x: 295, y: 255 },
+          shape: 'icon',
+          icon: 'trending-up',
+          width: 28,
+          height: 28,
+          position: { x: 295, y: 252 },
           fill: '#3b82f6',
         },
       },
