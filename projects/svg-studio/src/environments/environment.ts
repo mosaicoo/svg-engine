@@ -22,4 +22,14 @@ export const environment = {
    * library via `provideSvgeHelpLinks({ homepage })` in `app.config.ts`.
    */
   homepageUrl: 'https://github.com/mosaicoo/svg-engine',
+
+  /**
+   * **D-093** — Optional local LLM (Ollama) that backs the AI Command Palette
+   * (the `<svge-nlu-input>` fallback: composições como "card de KPI",
+   * escalonamento e o botão "Pedir à IA"). `null` ⇒ a camada LLM fica
+   * desligada e o NLU opera **só rule-based** (sem rede). Produção é `null`
+   * porque não há servidor Ollama publicado — é uma feature de dev/local.
+   * Fed to `provideOllamaChat()` em `app.config.ts` quando não-nulo.
+   */
+  aiChat: null as { readonly baseUrl: string; readonly model: string } | null,
 };

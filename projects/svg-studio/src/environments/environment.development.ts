@@ -13,4 +13,13 @@ export const environment = {
   pluginsOrigin: 'https://svgstudio.mosaicoo.tech',
 
   homepageUrl: 'https://github.com/mosaicoo/svg-engine',
+
+  // **D-093** — LLM local (Ollama) p/ a camada de IA do Command Palette.
+  // Aponta p/ o servidor de dev do usuário (mesmo do playground). Trocar
+  // baseUrl/model aqui conforme o hardware (3b cabe na GPU; 7b é mais lento).
+  // `null` desliga o LLM (NLU vira só rule-based) — vide environment.ts (prod).
+  aiChat: { baseUrl: 'http://192.168.1.21:11434', model: 'qwen2.5:3b' } as {
+    readonly baseUrl: string;
+    readonly model: string;
+  } | null,
 };

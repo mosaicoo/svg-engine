@@ -8,7 +8,7 @@ import {
   provideSvgeHelpLinks,
 } from 'svg-engine/edit';
 import { provideSvgeUiBuiltins } from 'svg-engine/ui';
-import { builtinNluPlugin } from 'svg-engine/ai/nlu';
+import { builtinNluPlugin, provideOllamaChat } from 'svg-engine/ai/nlu';
 
 import { environment } from '../environments/environment';
 import { commandPalettePlugin } from './command-palette/command-palette.plugin';
@@ -59,6 +59,14 @@ export const appConfig: ApplicationConfig = {
 
     // ── AI (tier separado) — NLU. APÓS os builtins (auto-discovery). ─
     provideSvgEnginePlugin(builtinNluPlugin),
+    // ── D-093 — Provider LLM (Ollama) que ATIVA a camada de IA do
+    // Command Palette: o <svge-nlu-input> ganha o fallback inteligente
+    // (composições "card de KPI…", escalonamento de pedidos vagos e o
+    // botão "Pedir à IA"). Opt-in por ambiente: registrado só quando
+    // `environment.aiChat` existe (dev). Em prod (`null`) o NLU segue
+    // 100% rule-based, sem rede. É um provider DI normal (não plugin),
+    // então a ordem não importa para a resolução.
+    ...(environment.aiChat ? provideOllamaChat(environment.aiChat) : []),
     // Command Palette (Ctrl+K + botão "Assistente") que hospeda o
     // <svge-nlu-input> num MatDialog escopado ao editor. App-level (não
     // no shell) p/ preservar o desacoplamento ui↛ai.

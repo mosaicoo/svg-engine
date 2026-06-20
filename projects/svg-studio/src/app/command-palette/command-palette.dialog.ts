@@ -58,6 +58,9 @@ import { SvgeDialogShell } from 'svg-engine/ui';
             <code>selecionar tudo</code> · <code>desfazer</code> · <code>deletar</code> ·
             <code>aproximar</code>
           </li>
+          <li class="cp-ai">
+            ✨ com IA: <code>crie um card de KPI moderno com ícone, título, valor e status</code>
+          </li>
         </ul>
       </details>
 
@@ -92,6 +95,10 @@ import { SvgeDialogShell } from 'svg-engine/ui';
       padding: 1px 5px;
       border-radius: 3px;
       font-size: 11px;
+    }
+    .cp-ai {
+      margin-top: 2px;
+      color: var(--mat-sys-primary, #6750a4);
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,

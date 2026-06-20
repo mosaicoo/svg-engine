@@ -6,6 +6,30 @@
 
 ---
 
+## 2026-06-20 — D-093 (Fase 9) — SVG Studio ativa a camada de IA (LLM no Command Palette) ✅
+
+O **SVG Studio** já hospedava o `<svge-nlu-input>` no Command Palette (Ctrl+K /
+"Assistente") + o `builtinNluPlugin`, mas faltava o **provider LLM** — então só o
+rule-based funcionava (sem as atividades de IA das Fases 1-8: composição "card de KPI…",
+escalonamento, "Pedir à IA"). Esta fatia liga o `AI_CHAT_PROVIDER`.
+
+- **`environment.ts` / `environment.development.ts` (padrão D-096):** novo campo
+  `aiChat: { baseUrl, model } | null`. **Dev** = Ollama local (`192.168.1.21`,
+  `qwen2.5:3b`, igual ao playground); **prod** = `null` (não há servidor publicado → NLU
+  segue 100% rule-based, sem rede). Host/URL fica no environment, nunca no código.
+- **`app.config.ts`:** `...(environment.aiChat ? provideOllamaChat(environment.aiChat) : [])`
+  no tier AI (provider DI, opt-in por ambiente). Com isso o `<svge-nlu-input>` do palette
+  ganha `llm.isAvailable=true` e ativa fallback/escalação/"Pedir à IA" automaticamente.
+- **`command-palette.dialog.ts`:** novo exemplo "✨ com IA: crie um card de KPI moderno
+  com ícone, título, valor e status" — descoberta da nova capacidade.
+
+**Verificação:** lint (3 projetos) + `ng build svg-studio` (dev config, `aiChat` setado)
+verdes. **Sem teste no browser do Studio** (o preview MCP só serve o playground); o
+mecanismo é idêntico ao do playground (mesmo `provideOllamaChat` + mesmo `<svge-nlu-input>`),
+já provado ao vivo nas Fases 1-8. Em prod o provider não é registrado (degrada p/ rule-based).
+
+---
+
 ## 2026-06-20 — D-093 (Fase 8) — Sistema de ícones/glyphs vetoriais (self-contained) ✅
 
 Substitui o "ícone" placeholder (círculo de acento da Fase 7) por **glyphs vetoriais
