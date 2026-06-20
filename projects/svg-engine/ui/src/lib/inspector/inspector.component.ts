@@ -66,6 +66,7 @@ import {
   ClipPathLibraryService,
   type DistributeAxis,
   getRenderedNodeBBox,
+  getRenderedNodeOBB,
   getRenderedParentMatrix,
   KeyObjectService,
   LayersService,
@@ -3326,6 +3327,17 @@ export class SvgeInspector {
    */
   private resolveCommandPivot(nodeId: NodeId): Point {
     const svg = document.querySelector<SVGSVGElement>('svge-renderer svg');
+    // **D-142** — resolve in the node's ORIENTED frame (local bbox + matrix)
+    // so a custom pivot stays glued to a rotated object and the inspector
+    // rotates/scales about the same point as the canvas crosshair. Falls
+    // back to the axis-aligned resolution when the OBB isn't available
+    // (not rendered yet); for a non-rotated node the two coincide.
+    if (svg !== null) {
+      const obb = getRenderedNodeOBB(svg, nodeId);
+      if (obb !== null) {
+        return this.transformService.resolvePivotForNode(nodeId, obb.localBBox, obb.matrix);
+      }
+    }
     const bbox = svg !== null ? getRenderedNodeBBox(svg, nodeId) : null;
     const fallbackBBox = bbox ?? { x: 0, y: 0, width: 0, height: 0 };
     return this.transformService.resolvePivot(fallbackBBox);

@@ -687,15 +687,14 @@ export class SelectionOverlay {
     if (b === null) return;
     const start = this.screenToDoc(event.clientX, event.clientY);
     if (start === null) return;
-    // Pivot = combined-bbox centre (resolvePivot honours a custom multi
-    // pivot when one was set; defaults to bbox centre otherwise).
-    const pivot = this.transform.resolvePivot(b);
+    const svg = this.elRef.nativeElement.ownerSVGElement;
 
-    // **Multi-selection → GROUP rotation** about the shared pivot. Capture
-    // each node's ancestor matrix so the shared doc-space pivot projects
-    // into each node's own parent frame.
+    // **Multi-selection → GROUP rotation** about the shared pivot (centre of
+    // the combined AABB, or a custom multi pivot). Capture each node's
+    // ancestor matrix so the shared doc-space pivot projects into each
+    // node's own parent frame.
     if (this.selection.count() > 1) {
-      const svg = this.elRef.nativeElement.ownerSVGElement;
+      const pivot = this.transform.resolvePivot(b);
       const entries = Array.from(this.selection.selectedIds()).map((id) => ({
         id,
         parentMatrix: svg === null ? null : getRenderedParentMatrix(svg, id),
@@ -708,6 +707,16 @@ export class SelectionOverlay {
 
     const focus = this.selection.focusId();
     if (focus === null) return;
+    // **D-142** — resolve the pivot in the node's ORIENTED frame so the
+    // gesture rotates about the exact point the crosshair shows (and the
+    // custom pivot stays glued to a rotated object). Falls back to the AABB
+    // resolution when the OBB isn't available (e.g. not rendered yet); for a
+    // non-rotated node the two are identical.
+    const obb = svg === null ? null : getRenderedNodeOBB(svg, focus);
+    const pivot =
+      obb !== null
+        ? this.transform.resolvePivotForNode(focus, obb.localBBox, obb.matrix)
+        : this.transform.resolvePivot(b);
     this.transform.startRotate(focus, pivot, start);
     capturePointer(event);
     event.stopPropagation();
@@ -822,13 +831,13 @@ export class SelectionOverlay {
     event.stopPropagation();
     const bbox = this._focusBBox();
     if (bbox === null) return;
-    const pivot = this.transform.resolvePivot(bbox);
     const angleRad = (deltaDeg * Math.PI) / 180;
+    const svg = this.elRef.nativeElement.ownerSVGElement;
 
     // **Multi-selection → keyboard GROUP rotation** (one RotateNodesCommand
     // = one undo entry), mirroring the pointer path.
     if (this.selection.count() > 1) {
-      const svg = this.elRef.nativeElement.ownerSVGElement;
+      const pivot = this.transform.resolvePivot(bbox);
       const entries = Array.from(this.selection.selectedIds()).map((id) => ({
         id,
         parentMatrix: svg === null ? null : getRenderedParentMatrix(svg, id),
@@ -839,6 +848,13 @@ export class SelectionOverlay {
 
     const focus = this.selection.focusId();
     if (focus === null) return;
+    // **D-142** — oriented-frame pivot so keyboard rotation matches the
+    // crosshair + the pointer path on a rotated object.
+    const obb = svg === null ? null : getRenderedNodeOBB(svg, focus);
+    const pivot =
+      obb !== null
+        ? this.transform.resolvePivotForNode(focus, obb.localBBox, obb.matrix)
+        : this.transform.resolvePivot(bbox);
     this.bus.dispatch(new RotateNodeCommand(focus, angleRad, pivot));
   }
 

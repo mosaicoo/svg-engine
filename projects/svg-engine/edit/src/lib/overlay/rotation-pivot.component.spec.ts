@@ -6,6 +6,7 @@ import {
   createGroup,
   createRect,
   EditorStateService,
+  IDENTITY_TRANSFORM,
 } from 'svg-engine/core';
 import { SelectionService } from '../selection/selection.service';
 import { TransformService } from '../transform/transform.service';
@@ -92,19 +93,20 @@ function dispatchPointerDown(target: Element): PointerEvent {
 }
 
 /**
- * Force the directive's private `_bbox` signal via the documented
- * `recomputeBBox` private method. With a single selected node and a
- * mock `getRenderedNodeBBox`-style override, this would be cleaner;
- * here we reach in directly because the test is for the listener,
- * not bbox computation.
+ * Force the directive's private oriented-box signal (`_obb`) so the
+ * single-selection `frame()` computed resolves non-null without a real
+ * `getRenderedNodeOBB` measurement (jsdom has no SVG layout). The tests
+ * here exercise the **window capture listener**, not OBB computation, so
+ * we inject an identity-matrix box matching the focused node's geometry.
+ * (D-142: single selection drives the chrome off `_obb`, not `_bbox`.)
  */
 function forceBBox(
   pivot: RotationPivot,
   box: { x: number; y: number; width: number; height: number },
 ): void {
   // Access private via cast — test-only escape hatch.
-  const setter = (pivot as unknown as { _bbox: { set(v: unknown): void } })._bbox;
-  setter.set(box);
+  const setter = (pivot as unknown as { _obb: { set(v: unknown): void } })._obb;
+  setter.set({ localBBox: box, matrix: IDENTITY_TRANSFORM });
 }
 
 describe('RotationPivot — popover-dot click delegation (D-022)', () => {

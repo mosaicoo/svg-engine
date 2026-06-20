@@ -200,10 +200,19 @@ export type DragState =
  * Editor-side transformation state. **Bloco 3** adds interactive gesture
  * management (drag/resize/rotate) on top of the Bloco-2 pivot skeleton.
  *
- * **Pivot model (D-022 Affinity-grade)**:
+ * **Pivot model (D-022 Affinity-grade; D-142 OBB-aware)**:
  * - Default pivot for any selection = center of its bounding box.
- * - Per-node custom pivots in `customPivots` (keyed by `NodeId`),
- *   stored in **node-local** coords so the pivot follows the node.
+ * - Per-node custom pivots in `customPivots` (keyed by `NodeId`), stored as
+ *   a **fraction (0..1) of the node's box**.
+ * - **Single node** resolves through {@link resolvePivotForNode} /
+ *   {@link setPivotDocForNode}: the fraction is interpreted in the node's
+ *   LOCAL geometry frame and mapped through its full matrix (own ×
+ *   ancestors), so the pivot stays glued to the object and rotates/scales
+ *   WITH it. {@link resolvePivot}/{@link setPivot} interpret the same
+ *   fraction against an axis-aligned bbox — correct for multi-selection and
+ *   non-rotated nodes, but they drift on a rotated node (the AABB is not
+ *   stable under rotation), which is why single-node callers use the
+ *   OBB-aware pair.
  * - Multi-selection pivot is transient and resets on composition change.
  *
  * **Gesture model (Bloco 3)**:
@@ -307,6 +316,80 @@ export class TransformService {
     const local = docToLocal(point, bbox);
     const next = new Map(this._customPivots());
     next.set(nodeId, local);
+    this._customPivots.set(next);
+  }
+
+  // ── OBB-aware single-node pivot (D-142) ──────────────────────────
+
+  /**
+   * **D-142 — OBB-aware pivot resolution for a single node.** Maps the
+   * stored pivot (a fraction of the node's box) through the node's full
+   * `matrix` (own transform × ancestors) **after** placing it in the
+   * node's LOCAL geometry frame (`localBBox`). The result is the pivot in
+   * document coordinates, **glued to the object** — it rotates/scales WITH
+   * the node.
+   *
+   * Contrast with {@link resolvePivot}, which interprets the same fraction
+   * against an **axis-aligned** bbox: that drifts the moment the node is
+   * rotated, because the AABB is not stable under rotation (its corners
+   * move and resize as the object turns). This method is the fix for the
+   * "rotation pivot doesn't stay where I put it" bug.
+   *
+   * `localBBox` + `matrix` come from `getRenderedNodeOBB`. With no custom
+   * pivot the default is the local-bbox centre — which maps to the object's
+   * visual centre under any transform (and equals the AABB centre, since
+   * rotation preserves the centre). Used by the rotation-pivot crosshair,
+   * the canvas rotation/scale gestures, and the Inspector.
+   */
+  resolvePivotForNode(
+    nodeId: NodeId,
+    localBBox: { x: number; y: number; width: number; height: number },
+    matrix: Transform,
+  ): Point {
+    const frac = this._customPivots().get(nodeId) ?? { x: 0.5, y: 0.5 };
+    const localPoint = localToDoc(frac, localBBox); // fraction → local-frame point
+    return applyTransform(matrix, localPoint.x, localPoint.y);
+  }
+
+  /**
+   * **D-142** — OBB-aware free placement (inverse of
+   * {@link resolvePivotForNode}). Projects a DOCUMENT-space `point` into the
+   * node's local frame via `invert(matrix)`, converts it to a fraction of
+   * `localBBox`, and stores it for `nodeId`. Because the fraction lives in
+   * the object's own frame, the pivot then follows the node through later
+   * rotations/scales. No-op if `matrix` is non-invertible (degenerate).
+   */
+  setPivotDocForNode(
+    nodeId: NodeId,
+    point: Point,
+    localBBox: { x: number; y: number; width: number; height: number },
+    matrix: Transform,
+  ): void {
+    let inv: Transform;
+    try {
+      inv = invert(matrix);
+    } catch {
+      return;
+    }
+    const localPoint = applyTransform(inv, point.x, point.y);
+    const frac = docToLocal(localPoint, localBBox);
+    const next = new Map(this._customPivots());
+    next.set(nodeId, frac);
+    this._customPivots.set(next);
+  }
+
+  /** **D-142** — restore a previously-captured fraction for `nodeId` (Esc-cancel). */
+  setPivotFractionForNode(nodeId: NodeId, fraction: Point): void {
+    const next = new Map(this._customPivots());
+    next.set(nodeId, fraction);
+    this._customPivots.set(next);
+  }
+
+  /** **D-142** — remove the custom pivot of a specific node (Esc-cancel to default). */
+  clearPivotForNode(nodeId: NodeId): void {
+    if (!this._customPivots().has(nodeId)) return;
+    const next = new Map(this._customPivots());
+    next.delete(nodeId);
     this._customPivots.set(next);
   }
 

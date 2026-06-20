@@ -8,16 +8,20 @@ import {
   type OnDestroy,
   signal,
 } from '@angular/core';
-import { type BoundingBox, EditorStateService, findNodeById, type Point } from 'svg-engine/core';
+import {
+  applyTransform,
+  type BoundingBox,
+  EditorStateService,
+  findNodeById,
+  IDENTITY_TRANSFORM,
+  type NodeId,
+  type Point,
+  type Transform,
+} from 'svg-engine/core';
 import { screenToDoc, ViewportService } from 'svg-engine/render';
 import { capturePointer, releasePointer } from '../pointer';
-import {
-  allAnchors,
-  BBOX_ANCHORS,
-  findNearestAnchor,
-  type BBoxAnchor,
-} from '../geometry/bbox-anchors';
-import { getCombinedBBox, getRenderedNodeBBox } from '../geometry/node-bbox';
+import { allAnchors, BBOX_ANCHORS, type BBoxAnchor } from '../geometry/bbox-anchors';
+import { getCombinedBBox, getRenderedNodeOBB, type RenderedOBB } from '../geometry/node-bbox';
 import { LayersService } from '../layers/layers.service';
 import { SelectionService } from '../selection/selection.service';
 import { TransformService } from '../transform/transform.service';
@@ -33,36 +37,67 @@ const POPOVER_DOT_PX = 10;
 /** Drag threshold in CSS pixels — below this, a release is treated as a click (open popover). */
 const CLICK_VS_DRAG_THRESHOLD_PX = 3;
 
+/**
+ * **D-142** — the geometric frame the pivot lives in for the current
+ * selection:
+ *
+ * - **Single node** (`single: true`): `localBBox` is the node's own
+ *   pre-transform geometry bbox and `matrix` maps that local frame →
+ *   document space (own transform × ancestors, from `getRenderedNodeOBB`).
+ *   The pivot fraction is interpreted in this frame, so it stays glued to
+ *   the object and rotates/scales WITH it.
+ * - **Multi-selection** (`single: false`): `localBBox` is the combined
+ *   AABB and `matrix` is the identity — the multi pivot has no single
+ *   orientation, so it behaves exactly like the legacy axis-aligned path.
+ */
+interface PivotFrame {
+  readonly localBBox: BoundingBox;
+  readonly matrix: Transform;
+  readonly single: boolean;
+}
+
 interface DragState {
   readonly pointerId: number;
   readonly startScreenX: number;
   readonly startScreenY: number;
-  readonly bboxAtStart: BoundingBox;
-  /** Pivot snapshot (in node-local coords) before the drag started, for Esc-cancel. */
-  readonly pivotBefore: Point;
+  /** Frame snapshot at drag start (stable: moving the pivot doesn't transform the node). */
+  readonly frame: PivotFrame;
+  /** Focused node id (single selection) — the store target. `null` for multi. */
+  readonly nodeId: NodeId | null;
+  /** Doc-space pivot before the drag started, for Esc-cancel. */
+  readonly pivotBeforeDoc: Point;
+  /** Whether a custom pivot existed before the drag (so cancel restores vs clears). */
+  readonly hadCustomBefore: boolean;
   moved: boolean;
 }
 
 /**
- * Editable rotation pivot crosshair (D-022 Affinity-grade).
+ * Editable rotation pivot crosshair (D-022 Affinity-grade; **D-142**
+ * OBB-aware).
  *
- * Renders a small crosshair at the current pivot of the focused selection.
- * Behaviour:
+ * Renders a small crosshair at the current pivot of the focused selection —
+ * the point **around which rotation (and the Inspector's scale anchor) is
+ * applied**. Behaviour:
  *
  * - **Free-drag**: pointer-down on the crosshair starts a drag; the pivot
  *   follows the pointer. While dragging, the pivot **snaps** to the
- *   nearest of the 9 bbox anchors when within ~5 CSS pixels. Holding
+ *   nearest of the 9 box anchors when within ~5 CSS pixels. Holding
  *   **Alt** during drag bypasses snap for fine positioning.
  * - **Click (no drag)**: a release without movement opens a 3×3 picker
- *   popover (anchored on the bbox) — clicking one of the 9 dots snaps
+ *   popover (anchored on the box) — clicking one of the 9 dots snaps
  *   the pivot to that anchor and closes the popover.
  * - **Esc** during drag restores the pivot to its pre-drag position;
  *   while a popover is open, Esc closes the popover.
  * - **Double-click** on the crosshair resets the pivot to the center
  *   (removing the per-node entry from `TransformService`).
  *
- * The component is a no-op when nothing is selected. Pivot persistence
- * (per-node, in node-local coords) is delegated to {@link TransformService}.
+ * **D-142 — OBB-aware**: for a single node the box + its 9 anchors are
+ * the node's **oriented** box (local geometry bbox projected through the
+ * node's matrix), so the crosshair, the snap targets, and the picker dots
+ * stay glued to the (possibly rotated/scaled) object — the pivot you set
+ * remains exactly where you put it after the object rotates. Multi-selection
+ * keeps the axis-aligned combined box. Pivot persistence (per-node, as a
+ * fraction of the node's LOCAL box) is delegated to {@link TransformService}.
  *
  * Usage (inside a `<svge-renderer>`):
  * ```html
@@ -78,7 +113,8 @@ interface DragState {
   template: `
     @if (pivotPos(); as p) {
       <svg:g class="pivot-group">
-        <!-- Crosshair arms -->
+        <!-- Crosshair arms (axis-aligned: a target symbol, not the box).
+             Its POSITION is what tracks the oriented object (D-142). -->
         <svg:line
           class="arm"
           [attr.x1]="p.x - armLen()"
@@ -116,12 +152,12 @@ interface DragState {
         ></svg:circle>
       </svg:g>
 
-      @if (popoverOpen() && currentBBox(); as b) {
+      @if (popoverOpen() && frame(); as f) {
         <svg:g class="popover" role="menu" aria-label="Pivot anchor picker">
-          @for (a of popoverAnchors(b); track a.anchor) {
+          @for (a of popoverAnchors(f); track a.anchor) {
             <svg:circle
               class="popover-dot"
-              [class.active]="isCurrentAnchor(a.anchor, b)"
+              [class.active]="isCurrentAnchor(a.anchor)"
               [attr.cx]="a.x"
               [attr.cy]="a.y"
               [attr.r]="popoverDotRadius()"
@@ -129,7 +165,7 @@ interface DragState {
               role="menuitemradio"
               tabindex="0"
               focusable="true"
-              [attr.aria-checked]="isCurrentAnchor(a.anchor, b) ? 'true' : 'false'"
+              [attr.aria-checked]="isCurrentAnchor(a.anchor) ? 'true' : 'false'"
               [attr.aria-label]="'Snap pivot to ' + a.anchor"
               (keydown)="onPopoverDotKeyDown($event, a.anchor)"
             ></svg:circle>
@@ -194,32 +230,50 @@ export class RotationPivot implements OnDestroy {
   private readonly transform = inject(TransformService);
   private readonly layers = inject(LayersService);
 
+  /** **D-142** — oriented box for a single node (local bbox + matrix). */
+  private readonly _obb = signal<RenderedOBB | null>(null);
+  /** Combined AABB for a multi-selection (no orientation). */
   private readonly _bbox = signal<BoundingBox | null>(null);
   private readonly _popoverOpen = signal(false);
   private readonly _drag = signal<DragState | null>(null);
 
-  protected readonly currentBBox = this._bbox.asReadonly();
   protected readonly popoverOpen = this._popoverOpen.asReadonly();
 
   /**
-   * `null` shapes the template into rendering NOTHING — covering both
-   * "no selection" and "selection is hidden" (Layer Panel eye-toggle
-   * OR `metadata.visible === false` for Live Boolean inputs). Same
-   * gating rationale as `SelectionOverlay.focusBBox`: chrome
-   * (crosshair + popover) on an invisible target floats in empty
-   * space and confuses the user. Selection state survives; un-hide
-   * restores the pivot instantly.
+   * **D-142** — the active pivot frame, or `null` when the chrome should
+   * render NOTHING. `null` covers "no selection" and "selection hidden"
+   * (Layer Panel eye-toggle OR `metadata.visible === false`) — chrome on an
+   * invisible target floats in empty space and confuses the user; the
+   * selection state survives, un-hide restores it. Single selection → the
+   * node's oriented box; multi → the combined AABB with identity matrix.
    */
-  protected readonly pivotPos = computed<Point | null>(() => {
-    const b = this._bbox();
-    if (b === null) return null;
+  protected readonly frame = computed<PivotFrame | null>(() => {
     const id = this.selection.focusId();
     if (id !== null) {
       if (this.layers.hiddenIds().has(id)) return null;
       const node = findNodeById(this.state.document().root, id);
       if (node !== null && node.metadata.visible === false) return null;
     }
-    return this.transform.resolvePivot(b);
+    if (this.selection.isSingleSelection() && id !== null) {
+      const o = this._obb();
+      if (o === null) return null;
+      return { localBBox: o.localBBox, matrix: o.matrix, single: true };
+    }
+    const b = this._bbox();
+    if (b === null) return null;
+    return { localBBox: b, matrix: IDENTITY_TRANSFORM, single: false };
+  });
+
+  /** Pivot position in DOCUMENT coords (glued to the oriented object for single). */
+  protected readonly pivotPos = computed<Point | null>(() => {
+    const f = this.frame();
+    if (f === null) return null;
+    if (f.single) {
+      const id = this.selection.focusId();
+      if (id === null) return null;
+      return this.transform.resolvePivotForNode(id, f.localBBox, f.matrix);
+    }
+    return this.transform.resolvePivot(f.localBBox);
   });
 
   protected readonly hasCustomPivot = computed(() => {
@@ -253,7 +307,7 @@ export class RotationPivot implements OnDestroy {
    * `window` in **capture** phase we run *first* — before the canvas
    * handler ever sees the event. We then `stopImmediatePropagation()`
    * so the canvas never runs `selection.clear()` (which would kill the
-   * `_bbox` and unmount the entire pivot+popover overlay, masking the
+   * frame and unmount the entire pivot+popover overlay, masking the
    * pivot move with a "everything disappeared" symptom).
    *
    * Why imperative (not Angular `(pointerdown)` on the circle): prior
@@ -277,14 +331,14 @@ export class RotationPivot implements OnDestroy {
     //    in a different renderer on the same page).
     const host = this.elRef.nativeElement;
     if (!host.contains(target)) return;
-    // 3) Anchor must be valid and we must have a bbox + focused node.
+    // 3) Anchor must be valid and we must have a frame + focused node.
     const anchorAttr = target.getAttribute('data-svge-anchor');
-    const bbox = this._bbox();
+    const f = this.frame();
     const focus = this.selection.focusId();
     if (
       anchorAttr === null ||
       !BBOX_ANCHORS.includes(anchorAttr as BBoxAnchor) ||
-      bbox === null ||
+      f === null ||
       focus === null
     ) {
       // Even if we can't process it, we still need to suppress canvas
@@ -296,7 +350,10 @@ export class RotationPivot implements OnDestroy {
     }
     event.stopImmediatePropagation();
     event.preventDefault();
-    this.transform.setPivotAnchorForNode(focus, anchorAttr as BBoxAnchor, bbox);
+    // Anchor fractions are frame-independent (tl=0,0 … br=1,1), so passing
+    // the local box stores exactly the same canonical fraction; it then
+    // resolves through the node's matrix and lands on the oriented anchor.
+    this.transform.setPivotAnchorForNode(focus, anchorAttr as BBoxAnchor, f.localBBox);
     this._popoverOpen.set(false);
   };
 
@@ -314,20 +371,22 @@ export class RotationPivot implements OnDestroy {
   }
 
   protected onPointerDown(event: PointerEvent): void {
-    const b = this._bbox();
+    const f = this.frame();
     const pivot = this.pivotPos();
-    if (b === null || pivot === null) return;
+    if (f === null || pivot === null) return;
 
-    const pivotLocal = docToLocal(pivot, b);
-    const drag: DragState = {
+    const nodeId = f.single ? this.selection.focusId() : null;
+    const hadCustomBefore = nodeId !== null && this.transform.customPivots().has(nodeId);
+    this._drag.set({
       pointerId: event.pointerId,
       startScreenX: event.clientX,
       startScreenY: event.clientY,
-      bboxAtStart: b,
-      pivotBefore: pivotLocal,
+      frame: f,
+      nodeId,
+      pivotBeforeDoc: pivot,
+      hadCustomBefore,
       moved: false,
-    };
-    this._drag.set(drag);
+    });
 
     capturePointer(event);
     event.stopPropagation();
@@ -349,14 +408,24 @@ export class RotationPivot implements OnDestroy {
     const docPoint = this.screenToDoc(event.clientX, event.clientY);
     if (docPoint === null) return;
 
+    const f = drag.frame;
     const altBypass = event.altKey;
     const snapRadiusDoc = SNAP_RADIUS_PX / this.viewport.zoom();
-    const snapped = altBypass ? null : findNearestAnchor(drag.bboxAtStart, docPoint, snapRadiusDoc);
+    const snapped = altBypass ? null : this.nearestOrientedAnchor(f, docPoint, snapRadiusDoc);
 
     if (snapped !== null) {
-      this.transform.setPivotAnchor(snapped, drag.bboxAtStart);
+      if (drag.nodeId !== null) {
+        this.transform.setPivotAnchorForNode(drag.nodeId, snapped, f.localBBox);
+      } else {
+        this.transform.setPivotAnchor(snapped, f.localBBox);
+      }
+    } else if (drag.nodeId !== null) {
+      // Single node → project through the matrix so the fraction is stored
+      // in the OBJECT's frame and follows it through later rotations.
+      this.transform.setPivotDocForNode(drag.nodeId, docPoint, f.localBBox, f.matrix);
     } else {
-      this.transform.setPivot(docPoint, drag.bboxAtStart);
+      // Multi (identity matrix) → fraction of the combined AABB.
+      this.transform.setPivot(docPoint, f.localBBox);
     }
   }
 
@@ -402,50 +471,105 @@ export class RotationPivot implements OnDestroy {
 
   /**
    * Keyboard activator for the popover anchor dots. The pointer path
-   * uses window-level capture-phase delegation (`onWindowDown`) for
-   * historical reasons (see class-level comment about prior Angular
+   * uses window-level capture-phase delegation (`onWindowPointerDownCapture`)
+   * for historical reasons (see class-level comment about prior Angular
    * binding race condition). For keyboard, we route through the same
-   * `setPivotToAnchor` logic but via per-element `(keydown)`:
+   * anchor-set logic but via per-element `(keydown)`:
    *
    * - **Enter / Space**: snap the pivot to this anchor + close popover
    *   (matches what a click on the dot does).
    *
    * Arrow keys are NOT implemented for navigation inside the popover —
    * native browser Tab order suffices (focus moves to the next dot in
-   * DOM order). A more elaborate roving-tabindex pattern would be
-   * appropriate if the picker grows beyond 9 fixed options.
+   * DOM order).
    */
   protected onPopoverDotKeyDown(event: KeyboardEvent, anchor: BBoxAnchor): void {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
     event.stopPropagation();
-    const bbox = this._bbox();
-    if (bbox === null) return;
-    this.transform.setPivotAnchor(anchor, bbox);
+    const f = this.frame();
+    if (f === null) return;
+    const focus = this.selection.focusId();
+    if (f.single && focus !== null) {
+      this.transform.setPivotAnchorForNode(focus, anchor, f.localBBox);
+    } else {
+      this.transform.setPivotAnchor(anchor, f.localBBox);
+    }
     this._popoverOpen.set(false);
   }
 
-  protected popoverAnchors(
-    bbox: BoundingBox,
-  ): readonly { anchor: BBoxAnchor; x: number; y: number }[] {
-    const a = allAnchors(bbox);
-    return BBOX_ANCHORS.map((anchor) => ({ anchor, x: a[anchor].x, y: a[anchor].y }));
+  /**
+   * The 9 box anchors in DOCUMENT coordinates for the current frame.
+   * For a single node this projects the LOCAL anchors through the node's
+   * matrix, so the dots sit on the corners/edges of the **oriented** box.
+   */
+  protected popoverAnchors(f: PivotFrame): readonly { anchor: BBoxAnchor; x: number; y: number }[] {
+    return BBOX_ANCHORS.map((anchor) => {
+      const p = this.anchorDoc(f, anchor);
+      return { anchor, x: p.x, y: p.y };
+    });
   }
 
-  protected isCurrentAnchor(anchor: BBoxAnchor, bbox: BoundingBox): boolean {
+  protected isCurrentAnchor(anchor: BBoxAnchor): boolean {
+    const f = this.frame();
     const pivot = this.pivotPos();
-    if (pivot === null) return false;
-    const candidate = allAnchors(bbox)[anchor];
+    if (f === null || pivot === null) return false;
+    const candidate = this.anchorDoc(f, anchor);
     const eps = 0.5 / this.viewport.zoom();
     return Math.abs(pivot.x - candidate.x) < eps && Math.abs(pivot.y - candidate.y) < eps;
+  }
+
+  /** A box anchor projected from the local frame into document coordinates. */
+  private anchorDoc(f: PivotFrame, anchor: BBoxAnchor): Point {
+    const local = allAnchors(f.localBBox)[anchor];
+    return applyTransform(f.matrix, local.x, local.y);
+  }
+
+  /**
+   * Nearest of the 9 oriented anchors to `docPoint`, within `radiusDoc`
+   * (document units), or `null` if none is close enough. Replaces the
+   * AABB-only `findNearestAnchor` so snapping lands on the rotated box.
+   */
+  private nearestOrientedAnchor(
+    f: PivotFrame,
+    docPoint: Point,
+    radiusDoc: number,
+  ): BBoxAnchor | null {
+    let best: BBoxAnchor | null = null;
+    let bestSq = radiusDoc * radiusDoc;
+    for (const anchor of BBOX_ANCHORS) {
+      const p = this.anchorDoc(f, anchor);
+      const dx = docPoint.x - p.x;
+      const dy = docPoint.y - p.y;
+      const d = dx * dx + dy * dy;
+      if (d <= bestSq) {
+        bestSq = d;
+        best = anchor;
+      }
+    }
+    return best;
   }
 
   private cancelDrag(): void {
     const drag = this._drag();
     if (drag === null) return;
-    // Restore pivot from snapshot (in local coords of the bbox at drag start)
-    const restored = localToDoc(drag.pivotBefore, drag.bboxAtStart);
-    this.transform.setPivot(restored, drag.bboxAtStart);
+    if (drag.nodeId !== null) {
+      // Single node — restore the exact pre-drag pivot, or clear it if there
+      // was no custom pivot before (so Esc truly returns to "default centre").
+      if (drag.hadCustomBefore) {
+        this.transform.setPivotDocForNode(
+          drag.nodeId,
+          drag.pivotBeforeDoc,
+          drag.frame.localBBox,
+          drag.frame.matrix,
+        );
+      } else {
+        this.transform.clearPivotForNode(drag.nodeId);
+      }
+    } else {
+      // Multi — restore the previous combined-bbox pivot (transient).
+      this.transform.setPivot(drag.pivotBeforeDoc, drag.frame.localBBox);
+    }
     this._drag.set(null);
   }
 
@@ -453,6 +577,7 @@ export class RotationPivot implements OnDestroy {
     this.transform.syncPivotForSelection();
     const svg = this.elRef.nativeElement.ownerSVGElement;
     if (svg === null) {
+      this.maybeSetObb(null);
       this.maybeSet(this._bbox, null);
       return;
     }
@@ -461,13 +586,15 @@ export class RotationPivot implements OnDestroy {
     const focus = this.selection.focusId();
     this.state.document();
 
-    let next: BoundingBox | null = null;
+    let obb: RenderedOBB | null = null;
+    let combined: BoundingBox | null = null;
     if (this.selection.isSingleSelection() && focus !== null) {
-      next = getRenderedNodeBBox(svg, focus);
+      obb = getRenderedNodeOBB(svg, focus);
     } else if (ids.size > 1) {
-      next = getCombinedBBox(svg, ids);
+      combined = getCombinedBBox(svg, ids);
     }
-    this.maybeSet(this._bbox, next);
+    this.maybeSetObb(obb);
+    this.maybeSet(this._bbox, combined);
   }
 
   /**
@@ -497,13 +624,31 @@ export class RotationPivot implements OnDestroy {
     }
     target.set(next);
   }
+
+  /**
+   * Change-guard for the oriented box — compares both the local bbox and
+   * the matrix element-wise so the `afterEveryRender` re-measure doesn't
+   * spin (set a fresh-but-equal object every frame → re-render loop).
+   */
+  private maybeSetObb(next: RenderedOBB | null): void {
+    const cur = this._obb();
+    if (cur === next) return;
+    if (cur !== null && next !== null && obbsEqual(cur, next)) return;
+    this._obb.set(next);
+  }
 }
 
-function docToLocal(p: Point, b: BoundingBox): Point {
-  if (b.width === 0 || b.height === 0) return { x: 0.5, y: 0.5 };
-  return { x: (p.x - b.x) / b.width, y: (p.y - b.y) / b.height };
-}
-
-function localToDoc(p: Point, b: BoundingBox): Point {
-  return { x: b.x + p.x * b.width, y: b.y + p.y * b.height };
+function obbsEqual(a: RenderedOBB, b: RenderedOBB): boolean {
+  return (
+    a.localBBox.x === b.localBBox.x &&
+    a.localBBox.y === b.localBBox.y &&
+    a.localBBox.width === b.localBBox.width &&
+    a.localBBox.height === b.localBBox.height &&
+    a.matrix[0] === b.matrix[0] &&
+    a.matrix[1] === b.matrix[1] &&
+    a.matrix[2] === b.matrix[2] &&
+    a.matrix[3] === b.matrix[3] &&
+    a.matrix[4] === b.matrix[4] &&
+    a.matrix[5] === b.matrix[5]
+  );
 }

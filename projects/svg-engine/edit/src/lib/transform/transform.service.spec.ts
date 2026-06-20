@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { bbox, generateNodeId } from 'svg-engine/core';
+import { applyTransform, bbox, generateNodeId, IDENTITY_TRANSFORM, rotate } from 'svg-engine/core';
 import { SelectionService } from '../selection/selection.service';
 import { TransformService } from './transform.service';
 
@@ -165,5 +165,82 @@ describe('TransformService — pivot management (D-022)', () => {
 
       expect(svc.customPivots().size).toBe(0);
     });
+  });
+});
+
+describe('TransformService — OBB-aware pivot (D-142)', () => {
+  let svc: TransformService;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    svc = TestBed.inject(TransformService);
+    svc.clearAllPivots();
+  });
+
+  const LOCAL = bbox(0, 0, 100, 100);
+  // 90° about the origin → [0,1,-1,0,0,0]: maps local (x,y) → doc (-y, x).
+  const ROT90 = rotate(Math.PI / 2);
+
+  it('default (no custom pivot) resolves to the object centre through the matrix', () => {
+    const id = generateNodeId();
+    // local centre (50,50) → rot90 → (-50, 50)
+    const p = svc.resolvePivotForNode(id, LOCAL, ROT90);
+    expect(p.x).toBeCloseTo(-50, 6);
+    expect(p.y).toBeCloseTo(50, 6);
+  });
+
+  it('a custom pivot is glued to the OBJECT: it follows the node as the matrix rotates', () => {
+    const id = generateNodeId();
+    svc.setPivotAnchorForNode(id, 'br', LOCAL); // fraction (1,1) — bottom-right
+
+    // Identity → the br corner sits at local (100,100) in doc space.
+    const atIdentity = svc.resolvePivotForNode(id, LOCAL, IDENTITY_TRANSFORM);
+    expect(atIdentity.x).toBeCloseTo(100, 6);
+    expect(atIdentity.y).toBeCloseTo(100, 6);
+
+    // After a 90° rotation the SAME corner is at rot90·(100,100) = (-100,100)
+    // — the pivot tracks the object's rotated corner (the D-142 fix). The
+    // legacy AABB resolver would instead land on the enclosure corner.
+    const atRot = svc.resolvePivotForNode(id, LOCAL, ROT90);
+    const trueCorner = applyTransform(ROT90, 100, 100);
+    expect(atRot.x).toBeCloseTo(trueCorner.x, 6); // -100
+    expect(atRot.y).toBeCloseTo(trueCorner.y, 6); // 100
+  });
+
+  it('setPivotDocForNode round-trips through the matrix (set doc → resolve doc)', () => {
+    const id = generateNodeId();
+    const doc = { x: -30, y: 80 };
+    svc.setPivotDocForNode(id, doc, LOCAL, ROT90);
+    const p = svc.resolvePivotForNode(id, LOCAL, ROT90);
+    expect(p.x).toBeCloseTo(doc.x, 6);
+    expect(p.y).toBeCloseTo(doc.y, 6);
+  });
+
+  it('setPivotDocForNode stores a fraction in the LOCAL frame (object space)', () => {
+    const id = generateNodeId();
+    // Doc point (-50,50) is rot90·(50,50): the local centre → fraction (0.5,0.5).
+    svc.setPivotDocForNode(id, { x: -50, y: 50 }, LOCAL, ROT90);
+    const frac = svc.customPivots().get(id);
+    expect(frac?.x).toBeCloseTo(0.5, 6);
+    expect(frac?.y).toBeCloseTo(0.5, 6);
+  });
+
+  it('setPivotDocForNode is a no-op for a non-invertible (degenerate) matrix', () => {
+    const id = generateNodeId();
+    const degenerate = [0, 0, 0, 0, 0, 0] as const;
+    svc.setPivotDocForNode(id, { x: 10, y: 10 }, LOCAL, degenerate);
+    expect(svc.customPivots().has(id)).toBe(false);
+  });
+
+  it('setPivotFractionForNode restores an exact fraction; clearPivotForNode removes one node only', () => {
+    const a = generateNodeId();
+    const c = generateNodeId();
+    svc.setPivotFractionForNode(a, { x: 0.25, y: 0.75 });
+    svc.setPivotFractionForNode(c, { x: 0, y: 0 });
+    expect(svc.customPivots().get(a)).toEqual({ x: 0.25, y: 0.75 });
+
+    svc.clearPivotForNode(a);
+    expect(svc.customPivots().has(a)).toBe(false);
+    expect(svc.customPivots().has(c)).toBe(true); // untouched
   });
 });

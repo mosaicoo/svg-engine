@@ -6,6 +6,63 @@
 
 ---
 
+## 2026-06-20 — D-142 — Pivô de rotação OBB-aware (fica colado ao ponto configurado) ✅
+
+Sequência do D-141. O usuário notou que o **marcador do pivô de rotação** (o
+crosshair vermelho — o ponto em torno do qual a rotação é aplicada) **não ficava
+no local configurado** depois que o objeto girava. Pediu análise primeiro;
+confirmada a hipótese (visual errado, lógica "ok"), depois autorizou a correção.
+
+**Causa-raiz** (mesma classe do D-141, mas no pivô): o pivô custom era guardado
+como **fração do AABB** (caixa axis-aligned) e resolvido contra o AABB atual
+(`resolvePivot(bbox)` → `localToDoc(fração, AABB)`; o marcador usava
+`getRenderedNodeBBox` = AABB). Como o **AABB de um objeto girado não é estável**
+(cresce/desloca conforme a rotação), a fração re-resolvida contra o novo AABB caía
+em outro ponto do documento → o crosshair **desgrudava** do ponto configurado. O
+picker de 9 pontos também cravava nos cantos do AABB, não do objeto.
+
+Por que "lógico parecia ok": dentro de **uma** rotação o gesto lia o pivô contra o
+mesmo AABB do marcador (auto-consistente), e o pivô **default** = centro do AABB =
+centro do OBB. O desvio só aparecia com pivô **custom** entre operações.
+
+**Solução — pivô OBB-aware (aditivo, baixo risco):** a fração armazenada e os
+anchors de 9 pontos são **independentes de frame** (tl=0,0 … br=1,1), então
+`setPivot`/`setPivotAnchor*` e o highlight do Inspector **já gravavam/comparavam a
+fração certa** — não foram tocados. O bug estava só na **resolução** e na
+**colocação por arrasto livre**, que passaram a usar `localBBox + matrix` do OBB:
+
+- **`edit/transform/transform.service.ts`** — novos `resolvePivotForNode(nodeId,
+localBBox, matrix)` (fração → ponto local → `applyTransform(matrix)`, colado ao
+  objeto) e `setPivotDocForNode(nodeId, docPoint, localBBox, matrix)` (projeta o
+  ponto-doc por `invert(matrix)` p/ o frame local antes de guardar a fração) +
+  `setPivotFractionForNode`/`clearPivotForNode` (snapshot/cancel do drag).
+  `resolvePivot`/`setPivot` continuam para **multi-seleção** (combined AABB, sem
+  orientação) e nó **não-girado** (onde AABB == OBB).
+- **`edit/overlay/rotation-pivot.component.ts`** — `frame()` unificado: nó único →
+  OBB (`getRenderedNodeOBB`); multi → combined AABB com matrix identidade. Crosshair
+  resolve por `resolvePivotForNode`; o picker de 9 pontos e o snap operam sobre os
+  anchors **orientados** (projetados pelo matrix); arrasto livre via
+  `setPivotDocForNode`; Esc-cancel restaura a fração exata (ou limpa se não havia
+  custom).
+- **`edit/overlay/selection-overlay.component.ts`** — o gesto de rotação (mouse +
+  teclado) resolve o pivô do nó único via OBB, então gira em torno do **mesmo
+  ponto** que o crosshair mostra.
+- **`ui/inspector/inspector.component.ts`** — `resolveCommandPivot` (usado pela
+  rotação E pela escala) resolve via OBB para nó único; o highlight do anchor ativo
+  (`currentPivotAnchor`, baseado em fração) seguiu inalterado.
+
+**Verificação:** build + lint + suíte (**2739**, +6 specs OBB-pivot: default=centro
+via matrix, custom colado ao canto sob rotação, round-trip set-doc↔resolve-doc,
+fração no frame local, no-op em matriz singular, restore/clear) verdes; sem mudança
+de nomes exportados (só métodos novos numa classe já exportada → snapshot intacto).
+No browser (`/custom-editor`): retângulo com pivô em **bottom-right**, girado 90° →
+`pivotPos()` e o `circle.dot` renderizado ficam em **(245.65, 373.13)** = o canto
+br **girado real** (colado ao objeto); a resolução AABB antiga daria **(514.35,
+373.13)** (~269px de drift). Screenshot confirma o crosshair no canto inferior-
+esquerdo (para onde o canto br original foi levado pela rotação de 90°).
+
+---
+
 ## 2026-06-19 — D-141 — Caixa de transformação orientada (OBB) acompanha a rotação ✅
 
 O usuário reportou que, ao **rotacionar** uma forma, as hastes/handlers de
