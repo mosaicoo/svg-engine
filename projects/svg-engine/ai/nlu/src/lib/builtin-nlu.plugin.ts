@@ -431,9 +431,26 @@ export const builtinNluPlugin: EditorPlugin = {
             optional: true,
             anchorKeywords: ['texto', 'conteudo', 'content', 'dizendo', 'escrito', 'label'],
           },
+          // **`fontSize`** (D-093 Fase 6) — tamanho do nó `text` (planos do
+          // LLM dão hierarquia: rótulo pequeno + valor grande). **Anchor-only**
+          // ('fonte'/'fontsize') p/ NÃO competir posicionalmente com
+          // width/height. Ausente → fallback derivado de w/h (legado).
+          fontSize: {
+            kind: 'number',
+            optional: true,
+            anchorKeywords: ['fonte', 'fontsize'],
+          },
+          // **`fontWeight`** (D-093 Fase 6) — peso do nó `text`. Enum **exato**
+          // (`fuzzy:false`) p/ não casar tokens aleatórios; presente ⇒ 'bold'.
+          fontWeight: {
+            kind: 'enum',
+            values: ['bold', 'negrito'],
+            optional: true,
+            fuzzy: false,
+          },
         },
         description:
-          'Criar forma (retângulo, círculo, elipse, texto, etc.) — suporta fill/stroke/espessura/posição; para texto, o slot content define o texto literal',
+          'Criar forma (retângulo, círculo, elipse, texto, etc.) — suporta fill/stroke/espessura/posição; para texto: content (texto literal), fontSize e fontWeight (bold)',
         execute(slots, runCtx) {
           const bus = runCtx.injector.get(CommandBus);
           const state = runCtx.injector.get(EditorStateService);
@@ -462,6 +479,14 @@ export const builtinNluPlugin: EditorPlugin = {
           const rawContent = slots['content'];
           const textContent =
             typeof rawContent === 'string' && rawContent.trim().length > 0 ? rawContent : undefined;
+          // **D-093 Fase 6** — hierarquia tipográfica do nó `text`.
+          const rawFontSize = slots['fontSize'];
+          const fontSizeSlot =
+            typeof rawFontSize === 'number' && Number.isFinite(rawFontSize) && rawFontSize > 0
+              ? rawFontSize
+              : undefined;
+          // fontWeight é enum ('bold'/'negrito'); presença ⇒ bold.
+          const isBold = slots['fontWeight'] !== undefined;
 
           // Compose style omitting undefined keys — manter `style:
           // undefined` quando nenhum apresentável (factory aplica
@@ -584,13 +609,16 @@ export const builtinNluPlugin: EditorPlugin = {
               // Text placeholder — "Texto" se input PT, "Text" se EN.
               // (sem acesso ao detectLanguage aqui — usa 'Texto' default).
               case 'text': {
-                const fontSize = Math.max(12, Math.min(w, h) / 3);
+                // **D-093 Fase 6**: fontSize do slot quando dado; senão
+                // derivado de w/h (legado). fontWeight 'bold' quando pedido.
+                const fontSize = fontSizeSlot ?? Math.max(12, Math.min(w, h) / 3);
                 const node = createText(
                   {
                     x: cx,
                     y: cy + fontSize / 3, // alinhamento baseline visual aproximado
                     content: textContent ?? 'Texto',
                     fontSize,
+                    fontWeight: isBold ? 'bold' : undefined,
                     textAnchor: 'middle',
                   },
                   style ? { style } : {},

@@ -301,8 +301,8 @@ function buildFewShot(catalog: readonly LlmIntentCatalogEntry[]): string {
         slots: {
           shape: 'text',
           content: 'Receita',
-          width: 180,
-          height: 20,
+          fontSize: 14,
+          fill: '#6b7280',
           position: { x: 320, y: 250 },
         },
       },
@@ -311,8 +311,9 @@ function buildFewShot(catalog: readonly LlmIntentCatalogEntry[]): string {
         slots: {
           shape: 'text',
           content: 'R$ 1,2M',
-          width: 200,
-          height: 40,
+          fontSize: 32,
+          fontWeight: 'bold',
+          fill: '#111827',
           position: { x: 320, y: 320 },
         },
       },

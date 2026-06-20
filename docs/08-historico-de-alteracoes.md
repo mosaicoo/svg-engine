@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-06-20 — D-093 (Fase 6) — Texto rico: `fontSize` + `fontWeight` (hierarquia no card) ✅
+
+Polimento visual: o card de KPI agora tem **hierarquia tipográfica** (rótulo pequeno +
+valor grande/forte) em vez de dois textos de mesmo tamanho. Nota: a **cor** de texto já
+funcionava via o slot `fill` (o executor passa `style` ao `createText`) — o gap era só
+tamanho/peso.
+
+- **`builtin-nlu.plugin.ts`:** dois slots novos no `create-shape`, ambos só p/ o nó `text`:
+  - `fontSize` (`kind:'number'`, **anchor-only** `['fonte','fontsize']` — não compete
+    posicionalmente com width/height); ausente ⇒ fallback derivado de w/h (legado).
+  - `fontWeight` (`kind:'enum'` exato `['bold','negrito']`, `fuzzy:false`); presença ⇒ `'bold'`.
+- **Few-shot (resolver):** rótulo `fontSize:14` + `fill:'#6b7280'`; valor `fontSize:32` +
+  `fontWeight:'bold'` + `fill:'#111827'` — ensina a hierarquia (e cor de texto via fill).
+
+**Verificação:** build (9 entry points) + lint (3 projetos) + suíte (**2789**, +1 spec) verdes;
+sem mudança de API pública. **Ao vivo (`/nlu-test`, 3b):** "crie um card de KPI…" → o plano
+trouxe `fontSize`/`fontWeight`, e os `<text>` renderizaram **"Receita"** (14px, normal,
+cinza) + **"R$ 1,2M"** (32px, **bold**, escuro) — KPI card com hierarquia real.
+
+---
+
 ## 2026-06-20 — D-093 (Fase 5) — Slot `content`: o card de KPI ganha texto real ✅
 
 Fecha a limitação conhecida da Fase 4 (o texto saía como placeholder "Texto"). O nó

@@ -148,6 +148,23 @@ describe('builtinNluPlugin', () => {
     }
   });
 
+  it('create-shape text aplica fontSize e fontWeight do slot (hierarquia)', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const intent = nlu.getIntent('svge.builtin.nlu.create-shape');
+
+    await intent!.execute(
+      { shape: 'text', content: 'R$ 1,2M', fontSize: 32, fontWeight: 'bold' },
+      { injector },
+    );
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('text');
+    if (added.type === 'text') {
+      expect(added.fontSize).toBe(32);
+      expect(added.fontWeight).toBe('bold');
+    }
+  });
+
   it('survives fuzzy typos: "criar retangulo" → create-shape', async () => {
     const { plugins, nlu, injector, state } = setup();
     plugins.install(builtinNluPlugin);
