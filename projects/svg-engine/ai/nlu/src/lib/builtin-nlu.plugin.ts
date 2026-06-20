@@ -321,6 +321,70 @@ function buildGradientFill(spec: NluGradientSpec, injector: Injector): string {
   return `url(#${id})`;
 }
 
+/**
+ * Coleta cores de várias formas que um array de "stops" pode ter:
+ * `['#fff', …]` (strings) OU `[{ color: '#fff' }, …]` (objetos
+ * `colorStops`/`stops`). Ignora entradas não-string. Pure, nunca lança.
+ */
+function collectGradientColors(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const s of raw) {
+    if (typeof s === 'string' && s.length > 0) out.push(s);
+    else if (s !== null && typeof s === 'object') {
+      const c = (s as Record<string, unknown>)['color'];
+      if (typeof c === 'string' && c.length > 0) out.push(c);
+    }
+  }
+  return out;
+}
+
+/** Direção do gradiente a partir de `direction` explícito ou das âncoras `from`/`to`. */
+function deriveGradientDirection(
+  slots: Record<string, unknown>,
+): 'horizontal' | 'vertical' | 'diagonal' {
+  const d = slots['direction'];
+  if (d === 'horizontal' || d === 'vertical' || d === 'diagonal') return d;
+  const txt = `${String(slots['from'] ?? '')} ${String(slots['to'] ?? '')}`.toLowerCase();
+  const horiz = /left|right|esquerda|direita|leste|oeste/.test(txt);
+  const vert = /top|bottom|up|down|cima|baixo|topo|fundo/.test(txt);
+  if (horiz && vert) return 'diagonal';
+  if (vert) return 'vertical';
+  return 'horizontal';
+}
+
+/**
+ * **D-093 Fase 10** — normaliza o slot `gradient` em um {@link NluGradientSpec},
+ * tolerante a **duas** origens (e **nunca lança**, ao contrário do acesso
+ * direto `slots.gradient.colors.length` que quebrava com planos do LLM):
+ *
+ * 1. **Rule-based**: o slot-extractor já entrega `{kind,direction,colors}`.
+ * 2. **Plano do LLM**: o modelo costuma espalhar o gradiente em slots irmãos
+ *    soltos — `gradient:'linear'` (string), `colorStops:[{offset,color}]` (ou
+ *    `stops`/`colors`), `from`/`to`/`direction`. Aqui montamos o spec a partir
+ *    deles. Sem cores reconhecíveis ⇒ `undefined` (fill sólido segue normal).
+ */
+function coerceGradientSpec(slots: Record<string, unknown>): NluGradientSpec | undefined {
+  const g = slots['gradient'];
+  // (1) rule-based: já é o spec canônico.
+  if (
+    g !== null &&
+    typeof g === 'object' &&
+    Array.isArray((g as Record<string, unknown>)['colors'])
+  ) {
+    const spec = g as unknown as NluGradientSpec;
+    return spec.colors.length > 0 ? spec : undefined;
+  }
+  // (2) forma livre do LLM: cores em colorStops/stops/colors.
+  let colors = collectGradientColors(slots['colorStops']);
+  if (colors.length === 0) colors = collectGradientColors(slots['stops']);
+  if (colors.length === 0) colors = collectGradientColors(slots['colors']);
+  if (colors.length === 0) return undefined;
+  const kindRaw = typeof g === 'string' ? g : slots['type'];
+  const kind: NluGradientSpec['kind'] = kindRaw === 'radial' ? 'radial' : 'linear';
+  return { kind, direction: deriveGradientDirection(slots), colors };
+}
+
 export const builtinNluPlugin: EditorPlugin = {
   id: 'svge.builtin.nlu',
   name: 'Built-in NLU (rule-based, Fase 1)',
@@ -477,7 +541,10 @@ export const builtinNluPlugin: EditorPlugin = {
           // Construído UMA vez (antes do loop de repetição): as N cópias
           // compartilham o mesmo gradiente (objectBoundingBox normaliza por
           // bbox de cada forma).
-          const gradientSpec = slots['gradient'] as NluGradientSpec | undefined;
+          // **D-093 Fase 10**: normaliza o slot (rule-based OU plano do LLM)
+          // sem lançar — o acesso direto `slots.gradient.colors` quebrava
+          // quando o LLM mandava `gradient:'linear'` + `colorStops:[…]`.
+          const gradientSpec = coerceGradientSpec(slots);
           let fill = slots['fill'] as string | undefined;
           if (gradientSpec !== undefined && gradientSpec.colors.length > 0) {
             fill = buildGradientFill(gradientSpec, runCtx.injector);

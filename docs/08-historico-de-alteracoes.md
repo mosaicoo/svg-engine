@@ -6,6 +6,34 @@
 
 ---
 
+## 2026-06-20 — D-093 (Fase 10) — Fix: gradiente do plano LLM não criava nada (crash silencioso) ✅
+
+**Bug reportado** (svg-studio): "criar retângulo com gradiente azul para vermelho" → o 3b
+devolveu um plano **válido**, mas **nada** apareceu no canvas. **Reproduzido ao vivo** (com
+os slots exatos do plano): `executeCandidate` → `executed:false`, `rejection:'execute-error'`,
+`error:"Cannot read properties of undefined (reading 'length')"`, nós inalterados.
+
+**Causa raiz:** o 3b expressa o gradiente em **forma livre** — `gradient:"linear"` (string)
+
+- `colorStops:[{offset,color}]` + `from`/`to` — mas o executor fazia `slots.gradient.colors.length`
+  esperando o `NluGradientSpec` interno (`{kind,direction,colors}`). Com `gradient` sendo a
+  string `"linear"`, `.colors` é `undefined` → `.length` **lança** → o passo cai no `try/catch`
+  do `executeCandidate` (`execute-error`) e é engolido → forma nunca criada.
+
+**Fix (`builtin-nlu.plugin.ts`):** `coerceGradientSpec(slots)` — normalizador defensivo que
+**nunca lança** e aceita as duas origens: (1) rule-based (`gradient` já é `{kind,direction,
+colors}`); (2) plano do LLM (cores em `colorStops`/`stops`/`colors`; kind em `gradient`
+string/`type`; direção em `from`/`to`/`direction`). Sem cores ⇒ `undefined` (fill sólido
+segue). O executor passou a usar `coerceGradientSpec(slots)` no lugar do cast frágil.
+
+**Verificação:** build + lint + suíte (**2799**, +2 specs: forma-livre-LLM cria rect com
+`fill:url(#…)`; gradiente sem cores degrada p/ sólido sem quebrar). **Ao vivo (`/nlu-test`)**:
+os mesmos slots agora criam o `<rect>` com `fill="url(#…)"` + `<linearGradient>` injetado
+(stops `#006699`→`#FF3333`), `executed:true`. Fix está na lib compartilhada → vale p/
+playground **e** svg-studio.
+
+---
+
 ## 2026-06-20 — D-093 (Fase 9) — SVG Studio ativa a camada de IA (LLM no Command Palette) ✅
 
 O **SVG Studio** já hospedava o `<svge-nlu-input>` no Command Palette (Ctrl+K /

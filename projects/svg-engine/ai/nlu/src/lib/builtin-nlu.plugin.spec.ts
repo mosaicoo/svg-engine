@@ -196,6 +196,54 @@ describe('builtinNluPlugin', () => {
     expect(state.document().root.children.at(-1)!.type).toBe('path');
   });
 
+  it('create-shape aceita o gradiente em forma livre do LLM (gradient string + colorStops)', async () => {
+    // Repro do bug real (D-093 Fase 10): o plano do 3b mandou
+    // gradient:"linear" + colorStops:[…] — o acesso slots.gradient.colors
+    // lançava TypeError → execute-error → nada criado. Agora normaliza.
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const intent = nlu.getIntent('svge.builtin.nlu.create-shape');
+
+    const before = state.document().root.children.length;
+    await intent!.execute(
+      {
+        shape: 'rect',
+        width: 200,
+        height: 100,
+        position: { x: 150, y: 250 },
+        gradient: 'linear',
+        from: 'top-left',
+        to: 'bottom-right',
+        colorStops: [
+          { offset: 0, color: '#006699' },
+          { offset: 1, color: '#ff3333' },
+        ],
+      },
+      { injector },
+    );
+    const after = state.document().root.children.length;
+    expect(after).toBe(before + 1); // antes do fix: 0 (execute-error)
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('rect');
+    // fill vira uma referência de gradiente registrada (url(#id)).
+    expect(added.style?.fill).toMatch(/^url\(#/);
+  });
+
+  it('create-shape: gradiente sem cores reconhecíveis não quebra (cria sólido)', async () => {
+    const { plugins, nlu, injector, state } = setup();
+    plugins.install(builtinNluPlugin);
+    const intent = nlu.getIntent('svge.builtin.nlu.create-shape');
+
+    const before = state.document().root.children.length;
+    // gradient string sem colorStops → sem cores → degrada p/ fill sólido.
+    await intent!.execute({ shape: 'rect', gradient: 'linear', fill: '#123456' }, { injector });
+    const after = state.document().root.children.length;
+    expect(after).toBe(before + 1);
+    const added = state.document().root.children.at(-1)!;
+    expect(added.type).toBe('rect');
+    expect(added.style?.fill).toBe('#123456');
+  });
+
   it('survives fuzzy typos: "criar retangulo" → create-shape', async () => {
     const { plugins, nlu, injector, state } = setup();
     plugins.install(builtinNluPlugin);
