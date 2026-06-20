@@ -6,6 +6,45 @@
 
 ---
 
+## 2026-06-20 — D-142-fix — Pivô da multi-seleção fixo sob rotação (preso à seleção, estilo Figma) ✅
+
+Sequência do D-142. Análise solicitada pelo usuário: por que o pivô da
+**multi-seleção** não ficava fixo no ponto definido? Diagnóstico (traçado no
+código): o pivô multi era guardado como **fração do AABB combinado** e resolvido
+contra o AABB atual — e o AABB combinado **não é estável sob rotação** (a união
+dos AABBs girados muda de forma), então o crosshair fazia **drift** após girar.
+Sob mover ele acompanhava (a fração seguia a translação do AABB). Decisão de UX do
+usuário: **modelo "preso à seleção" (estilo Figma)** — acompanha mover/redimensionar
+e fica fixo sob rotação.
+
+**Solução (somente `transform.service.ts`; o overlay multi já lê via `resolvePivot`):**
+
+- O pivô multi vira um **ponto absoluto no documento** (`_multiPivotLocal` →
+  `_multiPivotAbs`). `setPivot`/`resolvePivot` no ramo multi passam a gravar/ler o
+  ponto absoluto (antes convertiam para/de fração do bbox). O ramo single segue
+  intocado (fração; nó rotacionado usa o `resolvePivotForNode` do D-142).
+- **Segue o gesto ao vivo** sem sincronização espalhada: `previewMultiPivot(abs)`
+  deriva a posição a partir do gesto ativo — move → `abs + currentDelta`; resize de
+  grupo → escala ancorada de `abs` sobre o `anchor`; rotação (e sem gesto) → `abs`
+  inalterado (o pivô É o centro da rotação, fica fixo). O commit baka o resultado em
+  `_multiPivotAbs` (`endMove`/`endResizeMany`); cancel não mexe (o preview é
+  derivado, não escrito).
+
+Por que satisfaz os três casos: **rotação** não altera `abs` → fixo; **mover** soma
+o delta e baka → acompanha; **resize** aplica a escala ancorada e baka → acompanha.
+Single e multi-seleção sem pivô custom (default = centro) ficam inalterados.
+
+**Verificação:** build + lint + suíte (**2743**, +4 specs: fixo sob rotação,
+acompanha move com preview+bake, acompanha resize, clique sem drag não move o pivô)
+verdes; sem mudança de nomes exportados (campo privado renomeado + métodos
+internos). No browser (`/custom-editor`): 2 retângulos selecionados, pivô em
+**(801,305)** → após girar a multi-seleção `pivotPos()` continua **(801,305)**
+(fixo); após mover o grupo por (50,30), o pivô (ao vivo e baked) vai para
+**(851,335)** (acompanhou). A caixa de seleção da multi continua AABB (D-141),
+conforme a convenção de mercado confirmada com o usuário.
+
+---
+
 ## 2026-06-20 — D-142 — Pivô de rotação OBB-aware (fica colado ao ponto configurado) ✅
 
 Sequência do D-141. O usuário notou que o **marcador do pivô de rotação** (o

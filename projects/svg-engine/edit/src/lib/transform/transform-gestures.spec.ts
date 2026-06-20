@@ -13,6 +13,7 @@ import {
   rotate,
 } from 'svg-engine/core';
 import { LayersService } from '../layers/layers.service';
+import { SelectionService } from '../selection/selection.service';
 import { TransformService } from './transform.service';
 
 function setup() {
@@ -22,12 +23,14 @@ function setup() {
   const history = TestBed.inject(HistoryService);
   const bus = TestBed.inject(CommandBus);
   const layers = TestBed.inject(LayersService);
+  const selection = TestBed.inject(SelectionService);
   state.resetDocument(createEmptyDocument());
   history.clear();
   transform.clearAllPivots();
   transform.cancelGesture(); // ensure clean
   layers.unlockAll();
-  return { transform, state, history, bus, layers };
+  selection.clear();
+  return { transform, state, history, bus, layers, selection };
 }
 
 describe('TransformService — move gesture', () => {
@@ -790,5 +793,74 @@ describe('TransformService — lock enforcement (Bloco 4b-Lock)', () => {
     layers.setLocked(rect.id, false);
     transform.startMove(rect.id, { x: 0, y: 0 });
     expect(transform.dragState()).not.toBeNull();
+  });
+});
+
+describe('TransformService — multi-selection custom pivot (D-142-fix)', () => {
+  /** Two top-level rects → combined bbox {0,0,110,10}; both selected. */
+  function setupMulti() {
+    const ctx = setup();
+    const a = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const b = createRect({ x: 100, y: 0, width: 10, height: 10 });
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup([a, b], { id: ctx.state.document().root.id }),
+    });
+    ctx.selection.selectMany([a.id, b.id]); // pivotMode === 'multi'
+    const combined = bbox(0, 0, 110, 10);
+    return { ...ctx, a, b, combined };
+  }
+
+  const entries = (a: { id: string }, b: { id: string }) => [
+    { id: a.id as never, parentMatrix: null },
+    { id: b.id as never, parentMatrix: null },
+  ];
+
+  it('stays FIXED under rotation (absolute doc point, no AABB drift)', () => {
+    const { transform, a, b, combined } = setupMulti();
+    transform.setPivot({ x: 10, y: 0 }, combined);
+    expect(transform.resolvePivot(combined)).toEqual({ x: 10, y: 0 });
+
+    const pivot = transform.resolvePivot(combined);
+    transform.startRotateMany(entries(a, b), pivot, { x: 110, y: 0 });
+    transform.updateRotateMany({ x: 10, y: 100 }); // arbitrary rotation
+    transform.endRotateMany();
+
+    // The combined AABB changed shape, but the custom pivot is an absolute
+    // point — resolvePivot ignores the bbox and returns it unchanged.
+    expect(transform.resolvePivot(bbox(-999, -999, 9999, 9999))).toEqual({ x: 10, y: 0 });
+  });
+
+  it('FOLLOWS a group move — live preview + baked on commit', () => {
+    const { transform, a, b, combined } = setupMulti();
+    transform.setPivot({ x: 10, y: 0 }, combined);
+
+    transform.startMoveMany([a.id, b.id], { x: 0, y: 0 });
+    transform.updateMove({ x: 30, y: 20 });
+    // live: crosshair tracks the move preview
+    expect(transform.resolvePivot(combined)).toEqual({ x: 40, y: 20 });
+    transform.endMove();
+    // baked: stays at the moved location for the next gesture
+    expect(transform.resolvePivot(bbox(0, 0, 999, 999))).toEqual({ x: 40, y: 20 });
+  });
+
+  it('FOLLOWS a group resize — scales about the resize anchor', () => {
+    const { transform, a, b, combined } = setupMulti();
+    transform.setPivot({ x: 110, y: 10 }, combined); // bottom-right corner
+
+    // 'br' handle → opposite anchor 'tl' = {0,0}; drag to (220,20) → 2× both axes.
+    transform.startResizeMany(entries(a, b), 'br', combined);
+    transform.updateResizeMany({ x: 220, y: 20 });
+    expect(transform.resolvePivot(combined)).toEqual({ x: 220, y: 20 }); // live
+    transform.endResizeMany();
+    expect(transform.resolvePivot(bbox(0, 0, 999, 999))).toEqual({ x: 220, y: 20 }); // baked
+  });
+
+  it('a negligible move does NOT shift the pivot (click without drag)', () => {
+    const { transform, a, b, combined } = setupMulti();
+    transform.setPivot({ x: 10, y: 0 }, combined);
+    transform.startMoveMany([a.id, b.id], { x: 0, y: 0 });
+    transform.endMove(); // no updateMove → zero delta
+    expect(transform.resolvePivot(combined)).toEqual({ x: 10, y: 0 });
   });
 });

@@ -213,7 +213,11 @@ export type DragState =
  *   non-rotated nodes, but they drift on a rotated node (the AABB is not
  *   stable under rotation), which is why single-node callers use the
  *   OBB-aware pair.
- * - Multi-selection pivot is transient and resets on composition change.
+ * - **Multi-selection** pivot (D-142-fix) is an **absolute document point**
+ *   (`_multiPivotAbs`), carried by the active group gesture (move/resize) so
+ *   the crosshair follows the preview and baked on commit; under rotation it
+ *   is the rotation centre, so it stays fixed. Transient: reset on
+ *   composition change.
  *
  * **Gesture model (Bloco 3)**:
  * - `start{Move,Rotate,Resize}`: capture the node's transform snapshot
@@ -241,7 +245,16 @@ export class TransformService {
   // ── Pivot persistence (D-022.persist) ────────────────────────────
 
   private readonly _customPivots = signal<ReadonlyMap<NodeId, Point>>(new Map());
-  private readonly _multiPivotLocal = signal<Point | null>(null);
+  /**
+   * **D-142-fix** — custom pivot for a MULTI-selection, stored as an
+   * ABSOLUTE document point (not a fraction of the combined bbox, which
+   * drifted under rotation). It is carried by the active group gesture so
+   * the crosshair follows move/resize previews (see `previewMultiPivot`)
+   * and baked on commit (`endMove`/`endResizeMany`); under rotation it is
+   * the rotation centre, so it stays fixed without any sync. Transient:
+   * reset when the selection composition changes.
+   */
+  private readonly _multiPivotAbs = signal<Point | null>(null);
   private readonly _lastMultiSignature = signal<string>('');
 
   // ── Gesture state (Bloco 3) ──────────────────────────────────────
@@ -269,7 +282,7 @@ export class TransformService {
     const signature = computeSelectionSignature(ids);
     if (signature !== this._lastMultiSignature()) {
       this._lastMultiSignature.set(signature);
-      this._multiPivotLocal.set(null);
+      this._multiPivotAbs.set(null);
     }
   }
 
@@ -278,16 +291,54 @@ export class TransformService {
     const mode = this.pivotMode();
     if (mode === 'none') return { x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height / 2 };
 
-    const local = mode === 'single' ? this.localPivotForFocus() : this._multiPivotLocal();
-    if (local === null) {
-      return { x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height / 2 };
+    if (mode === 'single') {
+      // Single uses the fraction-of-bbox model (kept for non-rotated nodes
+      // and as the fallback; rotated single nodes go through the OBB-aware
+      // resolvePivotForNode instead — D-142).
+      const frac = this.localPivotForFocus();
+      return frac === null
+        ? { x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height / 2 }
+        : localToDoc(frac, bbox);
     }
-    return localToDoc(local, bbox);
+
+    // **D-142-fix** — multi pivot is an ABSOLUTE doc point, carried by the
+    // active group gesture (move/resize) so the crosshair follows the
+    // preview, and fixed under rotation.
+    const abs = this._multiPivotAbs();
+    if (abs === null) return { x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height / 2 };
+    return this.previewMultiPivot(abs);
+  }
+
+  /**
+   * **D-142-fix** — the multi pivot, offset by whatever the in-progress
+   * group gesture is doing to the selection, so the crosshair tracks the
+   * live preview. Move → translate by the running delta; group resize →
+   * apply the running anchored scale about the resize anchor; rotation (and
+   * no gesture) → unchanged (the pivot IS the rotation centre). The offset
+   * is purely derived here; commits bake it into `_multiPivotAbs`.
+   */
+  private previewMultiPivot(abs: Point): Point {
+    const ds = this._dragState();
+    if (ds === null) return abs;
+    if (ds.kind === 'move' && ds.extraNodes !== undefined) {
+      return { x: abs.x + ds.currentDelta.x, y: abs.y + ds.currentDelta.y };
+    }
+    if (ds.kind === 'resize-many') {
+      return {
+        x: ds.anchor.x + (abs.x - ds.anchor.x) * ds.currentScale.sx,
+        y: ds.anchor.y + (abs.y - ds.anchor.y) * ds.currentScale.sy,
+      };
+    }
+    return abs;
   }
 
   setPivot(point: Point, bbox: { x: number; y: number; width: number; height: number }): void {
-    const local = docToLocal(point, bbox);
-    this.storeLocalPivot(local);
+    // Multi → store the ABSOLUTE doc point (D-142-fix); single → fraction.
+    if (this.pivotMode() === 'multi') {
+      this._multiPivotAbs.set({ x: point.x, y: point.y });
+      return;
+    }
+    this.storeLocalPivot(docToLocal(point, bbox));
   }
 
   setPivotAnchor(
@@ -402,13 +453,13 @@ export class TransformService {
       next.delete(focus);
       this._customPivots.set(next);
     } else if (mode === 'multi') {
-      this._multiPivotLocal.set(null);
+      this._multiPivotAbs.set(null);
     }
   }
 
   clearAllPivots(): void {
     this._customPivots.set(new Map());
-    this._multiPivotLocal.set(null);
+    this._multiPivotAbs.set(null);
     this._lastMultiSignature.set('');
   }
 
@@ -531,6 +582,15 @@ export class TransformService {
       Math.abs(currentDelta.y) < CLICK_THRESHOLD_DOC_UNITS
     ) {
       return;
+    }
+    // **D-142-fix** — bake the carried multi pivot by the committed group
+    // delta (it tracked the preview via previewMultiPivot) so it stays put
+    // for the next gesture. Only for a genuine group move.
+    if (extraNodes !== undefined && extraNodes.length > 0) {
+      const carried = this._multiPivotAbs();
+      if (carried !== null) {
+        this._multiPivotAbs.set({ x: carried.x + currentDelta.x, y: carried.y + currentDelta.y });
+      }
     }
     // Single node → MoveNodeCommand (smaller label, no Map). Group move →
     // TranslateManyCommand with the SAME delta for every node, one undo
@@ -919,6 +979,15 @@ export class TransformService {
     this._dragState.set(null);
     for (const e of entries) this.applyPreviewTransform(e.id, e.startTransform);
     if (Math.abs(currentScale.sx - 1) < 1e-4 && Math.abs(currentScale.sy - 1) < 1e-4) return;
+    // **D-142-fix** — bake the carried multi pivot by the committed anchored
+    // scale (it tracked the preview via previewMultiPivot).
+    const carried = this._multiPivotAbs();
+    if (carried !== null) {
+      this._multiPivotAbs.set({
+        x: anchor.x + (carried.x - anchor.x) * currentScale.sx,
+        y: anchor.y + (carried.y - anchor.y) * currentScale.sy,
+      });
+    }
     const cmdEntries: ResizeNodesEntry[] = entries.map((e) => ({
       id: e.id,
       parentMatrix: e.parentMatrix,
@@ -1076,17 +1145,18 @@ export class TransformService {
     this.state.setDocument({ ...doc, root: nextRoot });
   }
 
+  /**
+   * Store the SINGLE-node pivot as a fraction of its bbox (keyed by focus).
+   * Multi is handled directly in {@link setPivot} (absolute doc point,
+   * D-142-fix), so this only runs for single selection.
+   */
   private storeLocalPivot(local: Point): void {
-    const mode = this.pivotMode();
-    if (mode === 'single') {
-      const focus = this.selection.focusId();
-      if (focus === null) return;
-      const next = new Map(this._customPivots());
-      next.set(focus, local);
-      this._customPivots.set(next);
-    } else if (mode === 'multi') {
-      this._multiPivotLocal.set(local);
-    }
+    if (this.pivotMode() !== 'single') return;
+    const focus = this.selection.focusId();
+    if (focus === null) return;
+    const next = new Map(this._customPivots());
+    next.set(focus, local);
+    this._customPivots.set(next);
   }
 
   private localPivotForFocus(): Point | null {
