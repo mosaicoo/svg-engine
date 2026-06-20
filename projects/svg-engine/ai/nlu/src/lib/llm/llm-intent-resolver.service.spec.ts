@@ -203,3 +203,61 @@ describe('parsePlan (D-093)', () => {
     expect(() => parsePlan('nope')).toThrow();
   });
 });
+
+describe('buildCatalog curation (D-093 Fase 4)', () => {
+  function plainIntent(id: string, keywords: string[], description: string): NluIntent {
+    return {
+      id,
+      keywords,
+      description,
+      execute() {
+        /* test stub — never invoked in catalog-curation tests */
+      },
+    };
+  }
+
+  it('returns ALL intents when at/under the cap (legacy behavior, with or without text)', () => {
+    const { nlu, resolver } = setup(fakeProvider('{}'));
+    nlu.registerIntent(recordingIntent('create-rect', []));
+    expect(resolver.buildCatalog()).toHaveLength(1);
+    expect(resolver.buildCatalog('whatever the request is')).toHaveLength(1);
+  });
+
+  it('curates to maxEntries when the registry exceeds the cap, always keeping core primitives', () => {
+    const { nlu, resolver } = setup(fakeProvider('{}'));
+    // Core primitive (kept regardless of relevance).
+    nlu.registerIntent(
+      plainIntent('svge.builtin.nlu.create-shape', ['rect', 'retangulo'], 'criar forma'),
+    );
+    // Noise (irrelevant to the test phrase).
+    for (let i = 0; i < 10; i++) {
+      nlu.registerIntent(plainIntent(`noise-${i}`, [`noise${i}`], `ruido ${i}`));
+    }
+    // Relevant-by-text intent.
+    nlu.registerIntent(plainIntent('rotate-thing', ['girar', 'rotate'], 'girar o objeto'));
+
+    const cat = resolver.buildCatalog('girar retangulo', { maxEntries: 3 });
+    expect(cat.length).toBeLessThanOrEqual(3);
+    const ids = cat.map((e) => e.id);
+    // create-shape is core → always present even though the phrase is about rotating.
+    expect(ids).toContain('svge.builtin.nlu.create-shape');
+    // rotate-thing wins a slot via the 'girar' token overlap.
+    expect(ids).toContain('rotate-thing');
+  });
+
+  it('system prompt carries the few-shot example + schema reminder and forbids invented keys', async () => {
+    const captured: Captured = {};
+    const { nlu, resolver } = setup(fakeProvider('{"steps":[]}', captured));
+    nlu.registerIntent(plainIntent('svge.builtin.nlu.create-shape', ['rect'], 'criar forma'));
+
+    await resolver.resolvePlan('crie um card de KPI');
+    const sys = captured.messages?.[0]?.content ?? '';
+    expect(sys).toContain('EXAMPLE');
+    // few-shot uses the REAL create-shape id from the catalog
+    expect(sys).toContain('svge.builtin.nlu.create-shape');
+    expect(sys).toContain('"steps"');
+    // explicit guard against the observed failure mode ({"card":...})
+    expect(sys).toContain('"card"');
+    expect(sys).toContain('NEVER output any other top-level key');
+  });
+});

@@ -1,6 +1,8 @@
 import { inject, Injectable } from '@angular/core';
 
+import { isStopword } from '../dictionaries/stopwords';
 import { NaturalLanguageService } from '../natural-language.service';
+import { tokenize } from '../parsers/tokenize';
 import type {
   NluCandidate,
   NluContext,
@@ -9,6 +11,27 @@ import type {
   NluIntent,
 } from '../types';
 import { AI_CHAT_PROVIDER, type AiChatMessage } from './llm-provider';
+
+/**
+ * **D-093 Fase 4** — teto de entradas no catálogo enviado ao modelo.
+ *
+ * Descoberta empírica (teste ao vivo 3b E 7b): com os 222 intents
+ * registrados o prompt chega a ~4095 tokens — **~74s só de ingestão**
+ * nessa GPU — e o modelo **perde o contrato de saída** (devolve um JSON
+ * `{"card":{…}}` inventado em vez de `{"steps":[…]}`). Curar o catálogo
+ * para um subconjunto relevante corta a latência E ajuda o modelo a
+ * ancorar no formato. 24 cobre create-shape + cor/texto + os intents
+ * textualmente relacionados ao pedido com folga.
+ */
+export const DEFAULT_CATALOG_MAX_ENTRIES = 24;
+
+/**
+ * **D-093 Fase 4** — intents **sempre** mantidos no catálogo curado
+ * (casados por `id.includes(hint)`). São as primitivas de composição:
+ * sem `create-shape` o modelo não tem como montar um "card de KPI" a
+ * partir do zero. Curtos de propósito; ampliar só com primitiva nova.
+ */
+export const CORE_INTENT_ID_HINTS: readonly string[] = ['create-shape', 'create-text', 'set-fill'];
 
 /**
  * Compact catalog entry fed to the model — one registered intent reduced
@@ -62,8 +85,10 @@ const SYSTEM_PROMPT_HEADER = [
   'Respond with ONLY a JSON object, no prose and no markdown fences, in this exact shape:',
   '{"steps":[{"intentId":"<id>","slots":{...}}],"confidence":<number 0..1>}',
   'Rules:',
+  '- The top-level object MUST have exactly two keys: "steps" (array) and "confidence" (number).',
+  '- NEVER output any other top-level key. Do NOT return {"card":...}, {"title":...}, {"value":...} or similar — only the {"steps":[...]} shape above.',
   '- Use ONLY intentId values present in the CATALOG below. Never invent an id.',
-  '- Decompose complex requests (e.g. a KPI card) into several steps using the available primitives.',
+  '- Decompose complex requests (e.g. a KPI card) into several steps using the available primitives (create one shape/text node per step).',
   '- Fill a slot only when the request implies it; omit unknown slots.',
   '- Output valid JSON and nothing else.',
   '',
@@ -99,19 +124,30 @@ export class LlmIntentResolverService {
   /**
    * Catálogo compacto dos intents registrados — enviado ao modelo no
    * system prompt. Deriva de `NaturalLanguageService.intents()`.
+   *
+   * **D-093 Fase 4 — curadoria por relevância**: quando há `text` E o
+   * total de intents excede `maxEntries`, o catálogo é **pré-filtrado**
+   * para um subconjunto relevante (primitivas core + top-K por
+   * sobreposição de tokens com o pedido). Sem `text` — ou quando o
+   * registry já cabe em `maxEntries` — devolve TODOS (comportamento
+   * legado, specs offline intactos). Isso corta o prompt de ~4095 →
+   * algumas centenas de tokens (latência) E ajuda o modelo a ancorar
+   * no contrato de saída (vide nota de {@link DEFAULT_CATALOG_MAX_ENTRIES}).
+   *
+   * @param text pedido do usuário (opcional) — base da relevância.
+   * @param opts `maxEntries` para sobrescrever o teto padrão.
    */
-  buildCatalog(): readonly LlmIntentCatalogEntry[] {
-    return this.nlu.intents().map((intent) => {
-      const slots: Record<string, string> = {};
-      for (const [name, schema] of Object.entries(intent.slots ?? {})) {
-        slots[name] = schema.kind;
-      }
-      return {
-        id: intent.id,
-        description: intent.description ?? intent.keywords.join(', '),
-        slots,
-      };
-    });
+  buildCatalog(
+    text?: string,
+    opts: { maxEntries?: number } = {},
+  ): readonly LlmIntentCatalogEntry[] {
+    const all = this.nlu.intents();
+    const maxEntries = opts.maxEntries ?? DEFAULT_CATALOG_MAX_ENTRIES;
+    const chosen =
+      typeof text === 'string' && text.length > 0 && all.length > maxEntries
+        ? selectRelevantIntents(all, text, maxEntries)
+        : all;
+    return chosen.map(toCatalogEntry);
   }
 
   /**
@@ -124,7 +160,7 @@ export class LlmIntentResolverService {
       throw new Error('LlmIntentResolverService: no AI_CHAT_PROVIDER registered');
     }
     const messages: AiChatMessage[] = [
-      { role: 'system', content: buildSystemPrompt(this.buildCatalog()) },
+      { role: 'system', content: buildSystemPrompt(this.buildCatalog(text)) },
       { role: 'user', content: text },
     ];
     const raw = await this.provider.chat(messages, {
@@ -182,6 +218,110 @@ export class LlmIntentResolverService {
   }
 }
 
+/** Reduz um {@link NluIntent} à entrada compacta do catálogo (id + desc + slots). */
+function toCatalogEntry(intent: NluIntent): LlmIntentCatalogEntry {
+  const slots: Record<string, string> = {};
+  for (const [name, schema] of Object.entries(intent.slots ?? {})) {
+    slots[name] = schema.kind;
+  }
+  return {
+    id: intent.id,
+    description: intent.description ?? intent.keywords.join(', '),
+    slots,
+  };
+}
+
+/**
+ * **D-093 Fase 4** — seleciona até `maxEntries` intents relevantes ao
+ * `text`. Mantém SEMPRE as primitivas de composição ({@link
+ * CORE_INTENT_ID_HINTS}) e completa com os mais relevantes por
+ * {@link relevanceScore}. Pure/determinística (testável offline).
+ */
+function selectRelevantIntents(
+  intents: readonly NluIntent[],
+  text: string,
+  maxEntries: number,
+): readonly NluIntent[] {
+  const textTokens = new Set(tokenize(text).filter((t) => !isStopword(t) && t.length >= 2));
+  const core = intents.filter((i) => CORE_INTENT_ID_HINTS.some((h) => i.id.includes(h)));
+  const coreIds = new Set(core.map((i) => i.id));
+  const rest = intents
+    .filter((i) => !coreIds.has(i.id))
+    .map((i) => ({ intent: i, score: relevanceScore(i, textTokens) }))
+    // Estável: score desc, empate preserva a ordem de registro (index).
+    .sort((a, b) => b.score - a.score);
+  const remaining = Math.max(0, maxEntries - core.length);
+  return [...core, ...rest.slice(0, remaining).map((r) => r.intent)];
+}
+
+/**
+ * Pontuação de relevância = nº de tokens do pedido que aparecem nos
+ * termos do intent (keywords + palavras do id + tokens da description).
+ */
+function relevanceScore(intent: NluIntent, textTokens: ReadonlySet<string>): number {
+  const terms = new Set<string>();
+  for (const kw of intent.keywords) for (const t of tokenize(kw)) terms.add(t);
+  for (const t of tokenize(intent.id.replace(/[.\-_]/g, ' '))) terms.add(t);
+  if (typeof intent.description === 'string') {
+    for (const t of tokenize(intent.description)) {
+      if (!isStopword(t) && t.length >= 3) terms.add(t);
+    }
+  }
+  let score = 0;
+  for (const t of textTokens) if (terms.has(t)) score++;
+  return score;
+}
+
+/**
+ * **D-093 Fase 4** — exemplo few-shot mostrando a saída EXATA. Usa o id
+ * real de `create-shape` presente no catálogo (sempre incluído via
+ * {@link CORE_INTENT_ID_HINTS}); se ausente, omite o exemplo. Ancorar o
+ * modelo num caso concreto de decomposição é o que tira o 3b/7b do
+ * hábito de inventar `{"card":{…}}`.
+ */
+function buildFewShot(catalog: readonly LlmIntentCatalogEntry[]): string {
+  const shape = catalog.find((e) => e.id.includes('create-shape'));
+  if (shape === undefined) return '';
+  const id = shape.id;
+  const plan = {
+    steps: [
+      {
+        intentId: id,
+        slots: {
+          shape: 'rect',
+          width: 280,
+          height: 150,
+          position: { x: 400, y: 300 },
+          fill: '#ffffff',
+          stroke: '#d0d7de',
+        },
+      },
+      {
+        intentId: id,
+        slots: { shape: 'text', width: 180, height: 20, position: { x: 320, y: 250 } },
+      },
+      {
+        intentId: id,
+        slots: { shape: 'text', width: 200, height: 40, position: { x: 320, y: 320 } },
+      },
+    ],
+    confidence: 0.75,
+  };
+  return [
+    '',
+    'EXAMPLE — a request and the ONLY acceptable output shape:',
+    'User: "crie um card de KPI com título e valor"',
+    JSON.stringify(plan),
+  ].join('\n');
+}
+
+/** Reforço final do contrato, posicionado logo antes da mensagem do usuário. */
+const SYSTEM_PROMPT_FOOTER = [
+  '',
+  'Output ONLY the JSON object {"steps":[...],"confidence":number}.',
+  'Every intentId MUST appear in the CATALOG above. No prose, no markdown, no other top-level keys.',
+].join('\n');
+
 /** Build the full system prompt from the catalog. */
 function buildSystemPrompt(catalog: readonly LlmIntentCatalogEntry[]): string {
   const lines = catalog.map((e) => {
@@ -191,7 +331,7 @@ function buildSystemPrompt(catalog: readonly LlmIntentCatalogEntry[]): string {
     const slotPart = slotStr.length > 0 ? ` | slots: ${slotStr}` : '';
     return `- ${e.id}: ${e.description}${slotPart}`;
   });
-  return `${SYSTEM_PROMPT_HEADER}\n${lines.join('\n')}`;
+  return `${SYSTEM_PROMPT_HEADER}\n${lines.join('\n')}\n${buildFewShot(catalog)}\n${SYSTEM_PROMPT_FOOTER}`;
 }
 
 /** Raw (pre-validation) step shape produced by the model. */

@@ -6,6 +6,42 @@
 
 ---
 
+## 2026-06-20 — D-093 (Fase 4) — Cura do catálogo + few-shot: o 3b passa a seguir o contrato ✅
+
+Fecha o **round-trip LLM end-to-end** com o modelo barato. Diagnóstico ao vivo da Fase 3:
+o pipeline estava correto, mas tanto **qwen2.5:3b quanto 7b ignoravam o contrato** — diante
+do catálogo de **222 intents (~4095 tokens)** devolviam um JSON inventado `{"card":{…}}`
+em vez de `{"steps":[…]}`. O 7b deu o **mesmo** erro e mais lento (~190s) → **o gargalo é o
+prompt, não o tamanho do modelo**. `format:"json"` só garante JSON _válido_, não o _schema_.
+
+- **`llm-intent-resolver.service.ts`:**
+  - **`buildCatalog(text?, {maxEntries})` — curadoria por relevância.** Quando os intents
+    excedem `DEFAULT_CATALOG_MAX_ENTRIES` (24) E há texto, pré-filtra: mantém SEMPRE as
+    primitivas de composição (`CORE_INTENT_ID_HINTS`: create-shape/create-text/set-fill) +
+    top-K por sobreposição de tokens (keywords + id + description). Quando ≤24 (ou sem
+    texto) devolve **todos** — comportamento legado, specs offline intactos.
+  - **Few-shot** no system prompt: exemplo com a saída EXATA `{steps:[…]}` usando o id real
+    de `create-shape` do catálogo (3 passos: rect + 2 texts = um card).
+  - **Reforço de schema** no rodapé (logo antes da mensagem do usuário) + regra explícita
+    no header: "the top-level object MUST have exactly steps+confidence; NEVER output
+    `{"card"}`/`{"title"}`/`{"value"}`".
+
+**Verificação:** build (9 entry points) + lint (3 projetos) + suíte (**2786**, +3 specs de
+curadoria/prompt) verdes. Snapshot de API regenerado (+`DEFAULT_CATALOG_MAX_ENTRIES`,
+`CORE_INTENT_ID_HINTS`). **Browser (`/nlu-test`, modelo default 3b):** "crie um card de KPI
+moderno com título e valor" → o 3b devolveu **exatamente** `{"steps":[3× create-shape:
+rect+2 text],"confidence":0.75}`, nós **1→4** (card renderizou no canvas). **Ganho de perf
+(mesmo 3b, mesma frase):** `prompt_eval_count` 4095→**984** (−76%), `prompt_eval` ~74s→
+**~15s**, total ~109s→**~60s** (inclui ~7.6s de swap 7b→3b).
+
+**Limitação conhecida (próximo refinamento):** o texto sai como placeholder "Texto" — o
+intent `create-shape` (kind `text`) não tem slot de **conteúdo**. Fix futuro: slot
+`content` no create-shape text (ou intent `create-text` dedicado) + ensinar no few-shot.
+Demais melhorias possíveis: preview do plano antes de executar; roteamento automático
+3b/7b por complexidade.
+
+---
+
 ## 2026-06-20 — D-093 (Fase 3) — Refino do gatilho de escalonamento + botão "Pedir à IA" ✅
 
 Corrige o **GAP crítico** da Fase 2: o rule-based é guloso com verbos de criação e
