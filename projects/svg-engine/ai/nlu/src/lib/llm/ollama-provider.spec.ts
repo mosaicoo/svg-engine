@@ -97,6 +97,37 @@ describe('OllamaChatProvider (D-093)', () => {
     expect(lastBody(fetchFn)['model']).toBe('qwen2.5:7b');
   });
 
+  it('listModels GETs {baseUrl}/api/tags and returns sorted, deduped names (D-094)', async () => {
+    const fetchFn = mockFetchOnce({
+      models: [
+        { name: 'qwen2.5:7b' },
+        { name: 'qwen2.5:3b' },
+        { name: 'qwen2.5:3b' }, // duplicate → collapsed
+        { model: 'llama3:8b' }, // `model` field fallback
+        { name: '' }, // empty → dropped
+        {}, // no name/model → dropped
+      ],
+    });
+    const p = make();
+    const models = await p.listModels();
+    const [url, init] = fetchFn.mock.calls[0];
+    expect(url).toBe('http://localhost:11434/api/tags');
+    expect((init as RequestInit).method).toBe('GET');
+    expect(models).toEqual(['llama3:8b', 'qwen2.5:3b', 'qwen2.5:7b']);
+  });
+
+  it('listModels returns [] when the server reports no models (D-094)', async () => {
+    mockFetchOnce({});
+    const p = make();
+    await expect(p.listModels()).resolves.toEqual([]);
+  });
+
+  it('listModels throws on non-OK HTTP (D-094)', async () => {
+    mockFetchOnce({}, false, 500);
+    const p = make();
+    await expect(p.listModels()).rejects.toThrow(/500/);
+  });
+
   it('provideOllamaChat wires AI_CHAT_PROVIDER to the same instance + applies config', () => {
     TestBed.configureTestingModule({
       providers: [provideOllamaChat({ baseUrl: 'http://192.168.1.21:11434', model: 'qwen2.5:7b' })],

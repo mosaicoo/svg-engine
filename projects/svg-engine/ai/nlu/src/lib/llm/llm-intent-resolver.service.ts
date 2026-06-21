@@ -1,4 +1,7 @@
 import { inject, Injectable } from '@angular/core';
+import type { NodeId } from 'svg-engine/core';
+import { ImportPlacementService } from 'svg-engine/edit';
+import { svgImporter } from 'svg-engine/io';
 
 import { isStopword } from '../dictionaries/stopwords';
 import { NaturalLanguageService } from '../natural-language.service';
@@ -80,6 +83,38 @@ export interface LlmExecuteOptions extends LlmResolveOptions {
   readonly confirmGate?: NluExecuteOptions['confirmGate'];
 }
 
+/**
+ * **D-094 — modo SEM catálogo.** Resultado de {@link
+ * LlmIntentResolverService.generateSvg}: o SVG completo extraído da resposta
+ * do modelo + o texto cru (debug / "ver resposta").
+ */
+export interface LlmRawSvgResult {
+  /** Markup `<svg>…</svg>` extraído (fences/prosa removidos). `''` se nenhum. */
+  readonly svg: string;
+  /** Texto cru retornado pelo modelo (para debug / UI). */
+  readonly raw: string;
+}
+
+/**
+ * **D-094 — modo SEM catálogo.** Resultado de {@link
+ * LlmIntentResolverService.generateAndInsertSvg}: o SVG gerado + o desfecho
+ * da inserção no canvas (id do nó inserido ou um erro amigável).
+ */
+export interface LlmRawSvgInsertResult {
+  /** `true` quando o SVG foi parseado e inserido no documento. */
+  readonly ok: boolean;
+  /** Markup SVG gerado (mesmo quando a inserção falhou — para debug). */
+  readonly svg: string;
+  /** Texto cru do modelo. */
+  readonly raw: string;
+  /** Id do nó inserido (presente só quando `ok`). */
+  readonly nodeId?: NodeId;
+  /** Avisos de saneamento do importador (scripts/handlers removidos, etc.). */
+  readonly warnings: readonly string[];
+  /** Mensagem de erro amigável quando `ok` é `false`. */
+  readonly error?: string;
+}
+
 const SYSTEM_PROMPT_HEADER = [
   'You translate a user design request (Portuguese or English) into a PLAN of editor commands.',
   'Respond with ONLY a JSON object, no prose and no markdown fences, in this exact shape:',
@@ -119,6 +154,28 @@ export class LlmIntentResolverService {
   /** `true` quando um provider LLM foi registrado (camada disponível). */
   get isAvailable(): boolean {
     return this.provider !== null && this.provider !== undefined;
+  }
+
+  /**
+   * **D-094** — modelo default do provider (o usado quando nenhum override
+   * é passado). `null` quando não há provider. Serve de fallback ao seletor
+   * de modelo da UI quando o backend não lista modelos.
+   */
+  get defaultModel(): string | null {
+    return this.provider?.defaultModel() ?? null;
+  }
+
+  /**
+   * **D-094** — lista os modelos disponíveis no backend para o seletor de
+   * modelo da UI. Quando o provider não implementa descoberta
+   * ({@link AiChatProvider.listModels} opcional) ou não há provider,
+   * devolve `[]` — a UI cai no {@link defaultModel}. Erros de rede são
+   * propagados para o chamador decidir como degradar.
+   */
+  async listModels(): Promise<readonly string[]> {
+    if (this.provider === null || this.provider === undefined) return [];
+    if (typeof this.provider.listModels !== 'function') return [];
+    return this.provider.listModels();
   }
 
   /**
@@ -215,6 +272,67 @@ export class LlmIntentResolverService {
       );
     }
     return results;
+  }
+
+  /**
+   * **D-094 — modo SEM catálogo.** Pede ao LLM um **SVG completo** (sem
+   * catálogo de intents, sem plano de passos) e extrai o `<svg>…</svg>` da
+   * resposta. Ao contrário de {@link resolvePlan}, **não** força
+   * `format:"json"` — a saída é markup SVG/XML cru. O `temperature:0` mantém
+   * o resultado determinístico. O chamador trata erro de rede / SVG ausente.
+   *
+   * @throws se nenhum provider estiver registrado.
+   */
+  async generateSvg(text: string, opts: LlmResolveOptions = {}): Promise<LlmRawSvgResult> {
+    if (this.provider === null || this.provider === undefined) {
+      throw new Error('LlmIntentResolverService: no AI_CHAT_PROVIDER registered');
+    }
+    const messages: AiChatMessage[] = [
+      { role: 'system', content: buildRawSvgSystemPrompt() },
+      { role: 'user', content: text },
+    ];
+    const raw = await this.provider.chat(messages, {
+      model: opts.model,
+      maxTokens: opts.maxTokens,
+      signal: opts.signal,
+      temperature: 0,
+    });
+    return { svg: extractSvgBlob(raw), raw };
+  }
+
+  /**
+   * **D-094 — modo SEM catálogo.** Gera o SVG via {@link generateSvg},
+   * parseia/saneia com o `svgImporter` (remove `<script>`, `on*`,
+   * `javascript:` hrefs) e o **desenha no canvas** aditivamente, centralizado
+   * na página ativa — exatamente o pipeline de `File ▸ Import ▸ SVG`
+   * ({@link ImportPlacementService.placeDocumentCentered}, resolvido do
+   * **escopo do editor** via `ctx.injector`). Nunca lança por SVG inválido:
+   * devolve `{ ok:false, error }` para a UI mostrar.
+   */
+  async generateAndInsertSvg(
+    text: string,
+    ctx: NluContext,
+    opts: LlmResolveOptions = {},
+  ): Promise<LlmRawSvgInsertResult> {
+    const { svg, raw } = await this.generateSvg(text, opts);
+    if (svg.length === 0) {
+      return { ok: false, svg, raw, warnings: [], error: 'A IA não retornou um SVG válido.' };
+    }
+    const result = svgImporter.import(svg);
+    if (!result.ok) {
+      return { ok: false, svg, raw, warnings: [], error: result.error };
+    }
+    const nodeId = ctx.injector.get(ImportPlacementService).placeDocumentCentered(result.document);
+    if (nodeId === null) {
+      return {
+        ok: false,
+        svg,
+        raw,
+        warnings: result.warnings,
+        error: 'O SVG retornado não tinha conteúdo desenhável.',
+      };
+    }
+    return { ok: true, svg, raw, nodeId, warnings: result.warnings };
   }
 }
 
@@ -384,6 +502,56 @@ function buildSystemPrompt(catalog: readonly LlmIntentCatalogEntry[]): string {
   return `${SYSTEM_PROMPT_HEADER}\n${lines.join('\n')}\n${buildFewShot(catalog)}\n${SYSTEM_PROMPT_FOOTER}`;
 }
 
+/**
+ * **D-094 — system prompt do modo SEM catálogo.** Em vez de um plano de
+ * intents, o modelo devolve um **SVG completo**. As regras travam saída
+ * segura (sem `<script>`/`on*`/URLs remotas — o `svgImporter` ainda saneia
+ * por garantia) e bem-formada (viewBox + width/height numéricos, gradientes
+ * em `<defs>` referenciados por `url(#id)`).
+ */
+const RAW_SVG_SYSTEM_PROMPT = [
+  'You convert a user design request (Portuguese or English) into ONE complete, standalone SVG image.',
+  'Rules:',
+  '- Output ONLY the SVG: a single <svg ...>...</svg> element. No prose, no explanation, no markdown fences.',
+  '- Always set an explicit viewBox plus numeric width and height on the root <svg>.',
+  '- Use inline presentation attributes (fill, stroke, stroke-width, font-size, font-weight, text-anchor).',
+  '- For gradients/filters/patterns, declare them in <defs> and reference via fill="url(#id)".',
+  '- Use font-family="sans-serif" for text; center labels with text-anchor="middle" when appropriate.',
+  '- Compose rich requests (e.g. a KPI card) from <rect>, <text>, <ellipse>, <circle>, <path>, gradients.',
+  '- NEVER include <script>, event handlers (on*), external URLs, or <image> referencing remote files.',
+].join('\n');
+
+/**
+ * **D-094** — few-shot do modo SEM catálogo. Reaproveita o MESMO exemplo do
+ * modo com catálogo (card de KPI: container + ícone + título + valor +
+ * status), agora como SVG completo, ancorando o modelo no nível de
+ * sofisticação esperado e na saída "só o `<svg>`".
+ */
+const RAW_SVG_FEW_SHOT = [
+  '',
+  'EXAMPLE — a request and the ONLY acceptable kind of output (a complete SVG, nothing else):',
+  'User: "crie um card de KPI com ícone, título, valor e status"',
+  [
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 150" width="280" height="150">',
+    '<defs><linearGradient id="kpiIcon" x1="0" y1="0" x2="1" y2="1">',
+    '<stop offset="0" stop-color="#3b82f6"/><stop offset="1" stop-color="#1e40af"/>',
+    '</linearGradient></defs>',
+    '<rect x="1" y="1" width="278" height="148" rx="12" fill="#ffffff" stroke="#d0d7de"/>',
+    '<circle cx="34" cy="40" r="18" fill="url(#kpiIcon)"/>',
+    '<path d="M26 44 L32 38 L37 42 L43 34" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>',
+    '<text x="64" y="36" font-family="sans-serif" font-size="14" fill="#6b7280">Receita</text>',
+    '<text x="64" y="64" font-family="sans-serif" font-size="32" font-weight="bold" fill="#111827">R$ 1,2M</text>',
+    '<ellipse cx="222" cy="120" rx="44" ry="14" fill="#dcfce7"/>',
+    '<text x="222" y="124" font-family="sans-serif" font-size="12" fill="#16a34a" text-anchor="middle">Ativo</text>',
+    '</svg>',
+  ].join(''),
+].join('\n');
+
+/** **D-094** — system prompt completo do modo SEM catálogo. */
+function buildRawSvgSystemPrompt(): string {
+  return `${RAW_SVG_SYSTEM_PROMPT}\n${RAW_SVG_FEW_SHOT}`;
+}
+
 /** Raw (pre-validation) step shape produced by the model. */
 interface RawPlanStep {
   readonly intentId: string;
@@ -436,6 +604,25 @@ function extractSteps(data: unknown): unknown[] {
     if (typeof obj['intentId'] === 'string' || typeof obj['id'] === 'string') return [obj];
   }
   return [];
+}
+
+/**
+ * **D-094** — extract the `<svg>…</svg>` element from a model reply. Strips
+ * markdown fences (```svg / ```xml / ```html / bare ```), then slices from the
+ * first `<svg` tag to the last `</svg>`. Returns `''` when no SVG is present
+ * (the caller surfaces a friendly "no SVG returned" error). Tolerant of prose
+ * before/after, which small models sometimes emit despite the instruction.
+ */
+export function extractSvgBlob(raw: string): string {
+  const trimmed = raw.trim();
+  const fence = trimmed.match(/```(?:svg|xml|html)?\s*([\s\S]*?)```/i);
+  const body = (fence ? fence[1] : trimmed).trim();
+  const start = body.search(/<svg[\s>]/i);
+  if (start === -1) return '';
+  const closeTag = '</svg>';
+  const closeIdx = body.toLowerCase().lastIndexOf(closeTag);
+  if (closeIdx === -1 || closeIdx < start) return '';
+  return body.slice(start, closeIdx + closeTag.length);
 }
 
 /** Strip ```json fences and slice to the outermost JSON object/array. */

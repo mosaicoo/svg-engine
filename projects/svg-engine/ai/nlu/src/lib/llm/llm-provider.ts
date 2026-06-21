@@ -58,6 +58,15 @@ export interface AiChatProvider {
    * Lança em erro de rede / HTTP — o chamador (resolver) trata.
    */
   chat(messages: readonly AiChatMessage[], opts?: AiChatOptions): Promise<string>;
+  /**
+   * **D-094 — descoberta de modelos** (opcional). Lista os modelos
+   * disponíveis no backend para o usuário escolher (ex.: Ollama
+   * `GET /api/tags`). O contrato é opcional: backends que não expõem um
+   * catálogo (ou que só servem um modelo) simplesmente não implementam, e
+   * a UI cai no {@link AiChatProvider.defaultModel}. Lança em erro de rede
+   * / HTTP — o chamador trata e degrada para o default.
+   */
+  listModels?(): Promise<readonly string[]>;
 }
 
 /**

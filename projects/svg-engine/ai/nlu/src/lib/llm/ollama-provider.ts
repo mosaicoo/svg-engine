@@ -26,6 +26,11 @@ interface OllamaChatResponse {
   readonly error?: string;
 }
 
+/** Shape of the relevant fields in Ollama's `/api/tags` response. */
+interface OllamaTagsResponse {
+  readonly models?: readonly { readonly name?: string; readonly model?: string }[];
+}
+
 /** Strip a single trailing slash so `baseUrl + '/api/chat'` never doubles it. */
 function normalizeBaseUrl(url: string): string {
   return url.endsWith('/') ? url.slice(0, -1) : url;
@@ -106,6 +111,25 @@ export class OllamaChatProvider implements AiChatProvider {
       throw new Error(`Ollama error: ${data.error}`);
     }
     return data.message?.content ?? '';
+  }
+
+  /**
+   * **D-094** — lista os modelos instalados no servidor Ollama via
+   * `GET /api/tags`. Alimenta o seletor de modelo da UI (o usuário escolhe
+   * entre os modelos disponíveis em runtime). Devolve os nomes (`name`,
+   * ex.: `qwen2.5:3b`) ordenados alfabeticamente e deduplicados. Propaga
+   * erro de rede / HTTP — o chamador degrada para o {@link defaultModel}.
+   */
+  async listModels(): Promise<readonly string[]> {
+    const res = await fetch(`${this._baseUrl()}/api/tags`, { method: 'GET' });
+    if (!res.ok) {
+      throw new Error(`Ollama /api/tags returned HTTP ${res.status}`);
+    }
+    const data = (await res.json()) as OllamaTagsResponse;
+    const names = (data.models ?? [])
+      .map((m) => m.name ?? m.model)
+      .filter((n): n is string => typeof n === 'string' && n.length > 0);
+    return [...new Set(names)].sort((a, b) => a.localeCompare(b));
   }
 }
 

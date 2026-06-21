@@ -1,5 +1,12 @@
 import { TestBed } from '@angular/core/testing';
-import { type BoundingBox, createGroup, createRect, EditorStateService } from 'svg-engine/core';
+import {
+  type BoundingBox,
+  createGroup,
+  createRect,
+  EditorStateService,
+  generateNodeId,
+  type SvgDocument,
+} from 'svg-engine/core';
 import { describe, expect, it } from 'vitest';
 
 import { provideSvgEngineEditorScope } from '../scope/editor-scope.providers';
@@ -230,5 +237,43 @@ describe('ImportPlacementService (D-107)', () => {
     expect(root.type === 'group' && root.children.length).toBe(0);
     expect(placement.pending()).toBeNull();
     expect(placement.isActive).toBe(false);
+  });
+
+  // ── D-094: non-interactive additive placement (LLM no-catalog mode) ──
+
+  function makeDoc(defs?: string, empty = false): SvgDocument {
+    return {
+      id: generateNodeId(),
+      viewBox: { x: 0, y: 0, width: 100, height: 100 },
+      root: empty
+        ? createGroup([])
+        : createGroup([createRect({ x: 0, y: 0, width: 100, height: 100 })]),
+      ...(defs !== undefined ? { defs } : {}),
+    };
+  }
+
+  it('placeDocumentCentered inserts the doc additively, selects it, returns the id (D-094)', () => {
+    const { placement, state, selection } = setup();
+    const id = placement.placeDocumentCentered(makeDoc());
+    expect(id).not.toBeNull();
+    const root = state.document().root;
+    expect(root.type === 'group' && root.children.length).toBe(1);
+    expect(selection.selectedIds().size).toBe(1);
+    // the returned id is the inserted node's id (centered at natural size)
+    const inserted = root.type === 'group' ? root.children[0] : undefined;
+    expect(inserted?.id).toBe(id);
+  });
+
+  it('placeDocumentCentered merges the imported defs into the document (D-094)', () => {
+    const { placement, state } = setup();
+    placement.placeDocumentCentered(makeDoc('<linearGradient id="g2"></linearGradient>'));
+    expect(state.document().defs ?? '').toContain('linearGradient id="g2"');
+  });
+
+  it('placeDocumentCentered returns null for a document with no drawable content (D-094)', () => {
+    const { placement, state } = setup();
+    expect(placement.placeDocumentCentered(makeDoc(undefined, true))).toBeNull();
+    const root = state.document().root;
+    expect(root.type === 'group' && root.children.length).toBe(0);
   });
 });

@@ -212,8 +212,47 @@ function initialVoiceLanguage(): string {
             <button
               mat-icon-button
               type="button"
+              class="svge-nlu-ai-config"
+              [matMenuTriggerFor]="aiMenu"
+              [matTooltip]="
+                'IA: ' +
+                (llmMode() === 'raw-svg' ? 'SVG livre' : 'com catálogo') +
+                ' · modelo ' +
+                (effectiveModel() ?? 'padrão')
+              "
+              aria-label="Configurar IA (modo e modelo)"
+            >
+              <mat-icon>tune</mat-icon>
+            </button>
+            <mat-menu #aiMenu="matMenu" class="svge-nlu-ai-menu">
+              <div class="svge-nlu-menu-title">Modo de geração</div>
+              <button mat-menu-item type="button" (click)="setLlmMode('catalog')">
+                <mat-icon>{{ llmMode() === 'catalog' ? 'check' : 'widgets' }}</mat-icon>
+                <span>Com catálogo (comandos do editor)</span>
+              </button>
+              <button mat-menu-item type="button" (click)="setLlmMode('raw-svg')">
+                <mat-icon>{{ llmMode() === 'raw-svg' ? 'check' : 'code' }}</mat-icon>
+                <span>SVG livre (a IA desenha o SVG)</span>
+              </button>
+              @if (modelOptions().length > 0) {
+                <div class="svge-nlu-menu-title">Modelo</div>
+                @for (m of modelOptions(); track m) {
+                  <button mat-menu-item type="button" (click)="selectModel(m)">
+                    <mat-icon>{{ effectiveModel() === m ? 'check' : 'memory' }}</mat-icon>
+                    <span>{{ m }}</span>
+                  </button>
+                }
+              }
+            </mat-menu>
+            <button
+              mat-icon-button
+              type="button"
               class="svge-nlu-ask-ai"
-              matTooltip="Pedir à IA (ignora o reconhecimento por regras)"
+              [matTooltip]="
+                llmMode() === 'raw-svg'
+                  ? 'Pedir à IA (gerar SVG livre)'
+                  : 'Pedir à IA (ignora o reconhecimento por regras)'
+              "
               aria-label="Pedir à IA"
               [disabled]="text().trim().length === 0 || llmThinking()"
               (click)="askAi()"
@@ -446,6 +485,17 @@ function initialVoiceLanguage(): string {
       color: var(--mat-sys-on-error-container, #5a1014);
       font-size: 12px;
     }
+    /* Cabeçalho de seção dentro do menu de configuração da IA (modo/modelo).
+       Não é um item clicável — só rotula o grupo. */
+    .svge-nlu-menu-title {
+      padding: 8px 16px 2px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--mat-sys-on-surface-variant, #666);
+      cursor: default;
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -544,6 +594,79 @@ export class SvgeNluInput {
   protected readonly llmThinking = signal(false);
   /** **D-093** — mensagem de erro do fallback LLM (rede / JSON inválido / sem comandos). */
   protected readonly llmError = signal<string | null>(null);
+
+  /**
+   * **D-094 — modo de geração do LLM.** `'catalog'` (default) escala para o
+   * resolver de **intents** (o LLM devolve um plano de comandos já
+   * registrados); `'raw-svg'` pede um **SVG completo** e o desenha no canvas
+   * (sem catálogo). Trocável pelo usuário no menu de configuração da IA.
+   */
+  protected readonly llmMode = signal<'catalog' | 'raw-svg'>('catalog');
+  /**
+   * **D-094 — modelo escolhido pelo usuário** no seletor (`null` = usa o
+   * default do provider). Tem prioridade sobre o input {@link llmModel}.
+   */
+  protected readonly selectedModel = signal<string | null>(null);
+  /** **D-094 — modelos disponíveis** descobertos no backend (Ollama /api/tags). */
+  protected readonly availableModels = signal<readonly string[]>([]);
+  /**
+   * **D-094** — opções do seletor de modelo: os modelos descobertos no
+   * backend, garantindo que o default do provider esteja na lista (no topo)
+   * mesmo que `/api/tags` não o liste.
+   */
+  protected readonly modelOptions = computed<readonly string[]>(() => {
+    const list = [...this.availableModels()];
+    const def = this.llm.defaultModel;
+    if (def !== null && !list.includes(def)) list.unshift(def);
+    return list;
+  });
+  /**
+   * **D-094** — modelo que **de fato** será usado na próxima chamada:
+   * seleção do usuário › input `llmModel` › default do provider. Usado no
+   * seletor (checkmark) e como rótulo no tooltip.
+   */
+  protected readonly effectiveModel = computed<string | null>(
+    () => this.selectedModel() ?? this.llmModel() ?? this.llm.defaultModel,
+  );
+
+  constructor() {
+    // **D-094** — descobre os modelos do backend ao montar (fire-and-forget),
+    // mas só quando a camada LLM está disponível, para não tocar a rede em
+    // apps sem provider. Falha silenciosa cai no default do provider.
+    if (this.llm.isAvailable) void this.loadModels();
+  }
+
+  /**
+   * **D-094** — carrega a lista de modelos do backend (Ollama `/api/tags`)
+   * para o seletor. Best-effort: backend offline ou sem suporte a listagem
+   * mantém a lista vazia (o seletor cai no default do provider).
+   */
+  private async loadModels(): Promise<void> {
+    try {
+      const models = await this.llm.listModels();
+      if (models.length > 0) this.availableModels.set(models);
+    } catch {
+      // Sem descoberta de modelos — segue com o default do provider.
+    }
+  }
+
+  /** **D-094** — troca o modo de geração do LLM (catálogo ↔ SVG livre). */
+  protected setLlmMode(mode: 'catalog' | 'raw-svg'): void {
+    this.llmMode.set(mode);
+  }
+
+  /** **D-094** — seleciona o modelo do seletor (override do default). */
+  protected selectModel(model: string): void {
+    this.selectedModel.set(model);
+  }
+
+  /**
+   * **D-094** — modelo a enviar na próxima chamada LLM: seleção do usuário ›
+   * input `llmModel` › `undefined` (provider usa seu default).
+   */
+  private requestModel(): string | undefined {
+    return this.selectedModel() ?? this.llmModel() ?? undefined;
+  }
   /**
    * Candidates ordenados por confidence — recomputa quando
    * `debouncedText` muda OU quando o registry de intents muda.
@@ -780,11 +903,17 @@ export class SvgeNluInput {
     this.llmThinking.set(true);
     this.llmError.set(null);
     try {
+      // **D-094** — ramifica pelo modo escolhido: SVG livre desenha o SVG
+      // gerado direto no canvas; com catálogo resolve um plano de comandos.
+      if (this.llmMode() === 'raw-svg') {
+        await this.escalateRawSvg(text);
+        return;
+      }
       const results = await this.llm.resolveAndExecute(
         text,
         { injector: this.hostInjector },
         {
-          model: this.llmModel() ?? undefined,
+          model: this.requestModel(),
           confirmGate: this.executeOptions().confirmGate,
         },
       );
@@ -799,6 +928,26 @@ export class SvgeNluInput {
       this.llmError.set('A IA não conseguiu interpretar o pedido. Tente reformular.');
     } finally {
       this.llmThinking.set(false);
+    }
+  }
+
+  /**
+   * **D-094 — modo SEM catálogo.** Pede um SVG completo ao
+   * {@link LlmIntentResolverService.generateAndInsertSvg}, que o parseia,
+   * saneia e desenha no canvas. Em sucesso limpa o input; em falha mostra o
+   * erro amigável do resolver. Erros de rede sobem para o `catch` de
+   * {@link escalateToLlm}.
+   */
+  private async escalateRawSvg(text: string): Promise<void> {
+    const result = await this.llm.generateAndInsertSvg(
+      text,
+      { injector: this.hostInjector },
+      { model: this.requestModel() },
+    );
+    if (result.ok) {
+      this.setTextProgrammatically('');
+    } else {
+      this.llmError.set(result.error ?? 'A IA não conseguiu gerar o SVG. Tente reformular.');
     }
   }
 

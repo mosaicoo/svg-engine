@@ -6,11 +6,15 @@ import {
   EditorStateService,
   getNodeBBox,
   InsertNodeCommand,
+  type NodeId,
   type Point,
+  type SvgDocument,
   type SvgNode,
   type Transform,
 } from 'svg-engine/core';
+import { ViewportService } from 'svg-engine/render';
 
+import { ActivePageService } from '../pages/active-page.service';
 import { SelectionService } from '../selection/selection.service';
 
 /** A parsed SVG import waiting to be placed on the canvas (D-107). */
@@ -121,6 +125,10 @@ export class ImportPlacementService {
   private readonly bus = inject(CommandBus);
   private readonly state = inject(EditorStateService);
   private readonly selection = inject(SelectionService);
+  // **D-094** — used by `placeDocumentCentered` to center the import on the
+  // active page (with viewport fallback), mirroring `File ▸ Import ▸ SVG`.
+  private readonly activePage = inject(ActivePageService);
+  private readonly viewport = inject(ViewportService);
 
   private readonly _pending = signal<PendingImport | null>(null);
   /** The import awaiting placement, or null. Drives the capture overlay. */
@@ -235,5 +243,61 @@ export class ImportPlacementService {
     this.dragStart = null;
     this._rect.set(null);
     this._stretch.set(false);
+  }
+
+  /**
+   * **D-094** — insert a parsed SVG document **additively** at its natural
+   * 1:1 size, centered on the active page (viewport fallback). The
+   * non-interactive sibling of {@link commitDrag}: same merge-defs +
+   * `InsertNodeCommand(AUTO_PARENT)` + select pipeline, but with no drag
+   * gesture — the placement is computed directly.
+   *
+   * Reuses the exact behavior of `File ▸ Import ▸ SVG…` (centered mode):
+   * - centers the art's **content** box (via {@link placementBounds}) on the
+   *   active page's artboard center, so a small graphic in a big viewBox
+   *   doesn't land off-center;
+   * - merges the imported `<defs>` (gradients/filters/patterns) into the
+   *   document so `url(#id)` references resolve;
+   * - inserts as one undo entry into the active page and selects the result.
+   *
+   * Used by the LLM **no-catalog** mode (D-094): the model returns a complete
+   * SVG and we draw it on the canvas. Returns the inserted node id, or `null`
+   * when the document has no drawable content.
+   */
+  placeDocumentCentered(doc: SvgDocument): NodeId | null {
+    const imported = doc.root;
+    if (imported.type !== 'group' || imported.children.length === 0) return null;
+
+    const src = placementBounds(imported, doc.viewBox);
+    const srcCx = src.x + src.width / 2;
+    const srcCy = src.y + src.height / 2;
+    const { cx, cy } = this.insertionCenter();
+
+    const placed: SvgNode = {
+      ...imported,
+      transform: [1, 0, 0, 1, cx - srcCx, cy - srcCy] as Transform,
+    };
+
+    if (doc.defs !== undefined && doc.defs.length > 0) {
+      const current = this.state.document();
+      this.state.setDocument({ ...current, defs: `${current.defs ?? ''}\n${doc.defs}` });
+    }
+    this.bus.dispatch(new InsertNodeCommand(AUTO_PARENT, placed));
+    this.selection.select(placed.id);
+    return placed.id;
+  }
+
+  /**
+   * **D-094** — center for {@link placeDocumentCentered}: the active page's
+   * artboard center, falling back to the visible viewport center when no page
+   * is active. Mirrors the menu plugin's `activeInsertionCenter`.
+   */
+  private insertionCenter(): { cx: number; cy: number } {
+    const pageVb = this.activePage.activePageViewBox();
+    if (pageVb !== null) {
+      return { cx: pageVb.x + pageVb.width / 2, cy: pageVb.y + pageVb.height / 2 };
+    }
+    const vp = this.viewport.viewBox();
+    return { cx: vp.x + vp.width / 2, cy: vp.y + vp.height / 2 };
   }
 }

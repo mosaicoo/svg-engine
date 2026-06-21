@@ -1,5 +1,7 @@
-import { Injector, signal } from '@angular/core';
+import { Injector, type Provider, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import type { NodeId, SvgDocument } from 'svg-engine/core';
+import { ImportPlacementService } from 'svg-engine/edit';
 import { describe, expect, it } from 'vitest';
 
 import { NaturalLanguageService } from '../natural-language.service';
@@ -10,7 +12,7 @@ import {
   type AiChatOptions,
   type AiChatProvider,
 } from './llm-provider';
-import { LlmIntentResolverService, parsePlan } from './llm-intent-resolver.service';
+import { extractSvgBlob, LlmIntentResolverService, parsePlan } from './llm-intent-resolver.service';
 
 function makeCtx(): NluContext {
   return { injector: TestBed.inject(Injector) };
@@ -21,7 +23,11 @@ interface Captured {
   opts?: AiChatOptions;
 }
 
-function fakeProvider(reply: string, captured?: Captured): AiChatProvider {
+function fakeProvider(
+  reply: string,
+  captured?: Captured,
+  models?: readonly string[],
+): AiChatProvider {
   return {
     isConfigured: signal(true).asReadonly(),
     defaultModel: signal('fake-model').asReadonly(),
@@ -32,15 +38,43 @@ function fakeProvider(reply: string, captured?: Captured): AiChatProvider {
       }
       return reply;
     },
+    // **D-094** — só expõe descoberta de modelos quando `models` é passado
+    // (o contrato `listModels` é opcional).
+    ...(models !== undefined ? { listModels: async (): Promise<readonly string[]> => models } : {}),
   };
 }
 
-function setup(provider: AiChatProvider | null) {
+/**
+ * **D-094** — fake do {@link ImportPlacementService} para isolar a lógica do
+ * resolver (`generateAndInsertSvg`) da inserção real no canvas (essa é
+ * coberta em `import-placement.service.spec.ts`). Captura os docs recebidos
+ * e devolve o `returnId` configurado.
+ */
+function fakePlacement(returnId: NodeId | null): { calls: SvgDocument[]; provider: Provider } {
+  const calls: SvgDocument[] = [];
+  return {
+    calls,
+    provider: {
+      provide: ImportPlacementService,
+      useValue: {
+        placeDocumentCentered(doc: SvgDocument): NodeId | null {
+          calls.push(doc);
+          return returnId;
+        },
+      },
+    },
+  };
+}
+
+function setup(provider: AiChatProvider | null, extraProviders: Provider[] = []) {
   // Reset first so a single test can call setup() more than once
   // (e.g. with/without a provider) without "already instantiated".
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
-    providers: provider !== null ? [{ provide: AI_CHAT_PROVIDER, useValue: provider }] : [],
+    providers: [
+      ...(provider !== null ? [{ provide: AI_CHAT_PROVIDER, useValue: provider }] : []),
+      ...extraProviders,
+    ],
   });
   return {
     nlu: TestBed.inject(NaturalLanguageService),
@@ -201,6 +235,102 @@ describe('parsePlan (D-093)', () => {
 
   it('throws on non-JSON', () => {
     expect(() => parsePlan('nope')).toThrow();
+  });
+});
+
+describe('extractSvgBlob (D-094)', () => {
+  it('returns the svg element verbatim', () => {
+    const svg = '<svg viewBox="0 0 1 1"><rect/></svg>';
+    expect(extractSvgBlob(svg)).toBe(svg);
+  });
+
+  it('strips markdown fences and surrounding prose', () => {
+    const svg = '<svg><circle/></svg>';
+    expect(extractSvgBlob('Here you go:\n```svg\n' + svg + '\n```\nDone')).toBe(svg);
+  });
+
+  it('slices from the first <svg to the last </svg> (case-insensitive)', () => {
+    const svg = '<svg><g><rect/></g></svg>';
+    expect(extractSvgBlob('blah ' + svg + ' trailing')).toBe(svg);
+    expect(extractSvgBlob('<SVG><rect/></SVG>')).toBe('<SVG><rect/></SVG>');
+  });
+
+  it('returns empty string when no svg is present', () => {
+    expect(extractSvgBlob('no svg here')).toBe('');
+    expect(extractSvgBlob('<div>not svg</div>')).toBe('');
+  });
+});
+
+describe('LlmIntentResolverService — model discovery (D-094)', () => {
+  it('defaultModel is null without a provider, reflects the provider with one', () => {
+    expect(setup(null).resolver.defaultModel).toBeNull();
+    expect(setup(fakeProvider('{}')).resolver.defaultModel).toBe('fake-model');
+  });
+
+  it('listModels returns [] without a provider', async () => {
+    await expect(setup(null).resolver.listModels()).resolves.toEqual([]);
+  });
+
+  it('listModels returns [] when the provider does not implement discovery', async () => {
+    await expect(setup(fakeProvider('{}')).resolver.listModels()).resolves.toEqual([]);
+  });
+
+  it('listModels delegates to the provider when it supports discovery', async () => {
+    const { resolver } = setup(fakeProvider('{}', undefined, ['qwen2.5:3b', 'qwen2.5:7b']));
+    await expect(resolver.listModels()).resolves.toEqual(['qwen2.5:3b', 'qwen2.5:7b']);
+  });
+});
+
+describe('LlmIntentResolverService — raw SVG mode (D-094)', () => {
+  it('generateSvg requests raw SVG (no JSON format) and extracts the <svg> blob', async () => {
+    const captured: Captured = {};
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect/></svg>';
+    const { resolver } = setup(fakeProvider('```svg\n' + svg + '\n```', captured));
+
+    const out = await resolver.generateSvg('um quadrado', { model: 'qwen2.5:7b' });
+    expect(out.svg).toBe(svg);
+    // raw-SVG mode must NOT force JSON formatting (it would corrupt the markup)
+    expect(captured.opts?.format).toBeUndefined();
+    expect(captured.opts?.model).toBe('qwen2.5:7b');
+    expect(captured.opts?.temperature).toBe(0);
+    // reuses the SAME KPI-card example as the catalog mode, as an SVG
+    const sys = captured.messages?.[0]?.content ?? '';
+    expect(sys).toContain('card de KPI');
+    expect(sys).toContain('<svg');
+  });
+
+  it('generateSvg throws when no provider is registered', async () => {
+    await expect(setup(null).resolver.generateSvg('x')).rejects.toThrow();
+  });
+
+  it('generateAndInsertSvg imports the SVG and delegates to placeDocumentCentered', async () => {
+    const fp = fakePlacement('node-1' as NodeId);
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="red"/></svg>';
+    const { resolver, ctx } = setup(fakeProvider(svg), [fp.provider]);
+
+    const res = await resolver.generateAndInsertSvg('um quadrado vermelho', ctx);
+    expect(res.ok).toBe(true);
+    expect(res.nodeId).toBe('node-1');
+    expect(fp.calls).toHaveLength(1);
+  });
+
+  it('generateAndInsertSvg returns ok:false (no error throw) when the model returns no SVG', async () => {
+    const { resolver, ctx } = setup(fakeProvider('desculpe, não consigo'));
+    const res = await resolver.generateAndInsertSvg('algo', ctx);
+    expect(res.ok).toBe(false);
+    expect(res.error).toBeTruthy();
+    expect(res.nodeId).toBeUndefined();
+  });
+
+  it('generateAndInsertSvg returns ok:false when placement finds no drawable content', async () => {
+    const fp = fakePlacement(null);
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>';
+    const { resolver, ctx } = setup(fakeProvider(svg), [fp.provider]);
+
+    const res = await resolver.generateAndInsertSvg('vazio', ctx);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('desenhável');
   });
 });
 

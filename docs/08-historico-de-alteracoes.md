@@ -6,6 +6,48 @@
 
 ---
 
+## 2026-06-21 — D-094 — Seletor de modelos + modo SEM catálogo (LLM gera o SVG cru) ✅
+
+Pedido do usuário: (a) **escolher entre os modelos disponíveis**; (b) um **segundo modo**
+em que o LLM **gera o SVG completo** (sem catálogo de intents) e nós **desenhamos** o
+retorno — mantendo **os dois modos** (com catálogo e sem) com um toggle; (c) reusar os
+**mesmos exemplos** do modo com catálogo. As Fases 1–10 do [[D-093]] só tinham o modo
+"resolver de intents". Esta decisão adiciona o modo "SVG livre" e a troca de modelo.
+
+- **Descoberta de modelos (`AiChatProvider.listModels?` + Ollama `/api/tags`):** novo método
+  **opcional** no contrato; o `OllamaChatProvider` implementa via `GET /api/tags` (nomes
+  ordenados + deduplicados). O `LlmIntentResolverService` expõe `listModels()` (degrada p/
+  `[]` quando o provider não suporta) + getter `defaultModel`. A UI lista os modelos e o
+  usuário escolhe; a escolha vai como `opts.model` por requisição (não muta o provider).
+- **Modo SEM catálogo (`generateSvg` + `generateAndInsertSvg` no resolver):** `generateSvg`
+  pede ao LLM um `<svg>` completo (**sem** `format:"json"` — é markup, não JSON;
+  `temperature:0`) e extrai o `<svg>…</svg>` com `extractSvgBlob` (tira fences/prosa).
+  `generateAndInsertSvg` parseia/saneia com o **`svgImporter`** (remove `<script>`/`on*`/
+  hrefs `javascript:`) e **desenha aditivamente** no canvas via o novo
+  `ImportPlacementService.placeDocumentCentered(doc)`. Few-shot reusa o **mesmo card de KPI**
+  do modo com catálogo, agora como SVG. Nunca lança por SVG inválido — devolve
+  `{ok:false, error}` p/ a UI.
+- **`ImportPlacementService.placeDocumentCentered(doc)` (novo, edit):** o irmão
+  não-interativo do `commitDrag` — insere 1:1 centralizado na página ativa (fallback
+  viewport), faz merge de `<defs>` (gradientes!), `InsertNodeCommand(AUTO_PARENT)` + select,
+  devolve o id. Mesmo pipeline do `File ▸ Import ▸ SVG`, sem o gesto de arraste. Single
+  source of truth p/ "importar um SvgDocument aditivamente".
+- **`<svge-nlu-input>` (UI compartilhada):** novo botão `tune` que abre um menu de
+  **configuração da IA** — toggle **Modo** (Com catálogo / SVG livre) + lista de **Modelo**
+  (carregada de `listModels()` ao montar, garantindo o default na lista). `escalateToLlm`
+  ramifica pelo modo; o modelo escolhido vai em todas as chamadas. Como o componente é
+  compartilhado, **playground e svg-studio** ganham os dois recursos de graça.
+
+**Verificação:** build:lib (9 entry points) + **test:lib (2818, +14 specs**: `listModels`
+no provider/resolver, `extractSvgBlob`, `generateSvg`/`generateAndInsertSvg`,
+`placeDocumentCentered`) + lint (3 projetos) + **API snapshot regenerado** (3 novos exports
+em `ai/nlu`: `extractSvgBlob`, `LlmRawSvgResult`, `LlmRawSvgInsertResult`). **Ao vivo
+(`/nlu-test`):** o menu lista dinamicamente `qwen2.5:3b` (default) + `qwen2.5:7b` do
+`/api/tags`, o toggle troca Com catálogo ↔ SVG livre, e o modo SVG livre gera + desenha o
+SVG retornado no canvas.
+
+---
+
 ## 2026-06-20 — D-093 (Fase 10) — Fix: gradiente do plano LLM não criava nada (crash silencioso) ✅
 
 **Bug reportado** (svg-studio): "criar retângulo com gradiente azul para vermelho" → o 3b
