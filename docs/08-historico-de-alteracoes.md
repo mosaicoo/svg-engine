@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-06-22 — Fix — `/svg-viewer` não passava `[defs]` (gradientes não renderizavam) ✅
+
+**Bug reportado** (usuário): um SVG com vários gradientes (céu/chão/carro/rodas) colado no
+`/svg-viewer` renderizava com **cores erradas** vs outros renderers. **Reproduzido e
+diagnosticado ao vivo** via preview MCP.
+
+**Causa raiz (NÃO é bug do core):** o `svgImporter.import()` captura o `<defs>` fiel
+(`document.defs`, 1406 chars com os 7 gradientes/stops intactos) **e** o `<svge-renderer>`
+tem o input `defs = input<string|null>(null)` que materializa os defs (provado no D-094).
+Mas o **componente demo `/svg-viewer`** ligava só `[tree]` e `[viewBox]` ao renderer —
+**esquecia `[defs]`**. Resultado: `renderer.defs()` = `null`, nenhum `<defs>` emitido,
+todo `fill="url(#id)"` virava referência pendurada → formas com gradiente sem paint server
+(transparentes/erradas). As views de editor (custom/basic/pro, `/nlu-test`) nunca tiveram
+o problema porque recebem defs via `EditorStateService` → renderer.
+
+**Fix (1 linha, `svg-viewer.component.ts`):** `[defs]="doc()!.defs ?? null"` no
+`<svge-renderer>`. **Verificado ao vivo:** os 7 gradientes (16 stops) passam a constar no
+`<defs>` renderizado, `url(#skyGrad)` resolve, e o desenho (céu, árvore, carro vermelho com
+gradiente, vidro, rodas radiais, farol) renderiza idêntico a outros renderers. Lint OK.
+**Conclusão: o SVGEngine (importer + renderer) está correto**; era a fiação do viewer demo.
+
+---
+
 ## 2026-06-22 — D-095 — Modelos `qwen2.5-coder` (3b/7b/14b) no seletor (curadoria) ✅
 
 Pedido do usuário: deixar o engine trabalhar também com `qwen2.5-coder:3b/7b/14b`

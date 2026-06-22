@@ -89,6 +89,7 @@ import { SvgeRenderer } from 'svg-engine/render';
           <svge-renderer
             [tree]="doc()!.root"
             [viewBox]="doc()!.viewBox"
+            [defs]="doc()!.defs ?? null"
             [ariaLabel]="'SVG carregado pelo viewer'"
           />
         } @else {
