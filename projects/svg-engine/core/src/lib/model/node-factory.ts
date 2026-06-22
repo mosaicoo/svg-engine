@@ -142,6 +142,18 @@ interface TextInit {
   readonly fontFamily?: string;
   readonly fontWeight?: number | 'normal' | 'bold';
   readonly textAnchor?: 'start' | 'middle' | 'end';
+  // **D-098** — full typography + text-on-path pass-through. Without these
+  // the factory silently dropped fields the model/renderer/exporter already
+  // support, so the importer couldn't reconstruct them (import↔export
+  // asymmetry). Mirrors every optional field on {@link TextNode}.
+  readonly fontStyle?: 'normal' | 'italic';
+  readonly textDecoration?: 'none' | 'underline' | 'line-through';
+  readonly lineHeight?: number;
+  readonly fontVariationSettings?: string;
+  readonly fontFeatureSettings?: string;
+  readonly letterSpacing?: number;
+  readonly textPathRef?: NodeId;
+  readonly textPathStartOffset?: string;
 }
 
 export function createText(init: TextInit, opts: NodeFactoryOptions = {}): TextNode {
@@ -158,6 +170,14 @@ export function createText(init: TextInit, opts: NodeFactoryOptions = {}): TextN
     fontFamily: init.fontFamily,
     fontWeight: init.fontWeight,
     textAnchor: init.textAnchor,
+    fontStyle: init.fontStyle,
+    textDecoration: init.textDecoration,
+    lineHeight: init.lineHeight,
+    fontVariationSettings: init.fontVariationSettings,
+    fontFeatureSettings: init.fontFeatureSettings,
+    letterSpacing: init.letterSpacing,
+    textPathRef: init.textPathRef,
+    textPathStartOffset: init.textPathStartOffset,
   };
 }
 

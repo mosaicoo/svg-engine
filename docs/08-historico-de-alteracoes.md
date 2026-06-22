@@ -6,6 +6,43 @@
 
 ---
 
+## 2026-06-22 — D-098 — Auditoria de cobertura SVG: fixes P0 (fidelidade de import) ✅
+
+Da auditoria profunda de suporte a elementos SVG (modelo/importer/renderer/exporter), os
+três P0 de maior ROI — fidelidade de **importação** (o exporter/renderer já suportavam; o
+importer estava atrás). Cada um com specs de round-trip.
+
+**P0-1 — fim da assimetria import↔export (texto/imagem/textPath).** O exporter já emitia
+toda a tipografia (`font-family/weight/style`, `text-anchor`, `text-decoration`,
+`letter-spacing`, variable-font/OpenType) + `<textPath>` + `<image preserveAspectRatio>`,
+mas o `createText` (factory) **não repassava** esses campos e o importer só lia
+`x/y/content/font-size`. Logo Save→Open achatava texto e imagem.
+
+- `createText`/`TextInit` (core): passam TODOS os campos opcionais do `TextNode`.
+- importer `case 'text'`: lê família/peso/estilo/âncora/decoração/letter-spacing (atributo
+  **ou** `style=`) + `<textPath href/startOffset>` → `textPathRef`/`textPathStartOffset`.
+- importer `case 'image'`: lê `preserveAspectRatio`.
+
+**P0-2 — unidades em geometria.** `parseFloat("10mm")` dava `10` (errado: ≈37.8px) e
+`"50%"` virava `50` user units, silenciosamente. Agora `numberAttr`/`optionalNumberAttr`
+convertem unidades **absolutas** (px/pt/pc/in/cm/mm/Q a 96dpi) e **avisam** (warning) em
+`%`/relativas (em/ex/…) que não dá pra resolver sem contexto, em vez de truncar mudo.
+
+**P0-3 — `<use>` genérico.** Antes era descartado (default → unsupported), então arte
+baseada em símbolos/sprites (Illustrator Symbols, sistemas de ícones) importava com os
+`<symbol>` nos defs mas **nada os instanciando** → tela vazia. Agora `<use href="#id">` →
+`SymbolUseNode` (a melhoria de importer prometida no JSDoc do D-059); o `<symbol>` segue
+preservado verbatim nos `<defs>`, então o `<use href="#id">` do renderer resolve. _Limitação
+conhecida_: `<use>` apontando para uma **shape irmã comum** por id fica pendurado (o importer
+regenera ids de nós comuns) — bem mais raro que use→symbol.
+
+**Verificação:** build:lib (9 EP) + test:lib (+17 specs round-trip: typography/textPath/
+preserveAspectRatio, unidades, `<use>`) + lint. Sem mudança de superfície pública (mudanças
+internas no importer + factory). Próximo passo sugerido da auditoria: P1 (vector-effect
+por-nó, defs editáveis/namespacing) + suíte fixture-por-elemento mais ampla.
+
+---
+
 ## 2026-06-22 — D-097 — Smart Object descartava `<defs>` (gradientes quebravam) ✅
 
 **Reportado** (usuário): o mesmo SVG de gradientes, levado a um **Smart Object** (D-074),

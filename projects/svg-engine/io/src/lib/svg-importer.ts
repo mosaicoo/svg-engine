@@ -10,12 +10,14 @@ import {
   createPolygon,
   createPolyline,
   createRect,
+  createSymbolUse,
   createText,
   type CustomAttrs,
   dataNameToCustomAttr,
   generateNodeId,
   isAnimationDoc,
   type NodeFactoryOptions,
+  type NodeId,
   parseTransformAttr,
   SVGE_CUSTOM_ATTRS_KEY,
   SVGE_KIND_KEY,
@@ -303,6 +305,82 @@ function parseTextContent(el: Element): string {
   return el.textContent ?? '';
 }
 
+// ── D-098 — typography + text-on-path import helpers ───────────────
+
+/** Read a single CSS declaration value from an element's inline `style="..."`. */
+function inlineStyleValue(el: Element, prop: string): string | undefined {
+  const style = el.getAttribute('style');
+  if (style === null) return undefined;
+  for (const decl of style.split(';')) {
+    const idx = decl.indexOf(':');
+    if (idx <= 0) continue;
+    if (decl.slice(0, idx).trim().toLowerCase() === prop) {
+      const v = decl.slice(idx + 1).trim();
+      return v.length > 0 ? v : undefined;
+    }
+  }
+  return undefined;
+}
+
+/** A value from a presentation attribute OR inline CSS (attribute wins, like the cascade). */
+function attrOrCss(el: Element, name: string): string | undefined {
+  const attr = el.getAttribute(name);
+  if (attr !== null && attr.length > 0) return attr;
+  return inlineStyleValue(el, name);
+}
+
+/** Parse `font-weight` into the model union (`number | 'normal' | 'bold'`). */
+function parseFontWeight(raw: string | undefined): number | 'normal' | 'bold' | undefined {
+  if (raw === undefined) return undefined;
+  const v = raw.trim().toLowerCase();
+  if (v === 'normal' || v === 'bold') return v;
+  const n = Number.parseInt(v, 10);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** Restrict a raw value to one of `allowed`, else `undefined`. */
+function enumValue<T extends string>(
+  raw: string | undefined,
+  allowed: readonly T[],
+): T | undefined {
+  if (raw === undefined) return undefined;
+  const v = raw.trim() as T;
+  return allowed.includes(v) ? v : undefined;
+}
+
+/** Parse a numeric CSS/SVG length (drops a trailing unit), or `undefined`. */
+function parseLength(raw: string | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  const n = Number.parseFloat(raw);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+interface TextPathInfo {
+  readonly content: string;
+  readonly ref?: NodeId;
+  readonly startOffset?: string;
+}
+
+/**
+ * **D-098** — read a `<text>`'s `<textPath>` child (text-on-path). Returns the
+ * path id (from `href`/`xlink:href`, `#` stripped), the `startOffset`, and the
+ * textPath's text content. `null` when the `<text>` has no `<textPath>` child.
+ */
+function parseTextPath(el: Element): TextPathInfo | null {
+  for (const child of Array.from(el.children)) {
+    if (child.tagName.toLowerCase() !== 'textpath') continue;
+    const href = child.getAttribute('href') ?? child.getAttribute('xlink:href') ?? '';
+    const id = href.startsWith('#') ? href.slice(1) : href;
+    const startOffset = child.getAttribute('startOffset');
+    return {
+      content: child.textContent ?? '',
+      ref: id.length > 0 ? (id as NodeId) : undefined,
+      startOffset: startOffset !== null && startOffset.length > 0 ? startOffset : undefined,
+    };
+  }
+  return null;
+}
+
 function parseAuthoredName(el: Element): string | undefined {
   // 1. Direct <title> child — preferred.
   for (const child of Array.from(el.children)) {
@@ -534,41 +612,46 @@ function parseElement(
     case 'rect':
       return createRect(
         {
-          x: numberAttr(el, 'x', 0),
-          y: numberAttr(el, 'y', 0),
-          width: numberAttr(el, 'width', 0),
-          height: numberAttr(el, 'height', 0),
-          rx: optionalNumberAttr(el, 'rx'),
-          ry: optionalNumberAttr(el, 'ry'),
+          x: numberAttr(el, 'x', 0, warnings),
+          y: numberAttr(el, 'y', 0, warnings),
+          width: numberAttr(el, 'width', 0, warnings),
+          height: numberAttr(el, 'height', 0, warnings),
+          rx: optionalNumberAttr(el, 'rx', warnings),
+          ry: optionalNumberAttr(el, 'ry', warnings),
         },
         baseFactoryOpts(el),
       );
     case 'ellipse':
       return createEllipse(
         {
-          cx: numberAttr(el, 'cx', 0),
-          cy: numberAttr(el, 'cy', 0),
-          rx: numberAttr(el, 'rx', 0),
-          ry: numberAttr(el, 'ry', 0),
+          cx: numberAttr(el, 'cx', 0, warnings),
+          cy: numberAttr(el, 'cy', 0, warnings),
+          rx: numberAttr(el, 'rx', 0, warnings),
+          ry: numberAttr(el, 'ry', 0, warnings),
         },
         baseFactoryOpts(el),
       );
     case 'circle': {
       // SVG <circle r="N"> is the rx=ry=N case of ellipse — fold to
       // ellipse so the model stays small (one shape, not two).
-      const r = numberAttr(el, 'r', 0);
+      const r = numberAttr(el, 'r', 0, warnings);
       return createEllipse(
-        { cx: numberAttr(el, 'cx', 0), cy: numberAttr(el, 'cy', 0), rx: r, ry: r },
+        {
+          cx: numberAttr(el, 'cx', 0, warnings),
+          cy: numberAttr(el, 'cy', 0, warnings),
+          rx: r,
+          ry: r,
+        },
         baseFactoryOpts(el),
       );
     }
     case 'line':
       return createLine(
         {
-          x1: numberAttr(el, 'x1', 0),
-          y1: numberAttr(el, 'y1', 0),
-          x2: numberAttr(el, 'x2', 0),
-          y2: numberAttr(el, 'y2', 0),
+          x1: numberAttr(el, 'x1', 0, warnings),
+          y1: numberAttr(el, 'y1', 0, warnings),
+          x2: numberAttr(el, 'x2', 0, warnings),
+          y2: numberAttr(el, 'y2', 0, warnings),
         },
         baseFactoryOpts(el),
       );
@@ -578,16 +661,35 @@ function parseElement(
       return createPolyline(parsePoints(el.getAttribute('points')), baseFactoryOpts(el));
     case 'path':
       return createPath(el.getAttribute('d') ?? '', baseFactoryOpts(el));
-    case 'text':
+    case 'text': {
+      // **D-098** — read the full typography surface the model/renderer/
+      // exporter already support, closing the import↔export asymmetry.
+      // `<textPath>` content + ref take precedence over plain/tspan content.
+      const tp = parseTextPath(el);
       return createText(
         {
-          x: numberAttr(el, 'x', 0),
-          y: numberAttr(el, 'y', 0),
-          content: parseTextContent(el),
-          fontSize: optionalNumberAttr(el, 'font-size'),
+          x: numberAttr(el, 'x', 0, warnings),
+          y: numberAttr(el, 'y', 0, warnings),
+          content: tp !== null ? tp.content : parseTextContent(el),
+          fontSize: optionalNumberAttr(el, 'font-size', warnings),
+          fontFamily: attrOrCss(el, 'font-family'),
+          fontWeight: parseFontWeight(attrOrCss(el, 'font-weight')),
+          fontStyle: enumValue(attrOrCss(el, 'font-style'), ['normal', 'italic'] as const),
+          textAnchor: enumValue(attrOrCss(el, 'text-anchor'), ['start', 'middle', 'end'] as const),
+          textDecoration: enumValue(attrOrCss(el, 'text-decoration'), [
+            'none',
+            'underline',
+            'line-through',
+          ] as const),
+          letterSpacing: parseLength(attrOrCss(el, 'letter-spacing')),
+          fontVariationSettings: attrOrCss(el, 'font-variation-settings'),
+          fontFeatureSettings: attrOrCss(el, 'font-feature-settings'),
+          textPathRef: tp?.ref,
+          textPathStartOffset: tp?.startOffset,
         },
         baseFactoryOpts(el),
       );
+    }
     case 'image': {
       const href = sanitizeHref(
         el.getAttribute('href') ?? el.getAttribute('xlink:href') ?? '',
@@ -596,11 +698,43 @@ function parseElement(
       );
       return createImage(
         {
-          x: numberAttr(el, 'x', 0),
-          y: numberAttr(el, 'y', 0),
-          width: numberAttr(el, 'width', 0),
-          height: numberAttr(el, 'height', 0),
+          x: numberAttr(el, 'x', 0, warnings),
+          y: numberAttr(el, 'y', 0, warnings),
+          width: numberAttr(el, 'width', 0, warnings),
+          height: numberAttr(el, 'height', 0, warnings),
           href,
+          // **D-098** — preserveAspectRatio was emitted by the exporter but
+          // dropped on import (round-trip loss). Read it back.
+          preserveAspectRatio: el.getAttribute('preserveAspectRatio') ?? undefined,
+        },
+        baseFactoryOpts(el),
+      );
+    }
+    case 'use': {
+      // **D-098** — generic `<use href="#id">` → SymbolUseNode (the deferred
+      // importer enhancement promised in SymbolUseNode's JSDoc). The referenced
+      // `<symbol>`/def is preserved verbatim in the document `<defs>`
+      // (REUSABLE_DEF_TAGS / extractDefsFragment), so the renderer's
+      // `<use href="#id">` resolves at paint time. Works for `<use>` pointing
+      // at a `<symbol>` or any `<defs>` element by id.
+      //
+      // **Known limitation**: `<use>` pointing at a *plain sibling shape* by id
+      // dangles — the importer regenerates ids on regular nodes, so the
+      // authored id the `<use>` references no longer exists after import. (Far
+      // rarer than use→symbol; faithful support needs id preservation/remap.)
+      const href = el.getAttribute('href') ?? el.getAttribute('xlink:href') ?? '';
+      const id = href.startsWith('#') ? href.slice(1) : href;
+      if (id.length === 0) {
+        warnings.push(`<use> without an href reference dropped`);
+        return null;
+      }
+      return createSymbolUse(
+        {
+          symbolId: id,
+          x: numberAttr(el, 'x', 0, warnings),
+          y: numberAttr(el, 'y', 0, warnings),
+          width: optionalNumberAttr(el, 'width', warnings),
+          height: optionalNumberAttr(el, 'height', warnings),
         },
         baseFactoryOpts(el),
       );
@@ -613,18 +747,70 @@ function parseElement(
 
 // ── Attribute helpers ─────────────────────────────────────────────
 
-function numberAttr(el: Element, name: string, fallback: number): number {
-  const v = el.getAttribute(name);
-  if (v === null) return fallback;
-  const n = Number.parseFloat(v);
-  return Number.isFinite(n) ? n : fallback;
+/**
+ * **D-098** — CSS absolute length units → user units (px), at 96dpi (the CSS
+ * reference). Lets print-oriented exports (Illustrator/CorelDRAW emit `pt`,
+ * `mm`, `in`, `cm`) import at the correct size instead of being truncated to
+ * the bare number (`parseFloat("10mm") === 10` was wrong — 10mm ≈ 37.8px).
+ */
+const ABSOLUTE_UNIT_TO_PX: Readonly<Record<string, number>> = {
+  px: 1,
+  pt: 96 / 72,
+  pc: 16,
+  in: 96,
+  cm: 96 / 2.54,
+  mm: 96 / 25.4,
+  q: 96 / 25.4 / 4,
+};
+
+/**
+ * **D-098** — parse an SVG/CSS length into user units. Converts absolute units
+ * (px/pt/pc/in/cm/mm/Q). For `%` and relative units (em/ex/rem/vw/vh/…) it
+ * can't resolve to user units without layout context, so it returns the numeric
+ * part flagged via `warnUnit` (the caller warns instead of silently lying).
+ * `null` when the value isn't a number at all.
+ */
+function parseUnitLength(raw: string): { value: number; warnUnit?: string } | null {
+  const m = raw.trim().match(/^([+-]?(?:\d*\.\d+|\d+)(?:e[+-]?\d+)?)\s*([a-z%]*)$/i);
+  if (m === null) return null;
+  const n = Number.parseFloat(m[1]!);
+  if (!Number.isFinite(n)) return null;
+  const unit = (m[2] ?? '').toLowerCase();
+  if (unit === '') return { value: n };
+  const factor = ABSOLUTE_UNIT_TO_PX[unit];
+  if (factor !== undefined) return { value: n * factor };
+  return { value: n, warnUnit: unit };
 }
 
-function optionalNumberAttr(el: Element, name: string): number | undefined {
+function warnUnresolvedUnit(
+  el: Element,
+  name: string,
+  raw: string,
+  unit: string,
+  warnings: string[] | undefined,
+): void {
+  if (warnings === undefined) return;
+  warnings.push(
+    `Unit "${unit}" on <${el.tagName.toLowerCase()}> ${name}="${raw}" not resolvable to user units — used the numeric part`,
+  );
+}
+
+function numberAttr(el: Element, name: string, fallback: number, warnings?: string[]): number {
+  const v = el.getAttribute(name);
+  if (v === null) return fallback;
+  const parsed = parseUnitLength(v);
+  if (parsed === null) return fallback;
+  if (parsed.warnUnit !== undefined) warnUnresolvedUnit(el, name, v, parsed.warnUnit, warnings);
+  return parsed.value;
+}
+
+function optionalNumberAttr(el: Element, name: string, warnings?: string[]): number | undefined {
   const v = el.getAttribute(name);
   if (v === null) return undefined;
-  const n = Number.parseFloat(v);
-  return Number.isFinite(n) ? n : undefined;
+  const parsed = parseUnitLength(v);
+  if (parsed === null) return undefined;
+  if (parsed.warnUnit !== undefined) warnUnresolvedUnit(el, name, v, parsed.warnUnit, warnings);
+  return parsed.value;
 }
 
 function parseViewBoxAttr(svgRoot: Element, warnings: string[]): BoundingBox {
