@@ -110,10 +110,23 @@ export const svgImporter: Importer = {
     for (const tag of unsupportedTags) {
       warnings.push(`Unsupported element <${tag}> skipped`);
     }
+    // **D-102** — the root group mirrors the `<svg>` element, so its style must
+    // come from the `<svg>`'s own presentation (usually empty), NOT from
+    // `createGroup`'s `DEFAULT_STYLE` fallback. That fallback injects
+    // `stroke:#333333` + `fill:#cccccc` (editor demo defaults); SVG stroke is
+    // *inherited*, so every imported child without its own stroke picked up a
+    // spurious dark border — a black outline absent in the source / other
+    // renderers (reported on CorelDRAW exports where shapes are fill-only).
+    const rootStyle = parseStyle(svgRoot);
     const document: SvgDocument =
       defsFragment.length > 0
-        ? { id: generateNodeId(), viewBox, root: createGroup(rootChildren), defs: defsFragment }
-        : { id: generateNodeId(), viewBox, root: createGroup(rootChildren) };
+        ? {
+            id: generateNodeId(),
+            viewBox,
+            root: createGroup(rootChildren, { style: rootStyle }),
+            defs: defsFragment,
+          }
+        : { id: generateNodeId(), viewBox, root: createGroup(rootChildren, { style: rootStyle }) };
     return { ok: true, document, warnings };
   },
 };

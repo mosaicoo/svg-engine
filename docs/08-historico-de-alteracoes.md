@@ -6,6 +6,35 @@
 
 ---
 
+## 2026-06-22 — D-102 — Bug: bordas pretas em SVG importado (grupo raiz herdava DEFAULT_STYLE) ✅
+
+**Reportado** (usuário): um SVG do CorelDRAW (`AdobeStock_735001143.svg`, ícones
+"AUTOMATION") renderizava no svg-engine com **bordas pretas** que nenhuma outra
+ferramenta exibe. Padrão recorrente em arquivos só-preenchimento.
+
+**Causa raiz** (confirmada por dump do importer): o arquivo pinta tudo via CSS
+(`.fil0 {fill:#4E6E80}`) e **não tem `stroke` nenhum**. O importer criava o
+**grupo raiz** com `createGroup(rootChildren)` **sem style** → caía no
+`DEFAULT_STYLE` (`fill:#cccccc`, `stroke:#333333` — defaults de demonstração do
+editor). Como `stroke` é **herdado** em SVG, o `<g>` raiz propagava
+`stroke:#333333` para os 103 paths que não definem stroke próprio → contorno
+escuro em todos. As outras ferramentas não mostram borda porque o original não
+tem stroke.
+
+**Fix** (importer): o grupo raiz espelha o `<svg>` real —
+`createGroup(rootChildren, { style: parseStyle(svgRoot) })`. Num arquivo
+só-preenchimento isso dá style sem fill/stroke (sem borda herdada); num `<svg>`
+que declara `fill`/`stroke` no root, captura-os corretamente (herança fiel).
+
+**Verificação:** dump do importer (antes: 1 nó com `#cccccc`/`#333333`; depois:
+**0 strokes**, 0 `#cccccc`) + **+3 specs** (`root-style-import`: só-preenchimento
+não herda borda; root reflete fill/stroke do `<svg>`; nenhum nó com `#333333`) +
+io suite (185) + lint (3 projetos). **Browser (`/svg-viewer`)**: o arquivo
+reportado renderiza limpo, sem bordas pretas — `<g>` raiz sem stroke, 0 paths com
+borda computada. Sem mudança de API.
+
+---
+
 ## 2026-06-22 — D-101 — P1: id-namespacing de `<defs>` no merge (colisão entre SVGs) ✅
 
 **Última lacuna P1** da auditoria de cobertura SVG — a limitação engine-wide
