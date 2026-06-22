@@ -886,6 +886,7 @@ const PRESENTATION_STYLE_ATTRS: readonly string[] = [
   'filter',
   'clip-path',
   'mask',
+  'vector-effect',
 ];
 
 function parseStyle(el: Element): SvgStyle {
@@ -905,6 +906,12 @@ function parseStyle(el: Element): SvgStyle {
       applyStyleProp(style, decl.slice(0, idx).trim().toLowerCase(), decl.slice(idx + 1));
     }
   }
+  // **D-099** — imported content defaults to the SVG-spec `vector-effect: none`
+  // (stroke scales with the transform) when the file says nothing, so imported
+  // art with a `scale()` transform renders faithfully instead of being forced
+  // non-scaling. Editor-created nodes leave this `undefined`, which the renderer
+  // treats as `'non-scaling-stroke'` (resize-safe) — see SvgStyle.vectorEffect.
+  if (style.vectorEffect === undefined) style.vectorEffect = 'none';
   return style;
 }
 
@@ -986,6 +993,11 @@ function applyStyleProp(style: MutableStyle, prop: string, rawValue: string): vo
       break;
     case 'mix-blend-mode':
       style.mixBlendMode = value;
+      break;
+    case 'vector-effect':
+      // **D-099** — only the two values the model represents; other SVG2
+      // vector-effect keywords (e.g. non-scaling-size) are ignored.
+      if (value === 'non-scaling-stroke' || value === 'none') style.vectorEffect = value;
       break;
   }
 }

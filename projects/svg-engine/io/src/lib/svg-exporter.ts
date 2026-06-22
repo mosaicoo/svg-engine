@@ -737,6 +737,12 @@ function styleAttrs(style: SvgStyle): [string, string][] {
   }
   if (style.strokeOpacity !== undefined) out.push(['stroke-opacity', fmt(style.strokeOpacity)]);
   if (style.strokeWidth !== undefined) out.push(['stroke-width', fmt(style.strokeWidth)]);
+  // **D-099** — emit `vector-effect` only when non-default. `'none'` is the SVG
+  // default (stroke scales) and the importer re-defaults absent → `'none'`, so
+  // skipping it keeps output clean while round-tripping the semantics.
+  if (style.vectorEffect !== undefined && style.vectorEffect !== 'none') {
+    out.push(['vector-effect', style.vectorEffect]);
+  }
   if (style.visibility !== undefined) out.push(['visibility', style.visibility]);
   // D-049 — mix-blend-mode is a CSS property (no SVG attribute), so
   // it goes inline as style="...". Kept LAST so it appears at the end

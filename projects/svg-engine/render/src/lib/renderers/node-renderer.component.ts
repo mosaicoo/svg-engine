@@ -212,6 +212,9 @@ import { SvgeTextDirective } from './text-renderer.directive';
     '[attr.opacity]': 'groupStyle()?.opacity ?? null',
     '[attr.filter]': 'groupStyle()?.filter ?? null',
     '[attr.visibility]': 'groupStyle()?.visibility ?? null',
+    // D-099 — a group's vector-effect inherits to descendant strokes; emit when
+    // set (imported groups carry it; editor groups leave it null).
+    '[attr.vector-effect]': 'groupStyle()?.vectorEffect ?? null',
     // D-056 follow-up — `metadata.visible === false` hides the node
     // from rendering at the DOCUMENT level. Distinct from
     // `LayersService.hiddenIds` (which is editor-session only, applied

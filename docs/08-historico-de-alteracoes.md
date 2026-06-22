@@ -6,6 +6,47 @@
 
 ---
 
+## 2026-06-22 — D-099 — P1-A: `vector-effect` por-nó (fidelidade de stroke no import) ✅
+
+**Lacuna P1** da auditoria de cobertura SVG. O renderer **forçava**
+`vector-effect="non-scaling-stroke"` em **toda** shape (semântica de resize do
+editor: stroke não engorda ao escalar). Isso é correto para shapes **criadas no
+editor**, mas **sobrescrevia silenciosamente** arte **importada** que depende do
+default SVG (`vector-effect: none` → o stroke **escala** com o `transform`). Um
+logo desenhado a 1× e colocado sob um `scale(4)` renderizava com stroke
+hairline em vez do traço grosso pretendido.
+
+**Fix — modelar `vector-effect` no `SvgStyle` + resolver o conflito
+editor-resize × import-fidelity sem regressão:**
+
+- **`SvgStyle.vectorEffect?: 'non-scaling-stroke' | 'none'`** (core) — `undefined`
+  é o estado das shapes criadas no editor.
+- **Renderer (7 diretivas-folha + wrapper de grupo)**: `vector-effect` agora é
+  `node().style.vectorEffect ?? 'non-scaling-stroke'`. `undefined` → fallback
+  non-scaling (zero regressão ao resize do editor); valor explícito é respeitado.
+  O wrapper `<g>` de grupo emite `vector-effect` só quando setado (herda aos
+  strokes descendentes).
+- **Importer**: `'vector-effect'` em `PRESENTATION_STYLE_ATTRS` + `case` no
+  `applyStyleProp` (só os dois valores modelados; SVG2 `non-scaling-size` etc.
+  ignorados) + `parseStyle` **default explícito `'none'`** quando o arquivo é
+  omisso → arte importada escala fielmente (spec SVG) em vez de virar
+  non-scaling à força.
+- **Exporter**: emite `vector-effect` só quando ≠ `'none'` (o default; importer
+  re-deriva ausente → `'none'`, então pular mantém a saída limpa e round-trip
+  fiel).
+
+**Verificação:** build:lib (9 EP) + **+9 specs** (`vector-effect-roundtrip.spec`:
+import ausente→`none`, explícito non-scaling preservado via atributo e `style=`,
+SVG2 keyword cai no default, export só não-default, undefined editor não emite,
+round-trip) + render+api-surface (95) + lint (3 projetos). **Sem mudança de
+superfície pública** (novo campo em `SvgStyle`, não export). **Browser
+(`/svg-viewer`)**: dois rects sob `scale(4)` — um sem `vector-effect` (importado
+→ stroke 4× grosso, escala) e um com `non-scaling-stroke` explícito (hairline
+constante), provando os dois caminhos. Próximo P1: id-namespacing no import
+(colisão de defs) e rich text (per-run styling).
+
+---
+
 ## 2026-06-22 — D-098 — Auditoria de cobertura SVG: fixes P0 (fidelidade de import) ✅
 
 Da auditoria profunda de suporte a elementos SVG (modelo/importer/renderer/exporter), os

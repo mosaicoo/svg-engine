@@ -21,8 +21,8 @@ import type { PolygonNode } from 'svg-engine/core';
     '[attr.stroke-opacity]': 'node().style.strokeOpacity ?? null',
     '[attr.visibility]': 'node().style.visibility ?? null',
     '[attr.filter]': 'node().style.filter ?? null',
-    // Bloco 4-R4: avoid stroke distortion when scale lives in transform
-    '[attr.vector-effect]': '"non-scaling-stroke"',
+    // D-099 — respect node vector-effect; default non-scaling (resize-safe).
+    '[attr.vector-effect]': 'node().style.vectorEffect ?? "non-scaling-stroke"',
   },
 })
 export class SvgePolygonDirective {

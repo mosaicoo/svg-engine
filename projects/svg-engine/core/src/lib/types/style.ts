@@ -41,6 +41,22 @@ export interface SvgStyle {
   /** Visibility (separate from {@link SvgMetadata.visible} which is editor-only). */
   readonly visibility?: 'visible' | 'hidden';
   /**
+   * **D-099 — `vector-effect`.** Controls whether the stroke is subject to the
+   * element's (and ancestors') transform:
+   * - `'none'` (SVG default): the stroke **scales** with the transform — the
+   *   faithful behavior for imported artwork that carries a `scale()` transform.
+   * - `'non-scaling-stroke'`: the stroke keeps a constant device width
+   *   regardless of transform — what the editor wants while resizing a
+   *   **rotated** shape (its `ResizeNodeCommand` fallback bakes a scale matrix).
+   *
+   * **Default semantics (important):** `undefined` is treated by the renderer
+   * as `'non-scaling-stroke'` so editor-created shapes keep the resize-safe
+   * behavior with zero changes. The **importer** sets this explicitly (file
+   * value, or `'none'` when absent) so imported art renders per the SVG spec
+   * instead of being forced non-scaling. Persisted in import/export round-trip.
+   */
+  readonly vectorEffect?: 'non-scaling-stroke' | 'none';
+  /**
    * SVG `filter` attribute — typically `url(#id)` referencing a
    * `<filter>` element in `<defs>`. Set by consumers to apply effects
    * registered in `EffectRegistry` (Fase 6d). Persisted in import /

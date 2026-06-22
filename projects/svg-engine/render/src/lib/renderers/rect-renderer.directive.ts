@@ -45,7 +45,10 @@ import type { RectNode } from 'svg-engine/core';
     // fallback path of `ResizeNodeCommand`). For identity-or-translate
     // nodes the bake path keeps geometry truthful — `non-scaling-stroke`
     // is then a harmless no-op (no scale matrix to fight).
-    '[attr.vector-effect]': '"non-scaling-stroke"',
+    // **D-099** — respect the node's `vector-effect`; default to non-scaling
+    // (resize-safe) for editor-created shapes. Imported shapes carry an explicit
+    // value (file's, or `'none'` per SVG default) so their strokes scale.
+    '[attr.vector-effect]': 'node().style.vectorEffect ?? "non-scaling-stroke"',
   },
 })
 export class SvgeRectDirective {
