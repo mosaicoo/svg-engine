@@ -115,4 +115,57 @@ describe('D-076 — SmartObjectActionsService', () => {
       expect(state.document().root).toBe(before);
     });
   });
+
+  describe('applyReplaceText — defs preservation (D-097)', () => {
+    const GRADIENT_SVG = [
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">',
+      '<defs><linearGradient id="g1"><stop offset="0" stop-color="#ff0000"/>',
+      '<stop offset="1" stop-color="#0000ff"/></linearGradient></defs>',
+      '<rect width="50" height="50" fill="url(#g1)"/>',
+      '</svg>',
+    ].join('');
+
+    it('swaps children AND merges the imported <defs> into the document', () => {
+      const { state, actions } = setup();
+      const { smartObjectId } = seedWithSmartObject(state);
+
+      const res = actions.applyReplaceText(smartObjectId, GRADIENT_SVG);
+
+      expect(res.ok).toBe(true);
+      // The gradient referenced via url(#g1) now lives in the document defs,
+      // so it resolves (the bug was: defs dropped → dangling reference).
+      const defs = state.document().defs ?? '';
+      expect(defs).toContain('linearGradient');
+      expect(defs).toContain('id="g1"');
+      // Children swapped: the wrapper now holds the imported rect.
+      const wrapper = state.document().root.children[0]!;
+      expect(wrapper.type === 'group' && wrapper.children.length).toBe(1);
+    });
+
+    it('does not duplicate defs when the same SVG is replaced twice (id dedup)', () => {
+      const { state, actions } = setup();
+      const { smartObjectId } = seedWithSmartObject(state);
+
+      actions.applyReplaceText(smartObjectId, GRADIENT_SVG);
+      actions.applyReplaceText(smartObjectId, GRADIENT_SVG);
+
+      const defs = state.document().defs ?? '';
+      expect(defs.match(/id="g1"/g)?.length).toBe(1);
+    });
+
+    it('reports ok:false (no throw) when the imported SVG has no shapes', () => {
+      const { state, actions } = setup();
+      const { smartObjectId } = seedWithSmartObject(state);
+
+      const res = actions.applyReplaceText(
+        smartObjectId,
+        '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+      );
+
+      expect(res.ok).toBe(false);
+      expect(res.error).toBeTruthy();
+      // Document defs untouched on failure.
+      expect(state.document().defs ?? '').not.toContain('linearGradient');
+    });
+  });
 });

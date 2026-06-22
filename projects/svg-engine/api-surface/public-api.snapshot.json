@@ -335,6 +335,7 @@
     "Importer",
     "ImporterRegistry",
     "ImportResult",
+    "mergeDefsFragments",
     "nodeToSvgMarkup",
     "pngExporter",
     "renderPng",

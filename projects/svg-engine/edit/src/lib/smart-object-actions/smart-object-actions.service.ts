@@ -2,12 +2,20 @@ import { DOCUMENT } from '@angular/common';
 import { inject, Injectable } from '@angular/core';
 import {
   CommandBus,
+  EditorStateService,
   type NodeId,
   ReleaseSmartObjectCommand,
   ReplaceSmartObjectContentsCommand,
   type SvgNode,
 } from 'svg-engine/core';
-import { svgImporter } from 'svg-engine/io';
+import { mergeDefsFragments, svgImporter } from 'svg-engine/io';
+
+/** Outcome of {@link SmartObjectActionsService.applyReplaceText}. */
+export interface ReplaceContentsResult {
+  readonly ok: boolean;
+  readonly error?: string;
+  readonly warnings: readonly string[];
+}
 
 /**
  * **D-076** — centralized actions for Smart Object operations that
@@ -36,6 +44,7 @@ import { svgImporter } from 'svg-engine/io';
 @Injectable({ providedIn: 'root' })
 export class SmartObjectActionsService {
   private readonly bus = inject(CommandBus);
+  private readonly state = inject(EditorStateService);
   private readonly document = inject(DOCUMENT);
 
   /**
@@ -70,20 +79,10 @@ export class SmartObjectActionsService {
         input.remove();
         if (file === undefined || file === null) return;
         void file.text().then((text) => {
-          const result = svgImporter.import(text);
-          if (!result.ok) {
+          const result = this.applyReplaceText(smartObjectId, text);
+          if (!result.ok && result.error !== undefined) {
             this.alert(`Replace failed: ${result.error}`);
-            return;
           }
-          // Imported document's root group wraps the actual top-level
-          // shapes as children — pull those out (we don't want to
-          // nest a fresh root inside the smart object).
-          const newChildren: readonly SvgNode[] = result.document.root.children;
-          if (newChildren.length === 0) {
-            this.alert('Replace failed: imported SVG has no shapes');
-            return;
-          }
-          this.bus.dispatch(new ReplaceSmartObjectContentsCommand(smartObjectId, newChildren));
           if (result.warnings.length > 0 && typeof console !== 'undefined') {
             console.warn(`[SVGEngine] Replace warnings:\n${result.warnings.join('\n')}`);
           }
@@ -93,6 +92,46 @@ export class SmartObjectActionsService {
     );
     this.document.body.appendChild(input);
     input.click();
+  }
+
+  /**
+   * Parse `text`, swap the smart object's children, **and merge the
+   * imported `<defs>` into the document** so gradients/filters/patterns
+   * referenced via `url(#id)` keep resolving (D-097 — without this the
+   * defs were dropped and gradient-filled imports rendered as dangling
+   * references). Headless-testable core of {@link replaceContents} (no
+   * file picker, no `window.alert`) — returns a structured result the
+   * caller surfaces.
+   *
+   * Defs are merged into the **document** (shared) by id (existing kept,
+   * new appended), mirroring the additive-import path. The merge is a
+   * direct state write (not a command) — on undo the children revert and
+   * the now-unused defs linger harmlessly, same convention as
+   * `ImportPlacementService`.
+   */
+  applyReplaceText(smartObjectId: NodeId, text: string): ReplaceContentsResult {
+    const result = svgImporter.import(text);
+    if (!result.ok) {
+      return { ok: false, error: result.error, warnings: [] };
+    }
+    // Imported document's root group wraps the actual top-level shapes as
+    // children — pull those out (we don't want to nest a fresh root
+    // inside the smart object).
+    const newChildren: readonly SvgNode[] = result.document.root.children;
+    if (newChildren.length === 0) {
+      return { ok: false, error: 'imported SVG has no shapes', warnings: result.warnings };
+    }
+    this.mergeImportedDefs(result.document.defs);
+    this.bus.dispatch(new ReplaceSmartObjectContentsCommand(smartObjectId, newChildren));
+    return { ok: true, warnings: result.warnings };
+  }
+
+  /** Merge an imported `<defs>` fragment into the document defs (by id). */
+  private mergeImportedDefs(defs: string | undefined): void {
+    if (defs === undefined || defs.length === 0) return;
+    const doc = this.state.document();
+    const merged = mergeDefsFragments(doc.defs, defs);
+    if (merged !== doc.defs) this.state.setDocument({ ...doc, defs: merged });
   }
 
   /**

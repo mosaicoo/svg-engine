@@ -11,7 +11,7 @@ import {
   type NodeId,
   type SvgNode,
 } from 'svg-engine/core';
-import { svgExporter, svgImporter } from 'svg-engine/io';
+import { mergeDefsFragments, svgExporter, svgImporter } from 'svg-engine/io';
 import { SvgeDialogShell } from '../dialog-shell';
 
 /**
@@ -178,6 +178,12 @@ export class SvgeSmartObjectEditorDialog {
   private currentText = '';
   /** Computed children of a successful parse, ready for dispatch. */
   private pendingChildren: readonly SvgNode[] | null = null;
+  /**
+   * **D-097** — `<defs>` parsed from the textarea, merged into the document
+   * on apply so the smart object's gradients/filters/patterns keep resolving.
+   * `null` when the source carries no defs.
+   */
+  private pendingDefs: string | null = null;
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly warnings = signal<readonly string[]>([]);
   protected readonly dirty = signal(false);
@@ -205,10 +211,16 @@ export class SvgeSmartObjectEditorDialog {
     // Build a temporary sub-document with just the smart object's
     // children at the root, share the parent doc's viewBox so the
     // user sees correct coordinates when comparing to the canvas.
+    // **D-097** — carry the document's `defs` so the exported source is a
+    // COMPLETE, renderable SVG: smart-object children that fill via
+    // `url(#id)` (gradients/filters/patterns) keep their definitions
+    // visible/editable. Without this the source showed dangling refs and
+    // the gradients looked broken in the editor.
     const sub = {
       id: this.data.nodeId,
       viewBox: doc.viewBox,
       root: { ...node, metadata: {} },
+      defs: doc.defs,
     };
     const exported = svgExporter.export(sub);
     const text = typeof exported === 'string' ? exported : '';
@@ -240,6 +252,16 @@ export class SvgeSmartObjectEditorDialog {
       this.dialogRef.close();
       return;
     }
+    // **D-097** — merge the edited `<defs>` into the document FIRST so the
+    // swapped children's `url(#id)` references resolve. Merge is by id
+    // (existing kept, new appended) → re-applying the same source doesn't
+    // duplicate. Direct state write (not a command), same convention as the
+    // additive import: on undo the children revert, unused defs linger.
+    if (this.pendingDefs !== null && this.pendingDefs.length > 0) {
+      const doc = this.state.document();
+      const merged = mergeDefsFragments(doc.defs, this.pendingDefs);
+      if (merged !== doc.defs) this.state.setDocument({ ...doc, defs: merged });
+    }
     this.bus.dispatch(new EditSmartObjectContentsCommand(this.data.nodeId, this.pendingChildren));
     this.dialogRef.close();
   }
@@ -262,16 +284,20 @@ export class SvgeSmartObjectEditorDialog {
       this.errorMessage.set(`Parse failed: ${result.error}`);
       this.warnings.set([]);
       this.pendingChildren = null;
+      this.pendingDefs = null;
       return;
     }
     if (result.document.root.children.length === 0) {
       this.errorMessage.set('The edited SVG must contain at least one shape.');
       this.warnings.set(result.warnings);
       this.pendingChildren = null;
+      this.pendingDefs = null;
       return;
     }
     this.errorMessage.set(null);
     this.warnings.set(result.warnings);
     this.pendingChildren = result.document.root.children;
+    // **D-097** — keep the parsed defs so apply() can merge them.
+    this.pendingDefs = result.document.defs ?? null;
   }
 }

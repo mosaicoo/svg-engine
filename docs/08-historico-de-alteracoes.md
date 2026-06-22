@@ -6,6 +6,48 @@
 
 ---
 
+## 2026-06-22 — D-097 — Smart Object descartava `<defs>` (gradientes quebravam) ✅
+
+**Reportado** (usuário): o mesmo SVG de gradientes, levado a um **Smart Object** (D-074),
+também não renderizava certo — e deveria. **Confirmado** por análise de código + specs.
+
+**Causa raiz:** três fluxos de conteúdo do Smart Object passavam o SVG pelo `svgImporter`
+mas usavam só `result.document.root.children`, **jogando fora `result.document.defs`**:
+
+1. **`SmartObjectActionsService.replaceContents`** (Object ▸ Replace Contents…) — defs do
+   arquivo importado descartados.
+2. **`SvgeSmartObjectEditorDialog`** (Edit Contents): (a) o source exibido era exportado de
+   um `sub` doc **sem `defs`** (o usuário via `url(#id)` pendurado); (b) o `apply` re-parseava
+   e descartava `result.document.defs`.
+   Resultado: ao trocar/editar o conteúdo com um SVG que tem gradientes, os `url(#id)` ficavam
+   sem paint server → formas com gradiente quebravam (igual ao bug do `/svg-viewer`, mas aqui na
+   camada de conteúdo do Smart Object). (A importação **inicial** via `File ▸ Import ▸ Smart
+Object` já fazia merge de defs no doc — só os fluxos de troca/edição vazavam.)
+
+**Fix (merge de defs no documento, consistente com a importação aditiva):**
+
+- **`mergeDefsFragments(existing, incoming)` (novo export `svg-engine/io`)** — funde dois
+  fragmentos de `<defs>` **deduplicando por id** (existentes mantidos; do incoming só entram
+  ids novos; elementos sem id sempre entram). Best-effort (fallback p/ concat se DOM
+  indisponível/malformado). Reference-preserving quando nada muda.
+- **`replaceContents`** → extraído `applyReplaceText(id, text)` (testável, sem file-picker):
+  importa, faz merge dos defs no doc (via `EditorStateService`) e despacha
+  `ReplaceSmartObjectContentsCommand`.
+- **Edit dialog** → o `sub` exportado agora carrega `doc.defs` (source completo/editável) e o
+  `apply` faz merge dos defs parseados no doc antes do `EditSmartObjectContentsCommand`.
+
+**Verificação:** build:lib (9 EP) + **test:lib 2834 (+11 specs**: `mergeDefsFragments` dedup;
+`applyReplaceText` funde defs e não duplica em replace duplo; dialog `apply` funde defs) +
+lint (3 projetos) + **API snapshot regenerado** (novo export `mergeDefsFragments`). O renderer
+em si já fora provado desenhando gradientes (fix do `/svg-viewer`); aqui o conserto é a
+camada de conteúdo do Smart Object preservar os defs.
+
+**Limitação conhecida (engine-wide):** ids de defs são globais do documento, não
+namespaced — dois SVGs distintos com `id="grad"` colidem (o primeiro vence). Isolamento
+fiel exigiria reescrita de ids (fora de escopo; mesmo comportamento da importação aditiva).
+
+---
+
 ## 2026-06-22 — Fix — `/svg-viewer` não passava `[defs]` (gradientes não renderizavam) ✅
 
 **Bug reportado** (usuário): um SVG com vários gradientes (céu/chão/carro/rodas) colado no
