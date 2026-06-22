@@ -115,11 +115,11 @@ import { SvgeTextDirective } from './text-renderer.directive';
           <!--
             D-100 — rich text. Emit one inline tspan per run, each
             carrying its own style overrides; fields a run omits inherit
-            from the parent text. The tspan content is kept whitespace-
-            tight (no newline between the run text and the closing tag)
-            so adjacent runs don't gain spurious spaces from template
-            indentation — inline runs (unlike the multi-line dy path)
-            are position-sensitive.
+            from the parent text. The run text is bound via [textContent]
+            (NOT template interpolation) so the exact run string is set
+            imperatively — template indentation/reformatting can't inject
+            spurious leading/trailing whitespace between inline runs
+            (which, unlike the multi-line dy path, are position-sensitive).
           -->
           <svg:text [svgeText]="$any(node())">
             @for (run of textRuns(); track $index) {
@@ -135,9 +135,8 @@ import { SvgeTextDirective } from './text-renderer.directive';
                 "
                 [style.font-variation-settings]="run.fontVariationSettings ?? null"
                 [style.font-feature-settings]="run.fontFeatureSettings ?? null"
-              >
-                {{ run.text }}
-              </svg:tspan>
+                [textContent]="run.text"
+              ></svg:tspan>
             }
           </svg:text>
         } @else if (textIsMultiLine()) {
