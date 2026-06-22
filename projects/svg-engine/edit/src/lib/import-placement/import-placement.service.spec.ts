@@ -5,6 +5,8 @@ import {
   createRect,
   EditorStateService,
   generateNodeId,
+  type GroupNode,
+  type RectNode,
   type SvgDocument,
 } from 'svg-engine/core';
 import { describe, expect, it } from 'vitest';
@@ -275,5 +277,44 @@ describe('ImportPlacementService (D-107)', () => {
     expect(placement.placeDocumentCentered(makeDoc(undefined, true))).toBeNull();
     const root = state.document().root;
     expect(root.type === 'group' && root.children.length).toBe(0);
+  });
+
+  // ── D-101: defs id-namespacing on merge (cross-SVG collision) ──
+
+  it('namespaces colliding defs ids across two imports so url(#) refs do not cross-wire (D-101)', () => {
+    const { placement, state } = setup();
+    const docWithGrad = (stop: string): SvgDocument => ({
+      id: generateNodeId(),
+      viewBox: { x: 0, y: 0, width: 100, height: 100 },
+      root: createGroup([
+        createRect({ x: 0, y: 0, width: 100, height: 100 }, { style: { fill: 'url(#g)' } }),
+      ]),
+      defs: `<linearGradient id="g"><stop offset="0" stop-color="${stop}"/></linearGradient>`,
+    });
+
+    placement.placeDocumentCentered(docWithGrad('#ff0000'));
+    // Precondition: first import's defs persisted into the document.
+    expect(state.document().defs ?? '').toContain('id="g"');
+    placement.placeDocumentCentered(docWithGrad('#0000ff'));
+
+    const root = state.document().root as GroupNode;
+    expect(root.children.length).toBe(2);
+    // Each import is placed as a group; the gradient-filled rect is its child.
+    const rectOf = (i: number) => (root.children[i] as GroupNode).children[0] as RectNode;
+    const fillA = rectOf(0).style.fill!;
+    const fillB = rectOf(1).style.fill!;
+    // The second import's colliding id was renamed → the two rects reference
+    // DISTINCT gradients (no cross-wiring to the first's paint).
+    expect(fillA).not.toBe(fillB);
+    const idA = fillA.match(/url\(#(.+)\)/)![1];
+    const idB = fillB.match(/url\(#(.+)\)/)![1];
+    expect(idA).not.toBe(idB);
+    // Both referenced gradients exist in the merged defs.
+    const defs = state.document().defs ?? '';
+    expect(defs).toContain(`id="${idA}"`);
+    expect(defs).toContain(`id="${idB}"`);
+    // Both stop colors survived (proof the second wasn't deduped away).
+    expect(defs).toContain('#ff0000');
+    expect(defs).toContain('#0000ff');
   });
 });

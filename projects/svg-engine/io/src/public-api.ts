@@ -28,6 +28,8 @@ export { ExporterRegistry, ImporterRegistry } from './lib/io-registries.service'
 export { svgImporter } from './lib/svg-importer';
 // D-097 — merge `<defs>` fragments by id (Smart Object content swap keeps gradients).
 export { mergeDefsFragments } from './lib/defs-merge';
+// D-101 — namespace colliding defs ids on merge (cross-SVG import collision fix).
+export { collectDefsIds, namespaceCollidingDefs, type NamespacedDefs } from './lib/defs-namespace';
 export { svgExporter, nodeToSvgMarkup } from './lib/svg-exporter';
 export { pngExporter, renderPng } from './lib/png-exporter';
 // D-137 — SVGZ (gzip-compressed SVG) export + low-level gzip helpers.

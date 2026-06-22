@@ -6,6 +6,49 @@
 
 ---
 
+## 2026-06-22 — D-101 — P1: id-namespacing de `<defs>` no merge (colisão entre SVGs) ✅
+
+**Última lacuna P1** da auditoria de cobertura SVG — a limitação engine-wide
+documentada: ids de `<defs>` (`<linearGradient id="grad">`, `<filter>`,
+`<clipPath>`, `<symbol>`…) são **globais do documento**. Importar um 2º SVG que
+também define `id="grad"` fazia o browser resolver `url(#grad)` para o **primeiro**
+gradiente → a 2ª arte pintava com a cor errada. Pior: o merge de placement era
+**concat ingênuo** (`${doc.defs}\n${incoming}`), sem dedup nem namespacing,
+acumulando defs duplicados a cada importação.
+
+**Fix — renomear no merge só os ids que colidem + reescrever todas as referências:**
+
+- **`svg-engine/io/defs-namespace.ts` (novos exports)**: `collectDefsIds(defs)` e
+  `namespaceCollidingDefs(root, defs, taken, prefix)` — puros, baseados em
+  DOMParser (fallback regex). Renomeiam **apenas** os ids de `defs` que também
+  estão em `taken` (os do documento destino), reescrevendo referências tanto
+  **dentro do fragmento defs** (`xlink:href` de stop-inheritance, `url(#…)`
+  aninhado, `<use href>`) quanto **na árvore de nós** (`style.fill/stroke/
+filter/clipPath/mask` `url(#…)` + `symbol-use` `symbolId`). Ids sem colisão e
+  referências penduradas (a um id não definido) ficam intactos → **import único é
+  byte-stable** (zero churn); colisão é o único caso que muda.
+- **`ImportPlacementService`**: `commitDrag` (File ▸ Import ▸ SVG) e
+  `placeDocumentCentered` (modo LLM "desenhe isto") agora passam a arte incoming
+  por `namespaceCollidingDefs` (contra os ids já no documento, prefixo único por
+  import via contador) e fundem via `mergeDefsFragments` (substituindo o concat
+  ingênuo, que também deduplica). Centragem usa o bbox pós-namespace (geometria
+  inalterada pela troca de id).
+
+**Verificação:** build:lib (9 EP) + **+9 specs** (`defs-namespace`: 8 — collect,
+no-collision no-op, rename gradiente+fill, ref interna xlink:href, símbolo, só o
+colidente, ref pendurada; placement: +1 integração — 2 imports `id="grad"` →
+refs distintas, ambos gradientes nos defs, ambas as cores preservadas) + io
+suite (182) + lint (3 projetos) + **API snapshot regen** (novos exports). Browser
+(`/svg-viewer`): import único de gradiente ainda renderiza e mantém `id="grad"`
+(sem churn); a forma renderizada do merge namespaced (2 gradientes coexistindo:
+vermelho→azul + verde→amarelo) confirma o renderer resolvendo ids distintos. _O
+gesto de file-picker→drag do placement em si não é dirigível via preview; a
+correção do merge é provada pelo spec de integração._ **Deferido:** namespacing
+nos fluxos de Smart Object (nicho com round-trip próprio) — `namespaceCollidingDefs`
+é reutilizável p/ isso depois.
+
+---
+
 ## 2026-06-22 — D-100 — P1-B: rich text (estilo por trecho / per-run) ✅
 
 **Lacuna P1** da auditoria de cobertura SVG. O `TextNode` só tinha `content`

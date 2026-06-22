@@ -12,10 +12,24 @@ import {
   type SvgNode,
   type Transform,
 } from 'svg-engine/core';
+import { collectDefsIds, mergeDefsFragments, namespaceCollidingDefs } from 'svg-engine/io';
 import { ViewportService } from 'svg-engine/render';
 
 import { ActivePageService } from '../pages/active-page.service';
 import { SelectionService } from '../selection/selection.service';
+
+/**
+ * **D-101** — monotonic counter for the per-import namespace prefix. Process-
+ * global so every placement in a session gets a distinct prefix; this is what
+ * makes two imported SVGs that both define `id="grad"` collision-free once
+ * merged (only the colliding ids of the *second* import get renamed). Resets on
+ * reload — irrelevant, since collision-freedom only needs uniqueness within one
+ * document's lifetime.
+ */
+let importNamespaceSeq = 0;
+function nextImportPrefix(): string {
+  return `svgi${++importNamespaceSeq}-`;
+}
 
 /** A parsed SVG import waiting to be placed on the canvas (D-107). */
 export interface PendingImport {
@@ -224,14 +238,16 @@ export class ImportPlacementService {
       this.cancel();
       return;
     }
+    // **D-101** — namespace the incoming defs ids that collide with the
+    // document's existing defs (and rewrite this art's references to them) so a
+    // second import that reuses `id="grad"` doesn't resolve to the first's
+    // gradient. No-op when there's no collision (single import stays clean).
+    const { group, defs } = this.namespaceIncoming(pending.group, pending.defs);
     // **D-108** — `placedTransform()` is the SAME value the ghost preview
     // renders (fit or stretch per the Shift modifier), so what the user saw
     // is exactly what gets inserted.
-    const placed: SvgNode = { ...pending.group, transform };
-    if (pending.defs !== undefined && pending.defs.length > 0) {
-      const doc = this.state.document();
-      this.state.setDocument({ ...doc, defs: `${doc.defs ?? ''}\n${pending.defs}` });
-    }
+    const placed: SvgNode = { ...group, transform };
+    this.mergeDefs(defs);
     this.bus.dispatch(new InsertNodeCommand(AUTO_PARENT, placed));
     this.selection.select(placed.id);
     this.cancel();
@@ -268,23 +284,49 @@ export class ImportPlacementService {
     const imported = doc.root;
     if (imported.type !== 'group' || imported.children.length === 0) return null;
 
-    const src = placementBounds(imported, doc.viewBox);
+    // **D-101** — namespace incoming defs ids that collide with the current
+    // document (centered on the art's pre-namespace bounds, which are
+    // unaffected by id rewriting). Same collision-safety as `commitDrag`.
+    const { group, defs } = this.namespaceIncoming(imported, doc.defs);
+
+    const src = placementBounds(group, doc.viewBox);
     const srcCx = src.x + src.width / 2;
     const srcCy = src.y + src.height / 2;
     const { cx, cy } = this.insertionCenter();
 
     const placed: SvgNode = {
-      ...imported,
+      ...group,
       transform: [1, 0, 0, 1, cx - srcCx, cy - srcCy] as Transform,
     };
 
-    if (doc.defs !== undefined && doc.defs.length > 0) {
-      const current = this.state.document();
-      this.state.setDocument({ ...current, defs: `${current.defs ?? ''}\n${doc.defs}` });
-    }
+    this.mergeDefs(defs);
     this.bus.dispatch(new InsertNodeCommand(AUTO_PARENT, placed));
     this.selection.select(placed.id);
     return placed.id;
+  }
+
+  /**
+   * **D-101** — namespace the incoming art's defs ids that collide with the
+   * current document's defs, rewriting this art's references accordingly so the
+   * merge can't cross-wire `url(#id)` between two imports. Returns the (possibly
+   * rewritten) group + defs fragment; a no-op (same group, `''` defs) when there
+   * are no incoming defs, and reference-identical when nothing collides.
+   */
+  private namespaceIncoming(
+    group: SvgNode,
+    defs: string | undefined,
+  ): { group: SvgNode; defs: string } {
+    if (defs === undefined || defs.length === 0) return { group, defs: '' };
+    const taken = collectDefsIds(this.state.document().defs);
+    const ns = namespaceCollidingDefs(group, defs, taken, nextImportPrefix());
+    return { group: ns.root, defs: ns.defs };
+  }
+
+  /** Merge a (already-namespaced) defs fragment into the document, deduped. */
+  private mergeDefs(defs: string): void {
+    if (defs.length === 0) return;
+    const doc = this.state.document();
+    this.state.setDocument({ ...doc, defs: mergeDefsFragments(doc.defs ?? '', defs) });
   }
 
   /**

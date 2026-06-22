@@ -329,6 +329,7 @@
     "ViewportService"
   ],
   "svg-engine/io": [
+    "collectDefsIds",
     "Exporter",
     "ExporterRegistry",
     "gunzipText",
@@ -337,6 +338,8 @@
     "ImporterRegistry",
     "ImportResult",
     "mergeDefsFragments",
+    "namespaceCollidingDefs",
+    "NamespacedDefs",
     "nodeToSvgMarkup",
     "pngExporter",
     "renderPng",
