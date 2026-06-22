@@ -6,6 +6,37 @@
 
 ---
 
+## 2026-06-22 — D-103 — Bug (continuação): bordas pretas no editor/studio (root do doc + página herdavam DEFAULT_STYLE) ✅
+
+**Reportado** (usuário): após o D-102, o `/svg-viewer` ficou limpo, mas o **studio
+e o editor (playground)** ainda mostravam as bordas pretas — "a correção foi só na
+visualização, não no core?".
+
+**Causa raiz** (mesma do D-102, em outros pontos de CORE): havia **três**
+containers criados via `createGroup` sem `style` → todos caíam no `DEFAULT_STYLE`
+(`stroke:#333333`). O D-102 só cobriu o root do documento **importado**
+(`/svg-viewer` renderiza esse root direto). Mas o **editor/studio** monta o
+conteúdo sob o root do _seu_ documento e/ou dentro de uma **página**:
+
+- `document-factory.createEmptyDocument` — root do doc do editor.
+- `CreatePageCommand` — grupo de cada página.
+
+Ambos herdavam `stroke:#333333`; qualquer arte fill-only inserida/importada
+abaixo deles pegava a borda escura.
+
+**Fix** (core, casado com D-102): os dois passam a criar o container com `style:
+{}` explícito (container estrutural nunca é pintado).
+
+**Verificação:** **+2 specs** (`root-no-default-stroke`: createEmptyDocument root
+sem stroke/fill; CreatePageCommand página sem stroke/fill) + suíte core (667) +
+lint. **Browser (`/custom-editor`, fluxo real do editor via `importers` +
+`resetDocument`)**: import de SVG fill-only → **0 paths com borda**, **nenhum
+`<g>` com atributo stroke**; screenshot confirma ícones #4E6E80 sem contorno. _Nota:
+o **svg-studio** é um app separado — precisa de rebuild/reload do bundle para
+pegar o `dist` novo._
+
+---
+
 ## 2026-06-22 — D-102 — Bug: bordas pretas em SVG importado (grupo raiz herdava DEFAULT_STYLE) ✅
 
 **Reportado** (usuário): um SVG do CorelDRAW (`AdobeStock_735001143.svg`, ícones
