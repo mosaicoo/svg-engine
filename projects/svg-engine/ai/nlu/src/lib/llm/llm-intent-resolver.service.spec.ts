@@ -27,6 +27,7 @@ function fakeProvider(
   reply: string,
   captured?: Captured,
   models?: readonly string[],
+  suggested?: readonly string[],
 ): AiChatProvider {
   return {
     isConfigured: signal(true).asReadonly(),
@@ -41,6 +42,9 @@ function fakeProvider(
     // **D-094** — só expõe descoberta de modelos quando `models` é passado
     // (o contrato `listModels` é opcional).
     ...(models !== undefined ? { listModels: async (): Promise<readonly string[]> => models } : {}),
+    // **D-095** — só expõe curadoria quando `suggested` é passado
+    // (o contrato `suggestedModels` é opcional).
+    ...(suggested !== undefined ? { suggestedModels: signal(suggested).asReadonly() } : {}),
   };
 }
 
@@ -278,6 +282,18 @@ describe('LlmIntentResolverService — model discovery (D-094)', () => {
   it('listModels delegates to the provider when it supports discovery', async () => {
     const { resolver } = setup(fakeProvider('{}', undefined, ['qwen2.5:3b', 'qwen2.5:7b']));
     await expect(resolver.listModels()).resolves.toEqual(['qwen2.5:3b', 'qwen2.5:7b']);
+  });
+
+  it('suggestedModels returns [] without a provider or without curation (D-095)', () => {
+    expect(setup(null).resolver.suggestedModels()).toEqual([]);
+    expect(setup(fakeProvider('{}')).resolver.suggestedModels()).toEqual([]);
+  });
+
+  it('suggestedModels delegates to the provider curated list (D-095)', () => {
+    const { resolver } = setup(
+      fakeProvider('{}', undefined, undefined, ['qwen2.5:3b', 'qwen2.5-coder:7b']),
+    );
+    expect(resolver.suggestedModels()).toEqual(['qwen2.5:3b', 'qwen2.5-coder:7b']);
   });
 });
 

@@ -6,6 +6,35 @@
 
 ---
 
+## 2026-06-22 — D-095 — Modelos `qwen2.5-coder` (3b/7b/14b) no seletor (curadoria) ✅
+
+Pedido do usuário: deixar o engine trabalhar também com `qwen2.5-coder:3b/7b/14b`
+(já puxados no Ollama), **adicionais** — sem remover os anteriores (`qwen2.5:3b/7b`).
+Motivação técnica (ver discussão LLM): SVG é markup/código, e os modelos **coder-tuned**
+geram SVG bem melhor que o `qwen2.5` base (fecham tags, respeitam `viewBox`/`path`/`defs`).
+
+O seletor do D-094 já lista modelos **dinamicamente** via `/api/tags` (então os coder já
+apareciam por terem sido puxados). Esta fatia adiciona uma **curadoria** durável para que
+apareçam de forma confiável e sirvam de sugestão a consumidores da lib:
+
+- **`DEFAULT_OLLAMA_MODELS` (novo export, `ollama-provider.ts`):** lista curada com os
+  base **+** os três `qwen2.5-coder`. `OllamaChatConfig.models` permite sobrescrever;
+  `configure({models})` aplica (lista vazia é ignorada). Signal `suggestedModels` exposto.
+- **Contrato `AiChatProvider.suggestedModels?` (opcional):** modelos sugeridos
+  curados/conhecidos; backends sem curadoria não expõem. `LlmIntentResolverService.suggestedModels()`
+  lê do provider (`[]` quando ausente).
+- **`<svge-nlu-input>` `modelOptions`:** agora **funde** descobertos (`/api/tags`,
+  instalados de fato) + curados (`suggestedModels`) + default, deduplicado. Os curados são
+  fallback quando a descoberta falha. Playground e svg-studio herdam (componente
+  compartilhado). Default segue `qwen2.5:3b` (não alterado).
+
+**Verificação:** build:lib (9 EP) + test:lib **2822 (+5 specs**: `suggestedModels` default
+curado/override no provider; delegação/`[]` no resolver) + lint (3 projetos) + **API snapshot
+regenerado** (novo export `DEFAULT_OLLAMA_MODELS`). **Ao vivo (`/nlu-test`):** o menu de
+modelo lista os cinco (`qwen2.5:3b/7b` + `qwen2.5-coder:3b/7b/14b`).
+
+---
+
 ## 2026-06-21 — D-094 — Seletor de modelos + modo SEM catálogo (LLM gera o SVG cru) ✅
 
 Pedido do usuário: (a) **escolher entre os modelos disponíveis**; (b) um **segundo modo**

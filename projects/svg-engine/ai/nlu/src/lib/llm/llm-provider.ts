@@ -54,6 +54,14 @@ export interface AiChatProvider {
   /** Modelo default deste provider (o usado quando `opts.model` é omitido). */
   readonly defaultModel: Signal<string>;
   /**
+   * **D-095 — modelos sugeridos** (curados/conhecidos), opcional. A UI funde
+   * esta lista com os modelos descobertos ao vivo ({@link
+   * AiChatProvider.listModels}) para popular o seletor — útil de fallback
+   * quando a descoberta falha e como sugestão para consumidores. Backends sem
+   * curadoria simplesmente não expõem (a UI cai nos descobertos + default).
+   */
+  readonly suggestedModels?: Signal<readonly string[]>;
+  /**
    * Envia o diálogo e resolve com o **texto** da resposta do assistente.
    * Lança em erro de rede / HTTP — o chamador (resolver) trata.
    */

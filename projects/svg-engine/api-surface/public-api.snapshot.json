@@ -964,6 +964,7 @@
     "DEFAULT_CATALOG_MAX_ENTRIES",
     "DEFAULT_OLLAMA_BASE_URL",
     "DEFAULT_OLLAMA_MODEL",
+    "DEFAULT_OLLAMA_MODELS",
     "detectLanguage",
     "discoverMenuIntents",
     "discoverMenuIntentsReactive",

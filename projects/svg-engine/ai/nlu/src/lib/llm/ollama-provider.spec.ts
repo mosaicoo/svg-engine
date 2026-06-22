@@ -2,7 +2,12 @@ import { TestBed } from '@angular/core/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AI_CHAT_PROVIDER } from './llm-provider';
-import { DEFAULT_OLLAMA_MODEL, OllamaChatProvider, provideOllamaChat } from './ollama-provider';
+import {
+  DEFAULT_OLLAMA_MODEL,
+  DEFAULT_OLLAMA_MODELS,
+  OllamaChatProvider,
+  provideOllamaChat,
+} from './ollama-provider';
 
 function mockFetchOnce(payload: unknown, ok = true, status = 200): ReturnType<typeof vi.fn> {
   const fn = vi.fn(async () => ({
@@ -126,6 +131,25 @@ describe('OllamaChatProvider (D-093)', () => {
     mockFetchOnce({}, false, 500);
     const p = make();
     await expect(p.listModels()).rejects.toThrow(/500/);
+  });
+
+  it('suggestedModels defaults to the curated list (base + qwen2.5-coder) (D-095)', () => {
+    const p = make();
+    expect(p.suggestedModels()).toEqual(DEFAULT_OLLAMA_MODELS);
+    // previous models kept + the new coder ones added (additive)
+    expect(p.suggestedModels()).toContain('qwen2.5:3b');
+    expect(p.suggestedModels()).toContain('qwen2.5:7b');
+    expect(p.suggestedModels()).toContain('qwen2.5-coder:3b');
+    expect(p.suggestedModels()).toContain('qwen2.5-coder:7b');
+    expect(p.suggestedModels()).toContain('qwen2.5-coder:14b');
+  });
+
+  it('configure({models}) overrides curated suggestions; an empty list is ignored (D-095)', () => {
+    const p = make();
+    p.configure({ models: ['custom:1b', 'custom:3b'] });
+    expect(p.suggestedModels()).toEqual(['custom:1b', 'custom:3b']);
+    p.configure({ models: [] });
+    expect(p.suggestedModels()).toEqual(['custom:1b', 'custom:3b']);
   });
 
   it('provideOllamaChat wires AI_CHAT_PROVIDER to the same instance + applies config', () => {

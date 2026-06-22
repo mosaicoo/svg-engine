@@ -610,15 +610,26 @@ export class SvgeNluInput {
   /** **D-094 — modelos disponíveis** descobertos no backend (Ollama /api/tags). */
   protected readonly availableModels = signal<readonly string[]>([]);
   /**
-   * **D-094** — opções do seletor de modelo: os modelos descobertos no
-   * backend, garantindo que o default do provider esteja na lista (no topo)
-   * mesmo que `/api/tags` não o liste.
+   * **D-094/D-095** — opções do seletor de modelo: funde os modelos
+   * **descobertos** ao vivo (`/api/tags`, instalados de fato) com os
+   * **curados** ({@link LlmIntentResolverService.suggestedModels} — ex.: os
+   * `qwen2.5-coder`) e garante o default do provider na lista, tudo
+   * deduplicado. Os curados servem de fallback quando a descoberta falha.
    */
   protected readonly modelOptions = computed<readonly string[]>(() => {
-    const list = [...this.availableModels()];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    const add = (m: string): void => {
+      if (m.length > 0 && !seen.has(m)) {
+        seen.add(m);
+        out.push(m);
+      }
+    };
+    for (const m of this.availableModels()) add(m);
+    for (const m of this.llm.suggestedModels()) add(m);
     const def = this.llm.defaultModel;
-    if (def !== null && !list.includes(def)) list.unshift(def);
-    return list;
+    if (def !== null) add(def);
+    return out;
   });
   /**
    * **D-094** — modelo que **de fato** será usado na próxima chamada:

@@ -179,6 +179,16 @@ export class LlmIntentResolverService {
   }
 
   /**
+   * **D-095** — modelos sugeridos (curados/conhecidos) do provider, para a UI
+   * fundir com os descobertos ({@link listModels}). `[]` quando não há
+   * provider ou ele não expõe curadoria ({@link AiChatProvider.suggestedModels}
+   * é opcional). Síncrono (apenas lê um signal, sem rede).
+   */
+  suggestedModels(): readonly string[] {
+    return this.provider?.suggestedModels?.() ?? [];
+  }
+
+  /**
    * Catálogo compacto dos intents registrados — enviado ao modelo no
    * system prompt. Deriva de `NaturalLanguageService.intents()`.
    *

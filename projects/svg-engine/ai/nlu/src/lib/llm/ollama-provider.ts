@@ -12,12 +12,38 @@ export const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434';
 /** Default model — the small/fast one that fits a modest GPU (D-093 benchmark). */
 export const DEFAULT_OLLAMA_MODEL = 'qwen2.5:3b';
 
+/**
+ * **D-095 — modelos curados (conhecidos) sugeridos no seletor.**
+ *
+ * Lista de fallback/curadoria que o `<svge-nlu-input>` funde com os modelos
+ * **descobertos** ao vivo (`/api/tags`): garante que esses apareçam no seletor
+ * mesmo quando a descoberta falha (servidor offline/sem CORS) e serve de
+ * sugestão para consumidores da lib que ainda não puxaram nada.
+ *
+ * Inclui os modelos base (D-093) **e** os **`qwen2.5-coder`** (3b/7b/14b) —
+ * estes últimos são **coder-tuned**, logo bem melhores para gerar SVG (que é
+ * markup/código): fecham tags, respeitam `viewBox`/`path`/`defs`. Mantidos os
+ * anteriores; os coder são **adicionais** (vide D-094 modo "SVG livre").
+ */
+export const DEFAULT_OLLAMA_MODELS: readonly string[] = [
+  'qwen2.5:3b',
+  'qwen2.5:7b',
+  'qwen2.5-coder:3b',
+  'qwen2.5-coder:7b',
+  'qwen2.5-coder:14b',
+];
+
 /** Optional configuration for {@link OllamaChatProvider} / {@link provideOllamaChat}. */
 export interface OllamaChatConfig {
   /** Base URL of the Ollama server, e.g. `http://192.168.1.21:11434`. */
   readonly baseUrl?: string;
   /** Default model id, e.g. `qwen2.5:3b`. Overridable per-call via `opts.model`. */
   readonly model?: string;
+  /**
+   * **D-095** — sobrescreve a lista curada de modelos sugeridos no seletor
+   * ({@link DEFAULT_OLLAMA_MODELS}). Quando omitido, usa a curadoria padrão.
+   */
+  readonly models?: readonly string[];
 }
 
 /** Shape of the relevant fields in Ollama's `/api/chat` response. */
@@ -57,11 +83,18 @@ function normalizeBaseUrl(url: string): string {
 export class OllamaChatProvider implements AiChatProvider {
   private readonly _baseUrl = signal(DEFAULT_OLLAMA_BASE_URL);
   private readonly _model = signal(DEFAULT_OLLAMA_MODEL);
+  private readonly _suggestedModels = signal<readonly string[]>(DEFAULT_OLLAMA_MODELS);
 
   /** Current base URL (reactive). */
   readonly baseUrl = this._baseUrl.asReadonly();
   /** Current default model (reactive). Satisfies {@link AiChatProvider.defaultModel}. */
   readonly defaultModel = this._model.asReadonly();
+  /**
+   * **D-095** — modelos curados sugeridos no seletor (reactive). Satisfaz
+   * {@link AiChatProvider.suggestedModels}. Fundidos com os descobertos via
+   * `/api/tags` pela UI; default = {@link DEFAULT_OLLAMA_MODELS}.
+   */
+  readonly suggestedModels = this._suggestedModels.asReadonly();
   /** `true` once a non-empty base URL is set (it always is, by default). */
   readonly isConfigured = computed(() => this._baseUrl().length > 0);
 
@@ -72,6 +105,10 @@ export class OllamaChatProvider implements AiChatProvider {
     }
     if (typeof cfg.model === 'string' && cfg.model.length > 0) {
       this._model.set(cfg.model);
+    }
+    // **D-095** — só substitui a curadoria quando uma lista não-vazia é dada.
+    if (Array.isArray(cfg.models) && cfg.models.length > 0) {
+      this._suggestedModels.set([...cfg.models]);
     }
   }
   /** Switch the server URL at runtime. */
