@@ -14,7 +14,7 @@ import type { PolylineNode } from './polyline-node';
 import type { RectNode } from './rect-node';
 import type { SvgNode } from './svg-node';
 import type { SymbolUseNode } from './symbol-use-node';
-import type { TextNode } from './text-node';
+import type { TextNode, TextRun } from './text-node';
 
 /**
  * Common optional inputs shared by every node factory. Defaults: a
@@ -154,6 +154,8 @@ interface TextInit {
   readonly letterSpacing?: number;
   readonly textPathRef?: NodeId;
   readonly textPathStartOffset?: string;
+  // D-100 — per-run styling (inline styled tspans).
+  readonly runs?: readonly TextRun[];
 }
 
 export function createText(init: TextInit, opts: NodeFactoryOptions = {}): TextNode {
@@ -178,6 +180,7 @@ export function createText(init: TextInit, opts: NodeFactoryOptions = {}): TextN
     letterSpacing: init.letterSpacing,
     textPathRef: init.textPathRef,
     textPathStartOffset: init.textPathStartOffset,
+    runs: init.runs,
   };
 }
 

@@ -284,6 +284,7 @@
     "SvgStyle",
     "SymbolUseNode",
     "TextNode",
+    "TextRun",
     "toNodeId",
     "Transform",
     "TRANSFORM_PROPERTY_NAMES",

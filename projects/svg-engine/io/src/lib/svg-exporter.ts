@@ -29,6 +29,7 @@ import {
   type SvgStyle,
   type SymbolUseNode,
   type TextNode,
+  type TextRun,
   type Transform,
   TRANSFORM_PROPERTY_NAMES,
   walk,
@@ -601,6 +602,26 @@ function renderText(node: TextNode, depth: number, ctx: ExportContext): string {
     return `${indent}<text${attrsString}>\n${children.join('\n')}\n${indent}</text>`;
   }
 
+  // **D-100 — rich text.** Per-run styled tspans, emitted INLINE (zero
+  // whitespace between tspans) so adjacent runs don't pick up spurious
+  // spaces when the file is opened in a browser/design tool. `content`
+  // mirrors the concatenated run text; the runs drive the markup. Takes
+  // precedence over the multi-line path (runs are inline, not lines).
+  if (node.runs !== undefined && node.runs.length > 0) {
+    const inline = node.runs
+      .map((r) => `<tspan${runAttrs(r)}>${escapeXml(r.text)}</tspan>`)
+      .join('');
+    // Keep the run markup on a single line (inter-tspan whitespace must
+    // stay zero). When there are title/anim children, give them their own
+    // lines; SVG strips leading/trailing <text> whitespace so the wrapping
+    // childIndent/newlines around `inline` are harmless.
+    if (titleLines.length > 0 || animLines.length > 0) {
+      const children = [...titleLines, ...animLines, `${childIndent}${inline}`];
+      return `${indent}<text${attrsString}>\n${children.join('\n')}\n${indent}</text>`;
+    }
+    return `${indent}<text${attrsString}>${inline}</text>`;
+  }
+
   // **D-053/D-069 follow-up — Multi-line tspan emission**. The editor's canvas
   // renderer splits `node.content` on `\n` and emits one `<tspan dy>` per line
   // so the saved file opens elsewhere with the same line layout. Single-line
@@ -643,6 +664,33 @@ function resolveLineHeightEm(node: TextNode): string {
   const lh = node.lineHeight;
   const factor = typeof lh === 'number' && Number.isFinite(lh) && lh > 0 ? lh : 1.2;
   return `${factor}em`;
+}
+
+/**
+ * **D-100** — build the attribute string for one rich-text {@link TextRun}'s
+ * `<tspan>`. Standard SVG presentation attributes go directly; the CSS-only
+ * typography knobs (letter-spacing, variable-font / OpenType settings) go via
+ * inline `style=`, mirroring the renderer's per-run bindings and the parent
+ * `<text>` exporter. Mirrors {@link renderText}'s node-level field handling.
+ */
+function runAttrs(r: TextRun): string {
+  const attrs: [string, string][] = [];
+  if (r.fill !== undefined) attrs.push(['fill', r.fill]);
+  if (r.fontFamily !== undefined) attrs.push(['font-family', r.fontFamily]);
+  if (r.fontSize !== undefined) attrs.push(['font-size', fmt(r.fontSize)]);
+  if (r.fontWeight !== undefined) attrs.push(['font-weight', String(r.fontWeight)]);
+  if (r.fontStyle !== undefined) attrs.push(['font-style', r.fontStyle]);
+  if (r.textDecoration !== undefined) attrs.push(['text-decoration', r.textDecoration]);
+  const styleProps: string[] = [];
+  if (r.letterSpacing !== undefined) styleProps.push(`letter-spacing: ${fmt(r.letterSpacing)}px`);
+  if (r.fontVariationSettings !== undefined) {
+    styleProps.push(`font-variation-settings: ${r.fontVariationSettings}`);
+  }
+  if (r.fontFeatureSettings !== undefined) {
+    styleProps.push(`font-feature-settings: ${r.fontFeatureSettings}`);
+  }
+  if (styleProps.length > 0) attrs.push(['style', styleProps.join('; ')]);
+  return attrsStr(attrs);
 }
 
 function renderImage(node: ImageNode, depth: number, ctx: ExportContext): string {

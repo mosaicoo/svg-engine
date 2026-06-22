@@ -30,6 +30,7 @@ import {
   type SvgDocument,
   type SvgNode,
   type SvgStyle,
+  type TextRun,
 } from 'svg-engine/core';
 import { CssStyleSheet } from './css-style-resolver';
 import type { Importer, ImportResult } from './io-types';
@@ -303,6 +304,61 @@ function parseTextContent(el: Element): string {
     return tspans.map((t) => t.textContent ?? '').join('\n');
   }
   return el.textContent ?? '';
+}
+
+/**
+ * **D-100 — rich text.** Parse a `<text>`'s child `<tspan>`s into styled
+ * {@link TextRun}s — but ONLY when they look like inline styled runs, not
+ * multi-line "lines". Heuristic:
+ * - any `<tspan dy=…>` (vertical offset) → those are LINES → return `null`
+ *   so the multi-line path ({@link parseTextContent}, joined by `\n`) wins.
+ * - otherwise build one run per tspan; return them only when AT LEAST one
+ *   carries a per-run style override (fill / font-* / letter-spacing / …).
+ *   A plain unstyled `<tspan>` is indistinguishable from bare text, so we
+ *   leave those to `parseTextContent` rather than turning every text node
+ *   into rich text.
+ *
+ * Returns `null` when there are no tspans, when they're lines, or when
+ * none carry styling.
+ */
+function parseTextRuns(el: Element): readonly TextRun[] | null {
+  const tspans = Array.from(el.children).filter((c) => c.tagName.toLowerCase() === 'tspan');
+  if (tspans.length === 0) return null;
+  if (tspans.some((t) => t.hasAttribute('dy'))) return null; // multi-line, not runs
+  const runs = tspans.map((t) => buildTextRun(t));
+  const anyStyled = runs.some(
+    (r) =>
+      r.fill !== undefined ||
+      r.fontFamily !== undefined ||
+      r.fontSize !== undefined ||
+      r.fontWeight !== undefined ||
+      r.fontStyle !== undefined ||
+      r.textDecoration !== undefined ||
+      r.letterSpacing !== undefined ||
+      r.fontVariationSettings !== undefined ||
+      r.fontFeatureSettings !== undefined,
+  );
+  return anyStyled ? runs : null;
+}
+
+/** Build one {@link TextRun} from a `<tspan>` element (D-100). */
+function buildTextRun(t: Element): TextRun {
+  return {
+    text: t.textContent ?? '',
+    fill: attrOrCss(t, 'fill'),
+    fontFamily: attrOrCss(t, 'font-family'),
+    fontSize: parseLength(attrOrCss(t, 'font-size')),
+    fontWeight: parseFontWeight(attrOrCss(t, 'font-weight')),
+    fontStyle: enumValue(attrOrCss(t, 'font-style'), ['normal', 'italic'] as const),
+    textDecoration: enumValue(attrOrCss(t, 'text-decoration'), [
+      'none',
+      'underline',
+      'line-through',
+    ] as const),
+    letterSpacing: parseLength(attrOrCss(t, 'letter-spacing')),
+    fontVariationSettings: attrOrCss(t, 'font-variation-settings'),
+    fontFeatureSettings: attrOrCss(t, 'font-feature-settings'),
+  };
 }
 
 // ── D-098 — typography + text-on-path import helpers ───────────────
@@ -666,11 +722,22 @@ function parseElement(
       // exporter already support, closing the import↔export asymmetry.
       // `<textPath>` content + ref take precedence over plain/tspan content.
       const tp = parseTextPath(el);
+      // **D-100** — rich text (inline styled tspans). Only when not on a path
+      // (text-on-path with per-run styling is out of scope). When runs are
+      // detected, `content` is their concatenation (faithful plain-text
+      // projection); otherwise fall back to the plain/multi-line reader.
+      const runs = tp === null ? parseTextRuns(el) : null;
+      const content =
+        tp !== null
+          ? tp.content
+          : runs !== null
+            ? runs.map((r) => r.text).join('')
+            : parseTextContent(el);
       return createText(
         {
           x: numberAttr(el, 'x', 0, warnings),
           y: numberAttr(el, 'y', 0, warnings),
-          content: tp !== null ? tp.content : parseTextContent(el),
+          content,
           fontSize: optionalNumberAttr(el, 'font-size', warnings),
           fontFamily: attrOrCss(el, 'font-family'),
           fontWeight: parseFontWeight(attrOrCss(el, 'font-weight')),
@@ -686,6 +753,7 @@ function parseElement(
           fontFeatureSettings: attrOrCss(el, 'font-feature-settings'),
           textPathRef: tp?.ref,
           textPathStartOffset: tp?.startOffset,
+          runs: runs ?? undefined,
         },
         baseFactoryOpts(el),
       );

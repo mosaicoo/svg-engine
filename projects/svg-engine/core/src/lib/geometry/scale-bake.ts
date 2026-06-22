@@ -174,7 +174,16 @@ export function bakeText(node: TextNode, sx: number, sy: number, anchor: Point):
   const uniform = Math.abs(Math.abs(sx) - Math.abs(sy)) < 1e-9;
   const nextFontSize =
     uniform && node.fontSize !== undefined ? Math.abs(node.fontSize * sx) : node.fontSize;
-  return { ...node, x: p.x, y: p.y, fontSize: nextFontSize };
+  // D-100 — per-run fontSize scales on the same uniform-only rule as the
+  // node-level fontSize, so a rich-text node baked at 2× keeps each run's
+  // relative size. Runs without an explicit fontSize inherit (left as-is).
+  const nextRuns =
+    uniform && node.runs !== undefined
+      ? node.runs.map((r) =>
+          r.fontSize !== undefined ? { ...r, fontSize: Math.abs(r.fontSize * sx) } : r,
+        )
+      : node.runs;
+  return { ...node, x: p.x, y: p.y, fontSize: nextFontSize, runs: nextRuns };
 }
 
 /**

@@ -1,6 +1,12 @@
 import { NgComponentOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
-import { isGroupNode, type SvgNode, type SvgStyle, type TextNode } from 'svg-engine/core';
+import {
+  isGroupNode,
+  type SvgNode,
+  type SvgStyle,
+  type TextNode,
+  type TextRun,
+} from 'svg-engine/core';
 import { NodeRendererRegistry } from '../registry/node-renderer-registry.service';
 import { renderTransformAttr } from '../util/transform-attr';
 import { SvgeEllipseDirective } from './ellipse-renderer.directive';
@@ -104,6 +110,35 @@ import { SvgeTextDirective } from './text-renderer.directive';
             >
               {{ textPathFlattened() }}
             </svg:textPath>
+          </svg:text>
+        } @else if (textHasRuns()) {
+          <!--
+            D-100 — rich text. Emit one inline tspan per run, each
+            carrying its own style overrides; fields a run omits inherit
+            from the parent text. The tspan content is kept whitespace-
+            tight (no newline between the run text and the closing tag)
+            so adjacent runs don't gain spurious spaces from template
+            indentation — inline runs (unlike the multi-line dy path)
+            are position-sensitive.
+          -->
+          <svg:text [svgeText]="$any(node())">
+            @for (run of textRuns(); track $index) {
+              <svg:tspan
+                [attr.fill]="run.fill ?? null"
+                [attr.font-family]="run.fontFamily ?? null"
+                [attr.font-size]="run.fontSize ?? null"
+                [attr.font-weight]="run.fontWeight ?? null"
+                [attr.font-style]="run.fontStyle ?? null"
+                [attr.text-decoration]="run.textDecoration ?? null"
+                [style.letter-spacing]="
+                  run.letterSpacing !== undefined ? run.letterSpacing + 'px' : null
+                "
+                [style.font-variation-settings]="run.fontVariationSettings ?? null"
+                [style.font-feature-settings]="run.fontFeatureSettings ?? null"
+              >
+                {{ run.text }}
+              </svg:tspan>
+            }
           </svg:text>
         } @else if (textIsMultiLine()) {
           <svg:text [svgeText]="$any(node())">
@@ -286,6 +321,25 @@ export class SvgeNodeRenderer {
   protected textContent(): string {
     const n = this.node();
     return n.type === 'text' ? (n as TextNode).content : '';
+  }
+
+  /**
+   * **D-100** — `true` when the text node has a non-empty `runs` array.
+   * Gates the rich-text (inline styled tspans) render branch. Sits below
+   * the `textPathRef` branch in precedence (text on a path with per-run
+   * styling is out of scope) and above the multi-line `\n` path.
+   */
+  protected textHasRuns(): boolean {
+    const n = this.node();
+    return (
+      n.type === 'text' && (n as TextNode).runs !== undefined && (n as TextNode).runs!.length > 0
+    );
+  }
+
+  /** Runs for the rich-text branch; `[]` when the node has none. */
+  protected textRuns(): readonly TextRun[] {
+    const n = this.node();
+    return n.type === 'text' ? ((n as TextNode).runs ?? []) : [];
   }
 
   /**

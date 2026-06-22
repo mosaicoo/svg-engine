@@ -6,6 +6,46 @@
 
 ---
 
+## 2026-06-22 — D-100 — P1-B: rich text (estilo por trecho / per-run) ✅
+
+**Lacuna P1** da auditoria de cobertura SVG. O `TextNode` só tinha `content`
+(string única; `\n` vira `<tspan dy>` por linha). Trechos com estilo próprio
+(uma palavra **em negrito**, uma <span style="color">colorida</span>) **não
+eram modelados** — o importer achatava `<tspan>` estilizados juntando o texto e
+descartando fill/peso/estilo por trecho. (Era o follow-up explícito previsto no
+JSDoc do `TextNode`.)
+
+**Implementação — `runs` no modelo, render e io, sem regressão:**
+
+- **core**: `TextRun` (novo export) = um trecho inline (`text` + overrides de
+  `fill`/`fontFamily`/`fontSize`/`fontWeight`/`fontStyle`/`textDecoration`/
+  `letterSpacing`/variable-font/OpenType). `TextNode.runs?: readonly TextRun[]`
+  (campo, não export). `createText`/`TextInit` repassam; `bakeText` escala o
+  `fontSize` por-run na mesma regra uniform-only do node. Quando presente,
+  `content` é a projeção plana (concatenação) p/ busca/replace/acessibilidade.
+- **render** (`node-renderer`): novo ramo `@else if (textHasRuns())` — um
+  `<tspan>` inline por run com seus overrides; conteúdo **whitespace-tight**
+  (sem espaço entre tspans → runs adjacentes não ganham gaps). Precedência:
+  textPath → **runs** → multi-line `\n` → single-line.
+- **io exporter**: ramo rich-text emite tspans inline (zero whitespace entre
+  eles); knobs CSS (letter-spacing/variation/feature) via `style=`.
+- **io importer**: `parseTextRuns` — `<tspan>` sem `dy` e com ≥1 override de
+  estilo → `runs` (content = concatenação); `<tspan dy>` continua sendo
+  multi-line (linhas); tspans sem estilo seguem no caminho plano; runs ignorados
+  quando o texto está num path.
+
+**Verificação:** build:lib (9 EP) + **+17 specs** (`text-runs-roundtrip` io: 11 —
+import estilizado→runs, style= inline, multi-line não vira runs, unstyled não
+vira runs, textPath ignora runs, export inline whitespace-tight, CSS via style=,
+round-trip; render: 6 — tspan por run, herança de campo omitido, runs > multi-
+line, array vazio) + lint (3 projetos) + **API snapshot regenerado** (novo export
+`TextRun`). **Browser (`/svg-viewer`)**: "Hello **rich** world" — "rich" em
+negrito/itálico/rosa, vizinhos default, espaçamento correto. _Deferido_: edição
+inline rich-text no Inspector (UX maior, caret-aware) — esta entrega é a base de
+dados/render/io. Próximo P1: id-namespacing no import (colisão de defs).
+
+---
+
 ## 2026-06-22 — D-099 — P1-A: `vector-effect` por-nó (fidelidade de stroke no import) ✅
 
 **Lacuna P1** da auditoria de cobertura SVG. O renderer **forçava**

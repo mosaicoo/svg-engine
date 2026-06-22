@@ -317,3 +317,59 @@ describe('Text renderer — D-069 typography basics', () => {
     expect(tspans[1]!.getAttribute('dy')).toBe('1.2em');
   });
 });
+
+describe('Text renderer — D-100 rich text (per-run styling)', () => {
+  it('emits one tspan per run carrying its style overrides', () => {
+    const node = createText({
+      x: 0,
+      y: 0,
+      content: 'Hello world',
+      runs: [{ text: 'Hello ' }, { text: 'world', fill: '#e00', fontWeight: 'bold' }],
+    });
+    const { svg } = mount(node);
+    const tspans = svg.querySelectorAll(`g[data-node-id="${node.id}"] tspan`);
+    expect(tspans.length).toBe(2);
+    expect(tspans[0]!.textContent).toBe('Hello ');
+    expect(tspans[1]!.textContent).toBe('world');
+    expect(tspans[1]!.getAttribute('fill')).toBe('#e00');
+    expect(tspans[1]!.getAttribute('font-weight')).toBe('bold');
+    // No dy on rich-text runs — they're inline, not lines.
+    expect(tspans[0]!.hasAttribute('dy')).toBe(false);
+  });
+
+  it('a run omitting a field does not emit that attribute (inherits parent)', () => {
+    const node = createText({
+      x: 0,
+      y: 0,
+      content: 'ab',
+      runs: [{ text: 'a' }, { text: 'b', fill: '#08f' }],
+    });
+    const { svg } = mount(node);
+    const tspans = svg.querySelectorAll(`g[data-node-id="${node.id}"] tspan`);
+    expect(tspans[0]!.hasAttribute('fill')).toBe(false);
+    expect(tspans[1]!.getAttribute('fill')).toBe('#08f');
+  });
+
+  it('runs take precedence over the multi-line \\n path', () => {
+    // content has a newline but runs are present → render as inline runs,
+    // not as dy-stacked lines.
+    const node = createText({
+      x: 0,
+      y: 0,
+      content: 'a b',
+      runs: [{ text: 'a ' }, { text: 'b', fontStyle: 'italic' }],
+    });
+    const { svg } = mount(node);
+    const tspans = svg.querySelectorAll(`g[data-node-id="${node.id}"] tspan`);
+    expect(tspans.length).toBe(2);
+    expect(tspans[0]!.hasAttribute('dy')).toBe(false);
+  });
+
+  it('empty runs array falls back to plain single-line text', () => {
+    const node = createText({ x: 0, y: 0, content: 'plain', runs: [] });
+    const { svg } = mount(node);
+    const text = svg.querySelector(`g[data-node-id="${node.id}"] text`);
+    expect(text!.querySelectorAll('tspan').length).toBe(0);
+    expect(text!.textContent).toBe('plain');
+  });
+});

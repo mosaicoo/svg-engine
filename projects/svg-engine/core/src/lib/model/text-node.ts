@@ -2,13 +2,46 @@ import type { NodeId } from '../types/node-id';
 import type { SvgNodeBase } from './svg-node-base';
 
 /**
+ * **D-100 — rich text (per-run styling).** A single styled segment of a
+ * `<text>`, mapping to one inline `<tspan>`. Each run carries only the
+ * typography fields that commonly *vary within a line* (e.g. one bold
+ * word, one colored word); anything a run leaves `undefined` inherits
+ * from the parent {@link TextNode} (which itself inherits the SVG
+ * default). Runs flow **inline** (horizontally) — they are NOT lines.
+ * Multi-line text is still expressed with `\n` in {@link TextNode.content}
+ * (the `<tspan dy>` line path); per-run styling and multi-line are
+ * independent and, for now, mutually exclusive at the renderer/exporter
+ * (runs win when present and `textPathRef` is unset).
+ */
+export interface TextRun {
+  /** The run's literal text. Whitespace is significant (runs are inline). */
+  readonly text: string;
+  /** Per-run fill paint. Inherits the node's fill when omitted. */
+  readonly fill?: string;
+  readonly fontFamily?: string;
+  readonly fontSize?: number;
+  readonly fontWeight?: number | 'normal' | 'bold';
+  readonly fontStyle?: 'normal' | 'italic';
+  readonly textDecoration?: 'none' | 'underline' | 'line-through';
+  readonly letterSpacing?: number;
+  readonly fontVariationSettings?: string;
+  readonly fontFeatureSettings?: string;
+}
+
+/**
  * Text element. Maps to SVG `<text>`. The `content` field is a single
  * string — multi-line is expressed by embedding `\n` characters in
  * `content` and the renderer (see `svg-engine/render` text dispatcher)
- * splits on `\n` into a sequence of `<tspan dy>` runs. Explicit
- * `<tspan>` runs with per-run styling are still not modelled at the
- * data layer — they would require extending this interface with an
- * optional `runs` field.
+ * splits on `\n` into a sequence of `<tspan dy>` runs.
+ *
+ * **D-100 — `runs`**: optional per-run styling (a bold word, a colored
+ * word, …). When set and non-empty, the renderer/exporter emit one
+ * inline `<tspan>` per {@link TextRun} (instead of the plain/multi-line
+ * paths), and `content` holds the plain-text projection
+ * (`runs.map(r => r.text).join('')`) for search/replace, accessibility,
+ * and tools that read text. Ignored when `textPathRef` is set (text on
+ * a path with per-run styling is out of scope) and superseded by the
+ * multi-line `\n` path only when `runs` is absent.
  *
  * **D-053 — Variable Fonts + OpenType + Text on Path (Item 6.5 / 6.6)**:
  *
@@ -83,4 +116,8 @@ export interface TextNode extends SvgNodeBase {
   readonly fontStyle?: 'normal' | 'italic';
   readonly textDecoration?: 'none' | 'underline' | 'line-through';
   readonly lineHeight?: number;
+  // D-100 — per-run styling. See {@link TextRun}. When present + non-empty,
+  // drives rendering/export as inline styled tspans; `content` mirrors the
+  // concatenated run text.
+  readonly runs?: readonly TextRun[];
 }
