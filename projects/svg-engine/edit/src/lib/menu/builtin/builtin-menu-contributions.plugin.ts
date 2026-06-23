@@ -3525,7 +3525,15 @@ function newDocument(runCtx: MenuContributionContext | undefined, fromCtx: Resol
   // stray undo step — "new doc + Page 1" is the clean baseline.
   fromCtx(CommandBus, runCtx).dispatch(new EnsureDefaultPageCommand());
   fromCtx(HistoryService, runCtx).clear();
-  fromCtx(ViewportService, runCtx).reset();
+  // **D-107** — frame the fresh document at 100% when it fits the window, else
+  // fit-to-window (Photoshop "Fit on Screen" convention; replaces the old
+  // unconditional fit). `setContentBox` first so `fitScale` is computed from
+  // the NEW doc's viewBox, not the renderer's not-yet-mirrored old one.
+  {
+    const vp = fromCtx(ViewportService, runCtx);
+    vp.setContentBox(fromCtx(EditorStateService, runCtx).document().viewBox);
+    vp.frameNewDocument();
+  }
   fromCtx(SelectionService, runCtx).clear();
 }
 

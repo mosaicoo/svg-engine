@@ -65,6 +65,32 @@ describe('ViewportService', () => {
     });
   });
 
+  describe('D-107 — frameNewDocument (100% if it fits, else fit)', () => {
+    it('opens at true 100% when the document fits the viewport', () => {
+      // content 800x600 in a 1600x1200 viewport → fits at 1:1 (fitScale 2 ≥ 1).
+      viewport.setViewportSize(1600, 1200);
+      viewport.setPan(123, 456);
+      viewport.frameNewDocument();
+      expect(viewport.displayScale()).toBeCloseTo(1); // 100% on screen
+      expect(viewport.panX()).toBe(0);
+      expect(viewport.panY()).toBe(0);
+    });
+
+    it('fits to the window when the document is larger than the viewport', () => {
+      // content 800x600 in a 400x300 viewport → fitScale 0.5 < 1, so fit (not 100%).
+      viewport.setViewportSize(400, 300);
+      viewport.frameNewDocument();
+      expect(viewport.zoom()).toBeCloseTo(1); // fit = zoom 1
+      expect(viewport.displayScale()).toBeCloseTo(0.5); // < 100%, whole doc visible
+    });
+
+    it('falls back to fit (zoom 1) when the viewport is unmeasured', () => {
+      viewport.frameNewDocument(); // beforeEach leaves size {0,0}
+      expect(viewport.zoom()).toBe(1);
+      expect(viewport.panX()).toBe(0);
+    });
+  });
+
   describe('zoom', () => {
     it('zoom > 1 shrinks the visible window proportionally', () => {
       viewport.setZoom(2);

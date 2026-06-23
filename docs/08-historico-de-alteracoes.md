@@ -6,6 +6,41 @@
 
 ---
 
+## 2026-06-23 — D-107 — Zoom inicial: novo documento abre em 100% (se couber); arquivo salvo restaura o zoom ✅
+
+**Pedido** (usuário): ao abrir uma **nova página/documento**, iniciar em **100%**
+(padrão de ferramentas profissionais); ao abrir um **arquivo `.svge`/compactado**,
+restaurar o **zoom do momento da gravação**.
+
+**Item 2 (restaurar zoom do arquivo) — já existia (D-138).** O formato `.svge`/
+`.svgez` é um envelope JSON que persiste `editor.viewport` (`zoom`/`panX`/`panY`/
+`contentBox`); `saveWorkspace` captura e `openWorkspaceText` restaura via
+`setContentBox`/`setZoom`/`setPan`. Com o D-106 isso restaura o **enquadramento**
+fielmente (o % físico exibido recalcula para a janela atual — correto, pois 100% é
+físico). Nenhuma mudança necessária.
+
+**Item 1 (novo documento → 100%).** O `newDocument` (File ▸ New) fazia
+`viewport.reset()` = **fit** (com D-106, ~44%). Decisão: seguir o padrão **real** de
+mercado (Photoshop "Fit on Screen") — **100% (1:1) quando a página cabe na janela;
+caso contrário, ajustar à janela** (evita abrir uma página grande mostrando só um
+canto). Para o caso comum (páginas que cabem, ex. 800×600) isso **é** 100%.
+
+- **`ViewportService.frameNewDocument()`** (render): `pan=0`; `zoom = min(1/fitScale,
+1)` → escala física `min(1, fitScale)`. Fallback para fit (zoom 1) quando o canvas
+  ainda não foi medido (`fitScale` null).
+- **`newDocument`** (edit plugin): `setContentBox(doc.viewBox)` (sincroniza o
+  `contentBox` com o doc novo, evitando o lag de 1 frame até o renderer espelhar) +
+  `frameNewDocument()`, no lugar do `reset()`. Os comandos **Reset View / Reset Zoom**
+  (explícitos do usuário) permanecem como "ajustar à janela".
+
+**Verificação:** **+3 specs** no `ViewportService` (cabe → displayScale 1 + pan
+zerado; não cabe → fit; fallback sem medição) + plugin de menu + workspace-file (73
+specs nos 3 arquivos) + `build:lib` + lint (3 projetos). _Browser-verify visual
+pendente (a aba do preview ficou instável nesta sessão; a janela do preview também é
+menor que 800×600, então mostraria o ramo "fit", não o "100%")._
+
+---
+
 ## 2026-06-23 — D-106 — Zoom: "100%" agora é 1:1 real (escala física), não "ajustar à janela" ✅
 
 **Reportado** (usuário): um arquivo 800×600 aberto numa página 800×600 "se ajusta

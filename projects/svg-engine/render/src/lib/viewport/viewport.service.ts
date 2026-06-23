@@ -127,6 +127,25 @@ export class ViewportService {
     this.setDisplayScale(1);
   }
 
+  /**
+   * **D-107** — initial framing for a FRESH document: show it at true 100%
+   * (1:1) when the whole content box fits the viewport, otherwise fit it to the
+   * window. Pan resets to origin (centered). This is the "Fit on Screen"
+   * convention (Photoshop): documents that fit open at 100%; larger ones fit so
+   * the user isn't dropped into a corner. Falls back to fit (zoom 1) when the
+   * viewport hasn't been measured ({@link fitScale} null).
+   *
+   * (Opening a saved `.svge`/`.svgez` does NOT use this — it restores the
+   * viewport persisted in the file.)
+   */
+  frameNewDocument(): void {
+    this._panX.set(0);
+    this._panY.set(0);
+    const k = this.fitScale();
+    // target on-screen scale = min(1, k); zoom = target / k = min(1/k, 1).
+    this.setZoom(k === null ? 1 : Math.min(1 / k, 1));
+  }
+
   /** Replace zoom directly (clamped to `[minZoom, maxZoom]`). */
   setZoom(zoom: number): void {
     this._zoom.set(this.clampZoom(zoom));
