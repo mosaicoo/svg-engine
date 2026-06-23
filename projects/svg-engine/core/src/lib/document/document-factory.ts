@@ -23,13 +23,8 @@ export function createEmptyDocument(options: CreateDocumentOptions = {}): SvgDoc
     viewBox: options.viewBox ?? DEFAULT_VIEW_BOX,
     width: options.width,
     height: options.height,
-    // **D-103** — explicit EMPTY style, NOT `createGroup`'s `DEFAULT_STYLE`
-    // fallback. The root is a structural container, never painted; with the
-    // default it carried `stroke:#333333` + `fill:#cccccc`, and since SVG
-    // `stroke` is inherited, any imported/added child without its own stroke
-    // (e.g. fill-only CorelDRAW art placed into the editor) picked up a
-    // spurious dark border. Companion to D-102 (which fixed the *imported*
-    // doc's root); this fixes the *editor's* document root.
-    root: createGroup([], { metadata: { name: 'root' }, style: {} }),
+    // D-104 — the root is a structural container; `createGroup` now defaults to
+    // EMPTY_STYLE (no inherited `stroke:#333333`), so no explicit style needed.
+    root: createGroup([], { metadata: { name: 'root' } }),
   };
 }

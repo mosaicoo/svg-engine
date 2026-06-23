@@ -69,6 +69,35 @@ describe('D-115 — Open SVG page-wrap contract', () => {
     expect(page.children.map((c) => c.id)).toEqual([inside.id, outside.id]);
   });
 
+  it('D-104 — no container wrapper injects an inherited stroke onto fill-only art', () => {
+    const { state, bus } = setup();
+    // Fill-only art (CorelDRAW/Illustrator convention): a shape with a fill and
+    // NO stroke of its own — exactly what triggered the reported black border.
+    const fillOnly = createRect(
+      { x: 100, y: 100, width: 50, height: 50 },
+      { style: { fill: '#4e6e80' } },
+    );
+    state.resetDocument(parsedDoc([fillOnly]));
+    bus.dispatch(new EnsureDefaultPageCommand());
+
+    // Walk the whole tree and collect every container group's stroke. After the
+    // root-cause fix (createGroup → EMPTY_STYLE) NO wrapper (root, page) may
+    // carry a stroke — SVG `stroke` is inherited and would paint a spurious dark
+    // border on the stroke-less fill-only child.
+    const groupStrokes: (string | undefined)[] = [];
+    const walk = (node: SvgNode): void => {
+      if (node.type === 'group') {
+        groupStrokes.push(node.style.stroke);
+        node.children.forEach(walk);
+      }
+    };
+    walk(state.document().root);
+
+    expect(groupStrokes.length).toBeGreaterThan(0); // root + page were created
+    expect(groupStrokes.every((s) => s === undefined)).toBe(true);
+    expect(groupStrokes).not.toContain('#333333');
+  });
+
   it('does not double-wrap a document that already has pages (our own exports)', () => {
     const { state, bus } = setup();
     const page = withPageFlag(

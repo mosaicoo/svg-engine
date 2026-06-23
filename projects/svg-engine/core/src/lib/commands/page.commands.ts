@@ -82,13 +82,10 @@ export class CreatePageCommand implements Command {
     for (const child of doc.root.children) {
       if (isPage(child)) pageCount += 1;
     }
+    // D-104 — page is a structural container; `createGroup` defaults to
+    // EMPTY_STYLE (no inherited `stroke:#333333`), so no explicit style needed.
     const baseGroup = createGroup([], {
       metadata: { name: this.name ?? `Page ${pageCount + 1}` },
-      // **D-103** — explicit EMPTY style (not `DEFAULT_STYLE`): a page is a
-      // structural container. The default's inherited `stroke:#333333` would
-      // paint a dark border on every stroke-less child dropped onto the page
-      // (e.g. imported fill-only art). Same fix as the document root.
-      style: {},
     });
     const page = withPageFlag(baseGroup, this.viewBox, this.name);
     this.createdPageId = page.id;

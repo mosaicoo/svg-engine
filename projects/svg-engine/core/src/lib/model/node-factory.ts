@@ -2,7 +2,7 @@ import type { SvgMetadata } from '../types/metadata';
 import { EMPTY_METADATA } from '../types/metadata';
 import { generateNodeId, type NodeId } from '../types/node-id';
 import type { Point } from '../types/point';
-import { DEFAULT_STYLE, type SvgStyle } from '../types/style';
+import { DEFAULT_STYLE, EMPTY_STYLE, type SvgStyle } from '../types/style';
 import { IDENTITY_TRANSFORM, type Transform } from '../types/transform';
 import type { EllipseNode } from './ellipse-node';
 import type { GroupNode } from './group-node';
@@ -217,7 +217,13 @@ export function createGroup(
     type: 'group',
     id: opts.id ?? generateNodeId(),
     transform: opts.transform ?? IDENTITY_TRANSFORM,
-    style: opts.style ?? DEFAULT_STYLE,
+    // **D-104** — a group is a structural CONTAINER, never painted, so it
+    // defaults to EMPTY_STYLE (not DEFAULT_STYLE, which is the *shape* default
+    // carrying `stroke:#333333`). SVG `stroke` is inherited, so the old default
+    // bled a dark border onto every stroke-less descendant (imported fill-only
+    // art under a page/root/group wrapper). Root-cause fix — every container
+    // factory (page, layer, smart-object, group, import, …) inherits it.
+    style: opts.style ?? EMPTY_STYLE,
     metadata: opts.metadata ?? EMPTY_METADATA,
     children,
   };

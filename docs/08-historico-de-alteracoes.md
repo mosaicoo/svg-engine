@@ -6,6 +6,41 @@
 
 ---
 
+## 2026-06-22 — D-104 — Bug (correção de raiz): bordas pretas em File ▸ Open / Import ▸ SVG ✅
+
+**Reportado** (usuário): após D-102/D-103, as bordas pretas **ainda persistiam**
+nos submenus **File ▸ Open** e **File ▸ Import ▸ SVG**.
+
+**Causa raiz** (a verdadeira): os D-102/D-103 foram fixes **pontuais** — corrigiram
+3 dos ~10 lugares que criam grupos-container via `createGroup` sem `style`. Os
+fluxos Open/Import passam por outro container ainda não coberto:
+`EnsureDefaultPageCommand` envolve o conteúdo aberto/importado numa **"Page 1"**
+criada via `createGroup([...])` sem style → caía no `DEFAULT_STYLE` (`stroke:#333333`)
+→ herdava a borda escura para a arte fill-only. Tapar buraco-a-buraco era o
+anti-padrão (divergência entre call-sites).
+
+**Fix de raiz** (`core/model/node-factory.createGroup`): o **default** do
+`createGroup` passou de `DEFAULT_STYLE` para **`EMPTY_STYLE`** (`{}`). Justificativa:
+um **grupo é sempre um container estrutural, nunca pintado** — `DEFAULT_STYLE`
+(`fill:#cccccc`, `stroke:#333333`) é o default de **shape** (demonstração do editor),
+não de grupo. Com isso **todos** os containers (root, página, layer, smart-object,
+group, import/placement, `ensure-default-page`, e futuros) ficam corretos de uma vez.
+Os `style:{}` explícitos que o D-103 havia colocado em `document-factory` e
+`page.commands` foram **revertidos** (agora confiam no default — consistência: nenhum
+container passa style). Quem legitimamente passa style continua: o **importer**
+(`parseStyle(svgRoot)`, reflete o `<svg>` real) e o **ungroup** (preserva o style
+original do grupo). Shapes (`createRect`/`createPath`/…) seguem com `DEFAULT_STYLE`.
+
+**Verificação:** **+2 specs** — `root-no-default-stroke` (createGroup default =
+EMPTY*STYLE, honra style explícito) e `open-document` (fluxo real do **File ▸ Open**:
+`resetDocument` + `EnsureDefaultPageCommand` sobre arte fill-only → walk da árvore
+confirma **nenhum** wrapper com stroke, nunca `#333333`). Auditoria: nenhum spec
+assertava grupo com `DEFAULT_STYLE`. Suítes de serialização/render/comandos de
+container (14 arquivos, 192 specs) + lint (3 projetos) + `build:lib`. Sem mudança de
+API. \_Nota: o **svg-studio** é app separado — precisa rebuild/reload do bundle.*
+
+---
+
 ## 2026-06-22 — D-103 — Bug (continuação): bordas pretas no editor/studio (root do doc + página herdavam DEFAULT_STYLE) ✅
 
 **Reportado** (usuário): após o D-102, o `/svg-viewer` ficou limpo, mas o **studio

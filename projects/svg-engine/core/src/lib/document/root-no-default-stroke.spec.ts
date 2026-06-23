@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { CreatePageCommand } from '../commands/page.commands';
 import type { CommandContext } from '../commands/command';
+import { createGroup } from '../model/node-factory';
 import { isPage } from '../model/page';
 import type { GroupNode } from '../model/group-node';
 import { createEmptyDocument } from './document-factory';
@@ -16,6 +17,14 @@ import type { SvgDocument } from './svg-document';
  */
 
 describe('D-103 — container groups have no default stroke/fill', () => {
+  it('D-104 — createGroup defaults to EMPTY_STYLE (no inherited stroke/fill on any container)', () => {
+    const g = createGroup([]);
+    expect(g.style.stroke).toBeUndefined();
+    expect(g.style.fill).toBeUndefined();
+    // an explicit style is still honored (e.g. user-styled group)
+    expect(createGroup([], { style: { fill: '#abc' } }).style.fill).toBe('#abc');
+  });
+
   it('createEmptyDocument root has no stroke/fill (no inherited border)', () => {
     const doc = createEmptyDocument();
     expect(doc.root.style.stroke).toBeUndefined();
