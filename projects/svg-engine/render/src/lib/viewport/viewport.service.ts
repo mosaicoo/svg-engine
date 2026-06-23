@@ -27,6 +27,17 @@ export class ViewportService {
   private readonly _panY = signal(0);
   private readonly _minZoom = signal(DEFAULT_MIN_ZOOM);
   private readonly _maxZoom = signal(DEFAULT_MAX_ZOOM);
+  /**
+   * **D-106** — CSS-pixel size of the rendered canvas viewport (the `<svg>`
+   * element's client box). `{0,0}` until a consumer reports it (the
+   * `[svgeCanvasGestures]` directive does, via a ResizeObserver). Needed to
+   * relate the internal `zoom` (which is relative to `contentBox`) to a
+   * **physical** on-screen scale — see {@link displayScale}.
+   */
+  private readonly _viewportSize = signal<{ readonly width: number; readonly height: number }>({
+    width: 0,
+    height: 0,
+  });
 
   readonly contentBox = this._contentBox.asReadonly();
   readonly zoom = this._zoom.asReadonly();
@@ -34,6 +45,7 @@ export class ViewportService {
   readonly panY = this._panY.asReadonly();
   readonly minZoom = this._minZoom.asReadonly();
   readonly maxZoom = this._maxZoom.asReadonly();
+  readonly viewportSize = this._viewportSize.asReadonly();
 
   /**
    * Visible window in content coordinates, derived from `contentBox`,
@@ -52,9 +64,67 @@ export class ViewportService {
     };
   });
 
+  /**
+   * **D-106** — physical scale (CSS px per document unit) that the WHOLE
+   * `contentBox` occupies at `zoom === 1` — i.e. the "fit to window" factor.
+   * `preserveAspectRatio="xMidYMid meet"` applies a uniform scale, so it's the
+   * limiting (min) of the two axis ratios. `null` when the viewport size or
+   * content box is unknown/degenerate (e.g. headless tests with no layout).
+   */
+  readonly fitScale = computed<number | null>(() => {
+    const cb = this._contentBox();
+    const vp = this._viewportSize();
+    if (!(vp.width > 0) || !(vp.height > 0) || !(cb.width > 0) || !(cb.height > 0)) return null;
+    return Math.min(vp.width / cb.width, vp.height / cb.height);
+  });
+
+  /**
+   * **D-106** — true on-screen scale: how many CSS pixels one document unit
+   * occupies right now. `displayScale === 1` means real 1:1 ("100% / Actual
+   * Size", the market convention). Because the SVG renders the visible
+   * `viewBox` (`contentBox.size / zoom`) stretched to fill the viewport, the
+   * physical scale is `zoom × fitScale`.
+   *
+   * **Fallback**: when {@link fitScale} is unknown (no measured viewport, e.g.
+   * headless rendering) this returns the raw `zoom` — preserving the old
+   * "zoom = percent" meaning so non-DOM consumers/tests keep working.
+   */
+  readonly displayScale = computed<number>(() => {
+    const k = this.fitScale();
+    return k === null ? this._zoom() : this._zoom() * k;
+  });
+
   /** Replace the base content box (e.g., when loading a new document). */
   setContentBox(box: BoundingBox): void {
     this._contentBox.set(box);
+  }
+
+  /**
+   * **D-106** — report the rendered canvas size (CSS px). Drives
+   * {@link fitScale}/{@link displayScale}. Ignores non-finite/negative input.
+   */
+  setViewportSize(width: number, height: number): void {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width < 0 || height < 0) return;
+    const cur = this._viewportSize();
+    if (cur.width === width && cur.height === height) return;
+    this._viewportSize.set({ width, height });
+  }
+
+  /**
+   * **D-106** — set the internal `zoom` so the on-screen {@link displayScale}
+   * equals `scale` (e.g. `1` for true 1:1). When the viewport hasn't been
+   * measured ({@link fitScale} null), falls back to setting `zoom` directly so
+   * the call still does something sensible.
+   */
+  setDisplayScale(scale: number): void {
+    if (!Number.isFinite(scale) || scale <= 0) return;
+    const k = this.fitScale();
+    this.setZoom(k === null ? scale : scale / k);
+  }
+
+  /** **D-106** — "Actual Size" (100%): pin the on-screen scale to true 1:1. */
+  actualSize(): void {
+    this.setDisplayScale(1);
   }
 
   /** Replace zoom directly (clamped to `[minZoom, maxZoom]`). */

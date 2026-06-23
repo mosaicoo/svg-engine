@@ -19,6 +19,52 @@ describe('ViewportService', () => {
     expect(viewport.viewBox()).toEqual({ x: 0, y: 0, width: 800, height: 600 });
   });
 
+  describe('D-106 — displayScale / actual size', () => {
+    it('displayScale falls back to raw zoom when the viewport is unmeasured', () => {
+      // beforeEach leaves the viewport size at {0,0}.
+      expect(viewport.fitScale()).toBeNull();
+      viewport.setZoom(2);
+      expect(viewport.displayScale()).toBe(2);
+    });
+
+    it('fitScale is the meet (min) ratio of viewport to content box', () => {
+      viewport.setViewportSize(400, 300); // exactly half on both axes
+      expect(viewport.fitScale()).toBeCloseTo(0.5);
+      // Letterbox: limited by the SMALLER ratio (height here).
+      viewport.setViewportSize(800, 300);
+      expect(viewport.fitScale()).toBeCloseTo(0.5);
+    });
+
+    it('displayScale = zoom × fitScale (so "zoom 1" is NOT 1:1 unless it fits)', () => {
+      viewport.setViewportSize(400, 300); // fitScale 0.5
+      viewport.setZoom(1);
+      expect(viewport.displayScale()).toBeCloseTo(0.5); // internal "100%" is really 50% on screen
+      viewport.setZoom(2);
+      expect(viewport.displayScale()).toBeCloseTo(1.0);
+    });
+
+    it('setDisplayScale picks the internal zoom that yields that on-screen scale', () => {
+      viewport.setViewportSize(400, 300); // fitScale 0.5
+      viewport.setDisplayScale(1); // true 1:1
+      expect(viewport.zoom()).toBeCloseTo(2);
+      expect(viewport.displayScale()).toBeCloseTo(1);
+    });
+
+    it('actualSize() pins the on-screen scale to true 1:1', () => {
+      viewport.setViewportSize(400, 300);
+      viewport.actualSize();
+      expect(viewport.displayScale()).toBeCloseTo(1);
+    });
+
+    it('setViewportSize ignores invalid input', () => {
+      viewport.setViewportSize(400, 300);
+      viewport.setViewportSize(-1, 50);
+      expect(viewport.viewportSize()).toEqual({ width: 400, height: 300 });
+      viewport.setViewportSize(Number.NaN, 50);
+      expect(viewport.viewportSize()).toEqual({ width: 400, height: 300 });
+    });
+  });
+
   describe('zoom', () => {
     it('zoom > 1 shrinks the visible window proportionally', () => {
       viewport.setZoom(2);

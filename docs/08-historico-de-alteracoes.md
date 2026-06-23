@@ -6,6 +6,53 @@
 
 ---
 
+## 2026-06-23 — D-106 — Zoom: "100%" agora é 1:1 real (escala física), não "ajustar à janela" ✅
+
+**Reportado** (usuário): um arquivo 800×600 aberto numa página 800×600 "se ajusta
+perfeitamente ao canvas", mas em outra ferramenta a **100%** aparece em tamanho
+diferente. Dúvida: o "100%" do svg-engine representa **1:1** real ou há um fator
+extra (fit/DPI/devicePixelRatio/viewport scaling)?
+
+**Diagnóstico** (código + medição no browser): o zoom era aplicado **só via
+`viewBox`** do `<svg>` (`zoom=1` → viewBox = `contentBox`), e o `<svg>` tem
+`width/height:100%` (preenche o container, `preserveAspectRatio` meet) sem dimensões
+fixas. Ou seja, **"100%" (zoom interno 1) era um "ajustar à janela"**, não 1:1 — a
+escala física real (medida: **0,44×** num canvas de 573×266 com devicePixelRatio=1)
+**varia com o tamanho da janela**. Padrão de mercado (Illustrator/Inkscape/Figma):
+**100% = 1:1** (1 unidade do documento = 1 px CSS), e "Ajustar à janela" é comando à
+parte. (Não era DPI — `devicePixelRatio=1` na tela testada.)
+
+**Decisão** (usuário escolheu): alinhar ao mercado — **100% = 1:1 real + Fit separado**.
+
+**Implementação** (sem quebra de comportamento do zoom interno; só a SEMÂNTICA do
+percentual e do "Actual Size"):
+
+- **`ViewportService`** (render): novo `viewportSize` (px CSS do canvas) + `fitScale`
+  (= o "fator de ajuste" K = razão meet viewport/contentBox) + **`displayScale`** (=
+  `zoom × K` = escala física real, 1 = 1:1). `setViewportSize`, `setDisplayScale`,
+  `actualSize()` (= `setDisplayScale(1)`). **Fallback**: sem medição (`fitScale` null,
+  ex. headless) `displayScale` cai no `zoom` cru — preserva specs/consumidores sem DOM.
+- **Medição** (`SvgeCanvasGestures`, edit): `ResizeObserver` no host do canvas reporta
+  o tamanho ao viewport. É opt-in e só está no canvas PRINCIPAL (shell-pro / svge-editor
+  / custom-editor), não em thumbnails — fonte única correta.
+- **Status bar** (ui): o percentual exibido e os presets/input agora usam
+  `displayScale` (escala física), não `zoom`. "Actual Size" chama `actualSize()` (1:1).
+- **Menu View ▸ Zoom**: "Actual Size (100%)" agora pina o **1:1 real** (antes
+  `setZoom(1)` = fit). "Fit Canvas"/"Reset Zoom" inalterados (ajustam à janela).
+
+**Efeito visível:** ao abrir um doc, o indicador mostra o **% real do enquadramento**
+(ex. ~44%), não "100%"; "Actual Size (100%)" leva ao tamanho real 1:1 (igual às outras
+ferramentas).
+
+**Verificação:** **+6 specs** no `ViewportService` (fitScale meet; `displayScale =
+zoom × fitScale`; `setDisplayScale`/`actualSize` resolvem o zoom; fallback sem
+medição; validação de input) + status bar (11, sem regressão) + menu plugin + API
+snapshot regenerado + `build:lib` + lint (3 projetos). _Browser-verify visual ficou
+pendente — a aba do preview ficou instável nesta sessão (servidor compila/serve OK);
+a fiação do `ResizeObserver` foi confirmada por código nos 3 shells._
+
+---
+
 ## 2026-06-22 — D-105 — Layers Panel: Auto Reveal (localizar seleção na árvore) ✅
 
 **Pedido** (usuário): um toggle no Layers Panel para ligar/desligar o comportamento

@@ -1030,7 +1030,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     //
     // The existing flat Zoom/Grid/Rulers/Outline/Timeline toggles become
     // children of three submenus (Option B). Fit Canvas (fit content bounds —
-    // D-119), Fit Selection (D-118) + Actual Size (setZoom(1)) are **real**
+    // D-119), Fit Selection (D-118) + Actual Size (true 1:1 — D-106) are **real**
     // entries. The Display ▸ submenu is now ALL real: Presentation Mode (D-128),
     // Outline Mode, Pixel Preview (D-130), Full Screen (D-129) — no roadmap
     // children left under View. Show ▸ Guides + Artboard Labels (D-123) and
@@ -1091,10 +1091,10 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     // **D-085 / D-119** — Fit Canvas: zoom/pan so ALL drawn content in the
     // active canvas (the active page, or the whole document in legacy no-page
     // mode) fits in the window — the "fit content bounds" implementation the
-    // D-085 slot was reserved for. Distinct from Reset Zoom (which pins zoom
-    // to 100% on the page) and genuinely useful for imported SVGs whose art
-    // overflows the page viewBox (D-115). Falls back to framing the page/
-    // document viewBox when the canvas is empty.
+    // D-085 slot was reserved for. Distinct from Reset Zoom (which frames the
+    // whole page/artboard) and Actual Size (true 1:1, D-106); genuinely useful
+    // for imported SVGs whose art overflows the page viewBox (D-115). Falls
+    // back to framing the page/document viewBox when the canvas is empty.
     ctx.track(
       reg.register({
         id: 'svge.builtin.view.zoom-fit-canvas',
@@ -1125,7 +1125,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         },
       }),
     );
-    // **D-085** — Actual Size: pin zoom to exactly 100%.
+    // **D-085 / D-106** — Actual Size: pin the on-screen scale to TRUE 1:1
+    // (1 document unit = 1 CSS px), the market-standard meaning of "100%".
+    // (Previously `setZoom(1)`, which is the "fit to window" state — see D-106.)
     ctx.track(
       reg.register({
         id: 'svge.builtin.view.zoom-actual-size',
@@ -1135,7 +1137,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'aspect_ratio',
         order: 60,
         run(runCtx) {
-          fromCtx(ViewportService, runCtx).setZoom(1);
+          fromCtx(ViewportService, runCtx).actualSize();
         },
       }),
     );

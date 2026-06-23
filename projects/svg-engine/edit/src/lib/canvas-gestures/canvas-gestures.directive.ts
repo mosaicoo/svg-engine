@@ -87,6 +87,15 @@ export class SvgeCanvasGestures implements OnDestroy {
   private boundOnPointerDown = (e: PointerEvent): void => this.onPointerDown(e);
 
   /**
+   * **D-106** — observes the canvas host's CSS size and reports it to the
+   * viewport so it can compute the true on-screen scale (`displayScale`).
+   * This directive is opt-in and only attached to the MAIN canvas (not
+   * thumbnails/previews), so it's the right single source for "how big is the
+   * canvas on screen". `null` where ResizeObserver is unavailable (SSR/jsdom).
+   */
+  private resizeObserver: ResizeObserver | null = null;
+
+  /**
    * Active middle-mouse pan state. `null` when no pan is in progress.
    * Captured at gesture start so move deltas can be applied additively
    * to the pre-gesture pan offsets without accumulated float drift.
@@ -108,12 +117,27 @@ export class SvgeCanvasGestures implements OnDestroy {
     // manually.
     el.addEventListener('wheel', this.boundOnWheel, { passive: false });
     el.addEventListener('pointerdown', this.boundOnPointerDown);
+
+    // D-106 — keep the viewport's known canvas size in sync so it can derive
+    // the true on-screen scale (displayScale). Fires once immediately on
+    // observe() with the initial size, then on every resize.
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver((entries) => {
+        const entry = entries[entries.length - 1];
+        if (entry === undefined) return;
+        const r = entry.contentRect;
+        this.viewport.setViewportSize(r.width, r.height);
+      });
+      this.resizeObserver.observe(el);
+    }
   }
 
   ngOnDestroy(): void {
     const el = this.host.nativeElement;
     el.removeEventListener('wheel', this.boundOnWheel);
     el.removeEventListener('pointerdown', this.boundOnPointerDown);
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.cleanupPanIfActive();
   }
 

@@ -587,10 +587,16 @@ export class SvgeStatusBar {
 
   // ── Zoom section (D-135 — dropdown: input + presets + fit actions) ─
 
-  protected readonly zoomLabel = computed(() => `${Math.round(this.viewport.zoom() * 100)}%`);
+  // **D-106** — the percent shown is the TRUE on-screen scale (1 doc unit =
+  // 1 CSS px at 100%), not the internal `zoom` (which is relative to the
+  // content box / "fit"). `displayScale` falls back to `zoom` when the canvas
+  // size is unknown (headless), so this stays correct everywhere.
+  protected readonly zoomLabel = computed(
+    () => `${Math.round(this.viewport.displayScale() * 100)}%`,
+  );
 
-  /** Current zoom as an integer percent — drives the preset active-state. */
-  protected readonly zoomPercent = computed(() => Math.round(this.viewport.zoom() * 100));
+  /** Current on-screen scale as an integer percent — drives preset active-state. */
+  protected readonly zoomPercent = computed(() => Math.round(this.viewport.displayScale() * 100));
 
   /** `true` when ≥1 node is selected — gates the "Fit Selection" item. */
   protected readonly hasSelection = computed(() => this.selection.hasSelection());
@@ -641,19 +647,22 @@ export class SvgeStatusBar {
     if (event.key !== 'Escape') event.stopPropagation();
   }
 
-  /** Parse the draft "%" and apply it (the viewport clamps to min/max). */
+  /**
+   * Parse the draft "%" and apply it as a TRUE on-screen scale (D-106): e.g.
+   * 100 → real 1:1. The viewport clamps the resulting internal zoom to min/max.
+   */
   private applyZoomDraft(): void {
     const pct = Number.parseFloat(this.zoomDraft().trim().replace('%', ''));
-    if (Number.isFinite(pct) && pct > 0) this.viewport.setZoom(pct / 100);
+    if (Number.isFinite(pct) && pct > 0) this.viewport.setDisplayScale(pct / 100);
   }
 
   protected setZoomPercent(percent: number): void {
-    this.viewport.setZoom(percent / 100);
+    this.viewport.setDisplayScale(percent / 100);
   }
 
-  /** **Actual Size** — pin zoom to exactly 100% (parity with View ▸ Zoom). */
+  /** **Actual Size** — pin the on-screen scale to true 1:1 (100%). */
   protected actualSize(): void {
-    this.viewport.setZoom(1);
+    this.viewport.actualSize();
   }
 
   /**
