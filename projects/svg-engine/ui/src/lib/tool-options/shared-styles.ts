@@ -167,46 +167,57 @@ export const TOOL_OPT_SHARED_STYLES = `
     justify-content: center;
     line-height: 1;
   }
-  /* **D-108** — Tool Options bar has a FIXED height (set on the host's
-     .bar); the Material controls some tools use (slider, button-toggle,
-     form-field) ship taller defaults (48px slider, 42px toggle) that would
-     stretch the bar tool-to-tool. Compress them to the compact-control
-     height (~28px) so EVERY tool keeps the same bar height. ::ng-deep
-     reaches the Material internals rendered inside this component. */
+  /* **D-108 / D-109** — Tool Options bar has a FIXED height (set on the host's
+     .bar, 40px). The Material controls some tools use (slider, button-toggle,
+     form-field) ship taller defaults that would otherwise stretch the bar
+     tool-to-tool. Compress them to fit — WITHOUT deforming them. Two rules
+     learned from D-109:
+       1. Don't shrink the slider KNOB or force a tiny slider height — that
+          clipped the handle. Only trim the oversized 44px touch row; the knob
+          keeps its default size and stays centered.
+       2. The bar must NOT clip overflow (host .bar: overflow visible), so the
+          slider's value-indicator balloon (floats above the thumb) and any
+          mat-select dropdown render fully.
+     ::ng-deep reaches the Material internals rendered inside this component. */
   :host ::ng-deep .mat-mdc-slider {
-    height: 28px;
-    min-height: 28px;
-    --mdc-slider-handle-height: 14px;
-    --mdc-slider-handle-width: 14px;
+    height: 32px;
+    min-height: 32px;
+  }
+  /* Shrink only the 44px touch container so the slider fits; the visible knob
+     keeps its default metrics and re-centers in the 32px row. */
+  :host ::ng-deep .mat-mdc-slider .mdc-slider__thumb {
+    height: 32px;
+    bottom: 0;
   }
   :host ::ng-deep .mat-button-toggle-group {
-    height: 28px;
+    height: 30px;
     border-radius: 4px;
+    overflow: hidden;
   }
-  :host ::ng-deep .mat-button-toggle,
   :host ::ng-deep .mat-button-toggle .mat-button-toggle-button {
-    height: 28px;
-    font-size: 12px;
+    height: 30px;
   }
-  :host ::ng-deep .mat-button-toggle-label-content {
+  :host ::ng-deep .mat-button-toggle .mat-button-toggle-label-content {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    line-height: 1;
-    padding: 0 6px;
+    line-height: 30px;
+    padding: 0 10px;
+    font-size: 12px;
   }
   :host ::ng-deep .mat-button-toggle .mat-icon {
     font-size: 16px;
     width: 16px;
     height: 16px;
+    line-height: 1;
   }
   :host ::ng-deep .mat-mdc-text-field-wrapper {
-    height: 30px;
+    height: 32px;
   }
   :host ::ng-deep .mat-mdc-form-field-infix {
-    min-height: 28px;
-    padding-top: 3px !important;
-    padding-bottom: 3px !important;
+    min-height: 30px;
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
   }
   :host ::ng-deep .mat-mdc-form-field-flex {
     align-items: center;

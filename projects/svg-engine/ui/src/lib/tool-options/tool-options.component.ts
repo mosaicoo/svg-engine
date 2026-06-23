@@ -90,12 +90,13 @@ import { ToolOptionsRegistry } from './tool-options-registry.service';
       user-select: none;
       -webkit-user-select: none;
     }
-    /* **D-108** — FIXED bar height so the options bar never shifts the
-       canvas when switching tools. 40px = the compact-control baseline;
-       the taller Material controls (slider/toggle/select) are compressed to
-       fit via TOOL_OPT_SHARED_STYLES. box-sizing keeps the border inside the
-       40px; overflow:hidden clips any residual sub-pixel overflow so a stray
-       control can't push the height. Content is vertically centered. */
+    /* **D-108 / D-109** — FIXED bar height so the options bar never shifts the
+       canvas when switching tools. 40px = the compact-control baseline; the
+       taller Material controls (slider/toggle/select) are compressed to fit via
+       TOOL_OPT_SHARED_STYLES. box-sizing keeps the border inside the 40px; the
+       fixed height alone makes the bar stable regardless of content, so
+       overflow is VISIBLE — clipping it (D-108) cut the slider's value-
+       indicator balloon and mat-select dropdowns (D-109 fix). Content centered. */
     .bar {
       display: flex;
       align-items: center;
@@ -103,7 +104,7 @@ import { ToolOptionsRegistry } from './tool-options-registry.service';
       padding: 0 0.75rem;
       height: 40px;
       box-sizing: border-box;
-      overflow: hidden;
+      overflow: visible;
       font-size: 12px;
       color: var(--mat-sys-on-surface, inherit);
     }

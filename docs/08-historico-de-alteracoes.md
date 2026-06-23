@@ -6,6 +6,35 @@
 
 ---
 
+## 2026-06-23 — D-109 — Tool Options (fix do D-108): slider/toggle deixaram de renderizar cortados ✅
+
+**Reportado** (usuário): após o D-108, alguns controles ficaram quebrados — o
+**slider** com o balão de valor cortado (e o thumb deslocado) e os **button-toggle**
+(texto/ícone — ANCHOR no Text, TARGET no Eyedropper, PROFILE no Width) apertados.
+
+**Causa**: a compressão do D-108 foi agressiva demais — (a) forçou
+`--mdc-slider-handle: 14px` + `height: 28px` no `mat-slider`, **deformando o knob** e
+desalinhando-o; e (b) o `overflow: hidden` no `.bar` **cortava o balão** do slider
+(value indicator, que flutua acima do thumb) e dropdowns do `mat-select`.
+
+**Correção** (altura fixa de 40px mantida):
+
+- **`.bar`**: `overflow: hidden` → **`visible`** (a altura já é fixa pelo `height`;
+  o overflow só estava cortando os elementos flutuantes).
+- **`mat-slider`**: removidos os overrides que deformavam o knob; agora só encolhe a
+  linha de toque (`height: 32px` + `.mdc-slider__thumb` 32px), o **knob mantém o
+  tamanho natural (20px) e re-centraliza**.
+- **`mat-button-toggle`**: 28px → **30px** (mais respiro) com `label-content`
+  centralizado (`line-height: 30px`, `padding: 0 10px`) e ícone 16px.
+
+**Verificação:** **Browser (`/shell-pro-demo`, via `window.ng`)**: altura = **40px em
+todas as 12 ferramentas** (estável). Medições: knob do slider 20×20 **dentro da
+barra**; button-toggle 32px. Screenshots de Width (slider centralizado), Eyedropper
+(TARGET Fill/Stroke/Both limpo) e Text (ANCHOR + selects) confirmam controles sem
+cortes. Lint (3 projetos) + specs de tool-options (30) verdes.
+
+---
+
 ## 2026-06-23 — D-108 — Tool Options: altura fixa/estável + ícones centralizados ✅
 
 **Reportado** (usuário): a barra de **Tool Options** muda de altura conforme a
