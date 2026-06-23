@@ -6,6 +6,44 @@
 
 ---
 
+## 2026-06-22 — D-105 — Layers Panel: Auto Reveal (localizar seleção na árvore) ✅
+
+**Pedido** (usuário): um toggle no Layers Panel para ligar/desligar o comportamento
+de **localizar automaticamente o item selecionado no canvas** dentro do painel
+(expandir o caminho até ele + rolar para uma área visível). Pediu também validar o
+padrão de mercado.
+
+**Mercado/UX:** comportamento conhecido como **Auto Reveal** — amplamente adotado.
+Figma/Sketch revelam a seleção na árvore por padrão; **VS Code** expõe como _setting_
+`explorer.autoReveal` (default ligado); Illustrator tem o "Locate Object". Decisão:
+**configurável + default ligado** (alinhado ao VS Code).
+
+**Implementação** (`ui/layers-panel.component.ts`, sem mudança de API pública):
+
+- **Toggle** no header (ao lado do filtro), ícone `my_location`/`location_searching`,
+  `aria-pressed`, destaque accent quando ativo. Preferência persistida em
+  `localStorage` (`svge:layers-panel:auto-reveal`) — é hábito de navegação pessoal,
+  não estado de documento, então fica fora do escopo per-editor (como os swatches
+  recentes do color picker). Default ligado.
+- **`revealedAncestors`** (computed) — espelho do `autoExpandedIds` (que serve à
+  busca), mas dirigido pela **seleção**: calcula os grupos ancestrais via `findParent`
+  e força a expansão no template (`expanded || autoExpanded || revealed`). Mantido
+  separado do `expanded` manual do usuário (o caminho recolhe quando a seleção muda,
+  a menos que o usuário o tenha aberto). Vazio quando desligado ou sem seleção.
+- **Scroll**: cada linha ganhou `[attr.data-node-id]`; um `effect` reage à
+  `selection.focusId()` e, via `afterNextRender`, faz `scrollIntoView({ block: 'nearest' })`
+  da linha focada (só rola se estiver fora de vista — não "puxa" a lista à toa).
+- Desligado: o painel nunca se move sozinho.
+
+**Verificação:** **+6 specs** (toggle default-on; persiste off; restaura preferência;
+ON revela nó em grupo colapsado; OFF não expande; `data-node-id` presente) — painel
+com **30 specs** no total. `build:lib` + lint (3 projetos). **Browser (`/custom-editor`,
+fluxo real via `window.ng`)**: toggle ligado por padrão (accent); selecionar nó dentro
+de grupo colapsado expande o caminho + marca a linha (`revealedAncestors=[grupo, root]`,
+1→2 linhas); desligar recolhe e para de revelar + persiste `false`; religar restaura.
+
+---
+
 ## 2026-06-22 — D-104 — Bug (correção de raiz): bordas pretas em File ▸ Open / Import ▸ SVG ✅
 
 **Reportado** (usuário): após D-102/D-103, as bordas pretas **ainda persistiam**

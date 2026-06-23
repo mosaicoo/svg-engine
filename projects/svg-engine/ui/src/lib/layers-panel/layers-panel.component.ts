@@ -1,10 +1,13 @@
 import { NgTemplateOutlet } from '@angular/common';
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   ElementRef,
   inject,
+  Injector,
   input,
   signal,
 } from '@angular/core';
@@ -67,6 +70,35 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
   // D-059 — symbol instance (renders via <use href="#id">).
   'symbol-use': 'star_outline',
 };
+
+/**
+ * **D-105 — Auto-reveal preference key (localStorage).** A UI preference,
+ * not document state, so it lives in localStorage (like the color picker's
+ * recent swatches) rather than the per-editor scope. Shared across editors
+ * intentionally — it's a personal navigation habit, not a per-document
+ * setting. Defaults to ON (VS Code `explorer.autoReveal` convention).
+ */
+const AUTO_REVEAL_KEY = 'svge:layers-panel:auto-reveal';
+
+/** Read the persisted auto-reveal preference; defaults to `true`. */
+function loadAutoRevealPref(): boolean {
+  try {
+    // Only an explicit 'false' disables it — any other value (incl. missing)
+    // keeps the default-on behaviour.
+    return localStorage.getItem(AUTO_REVEAL_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+/** Persist the auto-reveal preference (best-effort; ignores storage errors). */
+function saveAutoRevealPref(value: boolean): void {
+  try {
+    localStorage.setItem(AUTO_REVEAL_KEY, String(value));
+  } catch {
+    // Private mode / storage disabled — preference just won't persist.
+  }
+}
 
 /**
  * Layers panel (Fase 4 Bloco 4b). Hierarchical view of the document
@@ -168,6 +200,29 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
           @if (filterCount() > 0) {
             <span class="badge" aria-hidden="true">{{ filterCount() }}</span>
           }
+        </button>
+        <!--
+          D-105 — Auto-reveal toggle. When on (default), selecting a node on
+          the canvas locates + scrolls to its row here. A toggle button with
+          aria-pressed (VS Code explorer.autoReveal convention).
+        -->
+        <button
+          mat-icon-button
+          type="button"
+          class="auto-reveal-trigger"
+          [class.has-active]="autoReveal()"
+          [attr.aria-pressed]="autoReveal()"
+          [attr.aria-label]="
+            autoReveal() ? 'Auto-reveal selection: on' : 'Auto-reveal selection: off'
+          "
+          [title]="
+            autoReveal()
+              ? 'Auto-reveal: locating the selection in the list (click to turn off)'
+              : 'Auto-reveal off (click to locate the selection automatically)'
+          "
+          (click)="toggleAutoReveal()"
+        >
+          <mat-icon>{{ autoReveal() ? 'my_location' : 'location_searching' }}</mat-icon>
         </button>
         <!--
           disableClose: menu stays open as the user toggles multiple
@@ -294,6 +349,7 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
         <div
           class="row"
           role="treeitem"
+          [attr.data-node-id]="node.id"
           [draggable]="!isLocked()(node.id)"
           [tabindex]="isLocked()(node.id) ? -1 : 0"
           [class.selected]="isSelected()(node.id)"
@@ -400,7 +456,8 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
       }
       @if (
         (isGroup(node) && expanded().has(node.id)) ||
-        (isGroup(node) && autoExpandedIds().has(node.id))
+        (isGroup(node) && autoExpandedIds().has(node.id)) ||
+        (isGroup(node) && revealedAncestors().has(node.id))
       ) {
         @for (child of node.children; track child.id) {
           <ng-container
@@ -540,6 +597,14 @@ const TYPE_ICON: Readonly<Record<SvgNode['type'], string>> = {
       flex: 0 0 auto;
     }
     .filter-trigger.has-active {
+      color: var(--mat-sys-primary, #1976d2);
+    }
+    /* D-105 — auto-reveal toggle: same accent-when-active treatment as the
+       filter trigger so the "on" state reads at a glance. */
+    .auto-reveal-trigger {
+      flex: 0 0 auto;
+    }
+    .auto-reveal-trigger.has-active {
       color: var(--mat-sys-primary, #1976d2);
     }
     .filter-trigger .badge {
@@ -803,6 +868,7 @@ export class LayersPanel {
   private readonly bus = inject(CommandBus);
   private readonly isolation = inject(IsolationService);
   private readonly elRef = inject(ElementRef<HTMLElement>);
+  private readonly injector = inject(Injector);
 
   /**
    * Bloco 4b-DnD drag-drop reorder state.
@@ -833,6 +899,57 @@ export class LayersPanel {
    * expand chevron.
    */
   protected readonly expanded = signal<ReadonlySet<NodeId>>(new Set());
+
+  // ── D-105 — Auto-reveal (locate selection in the tree) ───────────
+
+  /**
+   * When ON (default), selecting a node on the canvas auto-expands the
+   * path to it in the tree and scrolls it into view (VS Code
+   * `explorer.autoReveal` / Figma "scroll to selection" convention).
+   * When OFF, the panel never moves on its own. Persisted in
+   * localStorage so the preference sticks across sessions.
+   */
+  protected readonly autoReveal = signal<boolean>(loadAutoRevealPref());
+
+  /**
+   * Ancestor group ids that must be force-expanded so the current
+   * selection's row is present in the DOM. Mirror of
+   * {@link autoExpandedIds} (which serves filtering) but driven by the
+   * selection instead — kept separate so it doesn't pollute the user's
+   * manual {@link expanded} set (the path collapses back when selection
+   * moves on, unless the user expanded it themselves). Empty when
+   * auto-reveal is off or nothing is selected.
+   */
+  protected readonly revealedAncestors = computed<ReadonlySet<NodeId>>(() => {
+    if (!this.autoReveal()) return new Set();
+    const ids = this.selection.selectedIds();
+    if (ids.size === 0) return new Set();
+    const root = this.root() ?? this.state.document().root;
+    const ancestors = new Set<NodeId>();
+    for (const id of ids) {
+      let current = findParent(root as GroupNode, id);
+      while (current !== null) {
+        ancestors.add(current.id);
+        current = findParent(root as GroupNode, current.id);
+      }
+    }
+    return ancestors;
+  });
+
+  constructor() {
+    // **D-105** — Scroll the focused row into view whenever the selection
+    // changes while auto-reveal is on. Read `revealedAncestors()` too so the
+    // effect re-runs after the path expands; the actual scroll is deferred to
+    // `afterNextRender` so the (possibly newly-revealed) row exists in the DOM.
+    effect(() => {
+      if (!this.autoReveal()) return;
+      const focus = this.selection.focusId();
+      // Establish the dep on the expanded path so a deeper reveal re-triggers.
+      this.revealedAncestors();
+      if (focus === null) return;
+      afterNextRender(() => this.scrollRowIntoView(focus), { injector: this.injector });
+    });
+  }
 
   // ── Search + filter state (Illustrator-style header) ─────────────
 
@@ -1010,6 +1127,35 @@ export class LayersPanel {
     if (next.has(state)) next.delete(state);
     else next.add(state);
     this.stateFilters.set(next);
+  }
+
+  // ── D-105 — Auto-reveal controls ─────────────────────────────────
+
+  /** Toggle auto-reveal on/off and persist the preference. */
+  protected toggleAutoReveal(): void {
+    const next = !this.autoReveal();
+    this.autoReveal.set(next);
+    saveAutoRevealPref(next);
+    // Turning it ON should immediately locate the current focus; the
+    // `revealedAncestors` computed + the constructor effect handle that
+    // reactively (the signal write above retriggers both).
+  }
+
+  /**
+   * Scroll the row for `id` into view. Resolved by the `data-node-id`
+   * attribute (not a CSS id selector) so generated ids with special
+   * characters can't break the query. `block: 'nearest'` only scrolls
+   * when the row is off-screen — never yanks the list if it's already
+   * comfortably visible.
+   */
+  private scrollRowIntoView(id: NodeId): void {
+    const host = this.elRef.nativeElement as HTMLElement;
+    const target = String(id);
+    host.querySelectorAll<HTMLElement>('.row[data-node-id]').forEach((row) => {
+      if (row.dataset['nodeId'] === target) {
+        row.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
+    });
   }
 
   // ── D-071c — Batch lock/hide bar (multi-select only) ────────────

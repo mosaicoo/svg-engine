@@ -7,6 +7,7 @@ import {
   createRect,
   EditorStateService,
   isLayer,
+  type NodeId,
   withLayerFlag,
 } from 'svg-engine/core';
 import { LayersService, SelectionService } from 'svg-engine/edit';
@@ -416,5 +417,119 @@ describe('LayersPanel — D-072 Logical Layers', () => {
     fixture.detectChanges();
     // Tree unchanged — drop rejected by isDropAllowed.
     expect(state.document()).toBe(before);
+  });
+});
+
+describe('LayersPanel — D-105 Auto Reveal', () => {
+  const KEY = 'svge:layers-panel:auto-reveal';
+
+  beforeEach(() => {
+    try {
+      localStorage.removeItem(KEY);
+    } catch {
+      // storage disabled — defaults apply
+    }
+  });
+
+  function trigger(host: HTMLElement): HTMLButtonElement {
+    return host.querySelector('.auto-reveal-trigger') as HTMLButtonElement;
+  }
+
+  /** Seed a collapsed group containing one nested child; return both ids. */
+  function seedNestedCollapsed(
+    state: EditorStateService,
+    fixture: ReturnType<typeof setup>['fixture'],
+  ): { childId: NodeId; groupId: NodeId } {
+    const child = createRect({ x: 0, y: 0, width: 5, height: 5 });
+    const grp = createGroup([child]);
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([grp], { id: state.document().root.id }),
+    });
+    fixture.detectChanges();
+    return { childId: child.id, groupId: grp.id };
+  }
+
+  it('header shows the auto-reveal toggle, active by default', () => {
+    const { fixture, state } = setup();
+    // Header only renders when the tree is non-empty.
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([createRect({ x: 0, y: 0, width: 10, height: 10 })], {
+        id: state.document().root.id,
+      }),
+    });
+    fixture.detectChanges();
+    const btn = trigger(fixture.nativeElement);
+    expect(btn).not.toBeNull();
+    expect(btn.classList.contains('has-active')).toBe(true);
+    expect(btn.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('toggling off flips aria-pressed and persists to localStorage', () => {
+    const { fixture, state } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([createRect({ x: 0, y: 0, width: 10, height: 10 })], {
+        id: state.document().root.id,
+      }),
+    });
+    fixture.detectChanges();
+    const btn = trigger(fixture.nativeElement);
+    btn.click();
+    fixture.detectChanges();
+    expect(btn.getAttribute('aria-pressed')).toBe('false');
+    expect(btn.classList.contains('has-active')).toBe(false);
+    expect(localStorage.getItem(KEY)).toBe('false');
+  });
+
+  it('restores the persisted "off" preference on a fresh panel', () => {
+    localStorage.setItem(KEY, 'false');
+    const { fixture, state } = setup();
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([createRect({ x: 0, y: 0, width: 10, height: 10 })], {
+        id: state.document().root.id,
+      }),
+    });
+    fixture.detectChanges();
+    expect(trigger(fixture.nativeElement).getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('ON: selecting a node inside a collapsed group reveals its row', () => {
+    const { state, selection, fixture } = setup();
+    const { childId } = seedNestedCollapsed(state, fixture);
+    // Collapsed: only the group row is present.
+    expect(rows(fixture.nativeElement).length).toBe(1);
+    selection.select(childId);
+    fixture.detectChanges();
+    // Revealed: the nested child's row now exists in the DOM.
+    const childRow = fixture.nativeElement.querySelector(`.row[data-node-id="${childId}"]`);
+    expect(childRow).not.toBeNull();
+    expect(rows(fixture.nativeElement).length).toBe(2);
+  });
+
+  it('OFF: selecting the same node does NOT auto-expand the group', () => {
+    const { state, selection, fixture } = setup();
+    // Seed first so the header (and toggle) renders, then turn auto-reveal off.
+    const { childId } = seedNestedCollapsed(state, fixture);
+    trigger(fixture.nativeElement).click();
+    fixture.detectChanges();
+    selection.select(childId);
+    fixture.detectChanges();
+    const childRow = fixture.nativeElement.querySelector(`.row[data-node-id="${childId}"]`);
+    expect(childRow).toBeNull();
+    expect(rows(fixture.nativeElement).length).toBe(1); // group stays collapsed
+  });
+
+  it('every row carries its data-node-id for reveal lookup', () => {
+    const { state, fixture } = setup();
+    const r = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([r], { id: state.document().root.id }),
+    });
+    fixture.detectChanges();
+    expect(rows(fixture.nativeElement)[0]?.getAttribute('data-node-id')).toBe(String(r.id));
   });
 });
