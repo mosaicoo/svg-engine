@@ -6,6 +6,43 @@
 
 ---
 
+## 2026-06-23 — D-108 — Tool Options: altura fixa/estável + ícones centralizados ✅
+
+**Reportado** (usuário): a barra de **Tool Options** muda de altura conforme a
+ferramenta (maior no **Text**, ~51px), causando deslocamento da interface ao trocar
+de ferramenta. Pediu altura fixa/consistente + revisar a centralização dos ícones nos
+botões (`opt-action`/`opt-toggle`).
+
+**Diagnóstico** (medido no browser, ativando cada ferramenta): a barra crescia com o
+conteúdo (`.bar` tinha só `min-height`). Alturas reais: **40px** na maioria, **50px**
+(Text/Eyedropper) e **56px** (Rectangle/Width/Smooth). Culpados: controles Material com
+defaults altos — **`mat-slider`** (48px) e **`mat-button-toggle-group`** (42px); os
+demais usam os controles compactos compartilhados (≤28px) → 40px.
+
+**Decisão de altura**: **40px** (a altura da maioria e padrão compacto de
+Illustrator/Affinity), não os 51px observados — 51px era um sintoma do descontrole,
+não a meta.
+
+**Correção:**
+
+- **`tool-options.component.ts`**: `.bar` agora tem **`height: 40px`** fixo +
+  `box-sizing: border-box` + `overflow: hidden` (clipa sub-pixel) + conteúdo centrado.
+- **`shared-styles.ts`** (embutido em todo tool-option component): comprime os
+  controles Material para a altura compacta — `mat-slider` 28px (+ handle 14px),
+  `mat-button-toggle-group`/`mat-button-toggle` 28px, `mat-mdc-text-field-wrapper`
+  30px / `infix` 28px — via `::ng-deep` (alcança os internos Material de cada
+  componente). E centraliza os glifos: `.opt-action mat-icon`/`.opt-toggle mat-icon` +
+  `.mat-button-toggle-label-content` com `display:flex; align/justify center;
+line-height:1`.
+
+**Verificação:** **Browser (`/shell-pro-demo`, todas as 12 ferramentas via
+`window.ng`)**: altura da barra = **40px para TODAS** (antes 40/50/56). Screenshots de
+Text (selects + button-toggles + italic + anchor) e Width (slider + profile toggles)
+confirmam controles compactos sem cortes e ícones centralizados. Lint (3 projetos) +
+specs de tool-options (5 arquivos, 30 testes) verdes. Sem mudança de API.
+
+---
+
 ## 2026-06-23 — D-107 — Zoom inicial: novo documento abre em 100% (se couber); arquivo salvo restaura o zoom ✅
 
 **Pedido** (usuário): ao abrir uma **nova página/documento**, iniciar em **100%**

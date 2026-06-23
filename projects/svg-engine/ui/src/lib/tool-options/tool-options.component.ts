@@ -90,12 +90,20 @@ import { ToolOptionsRegistry } from './tool-options-registry.service';
       user-select: none;
       -webkit-user-select: none;
     }
+    /* **D-108** — FIXED bar height so the options bar never shifts the
+       canvas when switching tools. 40px = the compact-control baseline;
+       the taller Material controls (slider/toggle/select) are compressed to
+       fit via TOOL_OPT_SHARED_STYLES. box-sizing keeps the border inside the
+       40px; overflow:hidden clips any residual sub-pixel overflow so a stray
+       control can't push the height. Content is vertically centered. */
     .bar {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      padding: 4px 0.75rem;
-      min-height: 32px;
+      padding: 0 0.75rem;
+      height: 40px;
+      box-sizing: border-box;
+      overflow: hidden;
       font-size: 12px;
       color: var(--mat-sys-on-surface, inherit);
     }

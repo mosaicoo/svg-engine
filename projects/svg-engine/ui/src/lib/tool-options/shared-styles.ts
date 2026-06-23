@@ -156,4 +156,59 @@ export const TOOL_OPT_SHARED_STYLES = `
     color: inherit;
     border-radius: 4px;
   }
+  /* **D-108** — perfectly center the glyph inside compact icon buttons.
+     mat-icon ships line-height:1 but the icon font's intrinsic ascent can
+     still leave a sub-pixel offset; forcing flex centering + line-height
+     removes it so toggles/actions read uniform. */
+  .opt-action mat-icon,
+  .opt-toggle mat-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  /* **D-108** — Tool Options bar has a FIXED height (set on the host's
+     .bar); the Material controls some tools use (slider, button-toggle,
+     form-field) ship taller defaults (48px slider, 42px toggle) that would
+     stretch the bar tool-to-tool. Compress them to the compact-control
+     height (~28px) so EVERY tool keeps the same bar height. ::ng-deep
+     reaches the Material internals rendered inside this component. */
+  :host ::ng-deep .mat-mdc-slider {
+    height: 28px;
+    min-height: 28px;
+    --mdc-slider-handle-height: 14px;
+    --mdc-slider-handle-width: 14px;
+  }
+  :host ::ng-deep .mat-button-toggle-group {
+    height: 28px;
+    border-radius: 4px;
+  }
+  :host ::ng-deep .mat-button-toggle,
+  :host ::ng-deep .mat-button-toggle .mat-button-toggle-button {
+    height: 28px;
+    font-size: 12px;
+  }
+  :host ::ng-deep .mat-button-toggle-label-content {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0 6px;
+  }
+  :host ::ng-deep .mat-button-toggle .mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
+  :host ::ng-deep .mat-mdc-text-field-wrapper {
+    height: 30px;
+  }
+  :host ::ng-deep .mat-mdc-form-field-infix {
+    min-height: 28px;
+    padding-top: 3px !important;
+    padding-bottom: 3px !important;
+  }
+  :host ::ng-deep .mat-mdc-form-field-flex {
+    align-items: center;
+  }
 `;
