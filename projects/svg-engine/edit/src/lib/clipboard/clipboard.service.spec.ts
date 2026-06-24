@@ -67,4 +67,27 @@ describe('ClipboardService', () => {
     expect(c.hasContent()).toBe(false);
     expect(c.paste()).toEqual([]);
   });
+
+  // **D-111** — OS-clipboard stamp: lets a later Paste detect "the system
+  // clipboard still holds our copy" → lossless in-memory paste.
+  it('starts with a null external stamp', () => {
+    expect(setup().externalStamp()).toBeNull();
+  });
+
+  it('setExternalStamp records the OS text; copy() invalidates it', () => {
+    const c = setup();
+    c.copy([createRect({ x: 0, y: 0, width: 10, height: 10 })]);
+    c.setExternalStamp('<svg>…</svg>');
+    expect(c.externalStamp()).toBe('<svg>…</svg>');
+    // A fresh copy resets the stamp until the OS bridge writes a new one.
+    c.copy([createRect({ x: 0, y: 0, width: 5, height: 5 })]);
+    expect(c.externalStamp()).toBeNull();
+  });
+
+  it('clear() also clears the external stamp', () => {
+    const c = setup();
+    c.setExternalStamp('<svg>…</svg>');
+    c.clear();
+    expect(c.externalStamp()).toBeNull();
+  });
 });

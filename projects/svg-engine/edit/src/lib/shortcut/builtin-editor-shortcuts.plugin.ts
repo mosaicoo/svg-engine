@@ -32,6 +32,11 @@ import { ShortcutRegistry } from './shortcut-registry.service';
  * | `Ctrl+G`        | Group current selection (`GroupSelectionCommand`)        |
  * | `Ctrl+Shift+G` | Ungroup focused selection (`UngroupCommand`)              |
  * | `Ctrl+A`        | Select all top-level nodes in the document root          |
+ * | `Ctrl+X`        | Cut selection (D-111, delegates to Edit ▸ Cut)           |
+ * | `Ctrl+C`        | Copy selection (D-111, delegates to Edit ▸ Copy)         |
+ * | `Ctrl+V`        | Paste (D-111, delegates to Edit ▸ Paste)                 |
+ * | `Ctrl+Shift+V` | Paste in place (D-111, delegates to Edit ▸ Paste In Place) |
+ * | `Ctrl+D`        | Duplicate selection (D-111, delegates to Edit ▸ Duplicate) |
  * | `Ctrl+S`        | Save Workspace (.svge) — delegates to File ▸ Save (D-138) |
  *
  * **Why opt-in (not auto-installed by the shell)**: consumers may want
@@ -178,6 +183,81 @@ export const builtinEditorShortcutsPlugin: EditorPlugin = {
           fromCtx(runCtx, SelectionService).selectMany(container.children.map((c) => c.id));
         },
       }),
+    );
+
+    // ── D-111 — Clipboard + Duplicate ──────────────────────────────
+    //
+    // Ctrl+X / Ctrl+C / Ctrl+V / Ctrl+Shift+V / Ctrl+D. The handlers ALREADY
+    // exist as Edit-menu contributions (D-044/D-102, `builtinMenuContributions
+    // Plugin`); these shortcuts **delegate** to those exact contributions via
+    // `runContribution` (the same pattern Ctrl+S uses for Save). This keeps a
+    // single source of truth — including the D-111 system-clipboard upgrade to
+    // Paste, which the keystroke inherits for free — and surfaces each binding
+    // in the **Keyboard Shortcuts** dialog (category drives the grouping).
+    //
+    // Safe by construction: the `ShortcutService` skips events from editable
+    // targets (`isEditableTarget`), so Ctrl+C/V/X inside a text field / input
+    // still do native text copy-paste, not node copy-paste. The handlers also
+    // no-op gracefully (empty selection / empty clipboard), so binding them
+    // unconditionally is harmless. A missing menu item (consumer didn't install
+    // the menu plugin) → no `preventDefault`, native behavior preserved.
+    const bindMenuShortcut = (
+      id: string,
+      combo: string,
+      description: string,
+      category: string,
+      menuId: string,
+    ): void => {
+      ctx.track(
+        shortcuts.register({
+          id,
+          combo,
+          description,
+          category,
+          run(event, runCtx) {
+            const injector = runCtx?.injector ?? ctx.injector;
+            const item = injector.get(MenuContributionRegistry).get(menuId);
+            if (item === null) return;
+            event.preventDefault();
+            runContribution(item, injector);
+          },
+        }),
+      );
+    };
+    bindMenuShortcut(
+      'svge.builtin.shortcut.cut',
+      'Ctrl+X',
+      'Cut selection',
+      'Edit',
+      'svge.builtin.edit.cut',
+    );
+    bindMenuShortcut(
+      'svge.builtin.shortcut.copy',
+      'Ctrl+C',
+      'Copy selection',
+      'Edit',
+      'svge.builtin.edit.copy',
+    );
+    bindMenuShortcut(
+      'svge.builtin.shortcut.paste',
+      'Ctrl+V',
+      'Paste',
+      'Edit',
+      'svge.builtin.edit.paste',
+    );
+    bindMenuShortcut(
+      'svge.builtin.shortcut.paste-in-place',
+      'Ctrl+Shift+V',
+      'Paste in place',
+      'Edit',
+      'svge.builtin.edit.paste-in-place',
+    );
+    bindMenuShortcut(
+      'svge.builtin.shortcut.duplicate',
+      'Ctrl+D',
+      'Duplicate selection',
+      'Edit',
+      'svge.builtin.edit.duplicate',
     );
 
     // ── D-073 — Snapshots ──────────────────────────────────────────

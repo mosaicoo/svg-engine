@@ -6,6 +6,57 @@
 
 ---
 
+## 2026-06-23 — D-111 — Clipboard: atalhos (Ctrl+X/C/V/D) + área de transferência do SISTEMA (imagens e texto entre apps) ✅
+
+**Pedido** (usuário): (1) Copiar/Colar/Recortar/Duplicar via **teclas de atalho**, e
+**disponíveis no Keyboard Settings**; (2) Copiar/Colar usando a **área de
+transferência do sistema** (entre aplicativos), suportando **imagens (vários
+formatos) e textos** — hoje o `ClipboardService` era só in-memory.
+
+**Parte 1 — atalhos (svg-engine/edit).** As entradas de menu Cut/Copy/Paste/
+Paste-in-place/Duplicate já tinham o **rótulo** do atalho, mas a tecla não era
+tratada. Registrei no `ShortcutRegistry` (em `builtinEditorShortcutsPlugin`) os
+5 combos — **Ctrl+X / Ctrl+C / Ctrl+V / Ctrl+Shift+V / Ctrl+D** — cada um
+**delegando** à contribuição de menu correspondente via `runContribution`
+(mesma estratégia do Ctrl+S → File ▸ Save: single source of truth, inclusive a
+melhoria de clipboard do SO abaixo). Categoria `'Edit'` → aparecem
+automaticamente no **Keyboard Shortcuts** (Keyboard Settings). O
+`ShortcutService` já pula alvos editáveis (`isEditableTarget`), então Ctrl+C/V/X
+em campos de texto seguem fazendo copy/paste nativo.
+
+**Parte 2 — área de transferência do sistema (svg-engine/edit).** Nova ponte
+`system-clipboard.ts` (funções, não service — resolvem serviços SCOPED do
+`Injector` por-fire, como os handlers de menu) ligada ao copy/cut/paste:
+
+- **Copy/Cut** → além do in-memory (lossless), escreve no clipboard do SO:
+  `text/plain` = a seleção serializada em SVG (cola como código em editores) +
+  `image/png` = a seleção rasterizada (`renderPng`, cola como figura em outros
+  apps). `image/svg+xml` NÃO é escrito (o Chromium bloqueia MIME arbitrário no
+  `clipboard.write`). O PNG é passado como Promise ao `ClipboardItem` (mantém a
+  janela do gesto aberta — Safari-safe). Um **stamp** (o texto SVG) é gravado no
+  `ClipboardService` para o Paste detectar "o SO ainda tem a NOSSA cópia".
+- **Paste** → lê o clipboard do SO e, por prioridade: (1) **imagem** (qualquer
+  `image/*`) → nó `<image>` no tamanho natural; (2) **texto** que pareça `<svg…>`
+  → importado via `svgImporter`; (3) outro **texto** → nó de texto. Tudo
+  centralizado na página ativa reusando `ImportPlacementService.
+placeDocumentCentered` (merge + namespacing de defs já tratados). Se o texto do
+  SO == stamp e o in-memory ainda tem conteúdo → usa o **in-memory lossless**
+  (preserva ids/metadata). Fallback gracioso para in-memory quando o SO é
+  inacessível (contexto inseguro/permissão negada).
+- **Paste sempre habilitado** (Edit ▸ Paste / Paste In Place): o SO pode ter
+  conteúdo mesmo com o in-memory vazio, e não dá pra inspecioná-lo
+  sincronamente. No-op quando não há nada em lugar nenhum.
+
+**Verificação**: build (9 entry points) ✅; specs 15 (clipboard stamp + 5
+atalhos: registro/delegação/no-op) ✅; lint 3 projetos ✅; API snapshot
+inalterado (sem novos exports) ✅; **browser** (`/pro-editor`): menu Edit mostra
+os rótulos e Paste agora sempre habilitado; **Keyboard Settings** lista os 5
+(Cut/Copy/Paste/Paste in place/Duplicate com Ctrl+X/C/V/Shift+V/D) ✅. A troca
+cross-app real depende de **gesto do usuário + permissão + contexto seguro**
+(HTTPS/localhost) — não automatizável no preview; testar manualmente.
+
+---
+
 ## 2026-06-23 — D-110 — Code Generators (Grupo A): React JSX / React Component / Data URI ✅
 
 **Pedido** (usuário): como já existe o pipeline de otimização, gerar **saídas de

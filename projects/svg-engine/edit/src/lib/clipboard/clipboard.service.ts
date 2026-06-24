@@ -50,8 +50,22 @@ import { cloneNodeWithNewIds, type NodeId, type SvgNode } from 'svg-engine/core'
 export class ClipboardService {
   private readonly _items = signal<readonly SvgNode[]>([]);
 
+  /**
+   * **D-111** — the serialized SVG text we last pushed to the **system**
+   * clipboard for the current in-memory copy (set by the system-clipboard
+   * bridge). A later Paste compares it against the OS clipboard's text: if they
+   * match, the OS clipboard still holds OUR copy, so Paste uses these lossless
+   * in-memory nodes (preserving ids/metadata) instead of round-tripping through
+   * the importer. `null` when nothing has been pushed, or after a copy that
+   * didn't reach the OS clipboard.
+   */
+  private readonly _externalStamp = signal<string | null>(null);
+
   /** Reactive snapshot of clipboard contents (for debugging / UI). */
   readonly items = this._items.asReadonly();
+
+  /** The SVG text last written to the OS clipboard for this copy, or `null`. */
+  readonly externalStamp = this._externalStamp.asReadonly();
 
   /** Whether the clipboard currently holds any nodes — drive Paste disabled. */
   readonly hasContent = computed(() => this._items().length > 0);
@@ -69,6 +83,18 @@ export class ClipboardService {
     if (nodes.length === 0) return;
     const clones = nodes.map((n) => cloneNodeWithNewIds(n));
     this._items.set(clones);
+    // Invalidate the OS stamp until the system-clipboard bridge writes a fresh
+    // one — a copy that never reaches the OS clipboard must NOT keep an old
+    // stamp that could falsely match foreign clipboard text on the next Paste.
+    this._externalStamp.set(null);
+  }
+
+  /**
+   * **D-111** — record the SVG text the system-clipboard bridge just wrote to
+   * the OS clipboard for the current in-memory copy. See {@link externalStamp}.
+   */
+  setExternalStamp(svgText: string): void {
+    this._externalStamp.set(svgText);
   }
 
   /**
@@ -87,6 +113,7 @@ export class ClipboardService {
 
   /** Empty the clipboard. */
   clear(): void {
+    this._externalStamp.set(null);
     if (this._items().length === 0) return;
     this._items.set([]);
   }

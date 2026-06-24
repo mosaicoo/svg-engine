@@ -1,4 +1,4 @@
-import { computed, type Injector, type ProviderToken, signal, type Signal } from '@angular/core';
+import { computed, Injector, type ProviderToken, signal, type Signal } from '@angular/core';
 import {
   ANIMATION_KEY,
   type BoundingBox,
@@ -72,6 +72,10 @@ import {
 } from '../../alignment';
 import { AnimationService } from '../../animation/animation.service';
 import { ClipboardService } from '../../clipboard/clipboard.service';
+import {
+  pasteFromSystemClipboard,
+  writeSelectionToSystemClipboard,
+} from '../../clipboard/system-clipboard';
 import { RecentFilesService } from '../../recent-files/recent-files.service';
 import { SVGE_HELP_LINKS, type SvgeHelpLinks } from '../../help';
 import { makeClipMask, releaseClipMask, topmostSelected } from '../../clip-mask/clip-mask-actions';
@@ -877,9 +881,12 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'content_paste',
         shortcut: 'Ctrl+V',
         order: 44,
-        disabled: noClipboardFactory,
+        // **D-111** — always enabled: the OS clipboard may hold pasteable
+        // content (image / SVG / text) even when the in-memory clipboard is
+        // empty, and we can't synchronously inspect it. Paste no-ops when there
+        // is genuinely nothing anywhere (in-memory empty AND OS empty/denied).
         run(runCtx) {
-          pasteFromClipboard(runCtx, fromCtx, PASTE_OFFSET);
+          void pasteFromClipboard(runCtx, fromCtx, PASTE_OFFSET);
         },
       }),
     );
@@ -897,9 +904,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         icon: 'content_paste_go',
         shortcut: 'Ctrl+Shift+V',
         order: 46,
-        disabled: noClipboardFactory,
+        // **D-111** — always enabled (same rationale as Paste above).
         run(runCtx) {
-          pasteFromClipboard(runCtx, fromCtx, { x: 0, y: 0 });
+          void pasteFromClipboard(runCtx, fromCtx, { x: 0, y: 0 });
         },
       }),
     );
@@ -2806,7 +2813,7 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
         order: 32,
         disabled: noClipboardFactory,
         run(runCtx) {
-          pasteFromClipboard(runCtx, fromCtx, PASTE_OFFSET);
+          void pasteFromClipboard(runCtx, fromCtx, PASTE_OFFSET);
         },
       }),
     );
@@ -3374,6 +3381,10 @@ function copySelected(runCtx: MenuContributionContext | undefined, fromCtx: Reso
   const nodes = getSelectedNodes(runCtx, fromCtx);
   if (nodes.length === 0) return;
   fromCtx(ClipboardService, runCtx).copy(nodes);
+  // **D-111** — also push to the OS clipboard (text/plain SVG + image/png) so
+  // the selection can be pasted into OTHER apps. Best-effort + async; the
+  // in-memory copy above already covers in-app paste if the OS write is denied.
+  void writeSelectionToSystemClipboard(fromCtx(Injector, runCtx), nodes);
 }
 
 function cutSelected(runCtx: MenuContributionContext | undefined, fromCtx: Resolver): void {
@@ -3406,11 +3417,17 @@ const PASTE_OFFSET: Point = { x: 10, y: 10 };
  *   redundant; D-102 splits the two so each is distinct.)
  * - `{ x: 0, y: 0 }` (**Paste In Place**) → exact original coordinates.
  */
-function pasteFromClipboard(
+async function pasteFromClipboard(
   runCtx: MenuContributionContext | undefined,
   fromCtx: Resolver,
   offset: Point,
-): void {
+): Promise<void> {
+  // **D-111** — try the SYSTEM clipboard first (cross-app image / SVG / text).
+  // Resolves to `true` when it pasted EXTERNAL content; `false` when there's
+  // nothing external OR the OS clipboard still holds our own copy → fall through
+  // to the lossless in-memory paste below (which also applies the paste offset).
+  if (await pasteFromSystemClipboard(fromCtx(Injector, runCtx))) return;
+
   const clipboard = fromCtx(ClipboardService, runCtx);
   const nodes = clipboard.paste();
   if (nodes.length === 0) return;
