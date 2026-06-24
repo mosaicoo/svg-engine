@@ -135,18 +135,19 @@ describe('svgImporter — sanitization', () => {
   });
 
   it('collects ONE warning per unsupported tag (not per occurrence)', () => {
-    // Note: <defs> is no longer in the unsupported set since Fase 6c-1
-    // (it's captured into document.defs instead). So only <use> appears
-    // as unsupported here. We still test the de-duplication behaviour by
-    // including TWO `<use>` occurrences and asserting ONE warning.
+    // `<defs>` is captured into document.defs (Fase 6c-1) and `<use>` became
+    // a SymbolUseNode (D-098), so neither warns anymore. Use `<switch>` — a
+    // container the importer still does not model — TWICE to exercise the
+    // per-tag de-duplication (ONE warning, not one per occurrence).
     const text =
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">' +
-      '<use href="#x" /><use href="#y" />' +
+      '<switch><rect width="1" height="1"/></switch><switch><rect width="2" height="2"/></switch>' +
       '</svg>';
     const result = svgImporter.import(text);
     if (!result.ok) throw new Error('parse failed');
     const unsupportedWarns = result.warnings.filter((w) => w.startsWith('Unsupported'));
-    expect(unsupportedWarns.length).toBe(1); // use ONCE, not twice
+    expect(unsupportedWarns.length).toBe(1); // <switch> ONCE, not twice
+    expect(unsupportedWarns[0]).toContain('switch');
   });
 });
 

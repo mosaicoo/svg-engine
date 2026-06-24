@@ -6,6 +6,47 @@
 
 ---
 
+## 2026-06-24 — D-115 — Importação: `<defs>` aninhado dentro de `<g>` agora é coletado ✅
+
+**Reportado** (usuário): importou um SVG cujo `<defs>` (um `<linearGradient
+id="g_ic">`) está **dentro de `<g transform="translate(56,80) scale(2.0)">`**,
+e o gradiente sumia (outros editores carregam normalmente).
+
+**Causa raiz**: `extractDefsFragment` (importer) varria **apenas filhos diretos
+do `<svg>`** (`svgRoot.children`) procurando `<defs>` e defs-reutilizáveis soltos.
+Um `<defs>` aninhado em qualquer elemento não-raiz era ignorado. Em paralelo, o
+walker da árvore renderável **pula `<defs>` (e defs-reutilizáveis) em qualquer
+profundidade** — assumindo que já foram coletados. Resultado: o gradiente
+aninhado era descartado e o `stroke="url(#g_ic)"` virava referência pendurada
+(gradiente/clip somem). Vários editores emitem exatamente `<g transform><defs>…
+</defs></g>`.
+
+**Fix** (coleta recursiva): `extractDefsFragment` agora itera
+`svgRoot.querySelectorAll('*')` (seletor universal, case-insensitive — pega
+`linearGradient` camelCase em doc XML) e coleta (1) filhos de **todo** `<defs>`
+em qualquer profundidade e (2) defs-reutilizáveis soltos em qualquer
+profundidade, com de-dup via `Set` + helper `hasDefOrReusableDefAncestor` (pula
+o que já está dentro de um `<defs>` ou de outro def-reutilizável → sem
+duplicação). **Hoisting é seguro**: definições ignoram transform de ancestral
+(gradiente tem seu próprio `gradientUnits`), então onde o `<defs>` estava na
+árvore nunca afetou o resultado pintado. Sem mudança de API pública (helpers
+privados ao módulo).
+
+**Bônus**: corrigido um teste obsoleto em `edit/.../io/io.spec.ts` que ainda
+esperava warning "Unsupported" para `<use>` (suportado desde D-098); trocado por
+`<switch>` (genuinamente não-modelado) para continuar exercitando a de-dup de
+warning por-tag. Estava vermelho no HEAD, independente deste fix.
+
+**Verificação**: build (9 entry points) ✅; 240 specs do io incl. novo
+`defs-nested-import.spec` (5 casos: SVG reportado, bare-gradient profundo, união
+top-level+aninhado, sem-duplicação, `<defs>` não vaza pra árvore) ✅; lint 3
+projetos ✅; API snapshot inalterado. **Browser** (`/svg-viewer`, importando o
+SVG exato do usuário): `document.defs` populado, `<linearGradient id="g_ic">` +
+stops `#e25361`/`#f06a76` no SVG renderizado, `url(#g_ic)` resolve, zero
+warnings; screenshot do ícone pintado com o gradiente.
+
+---
+
 ## 2026-06-24 — D-114 — Preview de criação fiel às Tool Options (Rectangle radius + Polygon sides/star) ✅
 
 **Reportado** (usuário): ao desenhar com a **Rectangle (R)**, o preview tracejado

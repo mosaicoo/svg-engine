@@ -1109,11 +1109,22 @@ function sanitizeHref(raw: string, warnings: string[], tag: string): string {
 }
 
 /**
- * Collect every `<defs>` block in the SVG document plus any top-level
- * reusable definition elements (`<linearGradient>`, `<clipPath>`, etc.)
- * that authors sometimes place as direct children of `<svg>` without
- * wrapping in `<defs>`. Returns the combined, sanitized inner XML as
- * an opaque fragment — no `<defs>` wrapper (the exporter adds one).
+ * Collect every `<defs>` block in the SVG document — **at any depth**, not
+ * just direct children of `<svg>` — plus any reusable definition elements
+ * (`<linearGradient>`, `<clipPath>`, etc.) authors place loose (without a
+ * `<defs>` wrapper). Returns the combined, sanitized inner XML as an opaque
+ * fragment — no `<defs>` wrapper (the exporter adds one).
+ *
+ * **Why recursive** (D-115): SVG `id`s are document-global, so a gradient/
+ * clipPath/filter defined inside a nested (often transformed) `<g>` is still
+ * referenced via `url(#id)` from anywhere — and several authoring tools emit
+ * exactly that (`<g transform><defs>…</defs>…</g>`). The renderable-tree
+ * walker skips `<defs>` (and bare reusable-defs) at every depth, so if we
+ * only collected top-level ones the nested definition was dropped entirely
+ * and its `url(#…)` references dangled (gradient/clip vanished on import).
+ * Hoisting is safe: definitions ignore ancestor transforms (gradients have
+ * their own `gradientUnits` coordinate system), so where the `<defs>` sat in
+ * the tree never affected the painted result.
  *
  * Sanitization performed BEFORE serialization:
  *
@@ -1128,23 +1139,56 @@ function sanitizeHref(raw: string, warnings: string[], tag: string): string {
  *
  * Returns an empty string when no defs/reusable defs exist.
  */
+/**
+ * True when `el` has any ancestor that is a `<defs>` or another reusable-def
+ * element. Used by {@link extractDefsFragment} step 2 to avoid emitting a
+ * definition twice: one already inside a `<defs>` is collected by step 1; one
+ * nested inside another reusable-def (e.g. a `<linearGradient>` inside a
+ * `<pattern>`) is serialized as part of that parent's `outerHTML`.
+ */
+function hasDefOrReusableDefAncestor(el: Element): boolean {
+  let parent = el.parentElement;
+  while (parent !== null) {
+    const tag = parent.tagName.toLowerCase();
+    if (tag === 'defs' || REUSABLE_DEF_TAGS.has(tag)) return true;
+    parent = parent.parentElement;
+  }
+  return false;
+}
+
 function extractDefsFragment(svgRoot: Element, warnings: string[]): string {
   const collected: Element[] = [];
+  const seen = new Set<Element>();
+  // `querySelectorAll('*')` is case-insensitive on the universal selector,
+  // so it works for the camelCase SVG tags (`linearGradient`) that an
+  // element-name selector would miss in an XML-parsed document. Returns
+  // descendants in document order (excludes `svgRoot` itself).
+  const allEls = Array.from(svgRoot.querySelectorAll('*'));
 
-  // 1. Top-level `<defs>` blocks (most common case).
-  for (const child of Array.from(svgRoot.children)) {
-    if (child.tagName.toLowerCase() === 'defs') {
-      // Collect each direct child of `<defs>` (gradients, clipPaths, etc.).
-      for (const def of Array.from(child.children)) {
+  // 1. Children of EVERY `<defs>` anywhere in the tree (gradients, clipPaths,
+  //    etc.). Skip a child that is itself a `<defs>` — it gets visited on its
+  //    own iteration, so collecting it here too would duplicate its content.
+  for (const el of allEls) {
+    if (el.tagName.toLowerCase() !== 'defs') continue;
+    for (const def of Array.from(el.children)) {
+      if (def.tagName.toLowerCase() === 'defs') continue;
+      if (!seen.has(def)) {
+        seen.add(def);
         collected.push(def);
       }
     }
   }
 
-  // 2. Top-level reusable-def elements not wrapped in `<defs>`.
-  for (const child of Array.from(svgRoot.children)) {
-    if (REUSABLE_DEF_TAGS.has(child.tagName.toLowerCase())) {
-      collected.push(child);
+  // 2. Bare reusable-def elements (not wrapped in `<defs>`) anywhere. Skip
+  //    any nested inside a `<defs>` (collected above) or inside another
+  //    reusable-def (serialized as part of that parent's `outerHTML`) so we
+  //    never emit the same definition twice.
+  for (const el of allEls) {
+    if (!REUSABLE_DEF_TAGS.has(el.tagName.toLowerCase())) continue;
+    if (hasDefOrReusableDefAncestor(el)) continue;
+    if (!seen.has(el)) {
+      seen.add(el);
+      collected.push(el);
     }
   }
 
