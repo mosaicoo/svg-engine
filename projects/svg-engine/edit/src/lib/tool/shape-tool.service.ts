@@ -242,3 +242,59 @@ export function regularPolygonPoints(
   }
   return out;
 }
+
+/**
+ * Generate the vertices of a regular **star** polygon — alternating
+ * between an outer radius (bounds-inscribed) and an inner radius
+ * (`outer × innerFrac`). Used when {@link ShapeToolService.starMode}
+ * is on, by BOTH the Polygon tool's commit path AND the
+ * {@link ShapeOverlay} preview.
+ *
+ * - `outerSides` clamped to `[3, 32]`, `innerFrac` to `[0.1, 0.95]`
+ *   (defensive — same ranges the setters enforce).
+ * - Zero-size bounds → `[]` (commit skips degenerate shapes).
+ */
+export function regularStarPoints(
+  bounds: { x: number; y: number; w: number; h: number },
+  outerSides: number,
+  innerFrac: number,
+): readonly Point[] {
+  const n = Math.max(3, Math.min(32, Math.round(outerSides)));
+  if (bounds.w === 0 || bounds.h === 0) return [];
+  const cx = bounds.x + bounds.w / 2;
+  const cy = bounds.y + bounds.h / 2;
+  const rxOuter = bounds.w / 2;
+  const ryOuter = bounds.h / 2;
+  const inner = Math.max(0.1, Math.min(0.95, innerFrac));
+  const rxInner = rxOuter * inner;
+  const ryInner = ryOuter * inner;
+  const out: Point[] = [];
+  for (let i = 0; i < n * 2; i++) {
+    const angle = -Math.PI / 2 + (i / (n * 2)) * Math.PI * 2;
+    const useOuter = i % 2 === 0;
+    const rx = useOuter ? rxOuter : rxInner;
+    const ry = useOuter ? ryOuter : ryInner;
+    out.push({ x: cx + rx * Math.cos(angle), y: cy + ry * Math.sin(angle) });
+  }
+  return out;
+}
+
+/**
+ * Resolve the polygon outline for the current draft + Polygon-tool
+ * preferences — a {@link regularStarPoints star} when `star` is true,
+ * otherwise a {@link regularPolygonPoints regular n-gon}.
+ *
+ * **Single source of truth**: both the commit path (the shape-tools
+ * plugin's `buildShapeNode`) and the preview ({@link ShapeOverlay})
+ * call this, so the dashed preview drawn during the drag can NEVER
+ * disagree with the committed shape — same `sides` / `star` /
+ * `innerFraction`.
+ */
+export function draftPolygonPoints(
+  bounds: { x: number; y: number; w: number; h: number },
+  opts: { sides: number; star: boolean; innerFraction: number },
+): readonly Point[] {
+  return opts.star
+    ? regularStarPoints(bounds, opts.sides, opts.innerFraction)
+    : regularPolygonPoints(bounds, opts.sides);
+}

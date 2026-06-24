@@ -5,7 +5,9 @@ import { provideSvgEnginePlugin } from '../plugin/provide-plugin';
 import {
   boundsOfDraft,
   DEFAULT_POLYGON_SIDES,
+  draftPolygonPoints,
   regularPolygonPoints,
+  regularStarPoints,
   ShapeToolService,
 } from './shape-tool.service';
 import {
@@ -165,6 +167,32 @@ describe('RectangleTool — gesture', () => {
     host.routePointerUp(evtAt({ x: 50, y: 50 }));
     expect(rootChildren(state)).toHaveLength(0);
   });
+
+  it('honors the cornerRadius option (rx/ry on the committed rect)', () => {
+    const { state, host, shapes } = setup(RECTANGLE_TOOL_ID);
+    shapes.setCornerRadius(12);
+    host.routePointerDown(evtAt({ x: 0, y: 0 }));
+    host.routePointerMove(evtAt({ x: 100, y: 60 }));
+    host.routePointerUp(evtAt({ x: 100, y: 60 }));
+
+    const rect = rootChildren(state)[0]!;
+    if (rect.type !== 'rect') throw new Error('expected rect');
+    // What the dashed preview showed (rx=ry=12) is what gets inserted.
+    expect(rect.rx).toBe(12);
+    expect(rect.ry).toBe(12);
+  });
+
+  it('omits rx/ry when cornerRadius is 0 (default sharp corners)', () => {
+    const { state, host } = setup(RECTANGLE_TOOL_ID);
+    host.routePointerDown(evtAt({ x: 0, y: 0 }));
+    host.routePointerMove(evtAt({ x: 100, y: 60 }));
+    host.routePointerUp(evtAt({ x: 100, y: 60 }));
+
+    const rect = rootChildren(state)[0]!;
+    if (rect.type !== 'rect') throw new Error('expected rect');
+    expect(rect.rx).toBeUndefined();
+    expect(rect.ry).toBeUndefined();
+  });
 });
 
 describe('EllipseTool — gesture', () => {
@@ -212,6 +240,31 @@ describe('PolygonTool — gesture', () => {
     expect(node.points[0]!.x).toBeCloseTo(50, 4);
     expect(node.points[0]!.y).toBeCloseTo(0, 4);
   });
+
+  it('honors a custom Sides value (commit matches the preview)', () => {
+    const { state, host, shapes } = setup(POLYGON_TOOL_ID);
+    shapes.setPolygonSides(8);
+    host.routePointerDown(evtAt({ x: 0, y: 0 }));
+    host.routePointerMove(evtAt({ x: 100, y: 100 }));
+    host.routePointerUp(evtAt({ x: 100, y: 100 }));
+
+    const node = rootChildren(state)[0]!;
+    if (node.type !== 'polygon') throw new Error('expected polygon');
+    expect(node.points).toHaveLength(8);
+  });
+
+  it('star mode commits 2×sides vertices', () => {
+    const { state, host, shapes } = setup(POLYGON_TOOL_ID);
+    shapes.setPolygonSides(5);
+    shapes.setStarMode(true);
+    host.routePointerDown(evtAt({ x: 0, y: 0 }));
+    host.routePointerMove(evtAt({ x: 100, y: 100 }));
+    host.routePointerUp(evtAt({ x: 100, y: 100 }));
+
+    const node = rootChildren(state)[0]!;
+    if (node.type !== 'polygon') throw new Error('expected polygon');
+    expect(node.points).toHaveLength(10);
+  });
 });
 
 describe('boundsOfDraft + regularPolygonPoints — pure math', () => {
@@ -249,5 +302,30 @@ describe('boundsOfDraft + regularPolygonPoints — pure math', () => {
   it('regularPolygonPoints returns empty for zero-bounds', () => {
     expect(regularPolygonPoints({ x: 0, y: 0, w: 0, h: 10 }, 6)).toEqual([]);
     expect(regularPolygonPoints({ x: 0, y: 0, w: 10, h: 0 }, 6)).toEqual([]);
+  });
+
+  it('regularStarPoints alternates outer/inner radii → 2×sides vertices', () => {
+    const pts = regularStarPoints({ x: 0, y: 0, w: 100, h: 100 }, 5, 0.5);
+    expect(pts).toHaveLength(10);
+    // i=0 is an OUTER vertex at the top → (50, 0); i=1 is the next
+    // INNER vertex, closer to the center (radius halved).
+    expect(pts[0]!.x).toBeCloseTo(50, 4);
+    expect(pts[0]!.y).toBeCloseTo(0, 4);
+    const center = { x: 50, y: 50 };
+    const distOuter = Math.hypot(pts[0]!.x - center.x, pts[0]!.y - center.y);
+    const distInner = Math.hypot(pts[1]!.x - center.x, pts[1]!.y - center.y);
+    expect(distInner).toBeLessThan(distOuter);
+  });
+
+  it('draftPolygonPoints routes star vs regular — single source of truth', () => {
+    const bounds = { x: 0, y: 0, w: 100, h: 100 };
+    // star:false → same as regularPolygonPoints (n vertices).
+    expect(draftPolygonPoints(bounds, { sides: 6, star: false, innerFraction: 0.5 })).toEqual(
+      regularPolygonPoints(bounds, 6),
+    );
+    // star:true → same as regularStarPoints (2n vertices).
+    expect(draftPolygonPoints(bounds, { sides: 6, star: true, innerFraction: 0.4 })).toEqual(
+      regularStarPoints(bounds, 6, 0.4),
+    );
   });
 });

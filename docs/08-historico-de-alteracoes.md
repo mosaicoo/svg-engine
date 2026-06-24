@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-06-24 — D-114 — Preview de criação fiel às Tool Options (Rectangle radius + Polygon sides/star) ✅
+
+**Reportado** (usuário): ao desenhar com a **Rectangle (R)**, o preview tracejado
+durante o arrasto sempre mostrava cantos retos mesmo com **Radius** definido nas
+Tool Options — só o resultado final tinha cantos arredondados. Idem na **Polygon**:
+o preview mostrava sempre 6 lados, ignorando o valor de **Sides** até finalizar.
+
+**Causa raiz**: o `ShapeOverlay` (preview) e o `buildShapeNode` (commit) tinham
+**fontes de geometria divergentes**. O `<svg:rect>` do preview não bindava
+`rx`/`ry` (ignorava `cornerRadius`), e o ramo de polígono usava a constante
+`DEFAULT_POLYGON_SIDES` (6) hardcoded em vez de `polygonSides()`/`starMode()`/
+`starInnerRadius()`. O commit, por outro lado, já lia tudo do `ShapeToolService` —
+daí a discrepância "preview ≠ resultado".
+
+**Fix** (fonte única de geometria): a função `regularStarPoints` saiu do plugin
+para o `shape-tool.service.ts` (exportada) e ganhou um helper `draftPolygonPoints
+(bounds, {sides, star, innerFraction})` que escolhe star vs. n-gon regular. Tanto
+`buildShapeNode` (commit) quanto `ShapeOverlay` (preview) chamam **o mesmo**
+helper, então não há como divergirem. O preview do rect agora binda
+`[attr.rx]/[attr.ry] = cornerRadius || null` (omitido quando 0, igual ao commit),
+e o `visible()` computed lê os signals relevantes **por ramo** (cornerRadius só
+no rect; sides/star/inner só no polygon) — assim mudar uma opção **antes ou
+durante** o arrasto atualiza o preview ao vivo, sem acoplar rect a mudanças de
+sides. Sem mudança de API pública (helpers só importados internamente em `edit`).
+
+**Verificação**: build (9 entry points) ✅; specs 30 em shape-tools + novo
+shape-overlay.component.spec (rect rx/ry, sides 8, star 2×sides, update ao vivo) ✅;
+lint 3 projetos ✅; API snapshot inalterado. **Browser** (`/custom-editor`,
+dirigindo o `ShapeToolService`): preview do rect com `cornerRadius 16 → rx=ry=16`;
+polygon `sides 8 → 8 vértices`; star `sides 5 → 10 vértices`; screenshot do draft
+tracejado com cantos arredondados confirmado.
+
+---
+
 ## 2026-06-24 — D-113 — Arrasto: posicionamento pixel-a-pixel em zoom alto (limiar clique×arrasto em px de tela) ✅
 
 **Reportado** (usuário, com print em ~2000%): não conseguia posicionar/ajustar

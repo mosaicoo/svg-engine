@@ -11,6 +11,7 @@ import { SelectionService } from '../selection/selection.service';
 import {
   boundsOfDraft,
   DEFAULT_POLYGON_SIDES,
+  draftPolygonPoints,
   regularPolygonPoints,
   type ShapeKind,
   ShapeToolService,
@@ -192,45 +193,18 @@ function buildShapeNode(
         { style },
       );
     case 'polygon': {
-      const sides = prefs.polygonSides();
-      const points = prefs.starMode()
-        ? regularStarPoints(bounds, sides, prefs.starInnerRadius())
-        : regularPolygonPoints(bounds, sides);
+      // Single source of truth with the preview (ShapeOverlay) — same
+      // sides / star / innerFraction, so what the user saw during the
+      // drag is exactly what gets inserted.
+      const points = draftPolygonPoints(bounds, {
+        sides: prefs.polygonSides(),
+        star: prefs.starMode(),
+        innerFraction: prefs.starInnerRadius(),
+      });
       if (points.length === 0) return null;
       return createPolygon(points, { style });
     }
   }
-}
-
-/**
- * Generate the vertices of a regular star polygon — alternating
- * between outer (bounds-inscribed) and inner (scaled by `innerFrac`)
- * radii. Used when ShapeToolService.starMode() is true. `innerFrac`
- * is clamped to [0.1, 0.95] for sane visuals.
- */
-function regularStarPoints(
-  bounds: { x: number; y: number; w: number; h: number },
-  outerSides: number,
-  innerFrac: number,
-): readonly import('svg-engine/core').Point[] {
-  const n = Math.max(3, Math.min(32, Math.round(outerSides)));
-  if (bounds.w === 0 || bounds.h === 0) return [];
-  const cx = bounds.x + bounds.w / 2;
-  const cy = bounds.y + bounds.h / 2;
-  const rxOuter = bounds.w / 2;
-  const ryOuter = bounds.h / 2;
-  const inner = Math.max(0.1, Math.min(0.95, innerFrac));
-  const rxInner = rxOuter * inner;
-  const ryInner = ryOuter * inner;
-  const out: import('svg-engine/core').Point[] = [];
-  for (let i = 0; i < n * 2; i++) {
-    const angle = -Math.PI / 2 + (i / (n * 2)) * Math.PI * 2;
-    const useOuter = i % 2 === 0;
-    const rx = useOuter ? rxOuter : rxInner;
-    const ry = useOuter ? ryOuter : ryInner;
-    out.push({ x: cx + rx * Math.cos(angle), y: cy + ry * Math.sin(angle) });
-  }
-  return out;
 }
 
 /**
