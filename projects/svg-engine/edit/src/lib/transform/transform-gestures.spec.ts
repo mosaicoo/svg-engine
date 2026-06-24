@@ -12,6 +12,7 @@ import {
   IDENTITY_TRANSFORM,
   rotate,
 } from 'svg-engine/core';
+import { ViewportService } from 'svg-engine/render';
 import { LayersService } from '../layers/layers.service';
 import { SelectionService } from '../selection/selection.service';
 import { TransformService } from './transform.service';
@@ -94,6 +95,43 @@ describe('TransformService — move gesture', () => {
     expect(history.canUndo()).toBe(false);
     const r = findNodeById(state.document().root, rect.id);
     expect(r?.transform).toEqual(startTransform);
+  });
+
+  // **D-113** — the click/drag cutoff is in SCREEN px (converted via
+  // displayScale), so fine moves commit when zoomed in. Without a measured
+  // viewport, displayScale === zoom, so `setZoom` drives it directly.
+  it('commits a sub-doc-unit move when zoomed in (pixel-precise positioning)', () => {
+    const { transform, state, history } = setup();
+    TestBed.inject(ViewportService).setZoom(40); // displayScale = 40
+    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([rect], { id: state.document().root.id }),
+    });
+    transform.startMove(rect.id, { x: 0, y: 0 });
+    // 0.1 doc = 4 screen px at zoom 40; the old fixed 0.5-doc threshold would
+    // have discarded this as a "click" and reverted the shape.
+    transform.updateMove({ x: 0.1, y: 0 });
+    transform.endMove();
+    expect(history.canUndo()).toBe(true);
+    const moved = findNodeById(state.document().root, rect.id);
+    expect(moved?.transform).toEqual([1, 0, 0, 1, 0.1, 0]);
+  });
+
+  it('still treats a sub-pixel move as a click at 1:1 zoom (no-op)', () => {
+    const { transform, state, history } = setup();
+    TestBed.inject(ViewportService).setZoom(1); // displayScale = 1 → threshold 0.5 doc
+    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    state.setDocument({
+      ...state.document(),
+      root: createGroup([rect], { id: state.document().root.id }),
+    });
+    transform.startMove(rect.id, { x: 0, y: 0 });
+    transform.updateMove({ x: 0.1, y: 0 }); // 0.1 px at 1:1 → below threshold → click
+    transform.endMove();
+    expect(history.canUndo()).toBe(false);
+    const r = findNodeById(state.document().root, rect.id);
+    expect(r?.transform).toEqual(rect.transform);
   });
 
   it('starting a second gesture while one is active is rejected', () => {

@@ -36,12 +36,25 @@ function isIdentityOrTranslateLocal(transform: Transform): boolean {
   const eps = 1e-9;
   return Math.abs(a - 1) < eps && Math.abs(b) < eps && Math.abs(c) < eps && Math.abs(d - 1) < eps;
 }
+import { ViewportService } from 'svg-engine/render';
 import { allAnchors, type BBoxAnchor } from '../geometry/bbox-anchors';
 import { LayersService } from '../layers/layers.service';
 import { SelectionService } from '../selection/selection.service';
 
-/** Threshold under which a pointer release is treated as a click, not a drag. */
-const CLICK_THRESHOLD_DOC_UNITS = 0.5;
+/**
+ * A final move below this many **SCREEN pixels** is treated as a click, not a
+ * drag (no command dispatched). Expressed in CSS px and converted to doc units
+ * via the current `displayScale`, so the click/drag cutoff is a constant visual
+ * size at ANY zoom.
+ *
+ * **D-113** — the old threshold was a fixed **0.5 DOC units**, which at high
+ * zoom is large on screen (≈15 px at 2000%): a genuine fine drag smaller than
+ * that got silently swallowed (the shape reverted to its start on release), so
+ * the user could not position a shape pixel by pixel when zoomed in. The bound
+ * must scale with zoom — the drag-START threshold in the interaction directive
+ * is already in CSS px (3 px), so this keeps the two consistent.
+ */
+const CLICK_THRESHOLD_CSS_PX = 0.5;
 
 /**
  * Snapshot of the active interactive gesture. Discriminated by `kind`.
@@ -241,6 +254,11 @@ export class TransformService {
   private readonly state = inject(EditorStateService);
   private readonly bus = inject(CommandBus);
   private readonly layers = inject(LayersService);
+  // **D-113** — read the physical scale (CSS px per doc unit) so the move
+  // click/drag cutoff in `endMove` stays a constant visual size at any zoom.
+  // Same editor scope as TransformService (both in provideSvgEngineEditorScope);
+  // falls back to the root viewport (displayScale = raw zoom = 1) in tests.
+  private readonly viewport = inject(ViewportService);
 
   // ── Pivot persistence (D-022.persist) ────────────────────────────
 
@@ -577,10 +595,11 @@ export class TransformService {
         this.applyPreviewTransform(extra.id, extra.startTransform);
       }
     }
-    if (
-      Math.abs(currentDelta.x) < CLICK_THRESHOLD_DOC_UNITS &&
-      Math.abs(currentDelta.y) < CLICK_THRESHOLD_DOC_UNITS
-    ) {
+    // **D-113** — zoom-aware click/drag cutoff: convert the screen-px threshold
+    // to doc units via the physical scale, so a fine drag commits at any zoom
+    // (a fixed doc-unit bound swallowed real moves when zoomed in).
+    const thresholdDoc = CLICK_THRESHOLD_CSS_PX / Math.max(this.viewport.displayScale(), 1e-6);
+    if (Math.abs(currentDelta.x) < thresholdDoc && Math.abs(currentDelta.y) < thresholdDoc) {
       return;
     }
     // **D-142-fix** — bake the carried multi pivot by the committed group

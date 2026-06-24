@@ -6,6 +6,40 @@
 
 ---
 
+## 2026-06-24 — D-113 — Arrasto: posicionamento pixel-a-pixel em zoom alto (limiar clique×arrasto em px de tela) ✅
+
+**Reportado** (usuário, com print em ~2000%): não conseguia posicionar/ajustar
+finamente as formas — movimentos pequenos não "colavam" (a forma voltava ao
+lugar ao soltar), atípico para editores. **Snap desligado.**
+
+**Causa raiz** (achada na análise solicitada): o `TransformService.endMove`
+tratava o release como **clique** (descartando o move, revertendo a forma)
+quando `|currentDelta|` ficava abaixo de **`CLICK_THRESHOLD_DOC_UNITS = 0.5`** —
+um limiar em **unidades de documento**. Em zoom alto, 0.5 doc é grande na tela:
+em 2000% (`displayScale ≈ 20`) ≈ 10 px; em 3200% (máx, `displayScale 32`) ≈ 16
+px. Ou seja, qualquer arrasto fino (≤ ~10-16 px de tela) era **engolido**, mesmo
+o preview seguindo o cursor durante o gesto. O limiar de **início** do arrasto na
+diretiva já era em px de tela (3 px) — só o `endMove` estava em doc-units,
+inconsistente.
+
+**Fix**: o limiar virou **px de tela** convertido para doc-units pela escala
+física — `thresholdDoc = CLICK_THRESHOLD_CSS_PX(0.5) / displayScale`. Assim o
+corte clique×arrasto é um tamanho visual **constante** em qualquer zoom: um
+arrasto de ≥ 0.5 px de tela sempre commita. `TransformService` passou a injetar
+`ViewportService` (ambos no mesmo `provideSvgEngineEditorScope`; em testes/
+headless `displayScale` cai no `zoom` cru = 1, então o limiar segue 0.5 doc —
+comportamento idêntico ao anterior em 1:1). Nada de arredondamento no caminho do
+move (o `MoveNodeCommand` guarda o transform em float; o exporter arredonda só na
+serialização), então a precisão é de ponto-flutuante.
+
+**Verificação**: build (9 entry points) ✅; specs 67 do transform incl. 2 novos
+(zoom 32: move de 0.1 doc commita; 1:1: 0.1 doc continua no-op) + diretiva ✅;
+lint 3 projetos ✅; API snapshot inalterado. O gesto real é melhor confirmado
+manualmente (arrastar em zoom alto e soltar — agora a forma fica onde você
+soltou).
+
+---
+
 ## 2026-06-24 — D-112 — Snap: "off" é off de verdade + snap a Objetos mira as formas da página (não a página) ✅
 
 **Reportado** (usuário): "desliguei o SNAP, arrastei a forma, e ao soltar ela
