@@ -1,6 +1,7 @@
 import type { EnvironmentProviders } from '@angular/core';
 import { provideSvgEnginePlugin, withPluginMeta } from 'svg-engine/edit';
 
+import { codeGeneratorsPlugin } from '../code-generator-dialog';
 import { builtinUiMenuContributionsPlugin } from '../menu-extras';
 import { provideSvgeBuiltinToolOptions } from '../tool-options';
 
@@ -38,6 +39,19 @@ export function provideSvgeUiBuiltins(): EnvironmentProviders[] {
         author: 'SVGEngine',
         icon: 'menu_open',
         category: 'menu',
+      }),
+    ),
+    // **D-110** — Code Generators (React JSX / React Component / Data URI).
+    // Registra os geradores no CodeGeneratorRegistry e adiciona
+    // File ▸ Generate Code… (abre <svge-code-generator-dialog>). Aparece em
+    // Manage Plugins como qualquer built-in.
+    provideSvgEnginePlugin(
+      withPluginMeta(codeGeneratorsPlugin, {
+        description:
+          'Generate React JSX, a React component, or a Data URI from the document (preview + copy).',
+        author: 'SVGEngine',
+        icon: 'code_blocks',
+        category: 'io',
       }),
     ),
     // Componentes de opção das ferramentas no <svge-tool-options>.

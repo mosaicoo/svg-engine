@@ -34,3 +34,27 @@ export { svgExporter, nodeToSvgMarkup } from './lib/svg-exporter';
 export { pngExporter, renderPng } from './lib/png-exporter';
 // D-137 — SVGZ (gzip-compressed SVG) export + low-level gzip helpers.
 export { svgzExporter, gzipText, gunzipText } from './lib/svgz';
+// D-110 — Code Generators (Group A): contract + registry + builtin
+// generators (React JSX / React Component / Data URI) + pure transforms.
+export {
+  type CodeGenerator,
+  type CodeGeneratorOptionSpec,
+  type CodeGeneratorTextOption,
+  type CodeGeneratorBooleanOption,
+  type CodeGeneratorSelectOption,
+  type CodeGeneratorOptions,
+  type CodeGeneratorOptionValue,
+  resolveCodeGeneratorOptionDefaults,
+} from './lib/code-generators/code-generator-types';
+export { CodeGeneratorRegistry } from './lib/code-generators/code-generator-registry.service';
+export {
+  reactJsxGenerator,
+  reactComponentGenerator,
+  dataUriGenerator,
+  BUILTIN_CODE_GENERATORS,
+  svgStringToJsx,
+  svgToDataUri,
+  applyCurrentColor,
+  stripXmlProlog,
+  toPascalCaseComponentName,
+} from './lib/code-generators/builtin-code-generators';

@@ -6,6 +6,59 @@
 
 ---
 
+## 2026-06-23 — D-110 — Code Generators (Grupo A): React JSX / React Component / Data URI ✅
+
+**Pedido** (usuário): como já existe o pipeline de otimização, gerar **saídas de
+código** do SVG para integração em apps/bibliotecas — começando pelo **Grupo A**
+(transformações da string SVG): React JSX, React Component e Data URI — **cada um
+como gerador plugável**. Decisão de UX (validada com o usuário): code é
+**revisado e copiado**, então a superfície é um **diálogo de preview** (como o
+"View Source"), **não** o painel de assets (que é fire-and-forget pra PNG/SVG).
+
+**Arquitetura** (espelha `Exporter`/`ExporterRegistry`, mas separada — code tem
+opções e é preview-oriented, não download-oriented):
+
+- **`svg-engine/io`** (puro, worker-safe):
+  - Contrato `CodeGenerator { id, name, language, extension, options?, generate(doc, opts?): string }`
+    - `CodeGeneratorOptionSpec` declarativo (`text` | `boolean` | `select`) — o
+      diálogo renderiza os controles **genericamente**, sem hardcode por formato.
+  - `CodeGeneratorRegistry` (signal-backed, `register(): Disposable`, `get(id)`).
+  - 3 geradores built-in reusando `svgExporter.export(doc)` como base:
+    - **React JSX** — `<svg>` inline com atributos camelCase (`stroke-width→strokeWidth`,
+      `class→className`, namespaced `xlink:href→xlinkHref`) e `style="…"` → objeto
+      JSX. Opção `currentColor`.
+    - **React Component** — arquivo `.tsx`/`.jsx` com `{...props}` no `<svg>`.
+      Opções: `componentName` (PascalCase), `typescript`, `namedExport`,
+      `currentColor`.
+    - **Data URI** — `encoding` `url` (encodeURIComponent, menor) vs `base64`
+      (UTF-8-safe). Prolog `<?xml?>` removido.
+  - Transforms são **string-based** (puras, testáveis sem DOM). Caveat: um `<defs>`
+    verbatim com atributos em aspas simples não é camelCasado (aceitável v1).
+- **`svg-engine/ui`** (Material, fronteira D-017):
+  - `<svge-code-generator-dialog>` — reusa `<svge-dialog-shell>`: dropdown de
+    formato + toggle **"Optimize first"** (roda `OptimizerRegistry.runPipeline`
+    antes de gerar — integra a otimização existente) + opções declarativas +
+    preview ao vivo (`computed` sobre `state.document()`) + **Copy** (primário) e
+    **Download** (secundário). Nome do componente pré-preenchido do nome da
+    **página ativa**.
+  - **`codeGeneratorsPlugin`** — um único plugin gerenciado que (a) registra os 3
+    geradores e (b) adiciona **File ▸ Generate Code…** (order 55, entre View
+    Source 50 e Optimize 60). Provisionado via `provideSvgeUiBuiltins()` com
+    `withPluginMeta` → aparece em **Tools ▸ Plugins ▸ Manage Plugins**.
+
+**Verificação**: build (9 entry points) ✅; specs cirúrgicos 20 (io) + 2 (plugin) ✅;
+lint 3 projetos ✅; API snapshot regenerado (novos exports) ✅; **browser**
+(`/pro-editor`): menu abre o diálogo, preview ao vivo gera JSX/Component/Data URI,
+troca de formato e auto-naming (`Page 1`→`Page1`) confirmados ✅.
+
+**Extensibilidade**: consumidor headless usa os geradores de `svg-engine/io`
+direto; um consumidor plugando seus próprios `CodeGenerator`s ganha novos formatos
+no mesmo diálogo (mecanismo, não política). Próximos (não implementados): Vue/Svelte/
+Angular/Lit, CSS background, SVG sprite; e o **Grupo B** (React Native / VectorDrawable /
+Compose) que exige conversão de geometria.
+
+---
+
 ## 2026-06-23 — D-109 — Tool Options (fix do D-108): slider/toggle deixaram de renderizar cortados ✅
 
 **Reportado** (usuário): após o D-108, alguns controles ficaram quebrados — o
