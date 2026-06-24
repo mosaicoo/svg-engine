@@ -171,6 +171,18 @@ describe('SvgeStatusBar — reactivity', () => {
     expect(text).toBe('off');
   });
 
+  it('setSnap("off") also clears snapToGuides — no silent re-enable (D-112)', () => {
+    const snap = TestBed.inject(SnapService);
+    snap.setEnabled(true);
+    snap.setSnapToGuides(true);
+    expect(snap.snapToGuides()).toBe(true);
+    (fixture.componentInstance as unknown as { setSnap(t: 'off'): void }).setSnap('off');
+    expect(snap.enabled()).toBe(false);
+    // The trap was: a leftover snapToGuides=true let a later guides-toggle
+    // re-enable snap. "off" now zeroes it, so off stays off.
+    expect(snap.snapToGuides()).toBe(false);
+  });
+
   it('shows active tool label when ToolHostService.activate is called', () => {
     // No tools registered in this test, so activeId() === null → "—"
     const text = fixture.nativeElement.querySelector('.section-tool .value').textContent;

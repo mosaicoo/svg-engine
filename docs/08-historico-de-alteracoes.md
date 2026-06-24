@@ -6,6 +6,41 @@
 
 ---
 
+## 2026-06-24 — D-112 — Snap: "off" é off de verdade + snap a Objetos mira as formas da página (não a página) ✅
+
+**Reportado** (usuário): "desliguei o SNAP, arrastei a forma, e ao soltar ela
+pulou para um ponto de atração". **Análise a fundo** (código + spec + runtime):
+a lógica de arrasto/commit está **correta** — `applySnappedMove` tem o gate
+`if (!snap.enabled()) updateMove(cru)`, `resolveForMove` devolve `delta {0,0}`
+quando desligado (spec-travado), e o `MoveNodeCommand` usa **a mesma**
+matemática do preview (`translate(dx,dy)·startTransform`, com revert-then-
+dispatch), então **preview == commit**, sem snap/arredondamento/re-parent.
+Medição em runtime confirmou: snap ON ⇒ `delta {x:3}`; snap OFF ⇒ `{0,0}`.
+Conclusão: a atração só ocorre com o snap **ainda ligado** — e o default é
+`enabled:true, mode:'both'` (grade + objetos + página), bem "grudento".
+
+Duas correções reais saíram da análise:
+
+1. **Pegadinha do "off" (ui/status-bar).** `setSnap('off')` só fazia
+   `setEnabled(false)`, deixando `snapToGuides` ligado; como `toggleSnapGuides()`
+   faz `setEnabled(true)` ao ligar guias, um `snapToGuides` remanescente podia
+   **re-ligar o snap silenciosamente**. Agora "off" também zera `snapToGuides`
+   — off é um reset completo; o snap só volta quando o usuário escolhe um modo
+   ou liga guias explicitamente.
+2. **Snap a Objetos mirava a PÁGINA (edit/shell-interactions).** O
+   `collectStaticBBoxes` da diretiva iterava `root.children`, que pós-PAGES-
+   REFACTOR é só `[página]` — então "Objects" snapava na **envelope da página**,
+   nunca nas formas-irmãs (que vivem dentro da página). Agora itera os filhos da
+   **página ativa** (paridade com o custom-editor e com o marquee). Fallback
+   para `root.children` em documentos sem página.
+
+**Verificação**: build (9 entry points) ✅; specs 56 (status-bar incl. novo teste
+"off zera snapToGuides" + snap + snap-resolver + shell-interactions) ✅; lint 3
+projetos ✅; API snapshot inalterado (sem novos exports). O comportamento de
+arrasto+snap em si é melhor confirmado manualmente (gesto real de ponteiro).
+
+---
+
 ## 2026-06-23 — D-111 — Clipboard: atalhos (Ctrl+X/C/V/D) + área de transferência do SISTEMA (imagens e texto entre apps) ✅
 
 **Pedido** (usuário): (1) Copiar/Colar/Recortar/Duplicar via **teclas de atalho**, e

@@ -739,6 +739,12 @@ export class SvgeStatusBar {
   protected setSnap(target: SnapMode | 'off'): void {
     if (target === 'off') {
       if (this.snap.enabled()) this.snap.setEnabled(false);
+      // **D-112** — "off" is a HARD reset: also clear the additive
+      // snap-to-guides flag. Otherwise a leftover `snapToGuides=true` would let
+      // the next `toggleSnapGuides()` silently `setEnabled(true)` (the "I turned
+      // Snap off but it still snapped" trap the user hit). After "off", snapping
+      // only returns when the user explicitly picks a mode or re-enables guides.
+      if (this.snap.snapToGuides()) this.snap.setSnapToGuides(false);
       return;
     }
     if (this.snap.mode() !== target) this.snap.setMode(target);

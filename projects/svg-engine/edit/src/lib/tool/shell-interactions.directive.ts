@@ -697,14 +697,27 @@ export class SvgeShellInteractions implements OnDestroy {
     this.snap.setActiveGuides(result.guides);
   }
 
-  /** Collect bboxes of all top-level children except the moving node(s). */
+  /**
+   * Collect bboxes of the sibling shapes the dragged node can snap to —
+   * excluding the moving node(s).
+   *
+   * **D-112** — iterate the ACTIVE PAGE's children, not the document root's.
+   * Post-PAGES-REFACTOR the root's children is just `[page]`, so "Objects"
+   * snap was matching against the PAGE envelope instead of the other shapes
+   * (which live inside the page) — i.e. dragging a shape snapped to the
+   * artboard, never to its siblings. Falls back to `root.children` for
+   * page-less documents. Mirrors the marquee's candidate-parent resolution.
+   */
   private collectStaticBBoxes(
     excludeIds: ReadonlySet<NodeId>,
   ): readonly { readonly id: NodeId; readonly bbox: BoundingBox }[] {
     const svg = this.findInnerSvg();
     if (svg === null) return [];
+    const activePageNode = this.activePage.activePage();
+    const parent: { readonly children: readonly { readonly id: NodeId }[] } =
+      activePageNode !== null ? activePageNode : this.state.document().root;
     const out: { id: NodeId; bbox: BoundingBox }[] = [];
-    for (const child of this.state.document().root.children) {
+    for (const child of parent.children) {
       if (excludeIds.has(child.id)) continue;
       const bb = getRenderedNodeBBox(svg, child.id);
       if (bb === null) continue;
