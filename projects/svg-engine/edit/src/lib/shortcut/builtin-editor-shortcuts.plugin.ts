@@ -59,15 +59,13 @@ import { ShortcutRegistry } from './shortcut-registry.service';
  * install time is used as a fallback for single-editor apps and tests
  * that invoke handlers directly without a `ShortcutContext`.
  *
+ * **Clipboard + Duplicate (D-111)**: `Ctrl+X` / `Ctrl+C` / `Ctrl+V` /
+ * `Ctrl+Shift+V` / `Ctrl+D` are now wired here (see the table above) —
+ * each delegates to its Edit-menu contribution (`ClipboardService` +
+ * `DuplicateNodeCommand`, both from D-044). They were intentionally left
+ * out until D-111 so consumers could opt in/out per editor.
+ *
  * **NOT included** (intentional scope):
- * - `Ctrl+C` / `Ctrl+V` / `Ctrl+X` (clipboard) — `ClipboardService` +
- *   the corresponding menu contributions exist since D-044, but the
- *   keyboard shortcuts aren't wired here yet. Can be added later as
- *   the same plugin or as a follow-up — gives the consumer a chance
- *   to opt in/out per editor.
- * - `Ctrl+D` (duplicate) — `DuplicateNodeCommand` exists since D-044,
- *   but the keyboard binding isn't registered here yet (same rationale
- *   as the clipboard shortcuts above).
  * - Arrow nudge — already provided by `selectionNudgePlugin`.
  *
  * Future expansion: more bindings can be registered by other plugins
