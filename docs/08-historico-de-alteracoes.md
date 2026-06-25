@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-06-25 — E2E-F2 — Jornadas de tool / teclado / histórico ✅
+
+4 fluxos novos em `e2e/specs/tools-and-history.spec.ts`, reaproveitando a infra
+da F1 (Page Object + `dragOnCanvas`), **sem mudança em código de lib**:
+
+- **`r` ativa a Rectangle** — `page.keyboard.press('r')` → o `document.addEventListener
+('keydown')` do custom-editor casa o atalho da tool → botão fica `aria-pressed=true`.
+- **Ellipse desenha** — ativa Ellipse, arrasta, afirma `ellipseCount === before+1`.
+- **Esc cancela o draft** — down+move (preview ativo) → `Escape` (roteado à tool via
+  `routeKeyDown` → `onKeyDown` → cancel) → up → **0 commit** (`rectCount` inalterado).
+- **Undo/Redo** — desenha → `Ctrl+Z` remove → `Ctrl+Shift+Z` traz de volta (prova a
+  pilha de comandos + o ShortcutService ativos no custom-editor, ponta a ponta).
+
+Helpers adicionados: `EditorPage.ellipseCount()`, `toolButton()` (escopado à
+**fieldset "Tool"** — `getByRole('group',{name:'Tool'})` — para não colidir com os
+botões homônimos da fieldset "Add", ex. "Ellipse"); `canvasPointPx()` no util (px
+absoluto a partir de fração da bbox, p/ o down/move/up cru do teste de Esc).
+
+**Verde** (`npx playwright test`): **6 passed** (smoke + draw + 4 da F2) em ~10s.
+
+---
+
 ## 2026-06-25 — E2E-F1 — Page Objects + helper de pointer-drag no canvas ✅
 
 Infra de interação para os fluxos E2E, **sem mudança em código de lib** (asserção

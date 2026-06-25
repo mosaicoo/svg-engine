@@ -29,9 +29,21 @@ export class EditorPage {
     await expect(this.renderer).toBeVisible({ timeout: 60_000 });
   }
 
+  /**
+   * The toolbar button for a tool, located by its exact visible label —
+   * **scoped to the "Tool" fieldset** so it doesn't collide with the "Add"
+   * fieldset's same-named buttons (e.g. there's an Add ▸ "Ellipse" too). A
+   * fieldset exposes role `group` named by its `<legend>`.
+   */
+  toolButton(label: string): Locator {
+    return this.page
+      .getByRole('group', { name: 'Tool', exact: true })
+      .getByRole('button', { name: label, exact: true });
+  }
+
   /** Activate a tool by its visible toolbar label (exact match, e.g. "Rectangle"). */
   async activateTool(label: string): Promise<void> {
-    const button = this.page.getByRole('button', { name: label, exact: true });
+    const button = this.toolButton(label);
     await button.click();
     await expect(button).toHaveAttribute('aria-pressed', 'true');
   }
@@ -39,5 +51,10 @@ export class EditorPage {
   /** How many `<rect>` elements are currently rendered inside the canvas. */
   rectCount(): Promise<number> {
     return this.renderer.locator('rect').count();
+  }
+
+  /** How many `<ellipse>` elements are currently rendered inside the canvas. */
+  ellipseCount(): Promise<number> {
+    return this.renderer.locator('ellipse').count();
   }
 }

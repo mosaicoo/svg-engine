@@ -7,6 +7,19 @@ export interface CanvasPoint {
 }
 
 /**
+ * Resolve a fraction-of-bbox `point` to absolute viewport px over `canvas`.
+ * Useful for raw mouse sequences (e.g. start a drag, press a key, release).
+ */
+export async function canvasPointPx(
+  canvas: Locator,
+  point: CanvasPoint,
+): Promise<{ x: number; y: number }> {
+  const box = await canvas.boundingBox();
+  if (box === null) throw new Error('canvasPointPx: canvas has no bounding box (not visible?)');
+  return { x: box.x + box.width * point.x, y: box.y + box.height * point.y };
+}
+
+/**
  * **E2E-F1 — canvas pointer helper.** Drag from `from` to `to` (both as
  * fractions of the canvas bbox: `{x:0.5,y:0.5}` = center) using **real CDP
  * mouse events**, so the app's `(pointerdown/move/up)` handlers and the active
