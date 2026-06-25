@@ -31,6 +31,12 @@ testem.log
 /typings
 __screenshots__/
 
+# ---------- Playwright (E2E) ----------
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # ---------- IDEs and editors ----------
 .idea/
 .project

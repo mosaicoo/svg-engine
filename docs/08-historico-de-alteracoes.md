@@ -6,6 +6,34 @@
 
 ---
 
+## 2026-06-25 — E2E-F0 — Harness de E2E (Playwright) — fundação ✅
+
+Primeira camada de **testes end-to-end em navegador real** (Chromium via
+Playwright), no topo da pirâmide — os ~2953 specs Vitest seguem como base
+rápida de unidade+integração; o E2E **não migra nada**, só **adiciona**
+cobertura de jornadas que o happy-dom não exercita (gestos de pointer no
+canvas, render real, navegação, teclado).
+
+- **Aditivo, zero mudança em código de lib**: `@playwright/test` (devDep),
+  `playwright.config.ts` (raiz) + `e2e/{fixtures.ts,specs/}` + scripts
+  `e2e`/`e2e:ui`/`e2e:serve` no `package.json` + ignore dos artefatos.
+- **Serve**: `webServer` sobe `ng serve playground` (via `e2e:serve`) — chamar
+  `ng serve` direto **pula** o `prestart`→`assemble:ml` (modelo Whisper só é
+  usado pela voz, que o E2E não aciona).
+- **Fixture base**: `addInitScript` limpa `localStorage`/`sessionStorage` antes
+  do app bootar (isola auto-save/recent/keybindings) e injeta CSS que desliga
+  transições/animações (anti-flakiness do Material) — tudo no contexto da
+  página, sem tocar no app.
+- **Smoke (F0)**: navega `/custom-editor` e afirma o `<svge-renderer> svg`
+  visível + rota correta. **Verde** (`npx playwright test`): server compila
+  ~30s, teste 4.3s.
+
+Próximas fases (do plano aprovado): F1 Page Objects + helper de pointer-drag em
+coords de doc (+ hook `window.__svge` opcional, gated); F2 desenho/undo-redo/
+atalhos; F3 import-export/pages; F4 CI + docs.
+
+---
+
 ## 2026-06-25 — DOC-CATCHUP — README atualizado + 2 specs obsoletos (D-111) corrigidos ✅
 
 Varredura geral do projeto para realinhar os READMEs ao estado atual:
