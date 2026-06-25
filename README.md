@@ -1,26 +1,38 @@
 # SVGEngine
 
 An embeddable, headless-first SVG editor built on Angular v21 signals.
-Four lazy-loaded entry points let you pick **exactly** what you need —
-from a 30 kB read-only viewer to a full Material-styled editor with
-path editing, boolean operations, and full keyboard accessibility.
+**Nine** lazy-loaded entry points let you pick **exactly** what you need —
+from a ~30 kB read-only viewer to a full Material-styled editor with path
+editing, boolean operations, pages/artboards, effects, libraries and an
+optional AI/natural-language command layer.
 
-> **Status**: pre-`1.0` (APIs hardening across Fase 6). Build is green,
-> **884 tests passing across 65 spec files**. Public surface is
-> documented in [`docs/09-api-publica.md`](docs/09-api-publica.md);
-> changes recorded in
+> **Status**: pre-`1.0` (`0.1.0`, APIs hardening). Build green; **2953
+> specs passing across 223 files** (Vitest, 1 skipped). Licensed
+> **Apache-2.0**. Public surface in
+> [`docs/09-api-publica.md`](docs/09-api-publica.md); changes in
 > [`docs/08-historico-de-alteracoes.md`](docs/08-historico-de-alteracoes.md).
 >
-> Latest milestones:
+> The editor now spans a professional feature set:
 >
-> - **Fase 6c** (acessibilidade): ARIA + keyboard nav completos em
->   overlays e panels (anchor editor, resize/rotation handles, pivot
->   picker, layers tree, guides, rulers)
-> - **Bloco 6-PathEditor**: Path/Anchor Point editor (cusp/smooth/
->   symmetric cycle) + Pathfinder boolean ops (Union, Intersect,
->   Subtract, Exclude, Divide)
-> - **Bloco 6b**: viewport culling opt-in; meta 60fps@1k atingida
->   (1k=161fps, 2k=114fps, 5k=41fps)
+> - **Drawing**: Select/Direct-Select, Pen, Pencil, Rectangle/Ellipse/
+>   Polygon (+ star), Text (rich-text runs, variable fonts, text-on-path),
+>   Eyedropper, Knife, Smooth, Gradient, Width, Symbol Sprayer
+> - **Geometry**: Path/Anchor editor (cusp/smooth/symmetric) + Pathfinder
+>   boolean ops (Union/Intersect/Subtract/Exclude/Divide) + Path ops
+>   (Simplify/Split/Join/Reverse/Outline Stroke/Offset) + Live Corners +
+>   compound paths
+> - **Document**: Pages/artboards, Layers, Smart Objects, Symbols/instances,
+>   version Snapshots, auto-save + recovery
+> - **Style**: non-destructive Effects/filters (chainable), gradients
+>   (inline editor), patterns, a Libraries system (shapes / palettes /
+>   gradients / patterns / symbols / brushes / graphic-styles / templates)
+> - **Productivity**: Find & Replace, Align/Distribute, customizable
+>   keyboard shortcuts, Auto-trace (raster→vector), Code Generators
+>   (React/Data-URI), per-asset Export, animation Timeline
+> - **AI (opt-in)**: natural-language command input + voice (on-device
+>   Whisper via `@huggingface/transformers`)
+> - **Accessibility**: ARIA + keyboard nav across every overlay/panel
+> - **Performance**: opt-in viewport culling; 60 fps pan/zoom at 1k+ nodes
 
 ---
 
@@ -145,18 +157,22 @@ example.
 
 ## Entry points at a glance
 
-| Package               | What's in it                                                                                                              | Material? |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------- |
-| `svg-engine/core`     | model, commands (incl. anchor + pathfinder), history, state, geometry, tree ops, `Disposable`, transform parser           | ❌        |
-| `svg-engine/render`   | `<svge-renderer>`, per-type directives, viewport, node-renderer registry                                                  | ❌        |
-| `svg-engine/io`       | `Importer`/`Exporter` registries + types, `svgImporter`, `svgExporter`, `pngExporter`, `renderPng`                        | ❌        |
-| `svg-engine/optimize` | `Optimizer` type + `OptimizerRegistry`, 3 built-in passes (precision/dropDefaults/pruneEmptyGroups), `OptimizeCommand`    | ❌        |
-| `svg-engine/edit`     | selection, transform, marquee, snap, alignment, anchor editor, pathfinder UI, plugin scaffolding, tools, viewport culling | ❌        |
-| `svg-engine/ui`       | `<svge-editor>`, layers panel, inspector, toolbar, rulers, palette, theme toggle                                          | ✅        |
-| `playground` (app)    | reference consumer + `/perf` benchmark harness                                                                            | ✅        |
+| Package                        | What's in it                                                                                                                                                                       | Material? |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `svg-engine/core`              | model, commands (incl. anchor + pathfinder), history, state, geometry, tree ops, `Disposable`, transform parser                                                                    | ❌        |
+| `svg-engine/render`            | `<svge-renderer>`, per-type directives, viewport, node-renderer registry                                                                                                           | ❌        |
+| `svg-engine/io`                | `Importer`/`Exporter` registries + types, `svgImporter`, `svgExporter`, `pngExporter`, `renderPng`                                                                                 | ❌        |
+| `svg-engine/optimize`          | `Optimizer` type + `OptimizerRegistry`, 3 built-in passes (precision/dropDefaults/pruneEmptyGroups), `OptimizeCommand`                                                             | ❌        |
+| `svg-engine/edit`              | selection, transform, marquee, snap, alignment, anchor editor, pathfinder, pages, animation, snapshots, effects, libraries, autotrace, tools, plugin scaffolding, viewport culling | ❌        |
+| `svg-engine/ui`                | `<svge-editor>`/`<svge-shell-pro>`, layers panel, inspector, toolbar, status bar, rulers, palette, color picker, dialogs, theme toggle                                             | ✅        |
+| `svg-engine/ai/nlu`            | Natural-language command engine (intents, dictionaries PT/EN, fuzzy match, slot extraction); headless                                                                              | ❌        |
+| `svg-engine/ai/nlu-ui`         | `<svge-nlu-input>` — text/voice command box bound to the NLU engine                                                                                                                | ✅        |
+| `svg-engine/ai/nlu-voice-wasm` | On-device speech-to-text provider (Whisper via `@huggingface/transformers`)                                                                                                        | ❌        |
+| `playground` (app)             | reference consumer + `/perf` benchmark harness                                                                                                                                     | ✅        |
 
 Each entry point is independently lazy-loadable. Consuming `core` does
-**not** drag in `render`, `io`, `optimize`, `edit`, or `ui`.
+**not** drag in `render`, `io`, `optimize`, `edit`, `ui`, or `ai/*`. The
+`ai/*` trio is fully opt-in — none of the editor depends on it.
 
 > **D-026 (2026-05-20)**: `svg-engine/io` and `svg-engine/optimize`
 > were extracted from `svg-engine/edit` as dedicated entry points,
@@ -168,8 +184,8 @@ Each entry point is independently lazy-loadable. Consuming `core` does
 
 ## Plugin extensibility (D-020, D-023)
 
-Nine plugin categories let third parties contribute capabilities without
-forking the core:
+A dozen plugin categories let third parties contribute capabilities
+without forking the core:
 
 | #   | Category            | Registry                                        |
 | --- | ------------------- | ----------------------------------------------- |
@@ -178,10 +194,13 @@ forking the core:
 | 3   | Optimizers          | `OptimizerRegistry`                             |
 | 4   | Importers           | `ImporterRegistry`                              |
 | 5   | Exporters           | `ExporterRegistry`                              |
-| 6   | Inspector panels    | `InspectorPanelRegistry` _(planned)_            |
-| 7   | Effects / filters   | `EffectRegistry` _(planned)_                    |
+| 6   | Effects / filters   | `EffectRegistry`                                |
+| 7   | Libraries (assets)  | `LibraryRegistry` (shapes/palettes/gradients/…) |
 | 8   | Palettes / swatches | `PaletteRegistry`                               |
 | 9   | Menus + shortcuts   | `MenuContributionRegistry` + `ShortcutRegistry` |
+| 10  | NLU intents         | `NaturalLanguageService` (auto-discovers menus) |
+| 11  | Code generators     | `CodeGeneratorRegistry`                         |
+| 12  | Tool options panels | `ToolOptionsRegistry`                           |
 
 Every registry returns `Disposable` so plugin uninstall reverses every
 contribution automatically. Detailed walkthrough in
@@ -191,15 +210,24 @@ contribution automatically. Detailed walkthrough in
 
 ## Built-in plugins shipped with the library
 
-| Plugin                    | Source            | Purpose                                                |
-| ------------------------- | ----------------- | ------------------------------------------------------ |
-| `selectToolPlugin`        | `svg-engine/edit` | Default pointer/marquee selection                      |
-| `pencilToolPlugin`        | `svg-engine/edit` | Freehand path drawing                                  |
-| `builtinIoPlugin`         | `svg-engine/edit` | SVG import (sanitized) + deterministic export          |
-| `pngExporterPlugin`       | `svg-engine/edit` | Canvas-based PNG export (binary/async)                 |
-| `builtinOptimizersPlugin` | `svg-engine/edit` | Precision rounding, drop defaults, prune empty groups  |
-| `builtinPalettesPlugin`   | `svg-engine/edit` | Default greys, Material primary, Tailwind pastels      |
-| `selectionNudgePlugin`    | `svg-engine/edit` | Arrow-key nudge for keyboard accessibility (Fase 6c-2) |
+A non-exhaustive sample of the built-in plugins (see `docs/06`/`docs/09`
+for the full list):
+
+| Plugin                                                                                                                                             | Source              | Purpose                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | -------------------------------------------------------- |
+| `selectToolPlugin`                                                                                                                                 | `svg-engine/edit`   | Select + Direct-Select pointer/marquee tools             |
+| `pencilToolPlugin` / `penToolPlugin`                                                                                                               | `svg-engine/edit`   | Freehand + Bézier path drawing                           |
+| `shapeToolsPlugin`                                                                                                                                 | `svg-engine/edit`   | Rectangle / Ellipse / Polygon (+ star)                   |
+| `textToolPlugin`                                                                                                                                   | `svg-engine/edit`   | Inline text editing (rich-text runs)                     |
+| `extraToolsPlugin`                                                                                                                                 | `svg-engine/edit`   | Eyedropper / Knife / Smooth / Gradient / Width / Sprayer |
+| `builtinIoPlugin` / `pngExporterPlugin`                                                                                                            | `svg-engine/edit`   | Sanitized SVG import + deterministic SVG/PNG export      |
+| `builtinOptimizersPlugin`                                                                                                                          | `svg-engine/edit`   | Precision rounding, drop defaults, prune empty groups    |
+| `builtinEffectsPlugin`                                                                                                                             | `svg-engine/edit`   | Non-destructive, chainable filter effects                |
+| `builtinShapesPlugin` / `…GradientsPlugin` / `…PatternsPlugin` / `…SymbolsPlugin` / `…BrushesPlugin` / `…GraphicStylesPlugin` / `…TemplatesPlugin` | `svg-engine/edit`   | Library asset families                                   |
+| `builtinMenuContributionsPlugin`                                                                                                                   | `svg-engine/edit`   | File/Edit/Object/Path/View menu commands + shortcuts     |
+| `builtinUiMenuContributionsPlugin`                                                                                                                 | `svg-engine/ui`     | UI-only commands (View Source, Trace Image, dialogs)     |
+| `builtinNluPlugin`                                                                                                                                 | `svg-engine/ai/nlu` | Natural-language shape/style/command intents             |
+| `selectionNudgePlugin`                                                                                                                             | `svg-engine/edit`   | Arrow-key nudge for keyboard accessibility               |
 
 Provision them at bootstrap:
 
@@ -314,36 +342,43 @@ docs + file picker for real samples).
 
 ```bash
 npm install
-npm run build -- svg-engine        # build the library (ng-packagr)
+npm run build:lib                  # build the library (ng-packagr, 9 entry points)
 npm start                          # serve the playground on :4200
-npm test                           # vitest, all 60 spec files
+npm run test:lib                   # vitest — ~2950 specs across 223 files
 npm run lint                       # eslint + angular-eslint
+npm run pack:lib                   # ng-packagr build + npm pack --dry-run
 ```
 
 Project layout follows the standard Angular workspace:
 
-- `projects/svg-engine/{core,render,edit,ui}/` — five secondary entry points
-- `projects/playground/` — reference application
-- `docs/` — architecture, decisions, roadmap, history, public API, plugin guide
+- `projects/svg-engine/{core,render,io,optimize,edit,ui}/` + `ai/{nlu,nlu-ui,nlu-voice-wasm}/` — nine secondary entry points
+- `projects/playground/` — reference application (the editor's showcase)
+- `projects/svg-studio/` — standalone studio app
+- `docs/` — architecture, decisions, roadmap, history, public API, plugin guides
 
 ---
 
 ## Documentation map
 
-| File                                                                       | Purpose                              |
-| -------------------------------------------------------------------------- | ------------------------------------ |
-| [`docs/01-visao-geral.md`](docs/01-visao-geral.md)                         | Vision, scope, non-goals             |
-| [`docs/02-arquitetura.md`](docs/02-arquitetura.md)                         | Layering, entry-point structure      |
-| [`docs/03-restricoes.md`](docs/03-restricoes.md)                           | Agent operational constraints        |
-| [`docs/04-decisoes-tecnicas.md`](docs/04-decisoes-tecnicas.md)             | Numbered ADRs (D-001 … D-031)        |
-| [`docs/05-roadmap.md`](docs/05-roadmap.md)                                 | Phase-by-phase delivery plan         |
-| [`docs/06-componentes-editor-svg.md`](docs/06-componentes-editor-svg.md)   | Component catalogue                  |
-| [`docs/08-historico-de-alteracoes.md`](docs/08-historico-de-alteracoes.md) | Detailed change log                  |
-| [`docs/09-api-publica.md`](docs/09-api-publica.md)                         | Public API surface (SemVer contract) |
-| [`docs/10-guia-plugin.md`](docs/10-guia-plugin.md)                         | Plugin author guide                  |
+| File                                                                         | Purpose                              |
+| ---------------------------------------------------------------------------- | ------------------------------------ |
+| [`docs/01-visao-geral.md`](docs/01-visao-geral.md)                           | Vision, scope, non-goals             |
+| [`docs/02-arquitetura.md`](docs/02-arquitetura.md)                           | Layering, entry-point structure      |
+| [`docs/03-restricoes.md`](docs/03-restricoes.md)                             | Agent operational constraints        |
+| [`docs/04-decisoes-tecnicas.md`](docs/04-decisoes-tecnicas.md)               | Numbered ADRs (D-001 … D-115)        |
+| [`docs/05-roadmap.md`](docs/05-roadmap.md)                                   | Phase-by-phase delivery plan         |
+| [`docs/06-componentes-editor-svg.md`](docs/06-componentes-editor-svg.md)     | Component catalogue                  |
+| [`docs/07-backend-dotnet.md`](docs/07-backend-dotnet.md)                     | Optional .NET backend notes          |
+| [`docs/08-historico-de-alteracoes.md`](docs/08-historico-de-alteracoes.md)   | Detailed change log                  |
+| [`docs/09-api-publica.md`](docs/09-api-publica.md)                           | Public API surface (SemVer contract) |
+| [`docs/10-guia-plugin.md`](docs/10-guia-plugin.md)                           | Plugin author guide                  |
+| [`docs/11-auditoria-pendencias.md`](docs/11-auditoria-pendencias.md)         | Audit & open items                   |
+| [`docs/12-gerenciamento-de-plugins.md`](docs/12-gerenciamento-de-plugins.md) | Plugin management (install/manage)   |
+| [`docs/13-plataforma-de-plugins.md`](docs/13-plataforma-de-plugins.md)       | Plugin platform direction            |
 
 ---
 
 ## License
 
-TBD — to be set before `1.0.0`.
+[Apache License 2.0](LICENSE) — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+Copyright © 2026 Mosaicoo.

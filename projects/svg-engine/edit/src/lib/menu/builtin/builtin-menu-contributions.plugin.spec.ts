@@ -79,31 +79,48 @@ describe('builtinMenuContributionsPlugin — registers canonical items', () => {
     expect(ids).not.toContain('svge.builtin.edit.ungroup');
   });
 
-  it('Paste In Place keeps original coords; plain Paste offsets +10px (D-102)', () => {
+  it('Paste In Place keeps original coords; plain Paste offsets +10px (D-102)', async () => {
     const { reg, state, injector } = setupRoot();
     const clipboard = injector.get(ClipboardService);
     // A rect with identity transform; clipboard stores a clone.
     clipboard.copy([createRect({ x: 10, y: 10, width: 20, height: 20 })]);
 
-    const lastChild = (): SvgNode => {
-      const kids = (state.document().root as { readonly children: readonly SvgNode[] }).children;
-      return kids[kids.length - 1]!;
+    const children = (): readonly SvgNode[] =>
+      (state.document().root as { readonly children: readonly SvgNode[] }).children;
+    const lastChild = (): SvgNode => children()[children().length - 1]!;
+
+    // **D-111** — Paste is async now: it tries the OS clipboard FIRST (the
+    // headless test env has no `navigator.clipboard.read`, so that path
+    // returns false) then falls back to the lossless in-memory nodes. Fire the
+    // handler and settle the task queue until the fallback insert lands.
+    const settle = async (until: () => boolean): Promise<void> => {
+      for (let i = 0; i < 20 && !until(); i++) {
+        await new Promise<void>((r) => setTimeout(r, 0));
+      }
     };
 
     // Paste In Place → transform stays identity (no offset).
+    const beforePip = children().length;
     reg.get('svge.builtin.edit.paste-in-place')!.run({ injector });
+    await settle(() => children().length > beforePip);
     expect(lastChild().transform).toEqual([1, 0, 0, 1, 0, 0]);
 
     // Plain Paste → transform nudged by +10,+10 so the copy is visible.
+    const beforePaste = children().length;
     reg.get('svge.builtin.edit.paste')!.run({ injector });
+    await settle(() => children().length > beforePaste);
     expect(lastChild().transform).toEqual([1, 0, 0, 1, 10, 10]);
   });
 
-  it('Paste In Place is disabled while the clipboard is empty (D-102)', () => {
+  it('Paste In Place is always enabled — the OS clipboard may hold content (D-111)', () => {
     const { reg, injector } = setupRoot();
     const item = reg.get('svge.builtin.edit.paste-in-place');
     expect(item).toBeDefined();
-    expect(resolveDisabledSignal(item!, injector)()).toBe(true); // empty clipboard
+    // **D-111** — no `disabled` factory: an empty IN-MEMORY clipboard does NOT
+    // mean the OS clipboard is empty (we can't inspect it synchronously), so
+    // Paste / Paste In Place stay enabled and simply no-op when truly empty.
+    expect(item!.disabled).toBeUndefined();
+    expect(resolveDisabledSignal(item!, injector)()).toBe(false); // empty in-memory clipboard
     injector.get(ClipboardService).copy([createRect({ x: 0, y: 0, width: 5, height: 5 })]);
     expect(resolveDisabledSignal(item!, injector)()).toBe(false);
   });

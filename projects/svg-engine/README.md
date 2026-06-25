@@ -7,11 +7,13 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Angular](https://img.shields.io/badge/Angular-21%2B-DD0031.svg)](https://angular.dev/)
 
-`svg-engine` ships **6 secondary entry points** so you only pay for what
+`svg-engine` ships **9 secondary entry points** so you only pay for what
 you use. The model + commands + renderer + editor primitives are
 **headless** (zero Material / CDK dependency). Material UI panels are
 **opt-in** via a separate entry point — keep your bundle lean if you
-build your own UI on top.
+build your own UI on top. An optional **AI / natural-language** layer
+(`ai/nlu`, `ai/nlu-ui`, `ai/nlu-voice-wasm`) is fully separate — nothing
+in the editor depends on it.
 
 ---
 
@@ -44,12 +46,15 @@ The library declares Angular as peer (you bring your own):
   "@angular/common": "^21.2.0",
   "@angular/core": "^21.2.0",
   "@angular/material": "^21.2.0",
-  "@angular/cdk": "^21.2.0"
+  "@angular/cdk": "^21.2.0",
+  "@huggingface/transformers": "^4.2.0"
 }
 ```
 
 `@angular/material` and `@angular/cdk` are **optional** — only required
-if you import from `svg-engine/ui`.
+if you import from `svg-engine/ui`. `@huggingface/transformers` is also
+**optional** — only required for `svg-engine/ai/nlu-voice-wasm`
+(on-device speech-to-text).
 
 `polygon-clipping` is bundled as a regular dependency (used by the
 pathfinder boolean operations in `svg-engine/core`).
@@ -58,14 +63,17 @@ pathfinder boolean operations in `svg-engine/core`).
 
 ## Entry points
 
-| Package               | What's inside                                                                                                                     | Material? |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| `svg-engine/core`     | Immutable `SvgDocument` model, 9 node types, commands, undo/redo history, geometry, tree ops, anchor + pathfinder commands        | ❌        |
-| `svg-engine/render`   | `<svge-renderer>`, per-type directives, `ViewportService`, pluggable `NodeRendererRegistry`, `screenToDoc` util                   | ❌        |
-| `svg-engine/io`       | `ImporterRegistry` / `ExporterRegistry` + types, `svgImporter`, `svgExporter`, `pngExporter`, `renderPng`                         | ❌        |
-| `svg-engine/optimize` | `Optimizer` + `OptimizerRegistry`, 3 built-in passes (precision rounding / drop defaults / prune empty groups), `OptimizeCommand` | ❌        |
-| `svg-engine/edit`     | Selection, transform, marquee, snap, alignment, anchor editor, pathfinder UI, plugin scaffolding, tool registry, pointer helpers  | ❌        |
-| `svg-engine/ui`       | `<svge-editor>`, `<svge-layers-panel>`, `<svge-inspector>`, color picker, color palette, rulers, theme toggle, source viewer      | ✅        |
+| Package                        | What's inside                                                                                                                                                    | Material? |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `svg-engine/core`              | Immutable `SvgDocument` model, 9 node types, commands, undo/redo history, geometry, tree ops, anchor + pathfinder commands                                       | ❌        |
+| `svg-engine/render`            | `<svge-renderer>`, per-type directives, `ViewportService`, pluggable `NodeRendererRegistry`, `screenToDoc` util                                                  | ❌        |
+| `svg-engine/io`                | `ImporterRegistry` / `ExporterRegistry` + types, `svgImporter`, `svgExporter`, `pngExporter`, `renderPng`                                                        | ❌        |
+| `svg-engine/optimize`          | `Optimizer` + `OptimizerRegistry`, 3 built-in passes (precision rounding / drop defaults / prune empty groups), `OptimizeCommand`                                | ❌        |
+| `svg-engine/edit`              | Selection, transform, marquee, snap, alignment, anchor editor, pathfinder, pages, animation, snapshots, effects, libraries, autotrace, tools, plugin scaffolding | ❌        |
+| `svg-engine/ui`                | `<svge-editor>` / `<svge-shell-pro>`, layers panel, inspector, toolbar, status bar, color picker, palette, rulers, dialogs, theme toggle                         | ✅        |
+| `svg-engine/ai/nlu`            | Natural-language command engine (intents, PT/EN dictionaries, fuzzy match); headless                                                                             | ❌        |
+| `svg-engine/ai/nlu-ui`         | `<svge-nlu-input>` — text/voice command box                                                                                                                      | ✅        |
+| `svg-engine/ai/nlu-voice-wasm` | On-device speech-to-text (Whisper via `@huggingface/transformers`)                                                                                               | ❌        |
 
 ---
 
@@ -208,7 +216,7 @@ See `docs/10-guia-plugin.md` in the repository for end-to-end recipes.
 
 - **Version**: `0.1.0` — pre-1.0; APIs may have **documented** breaking
   changes on minor bumps. SemVer-stable from `1.0.0`.
-- **Test coverage**: 978+ specs across 72 files (Vitest).
+- **Test coverage**: ~2950 specs across 223 files (Vitest).
 - **Browser support**: modern evergreens (Chrome, Edge, Firefox,
   Safari 15+). Polyfills not required as of 2026 baseline.
 

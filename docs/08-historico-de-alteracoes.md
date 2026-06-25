@@ -6,6 +6,31 @@
 
 ---
 
+## 2026-06-25 — DOC-CATCHUP — README atualizado + 2 specs obsoletos (D-111) corrigidos ✅
+
+Varredura geral do projeto para realinhar os READMEs ao estado atual:
+
+- **README raiz** (`README.md`): 4→**9 entry points** (incluindo `ai/nlu`,
+  `ai/nlu-ui`, `ai/nlu-voice-wasm`); status `884/65` → **2953 specs/223 files**;
+  licença `TBD` → **Apache-2.0** (LICENSE/NOTICE já existiam); milestones
+  expandidos (drawing/geometry/document/style/productivity/AI); tabela de
+  categorias de plugin 9→12 (Effects deixou de ser "planned"; +Libraries/NLU/
+  Code-generators/Tool-options); tabela de built-in plugins reescrita com nomes
+  reais (verificados no código); scripts `build -- svg-engine`→`build:lib`,
+  `test`→`test:lib`; docs map +07/11/12/13 e ADRs `D-001…D-031`→`…D-115`.
+- **README publicável** (`projects/svg-engine/README.md`): 6→9 entry points,
+  +trio `ai/*`, peer dep opcional `@huggingface/transformers`, contagem de
+  testes atualizada.
+- **Fix de 2 specs obsoletos** em `builtin-menu-contributions.plugin.spec.ts`
+  (consequência do **D-111** não capturada à época): Paste virou **async**
+  (OS-clipboard-first → fallback in-memory) e **sempre habilitado** (o clipboard
+  do SO pode ter conteúdo). Os testes ainda assumiam paste síncrono + disabled-
+  quando-vazio. Reescritos para aguardar o insert assíncrono e afirmar
+  always-enabled; corrigido também o docstring obsoleto no plugin. Suíte:
+  **2953 passando, 1 skipped, 0 falhando**.
+
+---
+
 ## 2026-06-24 — D-115 — Importação: `<defs>` aninhado dentro de `<g>` agora é coletado ✅
 
 **Reportado** (usuário): importou um SVG cujo `<defs>` (um `<linearGradient

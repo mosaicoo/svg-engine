@@ -895,7 +895,9 @@ export const builtinMenuContributionsPlugin: EditorPlugin = {
     // ZERO offset, so the content lands at its ORIGINAL coordinates
     // (Illustrator's Ctrl+Shift+V) instead of the +10px nudge a plain Paste
     // now uses. Order 46 keeps it between Paste (44) and Duplicate (48), as
-    // the roadmap comment intended. Disabled when the clipboard is empty.
+    // the roadmap comment intended. **D-111** — always enabled (the OS
+    // clipboard may hold content even when the in-memory one is empty); it
+    // no-ops when there is genuinely nothing anywhere.
     ctx.track(
       reg.register({
         id: 'svge.builtin.edit.paste-in-place',
