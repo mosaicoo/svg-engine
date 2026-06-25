@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-06-25 — E2E-F4 — CI + docs do harness E2E ✅
+
+Fecha a fundação do E2E (plano aprovado), **sem mudança em código de lib**:
+
+- **CI**: job `e2e` adicionado ao `.github/workflows/ci.yml` (paralelo ao
+  `lint-and-build`): `npm ci` → `npx playwright install --with-deps chromium` →
+  `npm run e2e`; sobe o `playwright-report/` como artifact (`if: !cancelled()`).
+  Em CI o `process.env.CI` liga retries/2 + workers/2 + reporter HTML (config já
+  preparada na F0). O `webServer` auto-sobe o `ng serve playground`.
+- **Docs**: README ganhou a subseção **"Testing layers"** (Vitest base + E2E
+  fino, com `npm run e2e` e nota de que o E2E **adiciona**, não substitui) + `e2e/`
+  no layout. **ADR D-116** (docs/04) registra a estratégia: Playwright como
+  camada fina, não-migração dos specs Vitest, princípio aditivo (mudança no app
+  só se um fluxo exigir), estrutura, fases F0–F4 e pendência F3b (pages).
+
+**Pirâmide consolidada**: ~2953 specs Vitest (base) + 9 testes Playwright
+(smoke + draw + tool/teclado/histórico + import/export). Próximo possível: F3b
+(pages no `/pro-editor`) e ampliação de jornadas conforme necessidade.
+
+---
+
 ## 2026-06-25 — E2E-F3 — Import / Export no navegador real ✅
 
 3 fluxos de IO em `e2e/specs/import-export.spec.ts`, **sem mudança em código de

@@ -347,13 +347,27 @@ npm start                          # serve the playground on :4200
 npm run test:lib                   # vitest — ~2950 specs across 223 files
 npm run lint                       # eslint + angular-eslint
 npm run pack:lib                   # ng-packagr build + npm pack --dry-run
+npm run e2e                        # Playwright E2E (auto-starts the playground)
 ```
+
+### Testing layers
+
+- **Unit + integration** (Vitest, `npm run test:lib`): the fast base of the
+  pyramid — ~2950 specs covering model/commands/render/io/edit logic in a
+  headless DOM.
+- **End-to-end** (Playwright, `npm run e2e`): a thin top layer that drives the
+  `playground` in a **real browser** for journeys headless specs can't reach
+  (pointer-drag on the canvas, rendering, navigation, keyboard, downloads).
+  `playwright.config.ts` auto-starts the dev server; specs live in `e2e/`.
+  Run `npx playwright install chromium` once. The E2E suite **adds** coverage
+  — it does not replace any Vitest spec.
 
 Project layout follows the standard Angular workspace:
 
 - `projects/svg-engine/{core,render,io,optimize,edit,ui}/` + `ai/{nlu,nlu-ui,nlu-voice-wasm}/` — nine secondary entry points
 - `projects/playground/` — reference application (the editor's showcase)
 - `projects/svg-studio/` — standalone studio app
+- `e2e/` — Playwright end-to-end specs + Page Objects + helpers
 - `docs/` — architecture, decisions, roadmap, history, public API, plugin guides
 
 ---

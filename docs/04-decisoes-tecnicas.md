@@ -2675,3 +2675,44 @@ Federation.**
   (`cantMakeClipFactory` desabilita com clipper imagem, habilita com vetor).
   Suíte verde (2286); snapshot de API atualizado (`nodeToSvgMarkup` + comandos
   exportados). Referência: histórico 08 (2026-06-12, D-086).
+
+## D-116 — Estratégia de testes E2E (Playwright)
+
+- **Data**: 2026-06-25
+- **Status**: Aceita
+- **Contexto**: A suíte de testes era ~2953 specs Vitest (unidade +
+  integração) rodando em **DOM headless** (happy-dom). Faltava cobertura de
+  **jornadas reais em navegador** — gestos de pointer no canvas, render/paint,
+  navegação de rotas, teclado a nível de documento, downloads — que o headless
+  não exercita com fidelidade.
+- **Decisão**: Adotar **Playwright** (Chromium) como camada **fina** no topo da
+  pirâmide, dirigindo a app `playground`. **Não migrar nenhum spec Vitest** — o
+  E2E **adiciona** o que o headless não cobre; lógica pura e round-trips
+  import↔export permanecem como testes rápidos de unidade/integração.
+- **Alternativas**:
+  - Cypress → rejeitada: Playwright é mais rápido, multi-browser nativo e tem
+    melhor suporte a download/worker/CI.
+  - Migrar specs de integração para E2E → rejeitada: troca segundos por minutos,
+    perde granularidade, aumenta flakiness; vários specs (export byte-stable,
+    undo interno, matrizes, namespacing) nem são expressáveis como jornada.
+  - Subir o servidor manualmente → rejeitada: `webServer` do Playwright
+    auto-sobe `ng serve playground` (via `e2e:serve`, que pula o
+    `prestart`→`assemble:ml`/Whisper, desnecessário no E2E).
+- **Princípio (aditivo)**: **nenhuma mudança obrigatória em código de lib**. Os
+  testes apoiam em ARIA (`getByRole`/`getByLabel`), seletores de componente e no
+  DOM real do `<svge-renderer>`; em dev usam `window.ng` quando preciso. Ajustes
+  no app (`data-testid`, hook `window.__svge`) só entram **se um fluxo exigir**,
+  sempre aditivos e sob o guard-rail de API.
+- **Estrutura**: `playwright.config.ts` (raiz) + `e2e/{fixtures,pages,utils,
+specs}`. Fixture limpa `localStorage`/`sessionStorage` e desliga animações via
+  `addInitScript` (isolamento + anti-flakiness Material). Determinismo: não
+  afirmar ids aleatórios (`generateNodeId`); afirmar geometria/estrutura.
+- **Fases**: F0 config+fixture+smoke; F1 Page Objects + `dragOnCanvas`
+  (pointer-drag em frações da bbox) + teste-prova (desenhar retângulo); F2
+  tool/teclado/histórico (r, Ellipse, Esc-cancel, undo/redo); F3 import/export
+  (svg-viewer render + Export SVG download); F4 CI (job `e2e` no `ci.yml`:
+  `playwright install --with-deps chromium` + `npm run e2e`, report como
+  artifact) + docs. **Pendente**: F3b fluxo de pages (UI só no `/pro-editor`).
+- **Consequências**: PRs ganham um portão de jornada real; em CI a config liga
+  retries/2 + workers/2 + report HTML. Custo: ~1 download de browser por job e
+  um `ng serve` frio por execução. Referência: histórico 08 (2026-06-25, E2E-F0…F4).
