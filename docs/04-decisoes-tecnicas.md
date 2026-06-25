@@ -2715,6 +2715,13 @@ specs}`. Fixture limpa `localStorage`/`sessionStorage` e desliga animações via
   artifact) + docs; **F3b** fluxo de pages no `/pro-editor` (add page → nova fica
   ativa → switch volta à primeira; tabs escopadas ao `role="tablist"` "Pages").
   Fundação **encerrada** com **10** testes Playwright sobre ~2953 specs Vitest.
+- **Pré-requisito de build (E2E-CI-FIX)**: os `paths` do `tsconfig.json` mapeiam
+  `svg-engine/*` → `./dist/svg-engine/*` (a lib **buildada**). Logo o job `e2e`
+  precisa rodar `ng build svg-engine` ANTES do `npm run e2e` — senão o
+  `ng serve playground` não resolve os entry points (`Could not resolve
+"svg-engine/edit"`). Jobs do GitHub não compartilham workspace, então o job
+  `e2e` builda sua própria cópia (o `lint-and-build` já buildava a dele).
 - **Consequências**: PRs ganham um portão de jornada real; em CI a config liga
-  retries/2 + workers/2 + report HTML. Custo: ~1 download de browser por job e
-  um `ng serve` frio por execução. Referência: histórico 08 (2026-06-25, E2E-F0…F4 + F3b).
+  retries/2 + workers/2 + report HTML. Custo: ~1 download de browser + 1 build
+  da lib por job e um `ng serve` frio por execução. Referência: histórico 08
+  (2026-06-25, E2E-F0…F4 + F3b + E2E-CI-FIX).

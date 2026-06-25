@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-06-25 — E2E-CI-FIX — Job `e2e` builda a lib antes de subir o playground ✅
+
+O job `e2e` do CI falhava no build (`✘ Could not resolve "svg-engine/edit"`,
+`TS2307: Cannot find module 'svg-engine/core'` … para todos os 9 entry points),
+derrubando o `ng serve playground` que o `webServer` do Playwright sobe.
+
+- **Causa raiz**: o `tsconfig.json` mapeia `paths` `svg-engine/*` →
+  `./dist/svg-engine/*` (a lib **buildada**, não o source). O job `e2e` ia
+  direto de `npm ci` → `playwright install` → `npm run e2e`, **sem** rodar
+  `ng build svg-engine`. Em runner limpo o `dist/svg-engine` não existe, então
+  o esbuild/angular-compiler não resolve nenhum entry point. Localmente passava
+  só porque havia `dist` de builds anteriores; o job `lint-and-build` passava
+  porque ele **builda** a lib. Não era timeout nem paralelismo.
+- **Fix**: passo **`ng build svg-engine`** adicionado ao job `e2e` (antes do
+  `Run E2E tests`), espelhando o `lint-and-build` — jobs do GitHub não
+  compartilham workspace, então cada um precisa da sua cópia do `dist`.
+- **Verificação ponta a ponta (local, replicando o runner)**: movi o
+  `dist/svg-engine` pra fora → `npx ng build svg-engine` (39s) → `CI=true
+npx playwright test` → **10 passed** (workers/2). Provada a cadeia
+  build-da-lib → resolve `svg-engine/*` → e2e verde.
+- **Nota p/ checkout limpo**: `npm run e2e` exige a lib buildada (`npm run
+build:lib` / `ng build svg-engine`) antes — o `e2e:serve` só faz `ng serve`,
+  não builda a dependência.
+
+---
+
 ## 2026-06-25 — E2E-F3b — Jornada de pages (artboards) ✅
 
 Fecha a pendência aberta na F3, **sem mudança em código de lib**:

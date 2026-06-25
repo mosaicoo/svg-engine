@@ -64,6 +64,15 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
+      # The playground imports the library through its BUILT output: tsconfig
+      # `paths` map `svg-engine/*` -> `./dist/svg-engine/*`. So the lib must be
+      # built before `ng serve playground` can resolve those entry points —
+      # otherwise esbuild fails with `Could not resolve "svg-engine/edit"` (etc.)
+      # on the clean runner. The lint-and-build job builds it too; this job
+      # needs its own copy because GitHub jobs don't share a workspace.
+      - name: Build library svg-engine
+        run: npx ng build svg-engine
+
       # Playwright's webServer boots `ng serve playground` (npm run e2e:serve),
       # which skips the prestart Whisper-model assembly the E2E never needs.
       # `process.env.CI` flips the config to retries/2 + workers/2 + html report.
