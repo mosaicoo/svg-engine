@@ -10,8 +10,13 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { type BoundingBox, isGroupNode, type SvgDocument, type SvgNode } from 'svg-engine/core';
-import { svgExporter } from 'svg-engine/io';
+import {
+  type BoundingBox,
+  isGroupNode,
+  type SvgDocument,
+  type SvgNode,
+} from '@mosaicoo/svg-engine/core';
+import { svgExporter } from '@mosaicoo/svg-engine/io';
 import { WorkspaceService } from './workspace.service';
 
 /** Largest canvas dimension we'll rasterize to (perf/memory guard). */

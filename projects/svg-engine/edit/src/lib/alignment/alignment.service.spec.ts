@@ -9,7 +9,7 @@ import {
   findNodeById,
   HistoryService,
   applyTransform,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { AlignmentService } from './alignment.service';
 
 function setup() {

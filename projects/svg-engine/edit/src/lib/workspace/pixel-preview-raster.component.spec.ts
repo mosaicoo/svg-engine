@@ -1,6 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { type SvgNode } from 'svg-engine/core';
+import { type SvgNode } from '@mosaicoo/svg-engine/core';
 import { SvgePixelPreviewRaster } from './pixel-preview-raster.component';
 import { WorkspaceService } from './workspace.service';
 

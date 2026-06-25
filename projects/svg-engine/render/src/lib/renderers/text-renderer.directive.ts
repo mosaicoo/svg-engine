@@ -1,5 +1,5 @@
 import { Directive, input } from '@angular/core';
-import type { TextNode } from 'svg-engine/core';
+import type { TextNode } from '@mosaicoo/svg-engine/core';
 
 /**
  * Apply to `<svg:text>` to bind attributes from a {@link TextNode}.

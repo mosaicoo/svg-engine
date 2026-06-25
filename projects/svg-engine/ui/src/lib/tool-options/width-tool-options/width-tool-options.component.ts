@@ -4,7 +4,7 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { type WidthProfilePreset, WidthToolService } from 'svg-engine/edit';
+import { type WidthProfilePreset, WidthToolService } from '@mosaicoo/svg-engine/edit';
 
 /**
  * **TOOL-OPT-A3** — Options bar for the Width tool

@@ -5,7 +5,7 @@ import {
   type NodeId,
   type SvgNode,
   type TextNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { SelectionService } from '../selection/selection.service';
 import { FindReplaceService, type FindCriteria } from './find-replace.service';
 

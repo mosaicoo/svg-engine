@@ -5,7 +5,7 @@ import {
   EditorStateService,
   findNodeById,
   InsertNodeCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { resolveNodeIdFromEvent } from '../hit-testing/hit-testing';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../plugin/plugin';
 import { SelectionService } from '../selection/selection.service';

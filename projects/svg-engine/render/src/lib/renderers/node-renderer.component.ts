@@ -6,7 +6,7 @@ import {
   type SvgStyle,
   type TextNode,
   type TextRun,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { NodeRendererRegistry } from '../registry/node-renderer-registry.service';
 import { renderTransformAttr } from '../util/transform-attr';
 import { SvgeEllipseDirective } from './ellipse-renderer.directive';

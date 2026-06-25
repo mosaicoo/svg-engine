@@ -22,7 +22,7 @@ import {
   sampleAnimation,
   SetAnimationDurationCommand,
   SetKeyframeEasingCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { ActivePageService } from '../pages/active-page.service';
 
 /**

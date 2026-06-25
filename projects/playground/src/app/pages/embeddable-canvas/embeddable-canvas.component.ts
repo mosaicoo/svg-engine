@@ -6,7 +6,7 @@ import {
   createRect,
   EditorStateService,
   InsertNodeCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import {
   AnchorOverlay,
   InlineTextEditor,
@@ -18,8 +18,8 @@ import {
   SelectionOverlay,
   ShapeOverlay,
   SnapGuides,
-} from 'svg-engine/edit';
-import { SvgeEditor } from 'svg-engine/ui';
+} from '@mosaicoo/svg-engine/edit';
+import { SvgeEditor } from '@mosaicoo/svg-engine/ui';
 
 /**
  * `<svge-editor>` **canvas-only** demo — modo 4 da matriz de consumo Mosaicoo

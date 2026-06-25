@@ -7,7 +7,7 @@ import {
   RestoreSnapshotCommand,
   SnapshotsService,
   UngroupCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { MenuContributionRegistry } from '../menu/menu-contribution-registry.service';
 import { runContribution } from '../menu/menu-context';
 import { ActivePageService } from '../pages/active-page.service';

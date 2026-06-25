@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { bbox, generateNodeId } from 'svg-engine/core';
+import { bbox, generateNodeId } from '@mosaicoo/svg-engine/core';
 import { SnapService } from './snap.service';
 
 function setup() {

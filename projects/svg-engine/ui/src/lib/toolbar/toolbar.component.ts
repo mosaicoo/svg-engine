@@ -14,7 +14,7 @@ import {
   MenuContributionRegistry,
   runContribution,
   type MenuContribution,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 
 /**
  * Renders all visible {@link MenuContribution}s for a given slot as a

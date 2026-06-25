@@ -19,7 +19,7 @@ import {
   formatCombo,
   type KeybindingView,
   KeybindingsService,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 import { SvgeDialogShell } from '../dialog-shell';
 
 /** A category header plus its rows, for the grouped list rendering. */

@@ -1,4 +1,4 @@
-import { bbox, createEmptyDocument } from 'svg-engine/core';
+import { bbox, createEmptyDocument } from '@mosaicoo/svg-engine/core';
 import type { TemplateLibraryItem } from './template-library.service';
 
 /**

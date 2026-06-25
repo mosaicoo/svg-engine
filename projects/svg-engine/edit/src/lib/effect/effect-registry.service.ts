@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { type GroupNode, type SvgNode, walk } from 'svg-engine/core';
+import { type GroupNode, type SvgNode, walk } from '@mosaicoo/svg-engine/core';
 import type { Disposable } from '../plugin/plugin';
 import type { Effect } from './effect';
 

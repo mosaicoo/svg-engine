@@ -1,4 +1,4 @@
-import { toNodeId } from 'svg-engine/core';
+import { toNodeId } from '@mosaicoo/svg-engine/core';
 import {
   findRenderedNode,
   getCombinedBBox,

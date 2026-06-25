@@ -6,7 +6,7 @@ import {
   isGroupNode,
   type NodeId,
   type SvgNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { IsolationService } from './isolation.service';
 
 /** Sentinel attribute marking elements we've dimmed (for clean restore). */

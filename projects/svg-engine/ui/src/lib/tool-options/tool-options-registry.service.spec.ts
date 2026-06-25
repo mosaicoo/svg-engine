@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
-import { type Tool, ToolRegistry } from 'svg-engine/edit';
+import { type Tool, ToolRegistry } from '@mosaicoo/svg-engine/edit';
 import { ToolOptionsRegistry } from './tool-options-registry.service';
 
 /**

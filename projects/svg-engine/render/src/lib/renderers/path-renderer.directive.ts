@@ -1,5 +1,5 @@
 import { computed, Directive, input } from '@angular/core';
-import { type PathNode, roundPathCorners } from 'svg-engine/core';
+import { type PathNode, roundPathCorners } from '@mosaicoo/svg-engine/core';
 
 /**
  * Apply to `<svg:path>` to bind attributes from a {@link PathNode}.

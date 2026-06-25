@@ -1,6 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { MenuContributionRegistry } from 'svg-engine/edit';
+import { MenuContributionRegistry } from '@mosaicoo/svg-engine/edit';
 import { SvgeToolbar } from './toolbar.component';
 
 @Component({

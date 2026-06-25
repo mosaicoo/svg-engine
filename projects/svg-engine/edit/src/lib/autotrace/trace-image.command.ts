@@ -12,7 +12,7 @@ import {
   type NodeId,
   ok,
   removeNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { traceImageToPaths, type TraceOptions } from './trace-bitmap';
 
 /**

@@ -9,7 +9,7 @@ import {
   type NodeId,
   type SvgDocument,
   withSmartObjectFlag,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { describe, expect, it } from 'vitest';
 import { SmartObjectActionsService } from './smart-object-actions.service';
 

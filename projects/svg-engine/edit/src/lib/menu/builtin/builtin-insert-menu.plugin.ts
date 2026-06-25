@@ -11,8 +11,8 @@ import {
   InsertNodeCommand,
   type Point,
   type SvgNode,
-} from 'svg-engine/core';
-import { ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/core';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 
 import { pickAndInsertRasterImage } from '../../import-image/raster-image-import';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../../plugin/plugin';

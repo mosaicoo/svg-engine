@@ -11,10 +11,10 @@ import {
   SelectionOverlay,
   ShapeOverlay,
   SnapGuides,
-} from 'svg-engine/edit';
-import type { NluExecuteResult } from 'svg-engine/ai/nlu';
-import { SvgeNluInput } from 'svg-engine/ai/nlu-ui';
-import { SvgeEditor } from 'svg-engine/ui';
+} from '@mosaicoo/svg-engine/edit';
+import type { NluExecuteResult } from '@mosaicoo/svg-engine/ai/nlu';
+import { SvgeNluInput } from '@mosaicoo/svg-engine/ai/nlu-ui';
+import { SvgeEditor } from '@mosaicoo/svg-engine/ui';
 
 /**
  * **NLU Test bench** — rota `/nlu-test` (D-046 Fase 1 demo).

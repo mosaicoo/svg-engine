@@ -1,5 +1,5 @@
 import { computed, Injectable, signal } from '@angular/core';
-import type { BoundingBox, NodeId, Point } from 'svg-engine/core';
+import type { BoundingBox, NodeId, Point } from '@mosaicoo/svg-engine/core';
 import {
   gridTargetsNear,
   guidesToSnapTargets,

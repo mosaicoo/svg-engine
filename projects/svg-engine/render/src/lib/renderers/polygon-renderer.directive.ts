@@ -1,5 +1,5 @@
 import { computed, Directive, input } from '@angular/core';
-import type { PolygonNode } from 'svg-engine/core';
+import type { PolygonNode } from '@mosaicoo/svg-engine/core';
 
 /** Apply to `<svg:polygon>` to bind attributes from a {@link PolygonNode}. */
 @Directive({

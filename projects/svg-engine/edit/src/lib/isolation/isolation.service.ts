@@ -8,7 +8,7 @@ import {
   isPage,
   type NodeId,
   type SvgNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 
 /**
  * Isolation Mode state (Affinity / Illustrator convention).

@@ -1,4 +1,9 @@
-import { AUTO_PARENT, CommandBus, createEllipse, InsertNodeCommand } from 'svg-engine/core';
+import {
+  AUTO_PARENT,
+  CommandBus,
+  createEllipse,
+  InsertNodeCommand,
+} from '@mosaicoo/svg-engine/core';
 import {
   type EditorPlugin,
   PLUGIN_API_VERSION,
@@ -6,7 +11,7 @@ import {
   type ToolContext,
   type ToolPointerEvent,
   ToolRegistry,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 import { StampToolService } from './stamp-tool.service';
 import { StampToolOptionsComponent } from './stamp-tool-options.component';
 

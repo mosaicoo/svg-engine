@@ -7,7 +7,7 @@ import {
   createRect,
   EditorStateService,
   IDENTITY_TRANSFORM,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { SelectionService } from '../selection/selection.service';
 import { TransformService } from '../transform/transform.service';
 import { RotationPivot } from './rotation-pivot.component';

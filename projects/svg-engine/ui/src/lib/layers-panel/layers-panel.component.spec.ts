@@ -9,8 +9,8 @@ import {
   isLayer,
   type NodeId,
   withLayerFlag,
-} from 'svg-engine/core';
-import { LayersService, SelectionService } from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/core';
+import { LayersService, SelectionService } from '@mosaicoo/svg-engine/edit';
 import { LayersPanel } from './layers-panel.component';
 
 @Component({

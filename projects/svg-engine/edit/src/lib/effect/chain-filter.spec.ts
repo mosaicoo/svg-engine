@@ -7,7 +7,7 @@ import {
   InsertNodeCommand,
   SetStylePropertyOnManyCommand,
   type NodeId,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { provideSvgEnginePlugin } from '../plugin/provide-plugin';
 import { builtinEffectsPlugin } from './builtin-effects.plugin';
 import {

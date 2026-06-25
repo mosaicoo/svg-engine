@@ -1,4 +1,4 @@
-import { isIdentity, type Transform } from 'svg-engine/core';
+import { isIdentity, type Transform } from '@mosaicoo/svg-engine/core';
 
 /**
  * Serialize a {@link Transform} for the SVG `transform` attribute, e.g.

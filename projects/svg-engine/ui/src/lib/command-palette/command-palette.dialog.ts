@@ -18,7 +18,7 @@ import {
   type MenuContribution,
   MenuContributionRegistry,
   runContribution,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 import {
   filterPaletteCommands,
   humanizeMenuSlot,

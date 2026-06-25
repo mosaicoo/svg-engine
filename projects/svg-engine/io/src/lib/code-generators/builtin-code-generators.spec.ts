@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createGroup, createRect, type SvgDocument, type SvgNode } from 'svg-engine/core';
+import { createGroup, createRect, type SvgDocument, type SvgNode } from '@mosaicoo/svg-engine/core';
 import {
   applyCurrentColor,
   BUILTIN_CODE_GENERATORS,

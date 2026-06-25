@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { generateNodeId, type NodeId } from 'svg-engine/core';
+import { generateNodeId, type NodeId } from '@mosaicoo/svg-engine/core';
 import { MarqueeService, rectFromPoints } from './marquee.service';
 
 function setup() {

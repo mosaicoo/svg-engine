@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { toNodeId } from 'svg-engine/core';
+import { toNodeId } from '@mosaicoo/svg-engine/core';
 import { LayersFilter } from './layers-filter.directive';
 import { LayersService } from './layers.service';
 

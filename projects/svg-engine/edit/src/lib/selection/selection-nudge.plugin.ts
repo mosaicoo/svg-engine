@@ -1,5 +1,10 @@
 import type { ProviderToken } from '@angular/core';
-import { CommandBus, type NodeId, type Point, TranslateManyCommand } from 'svg-engine/core';
+import {
+  CommandBus,
+  type NodeId,
+  type Point,
+  TranslateManyCommand,
+} from '@mosaicoo/svg-engine/core';
 import type { EditorPlugin, PluginContext } from '../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../plugin/plugin';
 import type { ShortcutContext } from '../shortcut/shortcut';
@@ -38,7 +43,7 @@ const STEP_LARGE = 10;
  *
  * Usage at bootstrap:
  * ```ts
- * import { selectionNudgePlugin, provideSvgEnginePlugin } from 'svg-engine/edit';
+ * import { selectionNudgePlugin, provideSvgEnginePlugin } from '@mosaicoo/svg-engine/edit';
  * providers: [provideSvgEnginePlugin(selectionNudgePlugin)]
  * ```
  */

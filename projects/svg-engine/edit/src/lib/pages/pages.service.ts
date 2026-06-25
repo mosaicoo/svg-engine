@@ -6,8 +6,8 @@ import {
   getPageViewBox,
   isPage,
   type SvgNode,
-} from 'svg-engine/core';
-import type { BoundingBox } from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
+import type { BoundingBox } from '@mosaicoo/svg-engine/core';
 
 /**
  * **D-079** — `PagesService`: derived view over the document that

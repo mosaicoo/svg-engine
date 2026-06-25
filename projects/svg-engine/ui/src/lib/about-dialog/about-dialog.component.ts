@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import { MatDialogRef } from '@angular/material/dialog';
-import { SVG_ENGINE_VERSION } from 'svg-engine';
-import { SVGE_HELP_LINKS } from 'svg-engine/edit';
+import { SVG_ENGINE_VERSION } from '@mosaicoo/svg-engine';
+import { SVGE_HELP_LINKS } from '@mosaicoo/svg-engine/edit';
 import { SvgeDialogShell } from '../dialog-shell';
 
 /**

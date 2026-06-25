@@ -13,7 +13,7 @@ import {
   PluginRegistry,
   providePluginLoader,
   provideSvgEnginePlugin,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 import type { EnvironmentProviders, Provider } from '@angular/core';
 import { SvgePluginManager } from './plugin-manager.component';
 

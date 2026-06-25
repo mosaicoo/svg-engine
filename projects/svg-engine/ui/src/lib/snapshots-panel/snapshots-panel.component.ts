@@ -8,9 +8,9 @@ import {
   RestoreSnapshotCommand,
   type Snapshot,
   SnapshotsService,
-} from 'svg-engine/core';
-import { SnapshotsPersistenceService } from 'svg-engine/edit';
-import { renderPng } from 'svg-engine/io';
+} from '@mosaicoo/svg-engine/core';
+import { SnapshotsPersistenceService } from '@mosaicoo/svg-engine/edit';
+import { renderPng } from '@mosaicoo/svg-engine/io';
 import { RenameAutoFocus } from '../layers-panel/rename-autofocus.directive';
 
 /**

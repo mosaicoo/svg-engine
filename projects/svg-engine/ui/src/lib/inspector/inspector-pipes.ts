@@ -1,5 +1,5 @@
 import { Pipe, type PipeTransform } from '@angular/core';
-import type { EllipseNode, LineNode, RectNode, SvgNode } from 'svg-engine/core';
+import type { EllipseNode, LineNode, RectNode, SvgNode } from '@mosaicoo/svg-engine/core';
 
 /**
  * Read-only numeric field accessor for `RectNode` — **display-only**

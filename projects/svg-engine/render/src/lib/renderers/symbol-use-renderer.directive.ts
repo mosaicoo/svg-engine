@@ -1,5 +1,5 @@
 import { Directive, input } from '@angular/core';
-import type { SymbolUseNode } from 'svg-engine/core';
+import type { SymbolUseNode } from '@mosaicoo/svg-engine/core';
 
 /**
  * Apply to `<svg:use>` to bind attributes from a {@link SymbolUseNode}

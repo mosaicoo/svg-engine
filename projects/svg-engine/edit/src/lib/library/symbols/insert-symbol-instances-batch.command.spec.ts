@@ -1,5 +1,10 @@
 import { TestBed } from '@angular/core/testing';
-import { CommandBus, EditorStateService, HistoryService, type GroupNode } from 'svg-engine/core';
+import {
+  CommandBus,
+  EditorStateService,
+  HistoryService,
+  type GroupNode,
+} from '@mosaicoo/svg-engine/core';
 // HistoryService must be in providers even though we drive undo via
 // CommandBus — CommandBus depends on it for stack management.
 import { describe, expect, it } from 'vitest';

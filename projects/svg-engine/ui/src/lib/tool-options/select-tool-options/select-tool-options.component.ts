@@ -16,7 +16,7 @@ import {
   type Point,
   SubtractCommand,
   UnionCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import {
   ActivePageService,
   type AlignAxis,
@@ -28,7 +28,7 @@ import {
   type NodeBBox,
   resolveAlignReference,
   SelectionService,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 import { TOOL_OPT_SHARED_STYLES } from '../shared-styles';
 
 /**

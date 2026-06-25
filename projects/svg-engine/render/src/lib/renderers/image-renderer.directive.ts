@@ -1,5 +1,5 @@
 import { Directive, input } from '@angular/core';
-import type { ImageNode } from 'svg-engine/core';
+import type { ImageNode } from '@mosaicoo/svg-engine/core';
 
 /** Apply to `<svg:image>` to bind attributes from an {@link ImageNode}. */
 @Directive({

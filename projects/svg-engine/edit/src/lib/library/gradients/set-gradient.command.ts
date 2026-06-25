@@ -1,5 +1,11 @@
 import { type Injector } from '@angular/core';
-import { type Command, type CommandResult, fail, generateNodeId, ok } from 'svg-engine/core';
+import {
+  type Command,
+  type CommandResult,
+  fail,
+  generateNodeId,
+  ok,
+} from '@mosaicoo/svg-engine/core';
 
 import {
   buildGradientMarkup,

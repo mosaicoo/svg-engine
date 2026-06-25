@@ -22,7 +22,7 @@ import {
   SkewNodesCommand,
   type Transform,
   withSmartObjectFlag,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import {
   AlignmentService,
   computeAverageGap,
@@ -42,8 +42,8 @@ import {
   type ShortcutContext,
   TraceImageCommand,
   TraceProgressService,
-} from 'svg-engine/edit';
-import { ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/edit';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 
 import { SvgeAboutDialogService } from '../about-dialog';
 import { SvgeCommandPaletteService } from '../command-palette';

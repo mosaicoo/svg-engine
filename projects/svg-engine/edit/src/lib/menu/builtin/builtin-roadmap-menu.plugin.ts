@@ -12,7 +12,7 @@ import {
   type PathSplitCut,
   ReversePathCommand,
   SplitPathCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 
 import { AnchorSelectionService } from '../../anchor-editor/anchor-selection.service';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../../plugin/plugin';

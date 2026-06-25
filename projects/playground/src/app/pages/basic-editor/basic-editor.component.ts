@@ -6,7 +6,7 @@ import {
   createRect,
   EditorStateService,
   InsertNodeCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import {
   AnchorOverlay,
   InlineTextEditor,
@@ -19,8 +19,8 @@ import {
   ShapeOverlay,
   SnapGuides,
   SymbolSprayerOverlay,
-} from 'svg-engine/edit';
-import { SvgeEditor } from 'svg-engine/ui';
+} from '@mosaicoo/svg-engine/edit';
+import { SvgeEditor } from '@mosaicoo/svg-engine/ui';
 
 /**
  * `<svge-editor>` shell demo route. Demonstrates the **plug-and-play**

@@ -1,4 +1,4 @@
-import { bbox, generateNodeId } from 'svg-engine/core';
+import { bbox, generateNodeId } from '@mosaicoo/svg-engine/core';
 import {
   gridTargetsNear,
   guidesToSnapTargets,

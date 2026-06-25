@@ -1,6 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { EditorStateService, findNodeById, findParent, type NodeId } from 'svg-engine/core';
-import { IsolationService, SelectionService } from 'svg-engine/edit';
+import {
+  EditorStateService,
+  findNodeById,
+  findParent,
+  type NodeId,
+} from '@mosaicoo/svg-engine/core';
+import { IsolationService, SelectionService } from '@mosaicoo/svg-engine/edit';
 
 /**
  * Single entry rendered by the breadcrumb bar. `nodeId === null`

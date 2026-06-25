@@ -1,4 +1,4 @@
-import type { BoundingBox, NodeId, Point } from 'svg-engine/core';
+import type { BoundingBox, NodeId, Point } from '@mosaicoo/svg-engine/core';
 
 /** Axis a snap target/guide lies on. */
 export type SnapAxis = 'x' | 'y';

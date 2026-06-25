@@ -7,7 +7,7 @@ import {
   findNodeById,
   type NodeId,
   SetStylePropertyOnManyCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import {
   type Effect,
   EffectRegistry,
@@ -15,7 +15,7 @@ import {
   makeChainFilterId,
   parseChainFilterId,
   SelectionService,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 
 /**
  * Effects pipeline editor — Fase 6d (D-023 cat 7) expandido em D-047

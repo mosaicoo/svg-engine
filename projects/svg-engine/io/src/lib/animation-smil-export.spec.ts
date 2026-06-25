@@ -10,7 +10,7 @@ import {
   type SvgNode,
   type Transform,
   upsertKeyframe,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { svgExporter } from './svg-exporter';
 
 /**

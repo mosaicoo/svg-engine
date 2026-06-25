@@ -1,6 +1,9 @@
 {
-  "name": "svg-engine",
+  "name": "@mosaicoo/svg-engine",
   "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "Headless-first, plugin-extensible SVG editor library for Angular v21+. Render, manipulate and optimize SVG inside any Angular app — 9 secondary entry points (core/render/io/optimize/edit/ui + ai/nlu + ai/nlu-ui + ai/nlu-voice-wasm), Material UI is opt-in and local Whisper voice is opt-in.",
   "keywords": [
     "svg",

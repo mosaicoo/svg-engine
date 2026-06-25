@@ -7,7 +7,7 @@ import {
   EditorStateService,
   findNodeById,
   InsertNodeCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { describe, expect, it } from 'vitest';
 
 import { provideSvgEnginePlugin } from '../../plugin/provide-plugin';

@@ -14,7 +14,7 @@ import {
   toNodeId,
   withPageFlag,
   withPageOptions,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { SelectionService } from '../selection/selection.service';
 import { ACTIVE_PAGE_STORAGE_KEY } from './active-page.config';
 import { ActivePageService } from './active-page.service';

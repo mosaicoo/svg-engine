@@ -1,5 +1,5 @@
 import { Injectable, signal, type Signal } from '@angular/core';
-import type { Disposable } from 'svg-engine/core';
+import type { Disposable } from '@mosaicoo/svg-engine/core';
 
 import type { ActionCanonical } from './dictionaries/actions';
 import type { NluShapeKind } from './dictionaries/shapes';

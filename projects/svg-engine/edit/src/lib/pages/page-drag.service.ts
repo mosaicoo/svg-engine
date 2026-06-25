@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { type BoundingBox, type NodeId } from 'svg-engine/core';
+import { type BoundingBox, type NodeId } from '@mosaicoo/svg-engine/core';
 
 /**
  * **PAGES-REFACTOR follow-up #4** — transient drag-preview store for

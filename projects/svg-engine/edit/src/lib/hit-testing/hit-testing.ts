@@ -5,7 +5,7 @@ import {
   isPage,
   toNodeId,
   type NodeId,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 
 /** Attribute name set by the renderer's dispatcher on each node `<g>`. */
 const NODE_ID_ATTR = 'data-node-id';

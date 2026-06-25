@@ -5,10 +5,10 @@ import {
   providePluginLoader,
   provideSvgEngineEditorBuiltins,
   provideSvgEnginePlugin,
-} from 'svg-engine/edit';
-import { provideSvgeUiBuiltins } from 'svg-engine/ui';
-import { builtinNluPlugin, provideOllamaChat } from 'svg-engine/ai/nlu';
-import { provideWhisperVoiceEngine } from 'svg-engine/ai/nlu-voice-wasm';
+} from '@mosaicoo/svg-engine/edit';
+import { provideSvgeUiBuiltins } from '@mosaicoo/svg-engine/ui';
+import { builtinNluPlugin, provideOllamaChat } from '@mosaicoo/svg-engine/ai/nlu';
+import { provideWhisperVoiceEngine } from '@mosaicoo/svg-engine/ai/nlu-voice-wasm';
 
 /**
  * **D-093** — endereço do servidor Ollama local (DEV). Troque para o seu

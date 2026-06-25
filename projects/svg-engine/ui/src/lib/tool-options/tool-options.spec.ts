@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { type Tool, ToolHostService, ToolRegistry } from 'svg-engine/edit';
+import { type Tool, ToolHostService, ToolRegistry } from '@mosaicoo/svg-engine/edit';
 import { SvgeToolOptions } from './tool-options.component';
 import { ToolOptionsRegistry } from './tool-options-registry.service';
 

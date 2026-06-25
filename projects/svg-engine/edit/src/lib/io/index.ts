@@ -18,6 +18,6 @@ export {
   svgExporter,
   pngExporter,
   renderPng,
-} from 'svg-engine/io';
+} from '@mosaicoo/svg-engine/io';
 export { builtinIoPlugin } from './builtin-io.plugin';
 export { pngExporterPlugin } from './png-exporter.plugin';

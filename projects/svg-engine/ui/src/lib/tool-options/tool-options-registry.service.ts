@@ -1,5 +1,5 @@
 import { inject, Injectable, type Type } from '@angular/core';
-import { ToolRegistry } from 'svg-engine/edit';
+import { ToolRegistry } from '@mosaicoo/svg-engine/edit';
 
 /**
  * **TOOL-OPT-A1** — registry that maps `toolId → optionsComponent`,

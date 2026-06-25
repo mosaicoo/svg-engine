@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { VOICE_WHISPER_PROVIDER } from 'svg-engine/ai/nlu';
+import { VOICE_WHISPER_PROVIDER } from '@mosaicoo/svg-engine/ai/nlu';
 import { VoiceEngineService } from './voice-engine.service';
 import { VoiceRecognitionService } from './voice-recognition.service';
 

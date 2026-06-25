@@ -5,8 +5,8 @@ import {
   MenuContributionRegistry,
   PLUGIN_API_VERSION,
   ShortcutRegistry,
-} from 'svg-engine/edit';
-import { svgeDialogConfig } from 'svg-engine/ui';
+} from '@mosaicoo/svg-engine/edit';
+import { svgeDialogConfig } from '@mosaicoo/svg-engine/ui';
 import { CommandPaletteDialog } from './command-palette.dialog';
 
 /**

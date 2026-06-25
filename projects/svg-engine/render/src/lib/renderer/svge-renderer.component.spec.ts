@@ -1,6 +1,12 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { bbox, type BoundingBox, createGroup, createRect, type SvgNode } from 'svg-engine/core';
+import {
+  bbox,
+  type BoundingBox,
+  createGroup,
+  createRect,
+  type SvgNode,
+} from '@mosaicoo/svg-engine/core';
 import { ViewportService } from '../viewport/viewport.service';
 import { projectDocumentToRenderer, SvgeRenderer } from './svge-renderer.component';
 

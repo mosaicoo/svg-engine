@@ -10,7 +10,7 @@ import {
   SymbolLibraryService,
   SymbolSelectionService,
   SymbolSprayerService,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 
 /**
  * **TOOL-OPT-A2** — Options bar for the Symbol Sprayer tool

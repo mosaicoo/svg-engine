@@ -8,8 +8,8 @@ import { MatIconButton } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltip } from '@angular/material/tooltip';
-import { EditorStateService } from 'svg-engine/core';
-import { ActivePageService } from 'svg-engine/edit';
+import { EditorStateService } from '@mosaicoo/svg-engine/core';
+import { ActivePageService } from '@mosaicoo/svg-engine/edit';
 import {
   type CodeGenerator,
   CodeGeneratorRegistry,
@@ -20,8 +20,8 @@ import {
   type CodeGeneratorTextOption,
   resolveCodeGeneratorOptionDefaults,
   toPascalCaseComponentName,
-} from 'svg-engine/io';
-import { OptimizerRegistry } from 'svg-engine/optimize';
+} from '@mosaicoo/svg-engine/io';
+import { OptimizerRegistry } from '@mosaicoo/svg-engine/optimize';
 import { SvgeDialogShell } from '../dialog-shell';
 
 /**

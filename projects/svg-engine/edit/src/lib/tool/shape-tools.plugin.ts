@@ -5,7 +5,7 @@ import {
   createPolygon,
   createRect,
   InsertNodeCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../plugin/plugin';
 import { SelectionService } from '../selection/selection.service';
 import {
@@ -154,7 +154,7 @@ function buildShapeNode(
   kind: ShapeKind,
   bounds: { x: number; y: number; w: number; h: number },
   prefs: ShapeToolService,
-): import('svg-engine/core').SvgNode | null {
+): import('@mosaicoo/svg-engine/core').SvgNode | null {
   const style = {
     fill: prefs.fill(),
     stroke: prefs.stroke(),

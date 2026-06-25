@@ -6,8 +6,8 @@ import {
   EditorStateService,
   type SvgDocument,
   withPageFlag,
-} from 'svg-engine/core';
-import { SvgeRenderer } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/core';
+import { SvgeRenderer } from '@mosaicoo/svg-engine/render';
 import { describe, expect, it } from 'vitest';
 import { ActivePageService } from '../pages/active-page.service';
 import { PAGE_TOOL_ID } from '../tool/builtin-tools';

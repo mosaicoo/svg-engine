@@ -11,7 +11,7 @@ import {
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatSlideToggle } from '@angular/material/slide-toggle';
-import { PluginLoader, type PluginManifest, PluginManagerService } from 'svg-engine/edit';
+import { PluginLoader, type PluginManifest, PluginManagerService } from '@mosaicoo/svg-engine/edit';
 
 /**
  * **D-083 Fase 1 — `<svge-plugin-manager>`**. The product UI for

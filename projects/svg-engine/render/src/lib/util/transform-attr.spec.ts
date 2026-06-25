@@ -1,4 +1,4 @@
-import { IDENTITY_TRANSFORM, translate, scale, rotate } from 'svg-engine/core';
+import { IDENTITY_TRANSFORM, translate, scale, rotate } from '@mosaicoo/svg-engine/core';
 import { renderTransformAttr } from './transform-attr';
 
 describe('renderTransformAttr', () => {

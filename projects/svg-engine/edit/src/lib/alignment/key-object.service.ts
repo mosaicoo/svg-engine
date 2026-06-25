@@ -1,5 +1,5 @@
 import { computed, effect, inject, Injectable, signal } from '@angular/core';
-import type { NodeId } from 'svg-engine/core';
+import type { NodeId } from '@mosaicoo/svg-engine/core';
 
 import { SelectionService } from '../selection/selection.service';
 

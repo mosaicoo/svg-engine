@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatTooltip } from '@angular/material/tooltip';
-import { ToolHostService, ToolRegistry } from 'svg-engine/edit';
+import { ToolHostService, ToolRegistry } from '@mosaicoo/svg-engine/edit';
 
 /**
  * Vertical **tools palette** — Sprint Pro-Editor Phase 4.

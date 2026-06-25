@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { bbox } from 'svg-engine/core';
+import { bbox } from '@mosaicoo/svg-engine/core';
 import { ViewportService } from './viewport.service';
 
 describe('ViewportService', () => {

@@ -1,5 +1,5 @@
 import { computed, Injectable, signal } from '@angular/core';
-import { type BoundingBox, bbox, type NodeId, type Point } from 'svg-engine/core';
+import { type BoundingBox, bbox, type NodeId, type Point } from '@mosaicoo/svg-engine/core';
 
 /**
  * Whether a marquee hit-test counts a node when the marquee fully

@@ -11,7 +11,12 @@ import { MatDivider } from '@angular/material/divider';
 import { MatIcon } from '@angular/material/icon';
 import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatTooltip } from '@angular/material/tooltip';
-import { EditorStateService, getNodeBBox, getNodesWorldBBox, type SvgNode } from 'svg-engine/core';
+import {
+  EditorStateService,
+  getNodeBBox,
+  getNodesWorldBBox,
+  type SvgNode,
+} from '@mosaicoo/svg-engine/core';
 import {
   ActivePageService,
   IsolationService,
@@ -23,8 +28,8 @@ import {
   ToolRegistry,
   TraceProgressService,
   WorkspaceService,
-} from 'svg-engine/edit';
-import { ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/edit';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 
 /**
  * Discrete sections the status bar can show. Each section maps to a

@@ -5,7 +5,7 @@ import {
   type GroupNode,
   type RectNode,
   type SymbolUseNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { describe, expect, it } from 'vitest';
 
 import { collectDefsIds, namespaceCollidingDefs } from './defs-namespace';

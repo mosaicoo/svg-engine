@@ -1,4 +1,4 @@
-import type { Point } from 'svg-engine/core';
+import type { Point } from '@mosaicoo/svg-engine/core';
 
 /**
  * Evaluate a cubic Bézier defined by control points `p0..p3` at

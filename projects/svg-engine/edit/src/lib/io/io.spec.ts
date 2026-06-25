@@ -1,6 +1,11 @@
 import { TestBed } from '@angular/core/testing';
-import { createGroup, createRect } from 'svg-engine/core';
-import { ExporterRegistry, ImporterRegistry, svgExporter, svgImporter } from 'svg-engine/io';
+import { createGroup, createRect } from '@mosaicoo/svg-engine/core';
+import {
+  ExporterRegistry,
+  ImporterRegistry,
+  svgExporter,
+  svgImporter,
+} from '@mosaicoo/svg-engine/io';
 import { PluginRegistry } from '../plugin/plugin-registry.service';
 import { builtinIoPlugin } from './builtin-io.plugin';
 

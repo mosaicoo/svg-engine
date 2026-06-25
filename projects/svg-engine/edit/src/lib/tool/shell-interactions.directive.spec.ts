@@ -8,7 +8,7 @@ import {
   EditorStateService,
   findNodeById,
   generateNodeId,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { AnchorSelectionService } from '../anchor-editor/anchor-selection.service';
 import { MarqueeService } from '../marquee/marquee.service';
 import { provideSvgEngineEditorScope } from '../scope/editor-scope.providers';

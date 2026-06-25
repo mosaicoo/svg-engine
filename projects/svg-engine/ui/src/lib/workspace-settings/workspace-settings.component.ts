@@ -17,7 +17,7 @@ import {
   WHEEL_ZOOM_SPEED_MAX,
   WHEEL_ZOOM_SPEED_MIN,
   WorkspaceService,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 import { SvgeDialogShell } from '../dialog-shell';
 
 /**

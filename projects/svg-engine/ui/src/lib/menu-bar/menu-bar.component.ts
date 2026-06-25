@@ -17,7 +17,7 @@ import {
   MenuContributionRegistry,
   runContribution,
   type MenuContribution,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 
 /**
  * Top-level menu bar — Sprint Pro-Editor (2026-05-20); reorganized into
@@ -378,8 +378,8 @@ export class SvgeMenuBar {
 // Re-export the canonical slot constants from svg-engine/edit (single
 // source of truth — see edit/lib/menu/menu-slots.ts). Kept here as a
 // re-export so that consumers using the historical import path
-// `from 'svg-engine/ui'` continue to work without code changes.
-export { MENU_SLOT, type MenuBarSlot } from 'svg-engine/edit';
+// `from '@mosaicoo/svg-engine/ui'` continue to work without code changes.
+export { MENU_SLOT, type MenuBarSlot } from '@mosaicoo/svg-engine/edit';
 
 // Re-export `Signal` reference to keep TS happy when emitting `.d.ts`
 // referencing the existing signal types on `MenuContribution`.

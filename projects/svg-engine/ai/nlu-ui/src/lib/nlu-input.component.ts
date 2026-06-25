@@ -26,8 +26,8 @@ import {
   type NluExecuteResult,
   NaturalLanguageService,
   type VoiceEngine,
-} from 'svg-engine/ai/nlu';
-import { tokenize } from 'svg-engine/ai/nlu';
+} from '@mosaicoo/svg-engine/ai/nlu';
+import { tokenize } from '@mosaicoo/svg-engine/ai/nlu';
 import { VoiceEngineService } from './voice-engine.service';
 import { readVoicePref, writeVoicePref } from './voice-prefs';
 

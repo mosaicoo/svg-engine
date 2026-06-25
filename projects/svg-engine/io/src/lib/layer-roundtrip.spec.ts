@@ -6,7 +6,7 @@ import {
   type SvgDocument,
   type SvgNode,
   withLayerFlag,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { svgExporter } from './svg-exporter';
 import { svgImporter } from './svg-importer';
 

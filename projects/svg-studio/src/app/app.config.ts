@@ -6,9 +6,9 @@ import {
   provideSvgEngineEditorBuiltins,
   provideSvgEnginePlugin,
   provideSvgeHelpLinks,
-} from 'svg-engine/edit';
-import { provideSvgeUiBuiltins } from 'svg-engine/ui';
-import { builtinNluPlugin, provideOllamaChat } from 'svg-engine/ai/nlu';
+} from '@mosaicoo/svg-engine/edit';
+import { provideSvgeUiBuiltins } from '@mosaicoo/svg-engine/ui';
+import { builtinNluPlugin, provideOllamaChat } from '@mosaicoo/svg-engine/ai/nlu';
 
 import { environment } from '../environments/environment';
 import { commandPalettePlugin } from './command-palette/command-palette.plugin';

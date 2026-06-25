@@ -7,7 +7,7 @@ import {
   parsePathToAnchors,
   type PathNode,
   type Point,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { PluginRegistry } from '../plugin/plugin-registry.service';
 import { provideSvgEnginePlugin } from '../plugin/provide-plugin';
 import { PenOverlay } from './pen-overlay.component';

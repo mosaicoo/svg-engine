@@ -1,4 +1,4 @@
-import type { Point } from 'svg-engine/core';
+import type { Point } from '@mosaicoo/svg-engine/core';
 
 /**
  * **D-060** — Expand a polyline centerline into a closed-polygon

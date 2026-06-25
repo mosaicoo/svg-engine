@@ -1,7 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import { effect, inject, Injectable } from '@angular/core';
-import { EditorStateService } from 'svg-engine/core';
-import { svgExporter } from 'svg-engine/io';
+import { EditorStateService } from '@mosaicoo/svg-engine/core';
+import { svgExporter } from '@mosaicoo/svg-engine/io';
 import { AUTOSAVE_STORAGE_KEY } from './autosave.config';
 
 /** Debounce delay between document changes and a save commit (ms). */

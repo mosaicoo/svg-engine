@@ -1,5 +1,5 @@
 import { computed, effect, inject, Injectable, signal, untracked } from '@angular/core';
-import type { NodeId } from 'svg-engine/core';
+import type { NodeId } from '@mosaicoo/svg-engine/core';
 import { LayersService } from '../layers/layers.service';
 
 /**

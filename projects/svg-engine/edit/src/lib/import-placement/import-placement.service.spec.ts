@@ -8,7 +8,7 @@ import {
   type GroupNode,
   type RectNode,
   type SvgDocument,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { describe, expect, it } from 'vitest';
 
 import { provideSvgEngineEditorScope } from '../scope/editor-scope.providers';

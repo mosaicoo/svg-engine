@@ -1,6 +1,6 @@
 import { Directive, ElementRef, inject, type OnDestroy } from '@angular/core';
-import type { Point } from 'svg-engine/core';
-import { screenToDoc, ViewportService } from 'svg-engine/render';
+import type { Point } from '@mosaicoo/svg-engine/core';
+import { screenToDoc, ViewportService } from '@mosaicoo/svg-engine/render';
 import { capturePointer, releasePointer } from '../pointer';
 import { WorkspaceService, wheelZoomSensitivityFromSpeed } from '../workspace/workspace.service';
 

@@ -1,4 +1,4 @@
-import type { NodeId } from 'svg-engine/core';
+import type { NodeId } from '@mosaicoo/svg-engine/core';
 
 /**
  * **D-077 — Asset export slot.**

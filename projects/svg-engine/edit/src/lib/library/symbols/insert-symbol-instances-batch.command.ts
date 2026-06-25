@@ -11,7 +11,7 @@ import {
   ok,
   type ParentRef,
   removeNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 
 /** Position + dimensions for a single spray drop. */
 export interface SprayDrop {

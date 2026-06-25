@@ -5,8 +5,8 @@ import {
   MenuContributionRegistry,
   type MenuContributionContext,
   PLUGIN_API_VERSION,
-} from 'svg-engine/edit';
-import { BUILTIN_CODE_GENERATORS, CodeGeneratorRegistry } from 'svg-engine/io';
+} from '@mosaicoo/svg-engine/edit';
+import { BUILTIN_CODE_GENERATORS, CodeGeneratorRegistry } from '@mosaicoo/svg-engine/io';
 import { SvgeCodeGeneratorDialogService } from './code-generator-dialog.service';
 
 /**

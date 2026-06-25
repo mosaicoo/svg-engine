@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import type { SvgDocument } from 'svg-engine/core';
+import type { SvgDocument } from '@mosaicoo/svg-engine/core';
 import type { LibraryItem } from '../library-item';
 import { LibraryRegistry } from '../library-registry';
 

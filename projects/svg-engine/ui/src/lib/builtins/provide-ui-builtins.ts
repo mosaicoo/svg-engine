@@ -1,5 +1,5 @@
 import type { EnvironmentProviders } from '@angular/core';
-import { provideSvgEnginePlugin, withPluginMeta } from 'svg-engine/edit';
+import { provideSvgEnginePlugin, withPluginMeta } from '@mosaicoo/svg-engine/edit';
 
 import { codeGeneratorsPlugin } from '../code-generator-dialog';
 import { builtinUiMenuContributionsPlugin } from '../menu-extras';

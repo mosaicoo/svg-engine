@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import type { AnchorPoint, Point } from 'svg-engine/core';
-import { ViewportService } from 'svg-engine/render';
+import type { AnchorPoint, Point } from '@mosaicoo/svg-engine/core';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 import { PenToolService } from './pen-tool.service';
 
 /** Pixel size of the anchor squares (CSS pixels — divided by zoom). */

@@ -1,4 +1,4 @@
-import type { SvgDocument } from 'svg-engine/core';
+import type { SvgDocument } from '@mosaicoo/svg-engine/core';
 
 /**
  * Plugin contribution to the SVG optimization pipeline (categoria 3

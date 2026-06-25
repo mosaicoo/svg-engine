@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
-import type { SvgDocument } from 'svg-engine/core';
-import type { Disposable } from 'svg-engine/core';
+import type { SvgDocument } from '@mosaicoo/svg-engine/core';
+import type { Disposable } from '@mosaicoo/svg-engine/core';
 import type { Optimizer } from './optimizer';
 
 /**

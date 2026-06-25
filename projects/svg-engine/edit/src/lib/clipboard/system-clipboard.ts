@@ -8,8 +8,8 @@ import {
   getNodeBBox,
   type SvgDocument,
   type SvgNode,
-} from 'svg-engine/core';
-import { renderPng, svgExporter, svgImporter } from 'svg-engine/io';
+} from '@mosaicoo/svg-engine/core';
+import { renderPng, svgExporter, svgImporter } from '@mosaicoo/svg-engine/io';
 
 import { ImportPlacementService } from '../import-placement/import-placement.service';
 import { ClipboardService } from './clipboard.service';

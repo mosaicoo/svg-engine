@@ -6,7 +6,7 @@ import {
   type RectNode,
   type SvgDocument,
   type SvgNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { describe, expect, it } from 'vitest';
 
 import { svgExporter } from './svg-exporter';

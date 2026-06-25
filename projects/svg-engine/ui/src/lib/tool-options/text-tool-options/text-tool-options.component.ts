@@ -5,7 +5,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { InlineTextEditorService } from 'svg-engine/edit';
+import { InlineTextEditorService } from '@mosaicoo/svg-engine/edit';
 import { TOOL_OPT_SHARED_STYLES } from '../shared-styles';
 
 /**

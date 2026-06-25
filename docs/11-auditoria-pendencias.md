@@ -389,15 +389,15 @@ grep -n 'formatLabel\|niceTickSpacing' projects/svg-engine/ui/src/lib/rulers/rul
 
 ---
 
-#### 8. Discrepância no barrel `svg-engine/edit/lib/optimize` — `BAIXA` → ✅ **ENTREGUE** (commit `9de3743`, 2026-05-29)
+#### 8. Discrepância no barrel `@mosaicoo/svg-engine/edit/lib/optimize` — `BAIXA` → ✅ **ENTREGUE** (commit `9de3743`, 2026-05-29)
 
-1 linha adicionada ao barrel `edit/src/lib/optimize/index.ts`: `stripAuthoredTitlesOptimizer` agora re-exportado de `svg-engine/optimize`. Consumers usando o caminho back-compat `svg-engine/edit` agora pegam o D-072g pass. Lint clean, suite 1828 passing.
+1 linha adicionada ao barrel `edit/src/lib/optimize/index.ts`: `stripAuthoredTitlesOptimizer` agora re-exportado de `@mosaicoo/svg-engine/optimize`. Consumers usando o caminho back-compat `@mosaicoo/svg-engine/edit` agora pegam o D-072g pass. Lint clean, suite 1828 passing.
 
 #### 8-OLD. Discrepância — info original abaixo
 
 **Evidência** (verificado por Read de `edit/src/lib/optimize/index.ts` inteiro):
 
-- Linhas 11-18 exportam 6 símbolos de `'svg-engine/optimize'`:
+- Linhas 11-18 exportam 6 símbolos de `'@mosaicoo/svg-engine/optimize'`:
   ```ts
   export {
     type Optimizer,
@@ -406,7 +406,7 @@ grep -n 'formatLabel\|niceTickSpacing' projects/svg-engine/ui/src/lib/rulers/rul
     precisionOptimizer,
     pruneEmptyGroupsOptimizer,
     OptimizeCommand,
-  } from 'svg-engine/optimize';
+  } from '@mosaicoo/svg-engine/optimize';
   ```
 - **Falta `stripAuthoredTitlesOptimizer`** — exportado por `optimize/src/public-api.ts:33` (D-072g v2) mas back-compat barrel do `edit` não inclui.
 
@@ -414,7 +414,7 @@ grep -n 'formatLabel\|niceTickSpacing' projects/svg-engine/ui/src/lib/rulers/rul
 
 **O que falta**: adicionar 1 linha ao barrel.
 
-**Impacto**: consumers que importam optimizers via `svg-engine/edit` (back-compat) não pegam o D-072g pass. Caminho canônico hoje é `svg-engine/optimize` direto — mas o back-compat path existe e está quebrado parcialmente.
+**Impacto**: consumers que importam optimizers via `@mosaicoo/svg-engine/edit` (back-compat) não pegam o D-072g pass. Caminho canônico hoje é `@mosaicoo/svg-engine/optimize` direto — mas o back-compat path existe e está quebrado parcialmente.
 
 ---
 
@@ -666,7 +666,7 @@ File paths inválidos corrigidos (selectToolPlugin/pencilToolPlugin vivem em bui
 - Linha 411: cita `pencil-tool.plugin.ts` — também não existe (em `builtin-tools.ts:352`).
 - Effects (categoria 7 do D-023): marcada "Fase 6 planejada" mas já entregue (`edit/lib/effect/effect-registry.service.ts`).
 - Não menciona 10ª categoria potencial: **NLU intents** via `NaturalLanguageService.registerIntent()` (entrada para plugins de domínio em PT/EN).
-- Recipe 3 (Exporter): importa de `'svg-engine/edit'` (back-compat funciona) mas canônico hoje é `'svg-engine/io'`.
+- Recipe 3 (Exporter): importa de `'@mosaicoo/svg-engine/edit'` (back-compat funciona) mas canônico hoje é `'@mosaicoo/svg-engine/io'`.
 
 **O que falta**: corrigir 2 file paths inválidos. Marcar Effects como entregue. Adicionar exemplo de plugin NLU. Atualizar Recipe 3 para usar o caminho canônico.
 

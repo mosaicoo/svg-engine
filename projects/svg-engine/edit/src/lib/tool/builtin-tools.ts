@@ -4,7 +4,7 @@ import {
   createPath,
   InsertNodeCommand,
   type Point,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import {
   BrushLibraryService,
   BrushSelectionService,

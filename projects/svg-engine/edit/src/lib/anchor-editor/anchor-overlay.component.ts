@@ -13,10 +13,10 @@ import {
   parsePathToAnchors,
   type Point,
   type Transform,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { composeAncestorMatrix } from './compose-ancestor-matrix';
 import { nearestTOnCubic } from './cubic-nearest';
-import { screenToDoc, ViewportService } from 'svg-engine/render';
+import { screenToDoc, ViewportService } from '@mosaicoo/svg-engine/render';
 import { LayersService } from '../layers/layers.service';
 import { capturePointer, releasePointer } from '../pointer';
 import { SelectionService } from '../selection/selection.service';
@@ -511,9 +511,9 @@ export class AnchorOverlay {
      */
     readonly originalPos: Point;
     /** Snapshot of the node's own transform at gesture start. */
-    readonly nodeTransform: import('svg-engine/core').Transform;
+    readonly nodeTransform: import('@mosaicoo/svg-engine/core').Transform;
     /** Precomputed inverse to avoid recomputing every move frame. */
-    readonly inverseNodeTransform: import('svg-engine/core').Transform;
+    readonly inverseNodeTransform: import('@mosaicoo/svg-engine/core').Transform;
   } | null = null;
 
   protected onPointerDown(
@@ -555,7 +555,7 @@ export class AnchorOverlay {
     // group "drifts" because we'd be projecting doc-space pointer
     // deltas through only the node's own (often identity) transform.
     const nodeTransform = composeAncestorMatrix(doc.root, ref.nodeId);
-    let inverseNodeTransform: import('svg-engine/core').Transform;
+    let inverseNodeTransform: import('@mosaicoo/svg-engine/core').Transform;
     try {
       inverseNodeTransform = invertMatrix(nodeTransform);
     } catch {
@@ -838,9 +838,9 @@ function pointsEqual(a: Point, b: Point, eps = 1e-6): boolean {
  * the path-typed branch).
  */
 function findById(
-  node: import('svg-engine/core').SvgNode,
+  node: import('@mosaicoo/svg-engine/core').SvgNode,
   id: string,
-): import('svg-engine/core').SvgNode | null {
+): import('@mosaicoo/svg-engine/core').SvgNode | null {
   if (node.id === id) return node;
   if (node.type === 'group') {
     for (const child of node.children) {
@@ -853,11 +853,13 @@ function findById(
 
 /** Tree walk that returns a new root with `path.d` patched. */
 function patchPathD(
-  root: import('svg-engine/core').GroupNode,
+  root: import('@mosaicoo/svg-engine/core').GroupNode,
   nodeId: string,
   nextD: string,
-): import('svg-engine/core').GroupNode {
-  function visit(node: import('svg-engine/core').SvgNode): import('svg-engine/core').SvgNode {
+): import('@mosaicoo/svg-engine/core').GroupNode {
+  function visit(
+    node: import('@mosaicoo/svg-engine/core').SvgNode,
+  ): import('@mosaicoo/svg-engine/core').SvgNode {
     if (node.id === nodeId && node.type === 'path') {
       return { ...node, d: nextD };
     }
@@ -872,7 +874,7 @@ function patchPathD(
     }
     return node;
   }
-  return visit(root) as import('svg-engine/core').GroupNode;
+  return visit(root) as import('@mosaicoo/svg-engine/core').GroupNode;
 }
 
 /**

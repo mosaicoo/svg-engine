@@ -14,8 +14,8 @@ import {
   MovePageCommand,
   type NodeId,
   ResizePageCommand,
-} from 'svg-engine/core';
-import { screenToDoc, ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/core';
+import { screenToDoc, ViewportService } from '@mosaicoo/svg-engine/render';
 import { capturePointer, releasePointer } from '../pointer';
 import { SelectionService } from '../selection/selection.service';
 import { PAGE_TOOL_ID, SELECT_TOOL_ID } from '../tool/builtin-tools';

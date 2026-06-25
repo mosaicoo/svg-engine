@@ -6,8 +6,8 @@ import {
   EditorStateService,
   findNodeById,
   type SvgDocument,
-} from 'svg-engine/core';
-import { OptimizeCommand, OptimizerRegistry } from 'svg-engine/optimize';
+} from '@mosaicoo/svg-engine/core';
+import { OptimizeCommand, OptimizerRegistry } from '@mosaicoo/svg-engine/optimize';
 import { PluginRegistry } from '../plugin/plugin-registry.service';
 import { builtinOptimizersPlugin } from './builtin-optimizers.plugin';
 

@@ -10,7 +10,7 @@
  *
  * Importação:
  * ```ts
- * import { SvgeNluInput, VoiceEngineService } from 'svg-engine/ai/nlu-ui';
+ * import { SvgeNluInput, VoiceEngineService } from '@mosaicoo/svg-engine/ai/nlu-ui';
  * ```
  */
 

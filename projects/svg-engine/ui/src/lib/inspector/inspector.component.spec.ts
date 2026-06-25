@@ -23,8 +23,8 @@ import {
   setCustomAttr,
   type SvgNode,
   withPageFlag,
-} from 'svg-engine/core';
-import { LayersService, PaletteRegistry, SelectionService } from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/core';
+import { LayersService, PaletteRegistry, SelectionService } from '@mosaicoo/svg-engine/edit';
 import { cssColorToHex6, SvgeInspector } from './inspector.component';
 
 @Component({
@@ -883,7 +883,7 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
     function setupWithRect(style?: Record<string, unknown>) {
       const r = createRect(
         { x: 0, y: 0, width: 10, height: 10 },
-        style ? { style: style as import('svg-engine/core').SvgStyle } : {},
+        style ? { style: style as import('@mosaicoo/svg-engine/core').SvgStyle } : {},
       );
       const ctx = setup();
       ctx.state.setDocument({
@@ -1002,7 +1002,7 @@ describe('SvgeInspector — display polish (Bloco 4-IP)', () => {
 });
 
 describe('SvgeInspector — transform decomposition (Item 5, débito 4c-Polish)', () => {
-  function setupWithRect(transform: import('svg-engine/core').Transform) {
+  function setupWithRect(transform: import('@mosaicoo/svg-engine/core').Transform) {
     const ctx = setup();
     const r = createRect({ x: 0, y: 0, width: 10, height: 10 }, { transform });
     ctx.state.setDocument({
@@ -1063,7 +1063,7 @@ describe('SvgeInspector — transform decomposition (Item 5, débito 4c-Polish)'
 
   it('Reset button restores identity rotation + scale (keeps translation)', () => {
     // Start with translate(10,20) + rotate(45°) + scale(2)
-    const t = ((): import('svg-engine/core').Transform => {
+    const t = ((): import('@mosaicoo/svg-engine/core').Transform => {
       const angle = Math.PI / 4;
       const cos = Math.cos(angle);
       const sin = Math.sin(angle);
@@ -1130,7 +1130,7 @@ describe('SvgeInspector — multi-edit (Item 1, débito 4c)', () => {
     const rects = rectsStyle.map((style) =>
       createRect(
         { x: 0, y: 0, width: 10, height: 10 },
-        { style: style as import('svg-engine/core').SvgStyle },
+        { style: style as import('@mosaicoo/svg-engine/core').SvgStyle },
       ),
     );
     ctx.state.setDocument({
@@ -1247,7 +1247,7 @@ describe('SvgeInspector — multi-edit (Item 1, débito 4c)', () => {
 // 7. Pure helpers (parseFontFeatures + stringifyFontFeatures) handle
 //    the spec's tolerated quote styles + on/off/0/1 toggles.
 
-import { type TextNode } from 'svg-engine/core';
+import { type TextNode } from '@mosaicoo/svg-engine/core';
 import { parseFontFeatures, stringifyFontFeatures } from './inspector.component';
 
 describe('SvgeInspector — D-068 Type section visibility', () => {

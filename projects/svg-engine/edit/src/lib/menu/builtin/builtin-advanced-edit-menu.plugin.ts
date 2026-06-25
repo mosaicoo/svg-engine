@@ -10,7 +10,7 @@ import {
   ReleaseLiveBooleanCommand,
   EditorStateService,
   findNodeById,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../../plugin/plugin';
 import { SelectionService } from '../../selection/selection.service';

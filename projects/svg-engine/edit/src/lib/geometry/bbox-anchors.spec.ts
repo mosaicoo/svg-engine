@@ -1,4 +1,4 @@
-import { bbox } from 'svg-engine/core';
+import { bbox } from '@mosaicoo/svg-engine/core';
 import { allAnchors, anchorPoint, BBOX_ANCHORS, findNearestAnchor } from './bbox-anchors';
 
 describe('BBOX_ANCHORS', () => {

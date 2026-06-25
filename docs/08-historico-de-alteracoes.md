@@ -6,6 +6,37 @@
 
 ---
 
+## 2026-06-25 — NPM-PUBLISH — Pacote escopado `@mosaicoo/svg-engine` + OIDC + só-compilado ✅
+
+Preparação completa para publicar a lib no npm (ver **ADR D-117**):
+
+- **Rename de escopo**: `svg-engine/*` → `@mosaicoo/svg-engine/*` em **315
+  arquivos** (487 specifiers: lib + apps + specs) + chaves `paths` do
+  `tsconfig.json`. Necessário porque o ng-packagr grava as refs cruzadas entre
+  entry points no `.mjs`/`.d.ts` usando o nome do pacote — então o nome tem de
+  estar certo já no build. Os alvos dos paths (`→ ./dist/svg-engine/*`) e o
+  output dir **não** mudaram; é **1 pacote com 9 entry points**, não 9 pacotes.
+- **`projects/svg-engine/package.json`**: `name` → `@mosaicoo/svg-engine` +
+  `publishConfig.access: "public"` (escopado é privado por padrão).
+- **Só o compilado vai ao npm**: novo `scripts/strip-sourcemaps.mjs` remove os
+  `*.mjs.map` (que embutem o `.ts` via `sourcesContent`) no fluxo de
+  `pack:lib`/`publish:lib`/release. Tarball: **34→24 arquivos, 2,6→1,4 MB**, só
+  `fesm2022/*.mjs` + `types/*.d.ts` + metadados.
+- **`release.yml` → Trusted Publishing (OIDC)**: `permissions: id-token: write`,
+  upgrade npm ≥ 11.5.1, sem `NPM_TOKEN`, sem `--provenance` manual (automático).
+  Bootstrap da 1ª versão é local (`npm run publish:lib`); depois liga-se o
+  Trusted Publisher (org=mosaicoo, repo=svg-engine, workflow=release.yml).
+- **Apps preservados**: `playground` e `svg-studio` **não** são publicados.
+  Verificação verde pós-rename: `build:lib`, build dos 2 apps, `test:lib`
+  (**2953** passed), lint (3 projetos) e `pack:lib` (tarball `@mosaicoo/svg-engine`).
+- **Docs**: READMEs (root + lib) e guia de plugin com `npm install
+@mosaicoo/svg-engine` + imports escopados.
+
+**Pendente (fora do código):** criar o token só não é necessário (OIDC); falta o
+usuário rodar o bootstrap local da v0.1.0 e configurar o Trusted Publisher.
+
+---
+
 ## 2026-06-25 — E2E-CI-FIX — Job `e2e` builda a lib antes de subir o playground ✅
 
 O job `e2e` do CI falhava no build (`✘ Could not resolve "svg-engine/edit"`,

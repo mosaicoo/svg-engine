@@ -33,7 +33,7 @@ import {
   type Transform,
   TRANSFORM_PROPERTY_NAMES,
   walk,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import type { Exporter } from './io-types';
 
 /**

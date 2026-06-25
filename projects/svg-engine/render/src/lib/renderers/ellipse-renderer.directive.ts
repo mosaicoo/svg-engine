@@ -1,5 +1,5 @@
 import { Directive, input } from '@angular/core';
-import type { EllipseNode } from 'svg-engine/core';
+import type { EllipseNode } from '@mosaicoo/svg-engine/core';
 
 /** Apply to `<svg:ellipse>` to bind attributes from an {@link EllipseNode}. */
 @Directive({

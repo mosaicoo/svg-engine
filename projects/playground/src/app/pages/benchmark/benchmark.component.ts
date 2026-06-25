@@ -8,7 +8,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { CommandBus, EditorStateService, HistoryService } from 'svg-engine/core';
+import { CommandBus, EditorStateService, HistoryService } from '@mosaicoo/svg-engine/core';
 import {
   ExporterRegistry,
   ImporterRegistry,
@@ -16,8 +16,8 @@ import {
   OptimizerRegistry,
   SelectionService,
   SvgeViewportCullingDirective,
-} from 'svg-engine/edit';
-import { SvgeRenderer, ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/edit';
+import { SvgeRenderer, ViewportService } from '@mosaicoo/svg-engine/render';
 import { FpsMeter } from './fps-meter';
 import { createSyntheticDoc } from './synth-doc';
 

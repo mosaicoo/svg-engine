@@ -1,4 +1,4 @@
-import { createPath, type PathNode } from 'svg-engine/core';
+import { createPath, type PathNode } from '@mosaicoo/svg-engine/core';
 import type { ShapeLibraryItem } from './shape-library.service';
 
 /**

@@ -21,8 +21,8 @@ import {
   SetStylePropertyOnManyCommand,
   type SvgNode,
   type SvgStyle,
-} from 'svg-engine/core';
-import { type FindCriteria, type FindMatch, FindReplaceService } from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/core';
+import { type FindCriteria, type FindMatch, FindReplaceService } from '@mosaicoo/svg-engine/edit';
 import { SvgeDialogShell } from '../dialog-shell';
 
 /**

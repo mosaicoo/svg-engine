@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { MatIcon } from '@angular/material/icon';
 import { MatTooltip } from '@angular/material/tooltip';
-import { type Palette, PaletteRegistry } from 'svg-engine/edit';
+import { type Palette, PaletteRegistry } from '@mosaicoo/svg-engine/edit';
 
 /**
  * Renders one or more color palettes as compact swatch grids and emits

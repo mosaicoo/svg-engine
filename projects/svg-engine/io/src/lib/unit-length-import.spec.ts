@@ -1,4 +1,4 @@
-import type { RectNode } from 'svg-engine/core';
+import type { RectNode } from '@mosaicoo/svg-engine/core';
 import { describe, expect, it } from 'vitest';
 
 import { svgImporter } from './svg-importer';

@@ -4,4 +4,4 @@
 // extraction (D-026): the SVG importer (svg-engine/io) and the editor's
 // bbox math both need this helper, so it had to be in a non-edit entry
 // point to avoid cross-pkg cycles.
-export { parseTransformAttr } from 'svg-engine/core';
+export { parseTransformAttr } from '@mosaicoo/svg-engine/core';

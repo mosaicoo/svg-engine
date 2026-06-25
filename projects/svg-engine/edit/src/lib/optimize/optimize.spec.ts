@@ -1,12 +1,12 @@
 import { TestBed } from '@angular/core/testing';
-import { createGroup, createPath, createRect, type SvgDocument } from 'svg-engine/core';
+import { createGroup, createPath, createRect, type SvgDocument } from '@mosaicoo/svg-engine/core';
 import {
   dropDefaultsOptimizer,
   OptimizerRegistry,
   precisionOptimizer,
   pruneEmptyGroupsOptimizer,
   stripAuthoredTitlesOptimizer,
-} from 'svg-engine/optimize';
+} from '@mosaicoo/svg-engine/optimize';
 import { PluginRegistry } from '../plugin/plugin-registry.service';
 import { builtinOptimizersPlugin } from './builtin-optimizers.plugin';
 

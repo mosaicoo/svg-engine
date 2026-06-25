@@ -8,7 +8,7 @@ import {
   EditorStateService,
   findNodeById,
   type GroupNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { describe, expect, it } from 'vitest';
 
 import { provideSvgEngineEditorScope } from '../scope';

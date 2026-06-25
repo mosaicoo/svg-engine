@@ -11,9 +11,13 @@ import {
   type SvgDocument,
   type SvgNode,
   type Transform,
-} from 'svg-engine/core';
-import { collectDefsIds, mergeDefsFragments, namespaceCollidingDefs } from 'svg-engine/io';
-import { ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/core';
+import {
+  collectDefsIds,
+  mergeDefsFragments,
+  namespaceCollidingDefs,
+} from '@mosaicoo/svg-engine/io';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 
 import { ActivePageService } from '../pages/active-page.service';
 import { SelectionService } from '../selection/selection.service';

@@ -1,6 +1,6 @@
 import { inject, Injectable, type Injector } from '@angular/core';
 import { MatDialog, type MatDialogRef } from '@angular/material/dialog';
-import type { NodeId } from 'svg-engine/core';
+import type { NodeId } from '@mosaicoo/svg-engine/core';
 import { svgeDialogConfig } from '../dialog-shell';
 import {
   SvgeTraceImageDialog,

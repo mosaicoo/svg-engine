@@ -22,8 +22,8 @@ import {
   ResizePageCommand,
   SetPageOptionsCommand,
   type SvgNode,
-} from 'svg-engine/core';
-import { ActivePageService } from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/core';
+import { ActivePageService } from '@mosaicoo/svg-engine/edit';
 import { SvgeDialogShell } from '../dialog-shell';
 
 /**

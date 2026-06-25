@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ViewportService } from 'svg-engine/render';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 import { GuidesOverlay } from './guides-overlay.component';
 import { WorkspaceService } from './workspace.service';
 

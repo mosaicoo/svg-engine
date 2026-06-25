@@ -48,9 +48,9 @@ import {
   RotateNodeCommand,
   collectNodes,
   type NodeId,
-} from 'svg-engine/core';
-import { SelectionService } from 'svg-engine/edit';
-import type { Disposable } from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
+import { SelectionService } from '@mosaicoo/svg-engine/edit';
+import type { Disposable } from '@mosaicoo/svg-engine/core';
 
 import { NaturalLanguageService } from '../natural-language.service';
 import {

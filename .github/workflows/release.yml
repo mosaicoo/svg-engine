@@ -1,24 +1,29 @@
 name: Release
 
 # ─────────────────────────────────────────────────────────────────────
-# D-031 — Publish on tag.
+# Publish-on-tag via npm Trusted Publishing (OIDC) — sem NPM_TOKEN.
 #
-# Trigger: pushing a Git tag matching `v*` (created by
-# `npm run release` via standard-version).
+# Trigger: push de uma tag Git `v*` (criada por `npm run release` via
+# standard-version).
 #
-# Flow:
-#   1. Build the library (`npx ng build svg-engine` → `dist/svg-engine`).
-#   2. Run the full test suite as a gate.
-#   3. `npm pack` (dry-run) to verify the tarball contents.
-#   4. `npm publish` IF an `NPM_TOKEN` secret is configured.
-#      Without the secret, the workflow stops at the pack step —
-#      the artifact is uploaded as a workflow artifact for manual
-#      inspection. This makes the workflow "ready when you add token"
-#      without forcing premature publish decisions.
+# Autenticação: OIDC (Trusted Publisher). NÃO usa secret NPM_TOKEN nem
+# "bypass 2FA". Requisitos:
+#   - `permissions: id-token: write` (gera o token OIDC efêmero).
+#   - npm CLI >= 11.5.1 (instalado abaixo; o Node 22 traz o npm 10).
+#   - O pacote `@mosaicoo/svg-engine` PRECISA já existir no npm E um
+#     Trusted Publisher precisa estar configurado em npmjs.com apontando
+#     para: org/usuário = mosaicoo, repositório = svg-engine, workflow =
+#     release.yml. Bootstrap: publique a 1ª versão localmente
+#     (`npm run publish:lib`), configure o Trusted Publisher, e a partir
+#     daí as tags publicam por aqui.
 #
-# Registry choice is pending decision D-025?
-# (npm public / GitHub Packages / Mosaicoo private registry).
-# When that decision lands, point `registry-url` accordingly.
+# Proveniência (provenance) é gerada AUTOMATICAMENTE em publicações OIDC
+# (repo público + pacote público) — sem precisar do flag `--provenance`.
+#
+# Só a LIB é publicada (`dist/svg-engine`). Os apps (playground,
+# svg-studio) nunca são publicados. O pacote leva apenas o código
+# compilado (`.mjs` + `.d.ts`): os sourcemaps são removidos pelo
+# `strip:maps` antes do publish.
 # ─────────────────────────────────────────────────────────────────────
 
 on:
@@ -32,17 +37,12 @@ concurrency:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   build-and-publish:
-    name: Build + Publish (Node ${{ matrix.node }})
+    name: Build + Publish (OIDC)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true
-      matrix:
-        node: ['22']
-    env:
-      HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
 
     steps:
       - name: Checkout
@@ -50,12 +50,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node ${{ matrix.node }}
+      - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: '22'
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
+
+      # Trusted Publishing (OIDC) exige npm >= 11.5.1; o Node 22 traz o npm 10.
+      - name: Upgrade npm (OIDC support)
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci
@@ -68,6 +72,10 @@ jobs:
 
       - name: Build library
         run: npx ng build svg-engine
+
+      # Publica apenas o compilado: remove os *.map (que embutem o .ts).
+      - name: Strip sourcemaps
+        run: npm run strip:maps
 
       - name: Pack tarball (dry-run)
         working-directory: dist/svg-engine
@@ -85,16 +93,7 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      - name: Publish to npm
-        if: env.HAS_NPM_TOKEN == 'true'
+      # OIDC: sem token. `access`/provenance vêm do publishConfig + ambiente.
+      - name: Publish to npm (Trusted Publishing / OIDC)
         working-directory: dist/svg-engine
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance
-
-      - name: Skip publish (no NPM_TOKEN secret)
-        if: env.HAS_NPM_TOKEN != 'true'
-        run: |
-          echo "::notice::NPM_TOKEN secret not set — skipping npm publish."
-          echo "The tarball is uploaded as a workflow artifact for manual review."
-          echo "To enable automatic publish, add NPM_TOKEN as a repository secret."
+        run: npm publish

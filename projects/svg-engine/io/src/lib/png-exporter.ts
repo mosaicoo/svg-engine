@@ -1,4 +1,4 @@
-import type { SvgDocument } from 'svg-engine/core';
+import type { SvgDocument } from '@mosaicoo/svg-engine/core';
 import { embedUsedFonts } from './font-embed';
 import type { Exporter } from './io-types';
 import { svgExporter } from './svg-exporter';

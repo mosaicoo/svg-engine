@@ -12,7 +12,7 @@ import {
   type SvgDocument,
   type SvgNode,
   withPageFlag,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { describe, expect, it } from 'vitest';
 
 /**

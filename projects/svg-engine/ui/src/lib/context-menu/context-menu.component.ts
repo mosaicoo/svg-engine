@@ -14,7 +14,7 @@ import {
   MenuContributionRegistry,
   runContribution,
   type MenuContribution,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 
 /**
  * Context menu **content component** — Sprint Pro-Editor Phase 2.
@@ -204,5 +204,5 @@ export class SvgeContextMenu {
 // Re-export the canonical slot constants from svg-engine/edit (single
 // source of truth — see edit/lib/menu/menu-slots.ts). Kept here as a
 // re-export so that consumers using the historical import path
-// `from 'svg-engine/ui'` continue to work without code changes.
-export { CONTEXT_MENU_SLOT, type ContextMenuSlot } from 'svg-engine/edit';
+// `from '@mosaicoo/svg-engine/ui'` continue to work without code changes.
+export { CONTEXT_MENU_SLOT, type ContextMenuSlot } from '@mosaicoo/svg-engine/edit';

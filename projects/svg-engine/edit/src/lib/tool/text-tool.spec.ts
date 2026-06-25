@@ -5,7 +5,7 @@ import {
   isGroupNode,
   type Point,
   type TextNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { PluginRegistry } from '../plugin/plugin-registry.service';
 import { provideSvgEnginePlugin } from '../plugin/provide-plugin';
 import { PLACEHOLDER_TEXT, TEXT_TOOL_ID, textToolPlugin } from './text-tool.plugin';

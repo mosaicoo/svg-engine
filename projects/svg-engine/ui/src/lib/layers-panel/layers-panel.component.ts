@@ -37,8 +37,8 @@ import {
   type SvgNode,
   type SvgNodeType,
   UnmakeLayerCommand,
-} from 'svg-engine/core';
-import { IsolationService, LayersService, SelectionService } from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/core';
+import { IsolationService, LayersService, SelectionService } from '@mosaicoo/svg-engine/edit';
 
 /**
  * Where a dragged row would land relative to the hovered row. Drives

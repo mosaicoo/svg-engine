@@ -1,7 +1,7 @@
 import { Injector, type Provider, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import type { NodeId, SvgDocument } from 'svg-engine/core';
-import { ImportPlacementService } from 'svg-engine/edit';
+import type { NodeId, SvgDocument } from '@mosaicoo/svg-engine/core';
+import { ImportPlacementService } from '@mosaicoo/svg-engine/edit';
 import { describe, expect, it } from 'vitest';
 
 import { NaturalLanguageService } from '../natural-language.service';

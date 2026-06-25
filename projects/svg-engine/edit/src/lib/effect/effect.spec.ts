@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { createGroup, createRect } from 'svg-engine/core';
+import { createGroup, createRect } from '@mosaicoo/svg-engine/core';
 import {
   bevelEffect,
   blurEffect,

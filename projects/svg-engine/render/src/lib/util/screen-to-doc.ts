@@ -1,4 +1,4 @@
-import type { Point } from 'svg-engine/core';
+import type { Point } from '@mosaicoo/svg-engine/core';
 
 /**
  * Project a client (screen) pixel coordinate into the document's

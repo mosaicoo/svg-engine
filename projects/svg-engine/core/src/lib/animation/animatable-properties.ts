@@ -6,7 +6,7 @@ import type { SvgNode } from '../model/svg-node';
  * per node type** — the source of truth for the timeline's rows (F4). It
  * mirrors what the Inspector already knows about each shape (geometry fields,
  * transform components, style attributes), but as pure, headless data so both
- * the editor engine ({@link import('svg-engine/edit').AnimationService}) and
+ * the editor engine ({@link import('@mosaicoo/svg-engine/edit').AnimationService}) and
  * the timeline UI consume the same list.
  *
  * **Alignment with the apply layer (F1)** is the whole point: every

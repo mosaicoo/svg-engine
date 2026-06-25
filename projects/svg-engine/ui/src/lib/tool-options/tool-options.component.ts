@@ -1,7 +1,7 @@
 import { NgComponentOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { MatIcon } from '@angular/material/icon';
-import { ToolHostService, ToolRegistry } from 'svg-engine/edit';
+import { ToolHostService, ToolRegistry } from '@mosaicoo/svg-engine/edit';
 import { ToolOptionsRegistry } from './tool-options-registry.service';
 
 /**

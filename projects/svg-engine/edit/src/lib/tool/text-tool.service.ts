@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import type { NodeId } from 'svg-engine/core';
+import type { NodeId } from '@mosaicoo/svg-engine/core';
 
 /**
  * Coordinates the inline text-editing gesture between the

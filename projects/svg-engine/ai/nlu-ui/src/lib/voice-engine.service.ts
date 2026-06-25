@@ -1,5 +1,9 @@
 import { computed, inject, Injectable, signal, type Signal } from '@angular/core';
-import { type VoiceEngine, type VoiceProvider, VOICE_WHISPER_PROVIDER } from 'svg-engine/ai/nlu';
+import {
+  type VoiceEngine,
+  type VoiceProvider,
+  VOICE_WHISPER_PROVIDER,
+} from '@mosaicoo/svg-engine/ai/nlu';
 import { VoiceRecognitionService } from './voice-recognition.service';
 import { readVoicePref, writeVoicePref } from './voice-prefs';
 

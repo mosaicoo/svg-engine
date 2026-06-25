@@ -1,5 +1,10 @@
 import { TestBed } from '@angular/core/testing';
-import { CommandBus, createSymbolUse, EditorStateService, type GroupNode } from 'svg-engine/core';
+import {
+  CommandBus,
+  createSymbolUse,
+  EditorStateService,
+  type GroupNode,
+} from '@mosaicoo/svg-engine/core';
 import { describe, expect, it } from 'vitest';
 
 import { provideSvgEnginePlugin } from '../../plugin/provide-plugin';

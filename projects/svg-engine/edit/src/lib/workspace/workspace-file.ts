@@ -1,4 +1,4 @@
-import type { BoundingBox } from 'svg-engine/core';
+import type { BoundingBox } from '@mosaicoo/svg-engine/core';
 import type {
   BackgroundConfig,
   GridConfig,

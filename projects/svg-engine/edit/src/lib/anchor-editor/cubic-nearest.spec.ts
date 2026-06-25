@@ -1,4 +1,4 @@
-import type { Point } from 'svg-engine/core';
+import type { Point } from '@mosaicoo/svg-engine/core';
 import { describe, expect, it } from 'vitest';
 import { cubicPointAt, nearestTOnCubic } from './cubic-nearest';
 

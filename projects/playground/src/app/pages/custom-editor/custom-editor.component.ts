@@ -39,7 +39,7 @@ import {
   type ReorderDirection,
   ReorderNodeCommand,
   UngroupCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import {
   type AlignAxis,
   AlignmentService,
@@ -100,8 +100,8 @@ import {
   TransformService,
   WorkspaceBackground,
   WorkspaceService,
-} from 'svg-engine/edit';
-import { screenToDoc, SvgeRenderer, ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/edit';
+import { screenToDoc, SvgeRenderer, ViewportService } from '@mosaicoo/svg-engine/render';
 import {
   LayersPanel,
   SvgeEffectsPanel,
@@ -117,7 +117,7 @@ import {
   SvgeToolbar,
   SvgeToolOptions,
   SvgeWorkspaceSettingsDialogService,
-} from 'svg-engine/ui';
+} from '@mosaicoo/svg-engine/ui';
 
 type ShapeKind = 'rect' | 'ellipse' | 'path';
 
@@ -549,7 +549,7 @@ export class CustomEditor implements OnDestroy {
   }
 
   /** Disposables for shortcuts registered in the constructor. */
-  private readonly shortcutDisposables: import('svg-engine/edit').Disposable[] = [];
+  private readonly shortcutDisposables: import('@mosaicoo/svg-engine/edit').Disposable[] = [];
 
   /**
    * Z-order operation enabled when exactly one node is selected

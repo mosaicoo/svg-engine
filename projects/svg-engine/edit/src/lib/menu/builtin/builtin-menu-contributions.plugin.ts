@@ -49,7 +49,7 @@ import {
   UnionCommand,
   UnmakeLayerCommand,
   withSmartObjectFlag,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import {
   gunzipText,
   gzipText,
@@ -58,9 +58,9 @@ import {
   svgExporter,
   svgImporter,
   svgzExporter,
-} from 'svg-engine/io';
-import { OptimizeCommand, OptimizerRegistry } from 'svg-engine/optimize';
-import { ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/io';
+import { OptimizeCommand, OptimizerRegistry } from '@mosaicoo/svg-engine/optimize';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 
 import {
   type AlignAxis,
@@ -3366,12 +3366,12 @@ function ungroupFocus(runCtx: MenuContributionContext | undefined, fromCtx: Reso
 function getSelectedNodes(
   runCtx: MenuContributionContext | undefined,
   fromCtx: Resolver,
-): readonly import('svg-engine/core').SvgNode[] {
+): readonly import('@mosaicoo/svg-engine/core').SvgNode[] {
   const sel = fromCtx(SelectionService, runCtx);
   const state = fromCtx(EditorStateService, runCtx);
   const ids = sel.selectedIds();
   if (ids.size === 0) return [];
-  const out: import('svg-engine/core').SvgNode[] = [];
+  const out: import('@mosaicoo/svg-engine/core').SvgNode[] = [];
   for (const id of ids) {
     const node = findNodeById(state.document().root, id);
     if (node !== null) out.push(node);

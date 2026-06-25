@@ -7,7 +7,7 @@ import {
   findNodeById,
   HistoryService,
   InsertNodeCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { PluginRegistry } from '../plugin/plugin-registry.service';
 import { ShortcutRegistry } from '../shortcut/shortcut-registry.service';
 import { SelectionService } from './selection.service';

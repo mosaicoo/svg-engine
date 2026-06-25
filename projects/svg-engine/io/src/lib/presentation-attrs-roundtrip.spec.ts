@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createGroup, createPath, type SvgDocument, type SvgNode } from 'svg-engine/core';
+import { createGroup, createPath, type SvgDocument, type SvgNode } from '@mosaicoo/svg-engine/core';
 import { svgExporter } from './svg-exporter';
 import { svgImporter } from './svg-importer';
 

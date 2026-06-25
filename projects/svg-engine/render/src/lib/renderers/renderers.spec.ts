@@ -12,7 +12,7 @@ import {
   createText,
   type SvgNode,
   translate,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { SvgeNodeRenderer } from './node-renderer.component';
 
 @Component({

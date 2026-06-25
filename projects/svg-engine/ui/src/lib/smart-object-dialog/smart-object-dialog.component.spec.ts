@@ -9,7 +9,7 @@ import {
   type NodeId,
   type SvgDocument,
   withSmartObjectFlag,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { SvgeSmartObjectEditorDialog } from './smart-object-dialog.component';

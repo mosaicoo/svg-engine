@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
-import { CommandBus, HistoryService } from 'svg-engine/core';
+import { CommandBus, HistoryService } from '@mosaicoo/svg-engine/core';
 
 /** One row in the History list (one document state). */
 interface HistoryRow {

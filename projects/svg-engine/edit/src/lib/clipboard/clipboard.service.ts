@@ -1,5 +1,5 @@
 import { computed, Injectable, signal } from '@angular/core';
-import { cloneNodeWithNewIds, type NodeId, type SvgNode } from 'svg-engine/core';
+import { cloneNodeWithNewIds, type NodeId, type SvgNode } from '@mosaicoo/svg-engine/core';
 
 /**
  * **In-memory editor clipboard** — D-044 (UI controls full-functionality, follow-up).

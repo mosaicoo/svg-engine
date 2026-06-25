@@ -10,7 +10,7 @@ import {
   type SvgNode,
   type SvgStyle,
   type TextNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import type { Optimizer } from './optimizer';
 
 /**

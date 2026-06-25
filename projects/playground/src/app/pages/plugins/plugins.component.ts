@@ -4,8 +4,8 @@ import {
   PLUGIN_API_VERSION,
   PluginLoader,
   PluginManagerService,
-} from 'svg-engine/edit';
-import { SvgePluginManager } from 'svg-engine/ui';
+} from '@mosaicoo/svg-engine/edit';
+import { SvgePluginManager } from '@mosaicoo/svg-engine/ui';
 
 import { LOADER_DEMO_ORIGIN, trustedManifest, untrustedManifest } from './loader-demo';
 

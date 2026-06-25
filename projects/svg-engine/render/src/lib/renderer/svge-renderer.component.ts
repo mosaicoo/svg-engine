@@ -8,7 +8,7 @@ import {
   input,
   viewChild,
 } from '@angular/core';
-import type { BoundingBox, SvgDocument, SvgNode } from 'svg-engine/core';
+import type { BoundingBox, SvgDocument, SvgNode } from '@mosaicoo/svg-engine/core';
 import { SvgeNodeRenderer } from '../renderers/node-renderer.component';
 import { ViewportService } from '../viewport/viewport.service';
 

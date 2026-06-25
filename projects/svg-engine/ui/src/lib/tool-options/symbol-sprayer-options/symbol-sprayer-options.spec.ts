@@ -5,8 +5,8 @@ import {
   SymbolLibraryService,
   SymbolSelectionService,
   SymbolSprayerService,
-} from 'svg-engine/edit';
-import { createRect } from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/edit';
+import { createRect } from '@mosaicoo/svg-engine/core';
 import { SvgeSymbolSprayerOptions } from './symbol-sprayer-options.component';
 
 /**

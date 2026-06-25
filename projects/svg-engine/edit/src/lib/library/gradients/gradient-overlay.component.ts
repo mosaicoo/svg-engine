@@ -8,8 +8,13 @@ import {
   Injector,
   signal,
 } from '@angular/core';
-import { type BoundingBox, CommandBus, EditorStateService, findNodeById } from 'svg-engine/core';
-import { screenToDoc, ViewportService } from 'svg-engine/render';
+import {
+  type BoundingBox,
+  CommandBus,
+  EditorStateService,
+  findNodeById,
+} from '@mosaicoo/svg-engine/core';
+import { screenToDoc, ViewportService } from '@mosaicoo/svg-engine/render';
 
 import { getRenderedNodeBBox } from '../../geometry/node-bbox';
 import { LayersService } from '../../layers/layers.service';

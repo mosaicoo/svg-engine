@@ -50,9 +50,9 @@ D-023) where the model, rendering, editing services and Material UI are
 
 ### Architectural guarantees (the hard rules)
 
-- **Headless boundary (D-017)**: `svg-engine/core`, `render`, and `edit`
+- **Headless boundary (D-017)**: `@mosaicoo/svg-engine/core`, `render`, and `edit`
   have **zero dependency on `@angular/material` or `@angular/cdk`**. The
-  Material UI lives only in `svg-engine/ui`, which is opt-in.
+  Material UI lives only in `@mosaicoo/svg-engine/ui`, which is opt-in.
 - **Immutable model**: every mutation produces a new tree (structural
   sharing). Undo is a snapshot + replay, not a delta system.
 - **Signal-first**: all reactive state is `signal` / `computed`. No
@@ -67,10 +67,10 @@ D-023) where the model, rendering, editing services and Material UI are
 ## Install
 
 ```bash
-npm install svg-engine @angular/core@^21
+npm install @mosaicoo/svg-engine @angular/core@^21
 ```
 
-Optional UI peer dependencies (only when consuming `svg-engine/ui`):
+Optional UI peer dependencies (only when consuming `@mosaicoo/svg-engine/ui`):
 
 ```bash
 npm install @angular/material@^21 @angular/cdk@^21
@@ -82,8 +82,8 @@ npm install @angular/material@^21 @angular/cdk@^21
 
 ```ts
 import { Component } from '@angular/core';
-import { SvgeRenderer } from 'svg-engine/render';
-import { createRect, createGroup, type SvgDocument } from 'svg-engine/core';
+import { SvgeRenderer } from '@mosaicoo/svg-engine/render';
+import { createRect, createGroup, type SvgDocument } from '@mosaicoo/svg-engine/core';
 
 @Component({
   standalone: true,
@@ -112,7 +112,7 @@ Drop in the IO plugin and use the registry:
 
 ```ts
 // app.config.ts
-import { provideSvgEnginePlugin, builtinIoPlugin } from 'svg-engine/edit';
+import { provideSvgEnginePlugin, builtinIoPlugin } from '@mosaicoo/svg-engine/edit';
 providers: [provideSvgEnginePlugin(builtinIoPlugin)];
 
 // any component
@@ -135,7 +135,7 @@ fragments so gradients and clip-paths survive save → load.
 For the Material-styled drop-in editor:
 
 ```ts
-import { SvgeEditor } from 'svg-engine/ui';
+import { SvgeEditor } from '@mosaicoo/svg-engine/ui';
 
 // template
 <svge-editor [title]="'My drawing'">
@@ -157,27 +157,27 @@ example.
 
 ## Entry points at a glance
 
-| Package                        | What's in it                                                                                                                                                                       | Material? |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| `svg-engine/core`              | model, commands (incl. anchor + pathfinder), history, state, geometry, tree ops, `Disposable`, transform parser                                                                    | ❌        |
-| `svg-engine/render`            | `<svge-renderer>`, per-type directives, viewport, node-renderer registry                                                                                                           | ❌        |
-| `svg-engine/io`                | `Importer`/`Exporter` registries + types, `svgImporter`, `svgExporter`, `pngExporter`, `renderPng`                                                                                 | ❌        |
-| `svg-engine/optimize`          | `Optimizer` type + `OptimizerRegistry`, 3 built-in passes (precision/dropDefaults/pruneEmptyGroups), `OptimizeCommand`                                                             | ❌        |
-| `svg-engine/edit`              | selection, transform, marquee, snap, alignment, anchor editor, pathfinder, pages, animation, snapshots, effects, libraries, autotrace, tools, plugin scaffolding, viewport culling | ❌        |
-| `svg-engine/ui`                | `<svge-editor>`/`<svge-shell-pro>`, layers panel, inspector, toolbar, status bar, rulers, palette, color picker, dialogs, theme toggle                                             | ✅        |
-| `svg-engine/ai/nlu`            | Natural-language command engine (intents, dictionaries PT/EN, fuzzy match, slot extraction); headless                                                                              | ❌        |
-| `svg-engine/ai/nlu-ui`         | `<svge-nlu-input>` — text/voice command box bound to the NLU engine                                                                                                                | ✅        |
-| `svg-engine/ai/nlu-voice-wasm` | On-device speech-to-text provider (Whisper via `@huggingface/transformers`)                                                                                                        | ❌        |
-| `playground` (app)             | reference consumer + `/perf` benchmark harness                                                                                                                                     | ✅        |
+| Package                                  | What's in it                                                                                                                                                                       | Material? |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `@mosaicoo/svg-engine/core`              | model, commands (incl. anchor + pathfinder), history, state, geometry, tree ops, `Disposable`, transform parser                                                                    | ❌        |
+| `@mosaicoo/svg-engine/render`            | `<svge-renderer>`, per-type directives, viewport, node-renderer registry                                                                                                           | ❌        |
+| `@mosaicoo/svg-engine/io`                | `Importer`/`Exporter` registries + types, `svgImporter`, `svgExporter`, `pngExporter`, `renderPng`                                                                                 | ❌        |
+| `@mosaicoo/svg-engine/optimize`          | `Optimizer` type + `OptimizerRegistry`, 3 built-in passes (precision/dropDefaults/pruneEmptyGroups), `OptimizeCommand`                                                             | ❌        |
+| `@mosaicoo/svg-engine/edit`              | selection, transform, marquee, snap, alignment, anchor editor, pathfinder, pages, animation, snapshots, effects, libraries, autotrace, tools, plugin scaffolding, viewport culling | ❌        |
+| `@mosaicoo/svg-engine/ui`                | `<svge-editor>`/`<svge-shell-pro>`, layers panel, inspector, toolbar, status bar, rulers, palette, color picker, dialogs, theme toggle                                             | ✅        |
+| `@mosaicoo/svg-engine/ai/nlu`            | Natural-language command engine (intents, dictionaries PT/EN, fuzzy match, slot extraction); headless                                                                              | ❌        |
+| `@mosaicoo/svg-engine/ai/nlu-ui`         | `<svge-nlu-input>` — text/voice command box bound to the NLU engine                                                                                                                | ✅        |
+| `@mosaicoo/svg-engine/ai/nlu-voice-wasm` | On-device speech-to-text provider (Whisper via `@huggingface/transformers`)                                                                                                        | ❌        |
+| `playground` (app)                       | reference consumer + `/perf` benchmark harness                                                                                                                                     | ✅        |
 
 Each entry point is independently lazy-loadable. Consuming `core` does
 **not** drag in `render`, `io`, `optimize`, `edit`, `ui`, or `ai/*`. The
 `ai/*` trio is fully opt-in — none of the editor depends on it.
 
-> **D-026 (2026-05-20)**: `svg-engine/io` and `svg-engine/optimize`
-> were extracted from `svg-engine/edit` as dedicated entry points,
+> **D-026 (2026-05-20)**: `@mosaicoo/svg-engine/io` and `@mosaicoo/svg-engine/optimize`
+> were extracted from `@mosaicoo/svg-engine/edit` as dedicated entry points,
 > enabling use case "B" of D-016 (optimize/convert without dragging
-> the editor in). `svg-engine/edit` re-exports their public API for
+> the editor in). `@mosaicoo/svg-engine/edit` re-exports their public API for
 > backward compatibility — existing imports keep working unchanged.
 
 ---
@@ -213,21 +213,21 @@ contribution automatically. Detailed walkthrough in
 A non-exhaustive sample of the built-in plugins (see `docs/06`/`docs/09`
 for the full list):
 
-| Plugin                                                                                                                                             | Source              | Purpose                                                  |
-| -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | -------------------------------------------------------- |
-| `selectToolPlugin`                                                                                                                                 | `svg-engine/edit`   | Select + Direct-Select pointer/marquee tools             |
-| `pencilToolPlugin` / `penToolPlugin`                                                                                                               | `svg-engine/edit`   | Freehand + Bézier path drawing                           |
-| `shapeToolsPlugin`                                                                                                                                 | `svg-engine/edit`   | Rectangle / Ellipse / Polygon (+ star)                   |
-| `textToolPlugin`                                                                                                                                   | `svg-engine/edit`   | Inline text editing (rich-text runs)                     |
-| `extraToolsPlugin`                                                                                                                                 | `svg-engine/edit`   | Eyedropper / Knife / Smooth / Gradient / Width / Sprayer |
-| `builtinIoPlugin` / `pngExporterPlugin`                                                                                                            | `svg-engine/edit`   | Sanitized SVG import + deterministic SVG/PNG export      |
-| `builtinOptimizersPlugin`                                                                                                                          | `svg-engine/edit`   | Precision rounding, drop defaults, prune empty groups    |
-| `builtinEffectsPlugin`                                                                                                                             | `svg-engine/edit`   | Non-destructive, chainable filter effects                |
-| `builtinShapesPlugin` / `…GradientsPlugin` / `…PatternsPlugin` / `…SymbolsPlugin` / `…BrushesPlugin` / `…GraphicStylesPlugin` / `…TemplatesPlugin` | `svg-engine/edit`   | Library asset families                                   |
-| `builtinMenuContributionsPlugin`                                                                                                                   | `svg-engine/edit`   | File/Edit/Object/Path/View menu commands + shortcuts     |
-| `builtinUiMenuContributionsPlugin`                                                                                                                 | `svg-engine/ui`     | UI-only commands (View Source, Trace Image, dialogs)     |
-| `builtinNluPlugin`                                                                                                                                 | `svg-engine/ai/nlu` | Natural-language shape/style/command intents             |
-| `selectionNudgePlugin`                                                                                                                             | `svg-engine/edit`   | Arrow-key nudge for keyboard accessibility               |
+| Plugin                                                                                                                                             | Source                        | Purpose                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | -------------------------------------------------------- |
+| `selectToolPlugin`                                                                                                                                 | `@mosaicoo/svg-engine/edit`   | Select + Direct-Select pointer/marquee tools             |
+| `pencilToolPlugin` / `penToolPlugin`                                                                                                               | `@mosaicoo/svg-engine/edit`   | Freehand + Bézier path drawing                           |
+| `shapeToolsPlugin`                                                                                                                                 | `@mosaicoo/svg-engine/edit`   | Rectangle / Ellipse / Polygon (+ star)                   |
+| `textToolPlugin`                                                                                                                                   | `@mosaicoo/svg-engine/edit`   | Inline text editing (rich-text runs)                     |
+| `extraToolsPlugin`                                                                                                                                 | `@mosaicoo/svg-engine/edit`   | Eyedropper / Knife / Smooth / Gradient / Width / Sprayer |
+| `builtinIoPlugin` / `pngExporterPlugin`                                                                                                            | `@mosaicoo/svg-engine/edit`   | Sanitized SVG import + deterministic SVG/PNG export      |
+| `builtinOptimizersPlugin`                                                                                                                          | `@mosaicoo/svg-engine/edit`   | Precision rounding, drop defaults, prune empty groups    |
+| `builtinEffectsPlugin`                                                                                                                             | `@mosaicoo/svg-engine/edit`   | Non-destructive, chainable filter effects                |
+| `builtinShapesPlugin` / `…GradientsPlugin` / `…PatternsPlugin` / `…SymbolsPlugin` / `…BrushesPlugin` / `…GraphicStylesPlugin` / `…TemplatesPlugin` | `@mosaicoo/svg-engine/edit`   | Library asset families                                   |
+| `builtinMenuContributionsPlugin`                                                                                                                   | `@mosaicoo/svg-engine/edit`   | File/Edit/Object/Path/View menu commands + shortcuts     |
+| `builtinUiMenuContributionsPlugin`                                                                                                                 | `@mosaicoo/svg-engine/ui`     | UI-only commands (View Source, Trace Image, dialogs)     |
+| `builtinNluPlugin`                                                                                                                                 | `@mosaicoo/svg-engine/ai/nlu` | Natural-language shape/style/command intents             |
+| `selectionNudgePlugin`                                                                                                                             | `@mosaicoo/svg-engine/edit`   | Arrow-key nudge for keyboard accessibility               |
 
 Provision them at bootstrap:
 
@@ -253,7 +253,7 @@ behavior:
 
 ```ts
 // Programmatic — same commands the UI dispatches
-import { CommandBus, ConvertAnchorTypeCommand, MoveAnchorCommand } from 'svg-engine/core';
+import { CommandBus, ConvertAnchorTypeCommand, MoveAnchorCommand } from '@mosaicoo/svg-engine/core';
 
 bus.dispatch(new MoveAnchorCommand(ref, { x: 100, y: 50 }, 'point'));
 bus.dispatch(new ConvertAnchorTypeCommand(ref, 'symmetric'));
@@ -272,7 +272,7 @@ style (intersection slivers fall back to operand A — the top-of-stack
 Illustrator convention).
 
 ```ts
-import { UnionCommand, DivideCommand } from 'svg-engine/core';
+import { UnionCommand, DivideCommand } from '@mosaicoo/svg-engine/core';
 bus.dispatch(new UnionCommand([nodeAId, nodeBId, nodeCId]));
 bus.dispatch(new DivideCommand([rectId, circleId])); // each region a separate path
 ```

@@ -1,4 +1,4 @@
-import type { BoundingBox, Point } from 'svg-engine/core';
+import type { BoundingBox, Point } from '@mosaicoo/svg-engine/core';
 
 /**
  * Identifier of each of the 9 anchor positions on a bounding box.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createGroup, createRect, createText } from 'svg-engine/core';
+import { createGroup, createRect, createText } from '@mosaicoo/svg-engine/core';
 import {
   buildEmbeddedFontCss,
   collectUsedFontFamilies,

@@ -16,7 +16,7 @@ import {
   RemoveNodeCommand,
   SetPropertyCommand,
   type TextNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { composeAncestorMatrix } from '../anchor-editor/compose-ancestor-matrix';
 import { InlineTextEditorService } from './text-tool.service';
 import { PLACEHOLDER_TEXT } from './text-tool.plugin';
@@ -133,7 +133,7 @@ export class InlineTextEditor {
    * `@if (target(); as t)` gate hides the editor.
    */
   private readonly _target = signal<{
-    nodeId: import('svg-engine/core').NodeId;
+    nodeId: import('@mosaicoo/svg-engine/core').NodeId;
     initialText: string;
     x: number;
     y: number;

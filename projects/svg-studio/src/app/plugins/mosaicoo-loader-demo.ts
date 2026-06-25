@@ -8,8 +8,8 @@ import {
   PLUGIN_API_VERSION,
   PluginLoader,
   type PluginModuleLoader,
-} from 'svg-engine/edit';
-import { SvgePluginManagerDialogService } from 'svg-engine/ui';
+} from '@mosaicoo/svg-engine/edit';
+import { SvgePluginManagerDialogService } from '@mosaicoo/svg-engine/ui';
 
 import { environment } from '../../environments/environment';
 

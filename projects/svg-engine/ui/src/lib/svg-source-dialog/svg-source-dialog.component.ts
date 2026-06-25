@@ -9,9 +9,9 @@ import {
 import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatTooltip } from '@angular/material/tooltip';
-import { EditorStateService, type SvgDocument } from 'svg-engine/core';
-import { ActivePageService } from 'svg-engine/edit';
-import { ExporterRegistry, type Exporter, svgExporter } from 'svg-engine/io';
+import { EditorStateService, type SvgDocument } from '@mosaicoo/svg-engine/core';
+import { ActivePageService } from '@mosaicoo/svg-engine/edit';
+import { ExporterRegistry, type Exporter, svgExporter } from '@mosaicoo/svg-engine/io';
 import { SvgeDialogShell } from '../dialog-shell';
 
 /**

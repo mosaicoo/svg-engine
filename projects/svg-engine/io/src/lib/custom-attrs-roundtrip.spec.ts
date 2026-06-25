@@ -10,7 +10,7 @@ import {
   setCustomAttr,
   withLayerFlag,
   withSmartObjectFlag,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { svgExporter } from './svg-exporter';
 import { svgImporter } from './svg-importer';
 

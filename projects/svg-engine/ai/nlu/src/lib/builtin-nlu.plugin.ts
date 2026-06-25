@@ -17,16 +17,20 @@ import {
   ResizeNodeCommand,
   SetStylePropertyOnManyCommand,
   type NodeId,
-} from 'svg-engine/core';
-import { type EditorPlugin, MenuContributionRegistry, PLUGIN_API_VERSION } from 'svg-engine/edit';
-import { SelectionService } from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/core';
+import {
+  type EditorPlugin,
+  MenuContributionRegistry,
+  PLUGIN_API_VERSION,
+} from '@mosaicoo/svg-engine/edit';
+import { SelectionService } from '@mosaicoo/svg-engine/edit';
 import {
   buildGradientMarkup,
   type GradientGeometry,
   type GradientLibraryItem,
   type GradientStop,
   GradientLibraryService,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 import { SHAPE_KEYS } from './dictionaries/shapes';
 import {
   POLYGON_SIDES,

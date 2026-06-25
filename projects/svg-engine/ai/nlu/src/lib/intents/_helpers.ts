@@ -25,8 +25,8 @@ import {
   UnionCommand,
   type NodeId,
   type SvgNode,
-} from 'svg-engine/core';
-import { SelectionService } from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/core';
+import { SelectionService } from '@mosaicoo/svg-engine/edit';
 
 import { POLYGON_SIDES } from '../dictionaries/shapes-canonical';
 import type { NluContext } from '../types';

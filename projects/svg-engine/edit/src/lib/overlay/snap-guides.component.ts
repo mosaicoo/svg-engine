@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { EditorStateService } from 'svg-engine/core';
-import { ViewportService } from 'svg-engine/render';
+import { EditorStateService } from '@mosaicoo/svg-engine/core';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 import type { SnapGuide } from '../snap/snap-resolver';
 import { SnapService } from '../snap/snap.service';
 

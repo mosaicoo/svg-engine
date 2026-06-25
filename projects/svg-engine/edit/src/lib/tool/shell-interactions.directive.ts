@@ -12,8 +12,8 @@ import {
   type Point,
   RemoveAnchorCommand,
   RemoveNodeCommand,
-} from 'svg-engine/core';
-import { screenToDoc, ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/core';
+import { screenToDoc, ViewportService } from '@mosaicoo/svg-engine/render';
 import { AnchorSelectionService } from '../anchor-editor/anchor-selection.service';
 import { findRenderedNode, getCombinedBBox, getRenderedNodeBBox } from '../geometry/node-bbox';
 import {

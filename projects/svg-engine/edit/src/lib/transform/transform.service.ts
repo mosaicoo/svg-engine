@@ -23,7 +23,7 @@ import {
   translate,
   TranslateManyCommand,
   updateNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 
 /**
  * Local copy of `isIdentityOrTranslate` (mirrors the one in
@@ -36,7 +36,7 @@ function isIdentityOrTranslateLocal(transform: Transform): boolean {
   const eps = 1e-9;
   return Math.abs(a - 1) < eps && Math.abs(b) < eps && Math.abs(c) < eps && Math.abs(d - 1) < eps;
 }
-import { ViewportService } from 'svg-engine/render';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 import { allAnchors, type BBoxAnchor } from '../geometry/bbox-anchors';
 import { LayersService } from '../layers/layers.service';
 import { SelectionService } from '../selection/selection.service';

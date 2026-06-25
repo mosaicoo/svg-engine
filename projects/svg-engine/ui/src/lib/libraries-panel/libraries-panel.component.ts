@@ -26,8 +26,8 @@ import {
   type SvgNode,
   type SvgStyle,
   type Transform,
-} from 'svg-engine/core';
-import { ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/core';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 import {
   ActivePageService,
   AssetManagerService,
@@ -47,7 +47,7 @@ import {
   ShapeLibraryService,
   TemplateLibraryService,
   ToolHostService,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
 
 /**

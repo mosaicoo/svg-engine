@@ -6,8 +6,8 @@ import {
   createRect,
   EditorStateService,
   type SvgDocument,
-} from 'svg-engine/core';
-import { ExporterRegistry } from 'svg-engine/io';
+} from '@mosaicoo/svg-engine/core';
+import { ExporterRegistry } from '@mosaicoo/svg-engine/io';
 import { ActiveDefsService } from '../library/active-defs.service';
 import { provideSvgEngineEditorScope } from '../scope/editor-scope.providers';
 import { AssetExportRunner } from './asset-export-runner.service';

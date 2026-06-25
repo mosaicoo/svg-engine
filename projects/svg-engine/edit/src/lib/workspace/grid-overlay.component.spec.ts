@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { createEmptyDocument, type SvgDocument } from 'svg-engine/core';
-import { SvgeRenderer } from 'svg-engine/render';
+import { createEmptyDocument, type SvgDocument } from '@mosaicoo/svg-engine/core';
+import { SvgeRenderer } from '@mosaicoo/svg-engine/render';
 import { describe, expect, it } from 'vitest';
 import { buildGridLines, GridOverlay } from './grid-overlay.component';
 

@@ -10,8 +10,8 @@ import {
   AssetExportRunner,
   type ExportSlot,
   type ExportSlotResult,
-} from 'svg-engine/edit';
-import { ExporterRegistry } from 'svg-engine/io';
+} from '@mosaicoo/svg-engine/edit';
+import { ExporterRegistry } from '@mosaicoo/svg-engine/io';
 
 /**
  * **D-077 — `<svge-asset-export-panel>`** — Illustrator/Figma-style

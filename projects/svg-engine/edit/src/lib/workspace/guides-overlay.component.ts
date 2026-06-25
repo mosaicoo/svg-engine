@@ -9,7 +9,7 @@ import {
   type OnDestroy,
   signal,
 } from '@angular/core';
-import { screenToDoc, ViewportService } from 'svg-engine/render';
+import { screenToDoc, ViewportService } from '@mosaicoo/svg-engine/render';
 import { capturePointer, releasePointer } from '../pointer';
 import { WorkspaceService } from './workspace.service';
 

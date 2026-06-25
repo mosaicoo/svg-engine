@@ -1,6 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { type Palette, PaletteRegistry } from 'svg-engine/edit';
+import { type Palette, PaletteRegistry } from '@mosaicoo/svg-engine/edit';
 import { SvgeColorPalette } from './color-palette.component';
 
 @Component({

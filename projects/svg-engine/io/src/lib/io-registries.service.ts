@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import type { Disposable } from 'svg-engine/core';
+import type { Disposable } from '@mosaicoo/svg-engine/core';
 import type { Exporter, Importer } from './io-types';
 
 /**

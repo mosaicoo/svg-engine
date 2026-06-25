@@ -92,7 +92,7 @@
   (`--test-runner=vitest`) substituindo Karma. Vitest oferece execução
   mais rápida, modo watch melhor e API moderna alinhada a Jest.
 - **Decisão**: Adotar **Vitest** como test runner para ambos os projetos
-  (`svg-engine` e `playground`).
+  (`@mosaicoo/svg-engine` e `playground`).
 - **Alternativas**: Karma (legado, lento); Web Test Runner (menor
   ecossistema). Ambas rejeitadas.
 
@@ -228,7 +228,7 @@
     organizada por entry point (D-018).
   - PR review checa esse princípio.
 - **Consequências**: terceiros podem fazer
-  `import { SvgRenderer } from 'svg-engine/render';` sem trazer Material
+  `import { SvgRenderer } from '@mosaicoo/svg-engine/render';` sem trazer Material
   para o bundle.
 
 ## D-018 — Multi-entry-point secondary-only (sem primary útil)
@@ -236,36 +236,36 @@
 - **Data**: 2026-05-14 (revisada na conclusão da Fase 2 Bloco 1)
 - **Status**: Aceita
 - **Contexto**: Para suportar D-017 (headless) e tree-shaking real,
-  a library `svg-engine` é dividida em **secondary entry points** via
-  `ng-packagr`. O entry point primário (`svg-engine`) fica vazio/símbolico
+  a library `@mosaicoo/svg-engine` é dividida em **secondary entry points** via
+  `ng-packagr`. O entry point primário (`@mosaicoo/svg-engine`) fica vazio/símbolico
   (apenas `SVG_ENGINE_VERSION`) — alinhado a `@angular/material` e
   `@angular/cdk` que adotam o mesmo padrão. Decidido após análise do
   ecossistema: libs com camadas funcionais distintas (Material, CDK,
   PrimeNG) não expõem primary; libs com API coesa e poucos pontos
   (RxJS) expõem.
-- **Decisão**: **secondary-only**. Importar de `'svg-engine'` direto
+- **Decisão**: **secondary-only**. Importar de `'@mosaicoo/svg-engine'` direto
   não traz nada útil. Isso **força** os consumidores a usar
-  `'svg-engine/<entry>'`, garantindo:
+  `'@mosaicoo/svg-engine/<entry>'`, garantindo:
   - tree-shaking: ninguém arrasta acidentalmente `@angular/material`;
   - clareza de intenção: o import revela qual camada o código usa;
   - enforcement do D-017 pelo TypeScript, não só por convenção.
 - **Estrutura**:
 
-  | Entry point            | Conteúdo                                           | Depende de                 | Fase |
-  | ---------------------- | -------------------------------------------------- | -------------------------- | ---- |
-  | `svg-engine` (primary) | apenas `SVG_ENGINE_VERSION` (placeholder)          | —                          | 1    |
-  | `svg-engine/core`      | `SvgNode`, modelo, comandos, history, state, types | `@angular/core`            | 2 ✅ |
-  | `svg-engine/render`    | `<svge-renderer>`, viewport, viewer read-only      | `core`                     | 2    |
-  | `svg-engine/io`        | parse, sanitização, serialização                   | `core`                     | 5    |
-  | `svg-engine/optimize`  | passes de otimização (path, dedup, minify)         | `core`, `io`               | 5    |
-  | `svg-engine/edit`      | seleção, transformação, manipulação programática   | `core`, `render`           | 3    |
-  | `svg-engine/ui`        | toolbar, layers panel, inspector, dialogs Material | tudo + `@angular/material` | 4    |
+  | Entry point                      | Conteúdo                                           | Depende de                 | Fase |
+  | -------------------------------- | -------------------------------------------------- | -------------------------- | ---- |
+  | `@mosaicoo/svg-engine` (primary) | apenas `SVG_ENGINE_VERSION` (placeholder)          | —                          | 1    |
+  | `@mosaicoo/svg-engine/core`      | `SvgNode`, modelo, comandos, history, state, types | `@angular/core`            | 2 ✅ |
+  | `@mosaicoo/svg-engine/render`    | `<svge-renderer>`, viewport, viewer read-only      | `core`                     | 2    |
+  | `@mosaicoo/svg-engine/io`        | parse, sanitização, serialização                   | `core`                     | 5    |
+  | `@mosaicoo/svg-engine/optimize`  | passes de otimização (path, dedup, minify)         | `core`, `io`               | 5    |
+  | `@mosaicoo/svg-engine/edit`      | seleção, transformação, manipulação programática   | `core`, `render`           | 3    |
+  | `@mosaicoo/svg-engine/ui`        | toolbar, layers panel, inspector, dialogs Material | tudo + `@angular/material` | 4    |
 
 - **Implementação técnica** (validada com `core`):
   - Cada entry point é uma pasta `projects/svg-engine/<entry>/` com seu
     próprio `ng-package.json` apontando para `src/public-api.ts`.
   - `tsconfig.json` raiz adiciona path mapping
-    `"svg-engine/<entry>": ["./dist/svg-engine/<entry>"]`.
+    `"@mosaicoo/svg-engine/<entry>": ["./dist/svg-engine/<entry>"]`.
   - `tsconfig.lib.json` e `tsconfig.spec.json` da library precisam
     incluir `<entry>/src/**/*.ts` e `<entry>/src/**/*.spec.ts`
     respectivamente.
@@ -282,7 +282,7 @@
 - **Consequências**: arquitetura mais disciplinada; consumidores escolhem
   exatamente a camada que querem; bundle final inclui só o usado.
 - **Validado em produção**: `core` consumido com sucesso pela `playground`
-  via `import { ... } from 'svg-engine/core'`; bundle gerado em
+  via `import { ... } from '@mosaicoo/svg-engine/core'`; bundle gerado em
   `dist/svg-engine/fesm2022/svg-engine-core.mjs` (separado do primary).
 
 ## D-019 — Acessibilidade WCAG AA como alvo mínimo
@@ -753,24 +753,24 @@ Cycle real resultante: `cusp (corner) → smooth (curva assimétrica) → symmet
 
 - **Data**: 2026-05-20
 - **Status**: Decidida + implementada (zero-break refactor)
-- **Contexto**: O plano original do produto (ver D-018) catalogava 6 entry points secundários: `core`, `render`, `io`, `optimize`, `edit`, `ui`. Durante o crescimento orgânico (Fase 4 → Fase 5 → Fase 6) os módulos `io/` e `optimize/` ficaram dobrados dentro de `svg-engine/edit` — funcionalmente corretos, mas violando a separação de responsabilidades prevista. Auditoria pós-Sprint Text-Tool detectou o desvio.
+- **Contexto**: O plano original do produto (ver D-018) catalogava 6 entry points secundários: `core`, `render`, `io`, `optimize`, `edit`, `ui`. Durante o crescimento orgânico (Fase 4 → Fase 5 → Fase 6) os módulos `io/` e `optimize/` ficaram dobrados dentro de `@mosaicoo/svg-engine/edit` — funcionalmente corretos, mas violando a separação de responsabilidades prevista. Auditoria pós-Sprint Text-Tool detectou o desvio.
 
 ### Problema
 
-- `svg-engine/edit` carrega importadores/exportadores SVG/PNG e pipeline de otimização, contrariando o use case "Caso B — apenas otimização sem editor" descrito em D-016. Um consumer que quer só otimizar/converter SVG era forçado a trazer o editor inteiro (DI tree, gestures, plugin registry).
+- `@mosaicoo/svg-engine/edit` carrega importadores/exportadores SVG/PNG e pipeline de otimização, contrariando o use case "Caso B — apenas otimização sem editor" descrito em D-016. Um consumer que quer só otimizar/converter SVG era forçado a trazer o editor inteiro (DI tree, gestures, plugin registry).
 - O bundle do `edit` ficava maior do que o necessário para use cases não-editoriais.
 - O catálogo da documentação (06, 09) descrevia 6 entry points, mas o código entregava 4 (core/render/edit/ui). Discrepância documental.
 
 ### Decisão
 
-Extrair `io/` e `optimize/` como entry points secundários próprios (`svg-engine/io`, `svg-engine/optimize`), preservando 100% da API pública via re-exports em `svg-engine/edit` para garantia de zero breaking change.
+Extrair `io/` e `optimize/` como entry points secundários próprios (`@mosaicoo/svg-engine/io`, `@mosaicoo/svg-engine/optimize`), preservando 100% da API pública via re-exports em `@mosaicoo/svg-engine/edit` para garantia de zero breaking change.
 
 **Layout pós-refactor**:
 
-- `svg-engine/io` (NOVO): `Importer`/`Exporter` types, `ImporterRegistry`/`ExporterRegistry`, `svgImporter`, `svgExporter`, `pngExporter`, `renderPng`.
-- `svg-engine/optimize` (NOVO): `Optimizer` type, `OptimizerRegistry`, 3 passes built-in (precision/dropDefaults/pruneEmptyGroups), `OptimizeCommand`.
-- `svg-engine/edit` (mantido): plugin wrappers (`builtinIoPlugin`, `pngExporterPlugin`, `builtinOptimizersPlugin`) — ficam aqui porque dependem do scaffolding `EditorPlugin` ownado por `/edit`. Os barréis `lib/io/index.ts` e `lib/optimize/index.ts` re-exportam o conteúdo dos novos entry points → imports `from 'svg-engine/edit'` continuam funcionando.
-- `svg-engine/core`: recebeu `Disposable` interface e `parseTransformAttr` (utilitários foundational que `/io` precisava sem trazer `/edit`).
+- `@mosaicoo/svg-engine/io` (NOVO): `Importer`/`Exporter` types, `ImporterRegistry`/`ExporterRegistry`, `svgImporter`, `svgExporter`, `pngExporter`, `renderPng`.
+- `@mosaicoo/svg-engine/optimize` (NOVO): `Optimizer` type, `OptimizerRegistry`, 3 passes built-in (precision/dropDefaults/pruneEmptyGroups), `OptimizeCommand`.
+- `@mosaicoo/svg-engine/edit` (mantido): plugin wrappers (`builtinIoPlugin`, `pngExporterPlugin`, `builtinOptimizersPlugin`) — ficam aqui porque dependem do scaffolding `EditorPlugin` ownado por `/edit`. Os barréis `lib/io/index.ts` e `lib/optimize/index.ts` re-exportam o conteúdo dos novos entry points → imports `from '@mosaicoo/svg-engine/edit'` continuam funcionando.
+- `@mosaicoo/svg-engine/core`: recebeu `Disposable` interface e `parseTransformAttr` (utilitários foundational que `/io` precisava sem trazer `/edit`).
 
 ### Garantias verificadas
 
@@ -778,11 +778,11 @@ Extrair `io/` e `optimize/` como entry points secundários próprios (`svg-engin
 - ✅ Suite full (`npx ng test svg-engine`): 948/948 specs passando (zero regressão).
 - ✅ Playground (`npx ng build playground`): compila sem ajuste (re-exports preservam imports existentes).
 - ✅ Lint clean em todos arquivos tocados.
-- ✅ Bundle do `edit` reduz quando consumer importa só `svg-engine/io` ou `/optimize` (tree-shaking acompanha boundary do entry point).
+- ✅ Bundle do `edit` reduz quando consumer importa só `@mosaicoo/svg-engine/io` ou `/optimize` (tree-shaking acompanha boundary do entry point).
 
 ### Razões para escolher esta hora (não adiar)
 
-- Pre-1.0: SemVer policy permite refactors estruturais (ver D-001), porém a maioria dos imports externos já é via `svg-engine/edit` — refactor late seria mais doloroso.
+- Pre-1.0: SemVer policy permite refactors estruturais (ver D-001), porém a maioria dos imports externos já é via `@mosaicoo/svg-engine/edit` — refactor late seria mais doloroso.
 - D-018 já estabelecia secondary-only — extender o catálogo para 6 alinha o código com o plano original.
 - O custo é zero (apenas movimentações + barréis re-export) e o benefício é arquitetural (use case B viável sem `/edit`).
 
@@ -817,9 +817,9 @@ Extrair `io/` e `optimize/` como entry points secundários próprios (`svg-engin
 
 Consolidar em dois módulos canônicos, mantendo backward-compat zero-break:
 
-1. **`svg-engine/render/lib/util/screen-to-doc.ts`** — função pura `screenToDoc(svg, clientX, clientY): Point | null`. Vive em `/render` porque é foundational da camada que dona o `<svg>`; consumers em `/edit` e `/ui` importam de `svg-engine/render`. Cada call site passa o SVG que já tem em mãos (`ownerSVGElement` do ElementRef, `viewChild` ref, ou `document.querySelector` no playground).
+1. **`@mosaicoo/svg-engine/render/lib/util/screen-to-doc.ts`** — função pura `screenToDoc(svg, clientX, clientY): Point | null`. Vive em `/render` porque é foundational da camada que dona o `<svg>`; consumers em `/edit` e `/ui` importam de `@mosaicoo/svg-engine/render`. Cada call site passa o SVG que já tem em mãos (`ownerSVGElement` do ElementRef, `viewChild` ref, ou `document.querySelector` no playground).
 
-2. **`svg-engine/edit/lib/pointer/`** (novo módulo):
+2. **`@mosaicoo/svg-engine/edit/lib/pointer/`** (novo módulo):
    - `capturePointer(event)` — defensive `setPointerCapture` com guards uniformes + swallow de exceções (Safari/Firefox edge cases).
    - `releasePointer(event)` — simétrico.
    - `isEditableTarget(target)` — gate de `<input>` / `<textarea>` / `<select>` / `contenteditable` para shortcuts globais.
@@ -853,7 +853,7 @@ Consolidar em dois módulos canônicos, mantendo backward-compat zero-break:
 ### Quando reabrir
 
 - Se algum consumer precisar de pointer capture com semântica diferente (ex.: capturar no `document` em vez do `event.target`), o helper deve aceitar opção opcional em vez de bifurcar.
-- Se ResizeObserver / IntersectionObserver helpers virarem padrão repetido, considerar `svg-engine/edit/lib/observers/` análogo a `/pointer/`.
+- Se ResizeObserver / IntersectionObserver helpers virarem padrão repetido, considerar `@mosaicoo/svg-engine/edit/lib/observers/` análogo a `/pointer/`.
 
 ---
 
@@ -861,7 +861,7 @@ Consolidar em dois módulos canônicos, mantendo backward-compat zero-break:
 
 - **Data**: 2026-05-20
 - **Status**: Decidida + implementada
-- **Contexto**: O componente `<svge-toolbar>` (Bloco 4e) já existia em `svg-engine/ui/lib/toolbar/` desde o Fase 4 — lê o `MenuContributionRegistry` (D-023 categoria 9) e renderiza Material icon buttons por slot. Mas **nunca foi integrado** ao `<svge-editor>`. Resultado: o shell completo (rota `/shell-demo` do playground) mostrava apenas undo/redo/zoom hardcoded; plugins não tinham onde aparecer.
+- **Contexto**: O componente `<svge-toolbar>` (Bloco 4e) já existia em `@mosaicoo/svg-engine/ui/lib/toolbar/` desde o Fase 4 — lê o `MenuContributionRegistry` (D-023 categoria 9) e renderiza Material icon buttons por slot. Mas **nunca foi integrado** ao `<svge-editor>`. Resultado: o shell completo (rota `/shell-demo` do playground) mostrava apenas undo/redo/zoom hardcoded; plugins não tinham onde aparecer.
 
 ### Decisão
 
@@ -879,7 +879,7 @@ Integrar `<svge-toolbar slot="toolbar.main">` dentro do `<svge-editor>`, **adici
 
 ### Decisão
 
-Novo componente `<svge-status-bar>` em `svg-engine/ui/lib/status-bar/`. Lê de 8 services existentes (`EditorStateService`, `SelectionService`, `ViewportService`, `WorkspaceService`, `ToolHostService` + `ToolRegistry`, `SnapService`, `IsolationService`) — só leitura, nunca muta. 7 sections opt-in via `[sections]` input:
+Novo componente `<svge-status-bar>` em `@mosaicoo/svg-engine/ui/lib/status-bar/`. Lê de 8 services existentes (`EditorStateService`, `SelectionService`, `ViewportService`, `WorkspaceService`, `ToolHostService` + `ToolRegistry`, `SnapService`, `IsolationService`) — só leitura, nunca muta. 7 sections opt-in via `[sections]` input:
 
 | Section     | Fonte                                             | Mostra                                 |
 | ----------- | ------------------------------------------------- | -------------------------------------- |
@@ -911,7 +911,7 @@ Standalone usável fora do `<svge-editor>` — consumers podem montar isoladamen
 
 ### Como ficam garantidos
 
-- **Modo 1**: estrutural via D-017 + multi-entry-point (D-018). `svg-engine/render` + `svg-engine/edit` **não importam** `@angular/material`. Quem nunca importa de `svg-engine/ui` não recebe Material no bundle. Lint rule no D-028 (pendente) reforça via análise estática.
+- **Modo 1**: estrutural via D-017 + multi-entry-point (D-018). `@mosaicoo/svg-engine/render` + `@mosaicoo/svg-engine/edit` **não importam** `@angular/material`. Quem nunca importa de `@mosaicoo/svg-engine/ui` não recebe Material no bundle. Lint rule no D-028 (pendente) reforça via análise estática.
 - **Modo 2**: default do `<svge-editor>` (`showToolbar` e `showStatusBar` defaultam para `true`). Plugins aparecem automaticamente via `<svge-toolbar>` interno lendo `MenuContributionRegistry`.
 - **Modo 3**: inputs `[showToolbar]` e `[showStatusBar]` independentes + `<ng-content select="[toolbar-extras]">` e `<ng-content select="[status-bar]">` permitem substituições pontuais. Quando o consumer projeta `<div status-bar>...</div>`, o `<svge-status-bar>` default não renderiza (semântica do `<ng-content>` fallback).
 
@@ -961,11 +961,11 @@ Criar **`<svge-shell-pro>`** como composição "tudo on por padrão", coexistind
 | Context menus (right-click) | `context.canvas` / `context.node` / `context.layer` / `context.anchor` / `context.guide` |
 | Toolbar items               | `toolbar.main` (já existente; plugins contribuem ícones aqui)                            |
 
-Constantes `MENU_SLOT` e `CONTEXT_MENU_SLOT` exportadas de `svg-engine/ui` para evitar string-mongering.
+Constantes `MENU_SLOT` e `CONTEXT_MENU_SLOT` exportadas de `@mosaicoo/svg-engine/ui` para evitar string-mongering.
 
 ### Invariantes preservadas
 
-- **D-017 (headless boundary)**: `<svge-shell-pro>` vive em `svg-engine/ui` — modo 1 (headless puro) intocado, zero Material.
+- **D-017 (headless boundary)**: `<svge-shell-pro>` vive em `@mosaicoo/svg-engine/ui` — modo 1 (headless puro) intocado, zero Material.
 - **D-037 (3 modos)**: `<svge-editor>` continua exatamente como estava (defaults `showToolbar=true`, `showStatusBar=true`; novos flags `showMenuBar`/`showContextMenu`/`showToolOptions` defaultam `false` para não alterar comportamento). Modos 2/3/4 inalterados por padrão.
 - **D-020 plugin scaffolding**: novas peças usam o `MenuContributionRegistry` existente. Plugin authoring is the same; novos slots usam o mesmo `register()`.
 
@@ -1000,7 +1000,7 @@ Constantes `MENU_SLOT` e `CONTEXT_MENU_SLOT` exportadas de `svg-engine/ui` para 
 
 Após validação manual no playground o usuário Mosaicoo reportou que `<svge-shell-pro>` parecia incompleto:
 
-1. **Não dava para criar/manipular shapes** — bug arquitetural antigo: `<svge-editor>` e `<svge-shell-pro>` nunca rotearam pointer events para `ToolHostService.routePointer*`. Apenas o `playground-home` fazia esse wireup manual. **Fix**: nova diretiva `[svgeShellInteractions]` em `svg-engine/edit/lib/tool/` — wire pointer → tool routes + click-select via hit-testing + Delete/Backspace. Aplicada automaticamente em `<svge-editor>` e `<svge-shell-pro>`.
+1. **Não dava para criar/manipular shapes** — bug arquitetural antigo: `<svge-editor>` e `<svge-shell-pro>` nunca rotearam pointer events para `ToolHostService.routePointer*`. Apenas o `playground-home` fazia esse wireup manual. **Fix**: nova diretiva `[svgeShellInteractions]` em `@mosaicoo/svg-engine/edit/lib/tool/` — wire pointer → tool routes + click-select via hit-testing + Delete/Backspace. Aplicada automaticamente em `<svge-editor>` e `<svge-shell-pro>`.
 2. **Tools palette com 7 chaves-inglesa** — built-in tools (select/pen/pencil/rect/ellipse/polygon/text) nunca tiveram campo `icon` definido porque ninguém renderizava ícones antes do D-038 Phase 4. **Fix**: adicionados Material icons (`arrow_selector_tool`, `ads_click`, `edit`, `draw`, `crop_square`, `radio_button_unchecked`, `pentagon`, `title`).
 3. **Toolbar vazia** entre menu bar e tool options — demo plugin registrava apenas `menu.*` e `context.*`, zero `toolbar.main`. **Fix**: 4 items demo (Save / Export SVG / Optimize / View Source).
 
@@ -1146,7 +1146,7 @@ http://localhost:4200/shell-pro-demo
 
 - **Data**: 2026-05-20
 - **Status**: Decidida + implementada
-- **Contexto**: A library `svg-engine` já é instalável-ready (D-018 multi-entry, D-026 io/optimize promovidos, README publicável, metadata completa). Para destravar `npm publish` falta: versionamento determinístico, changelog auto-gerado, e workflow CI que produza tarball/publish a partir de uma tag. O histórico de commits já segue Conventional Commits (`feat(scope):`, `fix(scope):`, `docs:`, `refactor:`, `perf:`), tornando viável geração automática.
+- **Contexto**: A library `@mosaicoo/svg-engine` já é instalável-ready (D-018 multi-entry, D-026 io/optimize promovidos, README publicável, metadata completa). Para destravar `npm publish` falta: versionamento determinístico, changelog auto-gerado, e workflow CI que produza tarball/publish a partir de uma tag. O histórico de commits já segue Conventional Commits (`feat(scope):`, `fix(scope):`, `docs:`, `refactor:`, `perf:`), tornando viável geração automática.
 
 ### Decisão
 
@@ -1154,7 +1154,7 @@ Adotar **[`standard-version`](https://github.com/conventional-changelog/standard
 
 **Por que `standard-version` e não `changesets`**:
 
-- O workspace é **single-package**: a library `svg-engine` é o único artefato publicado (D-018 garante multi-entry-point sob 1 versão única). `changesets` brilha em mono-repos com múltiplos pacotes versionados independentemente — overhead desnecessário aqui.
+- O workspace é **single-package**: a library `@mosaicoo/svg-engine` é o único artefato publicado (D-018 garante multi-entry-point sob 1 versão única). `changesets` brilha em mono-repos com múltiplos pacotes versionados independentemente — overhead desnecessário aqui.
 - `standard-version` lê commits do git diretamente (zero discipline overhead — basta manter conventional-commits, já feito).
 - Bump + CHANGELOG + tag em **um único comando** (`npm run release`).
 - Dry-run nativo (`npm run release:dry`) — preview sem efeitos colaterais.
@@ -1233,7 +1233,7 @@ git push --follow-tags origin main
 
 ### Decisão
 
-**O produto principal do SVGEngine é o Canvas Engine headless** — o conjunto de entry points `core` + `render` + `io` + `optimize` + `edit`. O entry point `svg-engine/ui` (com componentes Angular Material como `<svge-shell-pro>`, `<svge-editor>`, `<svge-toolbar>`, etc.) é uma **camada de conveniência opt-in**, reutilizável mas **substituível**.
+**O produto principal do SVGEngine é o Canvas Engine headless** — o conjunto de entry points `core` + `render` + `io` + `optimize` + `edit`. O entry point `@mosaicoo/svg-engine/ui` (com componentes Angular Material como `<svge-shell-pro>`, `<svge-editor>`, `<svge-toolbar>`, etc.) é uma **camada de conveniência opt-in**, reutilizável mas **substituível**.
 
 Em uma frase: **"Vendemos uma engine. A UI profissional é cortesia."**
 
@@ -1253,14 +1253,14 @@ Em uma frase: **"Vendemos uma engine. A UI profissional é cortesia."**
 
 ### De-para conceitual (alinhamento terminológico)
 
-| Termo conceitual (mercado)  | Implementação real (hoje)                                                                                                                 |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| **SVG Engine** (produto)    | npm package `svg-engine`                                                                                                                  |
-| **Canvas Engine / Core**    | conjunto: `svg-engine/{core,render,io,optimize,edit}` (5 entry points headless)                                                           |
-| **Canvas físico**           | `<svge-renderer>` (read-only) ou `<svge-canvas>` (com gestures via diretivas `edit`)                                                      |
-| **SVG Engine Professional** | entry point `svg-engine/ui` — em particular `<svge-shell-pro>` (editor drop-in completo) e `<svge-editor [shell]="true">` (editor padrão) |
-| **Shell parcial**           | Modo 3 (D-037) — composição manual de componentes de `svg-engine/ui`                                                                      |
-| **Playground**              | app `projects/playground/` — sandbox + showcase + benchmark, **não** produto                                                              |
+| Termo conceitual (mercado)  | Implementação real (hoje)                                                                                                                           |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **SVG Engine** (produto)    | npm package `@mosaicoo/svg-engine`                                                                                                                  |
+| **Canvas Engine / Core**    | conjunto: `@mosaicoo/svg-engine/{core,render,io,optimize,edit}` (5 entry points headless)                                                           |
+| **Canvas físico**           | `<svge-renderer>` (read-only) ou `<svge-canvas>` (com gestures via diretivas `edit`)                                                                |
+| **SVG Engine Professional** | entry point `@mosaicoo/svg-engine/ui` — em particular `<svge-shell-pro>` (editor drop-in completo) e `<svge-editor [shell]="true">` (editor padrão) |
+| **Shell parcial**           | Modo 3 (D-037) — composição manual de componentes de `@mosaicoo/svg-engine/ui`                                                                      |
+| **Playground**              | app `projects/playground/` — sandbox + showcase + benchmark, **não** produto                                                                        |
 
 ### Rotas do playground (slugs EN / labels PT)
 
@@ -1276,7 +1276,7 @@ Convenção: cada rota tem **nome que descreve a atividade**, não a categoria a
 | `/svg-viewer`        | `SvgViewer`        | `<svge-renderer>` puro read-only — bundle mínimo (só `render` + `io`), zero `edit`         | (novo em D-041 — fecha gap do D-037)  |
 | `/benchmark`         | `Benchmark`        | Performance harness — FPS + render-to-paint latency                                        | `/perf`                               |
 
-### Por que **não** quebrar em dois pacotes npm (`svg-engine` + `svg-engine-professional`)
+### Por que **não** quebrar em dois pacotes npm (`@mosaicoo/svg-engine` + `@mosaicoo/svg-engine-professional`)
 
 Avaliado em D-041 e rejeitado:
 
@@ -1343,7 +1343,7 @@ export class MyEditorRoute {}
 - **Registries de plugins** (`ToolRegistry`, `MenuContributionRegistry`, `ShortcutRegistry`, `PaletteRegistry`, `EffectRegistry`, `OptimizerRegistry`, `ImporterRegistry`, `ExporterRegistry`, `PluginInfoRegistry`): plugins são registrados **uma vez** em `provideSvgEnginePlugin(...)` no `app.config.ts` e precisam aparecer em todo editor.
 - **Renderer dispatch** (`NodeRendererRegistry`): mapping `<rect>` → `<rect-renderer>` é global.
 - **App-wide UI services** (`ThemeService`, `ColorHistoryService`): tema é escolha única; color history é compartilhada via localStorage por design.
-- **`SvgeContextMenuService`** (vive em `svg-engine/ui`): não inclusa no helper porque importar de `ui` no `edit` violaria D-017 (headless boundary). Consumer adiciona manualmente se precisar isolation de menu per-editor.
+- **`SvgeContextMenuService`** (vive em `@mosaicoo/svg-engine/ui`): não inclusa no helper porque importar de `ui` no `edit` violaria D-017 (headless boundary). Consumer adiciona manualmente se precisar isolation de menu per-editor.
 
 ### Refactor casado: handlers de shortcut precisam de injector per-fire
 
@@ -1392,9 +1392,9 @@ Plugins como `builtinEditorShortcutsPlugin` registram handlers que disparam `bus
 
 ### Decisão
 
-Criar **`builtinMenuContributionsPlugin`** em `svg-engine/edit/lib/menu/builtin/` — plugin opt-in que registra **File / Edit / View / Object / Help + toolbar.main + context.canvas + context.node** com **handlers funcionais** wired aos commands reais do bus. Mesmo padrão arquitetural do `builtinEditorShortcutsPlugin` (D-040): opt-in, multi-editor safe (D-042 lazy injector), reactive `disabled` signals.
+Criar **`builtinMenuContributionsPlugin`** em `@mosaicoo/svg-engine/edit/lib/menu/builtin/` — plugin opt-in que registra **File / Edit / View / Object / Help + toolbar.main + context.canvas + context.node** com **handlers funcionais** wired aos commands reais do bus. Mesmo padrão arquitetural do `builtinEditorShortcutsPlugin` (D-040): opt-in, multi-editor safe (D-042 lazy injector), reactive `disabled` signals.
 
-Como efeito colateral arquitetural necessário, as constantes de slot (`MENU_SLOT`, `TOOLBAR_SLOT`, `CONTEXT_MENU_SLOT`) foram **consolidadas em `svg-engine/edit/lib/menu/menu-slots.ts`** (eram duplicadas em `ui/menu-bar` e `ui/context-menu`). `ui` re-exporta para back-compat zero-quebra.
+Como efeito colateral arquitetural necessário, as constantes de slot (`MENU_SLOT`, `TOOLBAR_SLOT`, `CONTEXT_MENU_SLOT`) foram **consolidadas em `@mosaicoo/svg-engine/edit/lib/menu/menu-slots.ts`** (eram duplicadas em `ui/menu-bar` e `ui/context-menu`). `ui` re-exporta para back-compat zero-quebra.
 
 ### Itens registrados (canonical surface)
 
@@ -1431,7 +1431,7 @@ Como efeito colateral arquitetural necessário, as constantes de slot (`MENU_SLO
 
 Antes: `MENU_SLOT` em `ui/menu-bar/menu-bar.component.ts`, `CONTEXT_MENU_SLOT` em `ui/context-menu/context-menu.component.ts`, `TOOLBAR_SLOT` ausente (literal string).
 
-Depois: **fonte única em `edit/lib/menu/menu-slots.ts`**. `ui` re-exporta para preservar `import { MENU_SLOT } from 'svg-engine/ui'`. Plugins em `edit` agora podem importar das suas próprias constantes sem violar D-017 (edit não pode importar de ui).
+Depois: **fonte única em `edit/lib/menu/menu-slots.ts`**. `ui` re-exporta para preservar `import { MENU_SLOT } from '@mosaicoo/svg-engine/ui'`. Plugins em `edit` agora podem importar das suas próprias constantes sem violar D-017 (edit não pode importar de ui).
 
 ### Substituição em playground
 
@@ -1441,7 +1441,7 @@ Depois: **fonte única em `edit/lib/menu/menu-slots.ts`**. `ui` re-exporta para 
 
 - ✅ **1038/1038 specs** passando (era 1026; +12 novos cobrindo: registro nos slots, disabled signals reativos, handlers dispatching commands reais, D-042 lazy injector contract)
 - ✅ 6 entry points + playground build clean
-- ✅ Zero breaking change: `MENU_SLOT`/`CONTEXT_MENU_SLOT` ainda exportados de `svg-engine/ui` via re-export
+- ✅ Zero breaking change: `MENU_SLOT`/`CONTEXT_MENU_SLOT` ainda exportados de `@mosaicoo/svg-engine/ui` via re-export
 - ✅ **D-017 headless boundary intacta**: `edit/menu/builtin` só importa de `core`, `render`, `edit/{plugin,selection,workspace,menu}` — zero `ui`
 - ✅ **D-042 multi-editor**: handlers usam `fromCtx(token, runCtxArg)` para resolver do scope ativo
 - ✅ **D-040 pattern**: plugin opt-in (consumer não obrigado), reactive `disabled` signals
@@ -1490,16 +1490,16 @@ A arquitetura atual já está pronta para acoplar isso sem retrabalho:
 - **`CommandBus`** (D-002): ponto único de mutação. O NLU produz um `Command` e despacha.
 - **`CommandRegistry` + `MenuContributionRegistry`** (D-020/D-043): catálogo enumerável de tudo que o editor sabe fazer (cada item tem `id`, `label`, `icon`, `run`). O NLU pode **introspectar** isso pra descobrir intents automaticamente — todo menu item vira candidato com label como exemplo.
 - **Plugin system** (D-020 + D-023): entrega opt-in via `provideSvgEnginePlugin(nluPlugin)`.
-- **D-017 headless boundary**: o NLU **não** entra no core — vira entry point separado (`svg-engine/nlu`).
+- **D-017 headless boundary**: o NLU **não** entra no core — vira entry point separado (`@mosaicoo/svg-engine/nlu`).
 - **D-042 multi-editor scope**: o `MenuContributionContext.injector` já permite o NLU resolver `CommandBus` / `Selection` / etc. do scope ativo (cada editor seu).
 
 ### Decomposição em 3 fases (cada uma entrega valor sozinha)
 
-| Fase  | Stack                                                                                   | Tamanho       | Cobertura esperada                                                                        | Entry point opt-in                   |
-| ----- | --------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------- | ------------------------------------ |
-| **1** | Rule-based: regex + dicionário PT/EN + fuzzy match (Levenshtein)                        | < 50 KB       | 70–80% dos comandos comuns ("undo", "delete", "criar retângulo vermelho")                 | `svg-engine/nlu` (sempre disponível) |
-| **2** | Intent classifier ML: distilled BERT / MiniLM via **Transformers.js** (ONNX no browser) | 30–50 MB      | Resolve ambiguidades ("torna isso maior", "alinha à esquerda"); adiciona confidence score | `svg-engine/nlu-ml` (lazy-load)      |
-| **3** | SLM com function-calling: Llama-3.2-1B / Gemma 2B via **WebLLM** (WebGPU)               | 500 MB – 2 GB | Comandos compostos ("duplica 3 vezes e alinha em grid 2x2")                               | `svg-engine/nlu-slm` (lazy-load)     |
+| Fase  | Stack                                                                                   | Tamanho       | Cobertura esperada                                                                        | Entry point opt-in                             |
+| ----- | --------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| **1** | Rule-based: regex + dicionário PT/EN + fuzzy match (Levenshtein)                        | < 50 KB       | 70–80% dos comandos comuns ("undo", "delete", "criar retângulo vermelho")                 | `@mosaicoo/svg-engine/nlu` (sempre disponível) |
+| **2** | Intent classifier ML: distilled BERT / MiniLM via **Transformers.js** (ONNX no browser) | 30–50 MB      | Resolve ambiguidades ("torna isso maior", "alinha à esquerda"); adiciona confidence score | `@mosaicoo/svg-engine/nlu-ml` (lazy-load)      |
+| **3** | SLM com function-calling: Llama-3.2-1B / Gemma 2B via **WebLLM** (WebGPU)               | 500 MB – 2 GB | Comandos compostos ("duplica 3 vezes e alinha em grid 2x2")                               | `@mosaicoo/svg-engine/nlu-slm` (lazy-load)     |
 
 **Importante**: as 3 fases **compõem em cascata** — Fase 1 sempre roda primeiro (instantâneo); cai para Fase 2 se confidence baixa; cai para Fase 3 se a 2 também falhou. Consumer só paga o tamanho que escolher ativar.
 
@@ -1530,7 +1530,7 @@ interface NluIntent {
 }
 ```
 
-### Surfaces UI possíveis (entry separado `svg-engine/nlu-ui`)
+### Surfaces UI possíveis (entry separado `@mosaicoo/svg-engine/nlu-ui`)
 
 - **Command palette** (Ctrl+K) com input texto + autocomplete de intents conhecidos
 - **Voice input** via Web Speech API (gratuito, browser-native) → mesma pipeline `parse()`
@@ -1554,13 +1554,13 @@ interface NluIntent {
 
 Em **dois entry points separados agrupados sob `ai/`** desde 2026-05-22:
 
-- **`svg-engine/ai/nlu`** (headless, rule-based): todo o pipeline parser + service + plugin + dicionários
-- **`svg-engine/ai/nlu-ui`** (Material + Web Speech): `<svge-nlu-input>` + `VoiceRecognitionService`
+- **`@mosaicoo/svg-engine/ai/nlu`** (headless, rule-based): todo o pipeline parser + service + plugin + dicionários
+- **`@mosaicoo/svg-engine/ai/nlu-ui`** (Material + Web Speech): `<svge-nlu-input>` + `VoiceRecognitionService`
 
 **Evolução da decisão** (3 iterações no mesmo dia):
 
-1. **Primeira tentativa**: tudo dentro de `svg-engine/edit/lib/nlu/` por pragmatismo de tamanho (~10KB) — rejeitada por violar o isolamento combinado (Modo 1 headless puro não deve carregar NLU).
-2. **Segunda tentativa**: `svg-engine/nlu` + `svg-engine/nlu-ui` (flat, irmãos dos outros entry points) — funcionou mas misturava namespaces visualmente.
+1. **Primeira tentativa**: tudo dentro de `@mosaicoo/svg-engine/edit/lib/nlu/` por pragmatismo de tamanho (~10KB) — rejeitada por violar o isolamento combinado (Modo 1 headless puro não deve carregar NLU).
+2. **Segunda tentativa**: `@mosaicoo/svg-engine/nlu` + `@mosaicoo/svg-engine/nlu-ui` (flat, irmãos dos outros entry points) — funcionou mas misturava namespaces visualmente.
 3. **Estrutura final**: agrupados sob `ai/` (subpasta lowercase, consistente com convenção de paths Angular). Razões: (a) comunica visualmente que `ai/` é namespace dedicado; (b) Fase 2 (`ai/nlu-ml`) e Fase 3 (`ai/nlu-slm`) entram naturalmente no mesmo agrupamento; (c) reforça arquiteturalmente o isolamento total da camada AI.
 
 **Convenção adotada**: este é o primeiro agrupamento por subpasta em `projects/svg-engine/`. Estabelece precedente para agrupamentos temáticos futuros (se aparecerem).
@@ -1617,7 +1617,7 @@ Sort secundário (tiebreaker quando |Δconfidence| ≤ 0.05): `matches.length` d
 - **Stack**: `@huggingface/transformers` (transformers.js, Apache-2.0) +
   `onnxruntime-web` (MIT, **bundlado pelo transformers** — não é dep direta da
   lib). Modelo **Whisper base** int8 (encoder/decoder `*_quantized.onnx`).
-- **Entry point novo**: `svg-engine/ai/nlu-voice-wasm` (9º) — opt-in pesado;
+- **Entry point novo**: `@mosaicoo/svg-engine/ai/nlu-voice-wasm` (9º) — opt-in pesado;
   `transformers.js` é `import()` **lazy** (só baixa quando a voz Whisper é
   acionada → chunk lazy `transformers-web` ~1.3 MB).
 - **Desacoplamento**: o contrato `VoiceProvider` + `VoiceEngine` + token
@@ -1735,7 +1735,7 @@ filter chain sem vazamento entre instâncias D-042).
 
 **Decisão.**
 
-1. **`EffectRegistry`** em `svg-engine/edit/lib/effect/effect-registry.service.ts:41`
+1. **`EffectRegistry`** em `@mosaicoo/svg-engine/edit/lib/effect/effect-registry.service.ts:41`
    (`providedIn: 'root'`) seguindo o padrão signal-backed dos outros registries
    (Tool/Menu/Shortcut/Palette). API: `register(effect): Disposable`, `get(id)`,
    `effects()` signal.
@@ -2402,7 +2402,7 @@ sampleAnimation(anim, playhead))`. **Única fiação cross-cutting**, atrás
 3. **Props do v1**: posição/tamanho/opacidade/cor/transform; **adiar**
    path-`d` morph.
 4. **Entry point**: reusar `core`/`edit`/`ui` (como Pages/Snapshots —
-   recomendado, **sem novo entry point**) vs extrair `svg-engine/animate`
+   recomendado, **sem novo entry point**) vs extrair `@mosaicoo/svg-engine/animate`
    depois (como o NLU foi extraído em D-...). Reusar evita mexer nos
    specs-trava de "N entry points".
 5. **Escopo do timeline = página ativa** (confirmado pelo usuário).
@@ -2515,7 +2515,7 @@ Camada de produto sobre o motor existente (`edit/lib/plugin/`):
 - **`provideSvgEnginePlugin` ciente do catálogo**: todo plugin provido se
   registra como `'internal'` e **pula `install()` se desabilitado** no boot
   ("desabilitado nunca roda install()"). Sem reescrever os ~24 builtins.
-- **`<svge-plugin-manager>`** (`svg-engine/ui`): lista por tipo (Internal /
+- **`<svge-plugin-manager>`** (`@mosaicoo/svg-engine/ui`): lista por tipo (Internal /
   External), toggle enable/disable, uninstall (external only), estados de erro
   e a11y. Mostrado no playground em `/plugins` (showcase + plugin externo demo).
 - **Acesso via menu (svg-studio + shell-pro)**: `<svge-plugin-manager-dialog>`
@@ -2561,11 +2561,11 @@ Federation.**
   plataforma para três públicos: interno (builtins), **embedders** (npm) e
   **autores de marketplace** (runtime). A Fase 2 (D-083) provou o transporte
   em produção (`svgstudio.mosaicoo.tech/plugins/...`), mas só para plugins
-  **autônomos** — um plugin que importa `svg-engine` carrega uma 2ª cópia e o
+  **autônomos** — um plugin que importa `@mosaicoo/svg-engine` carrega uma 2ª cópia e o
   DI não casa.
 - **Alternativa avaliada e rejeitada**: **Native Federation** (spike real na
   branch `spike/native-federation-3.1`). Host/remote buildam e o Angular
-  compartilha, mas os **entry-points secundários** (`svg-engine/edit`/`core`…)
+  compartilha, mas os **entry-points secundários** (`@mosaicoo/svg-engine/edit`/`core`…)
   não fecham (shareAll só cobre o primário; `share()` explícito é descartado
   por `ignoreUnusedDeps:true`; desligar a feature quebra o build na stack ML
   nativa). Custo de integração alto/incerto com 9 entry-points + ML. Detalhes
@@ -2579,7 +2579,7 @@ Federation.**
      (estreita, versionada por `hostApiVersion`) é construída pelo host sobre
      o injector escopado. **Reusa o `PluginLoader` da Fase 2 integral**
      (extensão única: aceitar `default` função além de objeto). Plugin não
-     importa `svg-engine` → sem 2ª cópia, sem federation, qualquer bundler.
+     importa `@mosaicoo/svg-engine` → sem 2ª cópia, sem federation, qualquer bundler.
      A fachada é o **contrato público estável** da plataforma (Pilar 1).
   3. **Scripts sandboxed** (D-024) — único canal com isolamento técnico real;
      para código de usuário não-confiável.
@@ -2716,12 +2716,57 @@ specs}`. Fixture limpa `localStorage`/`sessionStorage` e desliga animações via
   ativa → switch volta à primeira; tabs escopadas ao `role="tablist"` "Pages").
   Fundação **encerrada** com **10** testes Playwright sobre ~2953 specs Vitest.
 - **Pré-requisito de build (E2E-CI-FIX)**: os `paths` do `tsconfig.json` mapeiam
-  `svg-engine/*` → `./dist/svg-engine/*` (a lib **buildada**). Logo o job `e2e`
+  `@mosaicoo/svg-engine/*` → `./dist/svg-engine/*` (a lib **buildada**). Logo o job `e2e`
   precisa rodar `ng build svg-engine` ANTES do `npm run e2e` — senão o
   `ng serve playground` não resolve os entry points (`Could not resolve
-"svg-engine/edit"`). Jobs do GitHub não compartilham workspace, então o job
+"@mosaicoo/svg-engine/edit"`). Jobs do GitHub não compartilham workspace, então o job
   `e2e` builda sua própria cópia (o `lint-and-build` já buildava a dele).
 - **Consequências**: PRs ganham um portão de jornada real; em CI a config liga
   retries/2 + workers/2 + report HTML. Custo: ~1 download de browser + 1 build
   da lib por job e um `ng serve` frio por execução. Referência: histórico 08
   (2026-06-25, E2E-F0…F4 + F3b + E2E-CI-FIX).
+
+---
+
+## D-117 — Publicação no npm: pacote escopado `@mosaicoo/svg-engine` + Trusted Publishing (OIDC)
+
+- **Data**: 2026-06-25
+- **Status**: Aceita
+- **Contexto**: O nome `svg-engine` (não-escopado) já pertence a terceiro ativo
+  no npm. Para publicar e escalar a lib como produto de mercado era preciso um
+  nome próprio, decidir o mecanismo de publicação e garantir que **só a lib** (e
+  só o código compilado) fosse ao registry — sem quebrar os apps `playground` e
+  `svg-studio`.
+- **Decisão (nome)**: adotar o escopo de organização **`@mosaicoo`** →
+  **`@mosaicoo/svg-engine`** (org npm `mosaicoo` criada; `@svgengine` reservada
+  defensivamente). A lib é **1 pacote com 9 secondary entry points** (subpath
+  exports `./core`, `./edit`, …), não pacotes separados.
+- **Rename global (obrigatório)**: o ng-packagr grava as referências cruzadas
+  entre entry points (`from '<pkg>/io'`) dentro dos `.mjs`/`.d.ts` usando o
+  **nome do pacote**. Logo o nome tem de estar correto **no build**, o que exigiu
+  trocar os specifiers `svg-engine/*` → `@mosaicoo/svg-engine/*` em ~316 arquivos
+  (lib + apps + specs) e nas chaves `paths` do `tsconfig.json` (os alvos `→
+./dist/svg-engine/*` permanecem; o **output dir não muda**, só o nome publicado).
+  Alternativa rejeitada: patch pós-build só no dist — geraria FESM com refs ao
+  nome interno antigo, quebrando o consumo, além de ser não-idiomático.
+- **Decisão (mecanismo)**: **Trusted Publishing (OIDC)** no GitHub Actions, em vez
+  de `NPM_TOKEN` de longa duração + "bypass 2FA" (o próprio npm desaconselha). O
+  `release.yml` roda em tag `v*` com `permissions: id-token: write`, npm ≥ 11.5.1
+  e Node ≥ 22.14; a proveniência (provenance) é gerada automaticamente. Bootstrap
+  (ovo-e-galinha): a **1ª versão** é publicada localmente (`npm run publish:lib`,
+  com 2FA) porque o Trusted Publisher só pode ser configurado num pacote que já
+  existe; depois liga-se o publisher (org=mosaicoo, repo=svg-engine,
+  workflow=release.yml) e as próximas tags publicam via CI.
+- **Decisão (conteúdo do pacote)**: publicar **apenas o compilado** — `fesm2022/
+*.mjs` + `types/*.d.ts` + metadados. Os sourcemaps `*.mjs.map` (que embutem o
+  `.ts` via `sourcesContent`) são removidos por `scripts/strip-sourcemaps.mjs`
+  (ng-packagr não tem flag para suprimi-los) no fluxo `pack:lib`/`publish:lib`/
+  release. Os `.map` continuam nos builds locais para debug. `publishConfig.access
+= "public"` (escopado é privado por padrão). Resultado: tarball 34→**24
+  arquivos**, 2,6 MB→**1,4 MB**, sem `.ts`.
+- **Apps e CI**: os apps **não** são publicados (o `npm publish` roda só em
+  `dist/svg-engine`). Verificado pós-rename: `build:lib`, build `playground`,
+  build `svg-studio`, `test:lib` (2953), lint (3 projetos) e `pack:lib` verdes.
+- **Consequências**: nome de marca consistente em source e registry; sem segredo
+  de longa duração no CI; pacote enxuto e sem fonte. Referência: histórico 08
+  (2026-06-25, NPM-PUBLISH).

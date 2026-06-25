@@ -2,8 +2,8 @@ import type { Injector } from '@angular/core';
 // `Disposable` lives in `/core` now (foundational shape shared by every
 // capability registry across all entry points — Tool, Importer,
 // Optimizer, Palette, ...). The re-export here keeps existing imports
-// `from 'svg-engine/edit'` working without changes (backward-compat).
-import { type Disposable } from 'svg-engine/core';
+// `from '@mosaicoo/svg-engine/edit'` working without changes (backward-compat).
+import { type Disposable } from '@mosaicoo/svg-engine/core';
 export { type Disposable };
 
 /**

@@ -1,4 +1,4 @@
-import { type GroupNode, type SvgNode, type TextNode, walk } from 'svg-engine/core';
+import { type GroupNode, type SvgNode, type TextNode, walk } from '@mosaicoo/svg-engine/core';
 
 /**
  * **PNG export font fidelity.**

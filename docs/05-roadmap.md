@@ -31,11 +31,11 @@
 
 ## Fase 2 — Núcleo: `core` + `render` (entry points D-018)
 
-### Bloco 1 — `svg-engine/core` (headless puro) ✅ concluído
+### Bloco 1 — `@mosaicoo/svg-engine/core` (headless puro) ✅ concluído
 
 - [x] Estrutura multi-entry-point: `projects/svg-engine/core/` com
       `ng-package.json` próprio e `public-api.ts`
-- [x] tsconfig path mapping `svg-engine/core` → `dist/svg-engine/core`
+- [x] tsconfig path mapping `@mosaicoo/svg-engine/core` → `dist/svg-engine/core`
 - [x] Refatoração da library: placeholder removido; primary entry point
       vazio (apenas `SVG_ENGINE_VERSION`) — alinhado a `@angular/material`
 - [x] Modelo `SvgNode` (union discriminated): 9 tipos concretos imutáveis
@@ -54,10 +54,10 @@
 - [x] Testes Vitest: **66 tests verdes em 5 arquivos**
 - [x] `ng build svg-engine` verde, `ng lint` verde
 - [x] **Dogfooding**: `playground` consumindo
-      `import { ... } from 'svg-engine/core'` valida tree-shaking real
+      `import { ... } from '@mosaicoo/svg-engine/core'` valida tree-shaking real
       (bundle separado em `dist/svg-engine/fesm2022/svg-engine-core.mjs`)
 
-### Bloco 2 — `svg-engine/render` (read-only viewer + plugin point) ✅ concluído
+### Bloco 2 — `@mosaicoo/svg-engine/render` (read-only viewer + plugin point) ✅ concluído
 
 - [x] Estrutura `projects/svg-engine/render/` + ng-package + tsconfig paths
 - [x] `<svge-renderer>` standalone: inputs `tree`, `viewBox?`, `width?`, `height?`, `ariaLabel?`
@@ -74,7 +74,7 @@
       com botões Add(rect/ellipse/path), nudge, remove, undo/redo, zoom in/out/reset
 - [x] Runtime verificado: bundle contém `svge-renderer`, `svge-rect`, `NodeRendererRegistry`
 
-## Fase 3 — Seleção e transformação (`svg-engine/edit`)
+## Fase 3 — Seleção e transformação (`@mosaicoo/svg-engine/edit`)
 
 ### Bloco 1 — `SelectionService` + hit-testing ✅ concluído
 
@@ -194,9 +194,9 @@
   - **Padrão de mercado atingido**: inspector reflete geometria real, stroke nunca distorce, cantos arredondados preservados, paths editados corretamente
   - Limitação documentada: nós rotacionados não bakeam (fallback usa scale-transform composition; visual correto via non-scaling-stroke; inspector mostra geometria pre-scale)
 
-- [x] **Bloco 4a**: `svg-engine/ui` entry point + `<svge-editor>` shell
+- [x] **Bloco 4a**: `@mosaicoo/svg-engine/ui` entry point + `<svge-editor>` shell
   - Quarto secondary entry point criado (`projects/svg-engine/ui/`); ng-packagr auto-discover; tsconfig paths + lib/spec includes atualizados
-  - `@angular/material` + `@angular/cdk` adicionados como peerDeps **opcionais** (consumer só puxa se importar `svg-engine/ui`)
+  - `@angular/material` + `@angular/cdk` adicionados como peerDeps **opcionais** (consumer só puxa se importar `@mosaicoo/svg-engine/ui`)
   - `<svge-editor>` compõe `<svge-workspace-background>` + `<svge-renderer>` + `<ng-content>` + Material toolbar (undo/redo/zoom/reset reativos a `HistoryService`+`ViewportService`)
   - Inputs `tree`/`viewBox` opcionais com fallback para `EditorStateService.document()`
   - Outputs `undoTriggered`/`redoTriggered` para telemetria/analytics
@@ -230,14 +230,14 @@
 - [x] **Bloco 4d**: Paleta de cores + `PaletteRegistry` (categoria 8 do D-023)
   - `Palette` type (id/name/category?/swatches[]) + `PaletteRegistry` (signal-backed, register retorna `Disposable`, throw em duplicate/empty-id/empty-swatches, `byCategory(...)`)
   - `builtinPalettesPlugin` (categoria 8 do D-023) registra 3 paletas via `ctx.track`: `default-greys` (utility, com `transparent` como 1ª swatch), `material-primary` (brand, 10 cores Material 500), `tailwind-pastels` (brand, 9 pastels Tailwind 200)
-  - `<svge-color-palette>` em `svg-engine/ui`: standalone, input `palettes` opcional (fallback `PaletteRegistry.palettes()`) + input `transparentLabel`, output `colorPicked`. Swatches 24×16 com checkerboard, hover scale, focus ring; swatch `transparent` ganha ícone block vermelho (padrão Figma/Affinity)
+  - `<svge-color-palette>` em `@mosaicoo/svg-engine/ui`: standalone, input `palettes` opcional (fallback `PaletteRegistry.palettes()`) + input `transparentLabel`, output `colorPicked`. Swatches 24×16 com checkerboard, hover scale, focus ring; swatch `transparent` ganha ícone block vermelho (padrão Figma/Affinity)
   - Integração no inspector: palette strip abaixo das color rows; `.active-target` class marca qual field (fill/stroke) recebe o próximo click (default fill, troca por `pointerdown` na row). Padrão de mercado (Photoshop swatches panel)
   - `builtinPalettesPlugin` provisionado em `app.config.ts` do playground
   - +22 testes (8 registry/plugin + 9 UI component + 5 integração inspector) → **550 passing**
 - [x] **Bloco 4e**: Toolbar extensível + `MenuContributionRegistry` (categoria 9 parte 1 do D-023)
   - Tipo `MenuContribution` (id/slot/label/icon?/tooltip?/shortcut?/order?/disabled?/visible?/run). Campos `disabled`/`visible` são `Signal<boolean>` — UI re-renderiza automaticamente quando estado muda
   - `MenuContributionRegistry` (signal-backed): `register(contrib)` → `Disposable`. `bySlot(slot)` retorna `Signal<readonly MenuContribution[]>` filtrado por slot + visible + ordenado por `order` (default 100, stable sort em ties). Throw em id vazio/duplicado/slot vazio
-  - `<svge-toolbar slot="..."/>` em `svg-engine/ui`: renderiza Material `<mat-icon-button>` por contribuição visível. Icon ou text fallback. Tooltip com shortcut hint. Disabled honra signal do item. Componente standalone, OnPush
+  - `<svge-toolbar slot="..."/>` em `@mosaicoo/svg-engine/ui`: renderiza Material `<mat-icon-button>` por contribuição visível. Icon ou text fallback. Tooltip com shortcut hint. Disabled honra signal do item. Componente standalone, OnPush
   - Slot convention documentada (`toolbar.main`/`toolbar.shape`/`toolbar.transform`/`sidebar.*`/`context.*`). Plugins podem inventar slots novos; UIs ignoram slots desconhecidos
   - +13 testes (registry: basics 3, validation 3, bySlot 5; UI: render/disabled/click/icon-fallback/order 6) → **578 passing**
 - [x] **Bloco 4f**: Workspace settings — page + grid + guides + rulers
@@ -258,15 +258,15 @@
   - Playground: handlers `Ctrl+G` / `Ctrl+Shift+G` (Mac: `Cmd+G`); botões "Group" / "Ungroup" no toolbar (disabled-when-inválido com `canUngroupFocus` computed)
   - +11 testes (group ordering / common-parent validation / undo roundtrip / single-node group / ungroup positioning / undo restore-with-transform) → **561 passing**
 - [x] **Bloco 4i**: Theme toggle explícito (D-012 part 2)
-  - `ThemeService` (em `svg-engine/ui`): tipos `Theme = 'system'|'light'|'dark'` + `ResolvedTheme = 'light'|'dark'`. `setTheme()` persiste em `localStorage` chave `svge.theme`; init lê valor persistido (fallback `'system'` se inválido); `cycle()` light→dark→system→light. `_systemPrefersDark` signal escuta `prefers-color-scheme` (`addEventListener` moderno + `addListener` fallback Safari antigo). `effect()` reflete resolved theme para `<html data-theme="...">` (Material 3 / Tailwind picks up; sem flash-of-unstyled). Safe-fallback p/ SSR (typeof localStorage/window === 'undefined')
+  - `ThemeService` (em `@mosaicoo/svg-engine/ui`): tipos `Theme = 'system'|'light'|'dark'` + `ResolvedTheme = 'light'|'dark'`. `setTheme()` persiste em `localStorage` chave `svge.theme`; init lê valor persistido (fallback `'system'` se inválido); `cycle()` light→dark→system→light. `_systemPrefersDark` signal escuta `prefers-color-scheme` (`addEventListener` moderno + `addListener` fallback Safari antigo). `effect()` reflete resolved theme para `<html data-theme="...">` (Material 3 / Tailwind picks up; sem flash-of-unstyled). Safe-fallback p/ SSR (typeof localStorage/window === 'undefined')
   - `<svge-theme-toggle>` Material `<mat-icon-button>` com ícone do tema CHOSEN (light_mode/dark_mode/brightness_auto) — tooltip mostra current + hint do próximo. Click chama `cycle()`
   - +8 testes (defaults+setTheme 4, resolved+DOM 2, persistence boot 2) → **632 passing**
 
 ## Fase 5 — IO + extensibilidade ✅ (entregue, 708 testes)
 
-> **2026-05-20 — Alinhamento estrutural (D-026)**: `Importer`/`Exporter`/`Optimizer` (registries + tipos + built-ins) movidos de `svg-engine/edit` para entry points dedicados `svg-engine/io` e `svg-engine/optimize`. Plugin wrappers (`builtinIoPlugin`, `pngExporterPlugin`, `builtinOptimizersPlugin`) ficam em `/edit` porque dependem do scaffolding `EditorPlugin`. Backward-compat preservada via re-exports em `/edit/lib/io` e `/edit/lib/optimize`. Build + 948 specs + playground compilam sem ajuste.
+> **2026-05-20 — Alinhamento estrutural (D-026)**: `Importer`/`Exporter`/`Optimizer` (registries + tipos + built-ins) movidos de `@mosaicoo/svg-engine/edit` para entry points dedicados `@mosaicoo/svg-engine/io` e `@mosaicoo/svg-engine/optimize`. Plugin wrappers (`builtinIoPlugin`, `pngExporterPlugin`, `builtinOptimizersPlugin`) ficam em `/edit` porque dependem do scaffolding `EditorPlugin`. Backward-compat preservada via re-exports em `/edit/lib/io` e `/edit/lib/optimize`. Build + 948 specs + playground compilam sem ajuste.
 
-> **2026-05-20 — Consolidação de helpers (D-036)**: `screenToDoc` (5 cópias → 1 em `svg-engine/render/lib/util`), `capturePointer`/`releasePointer` (7 cópias inline → 1 em `svg-engine/edit/lib/pointer`), `isEditableTarget` (2 cópias → 1 canonical em `/edit/lib/pointer`, re-importada por `ShortcutService`). 8 arquivos da library + 1 do playground migrados. **973/973 specs** (+25 novos), 6 entry points clean.
+> **2026-05-20 — Consolidação de helpers (D-036)**: `screenToDoc` (5 cópias → 1 em `@mosaicoo/svg-engine/render/lib/util`), `capturePointer`/`releasePointer` (7 cópias inline → 1 em `@mosaicoo/svg-engine/edit/lib/pointer`), `isEditableTarget` (2 cópias → 1 canonical em `/edit/lib/pointer`, re-importada por `ShortcutService`). 8 arquivos da library + 1 do playground migrados. **973/973 specs** (+25 novos), 6 entry points clean.
 
 > **2026-05-20 — Shell-refinement (D-034 + D-035 + D-037) ✅**: `<svge-toolbar>` integrado ao `<svge-editor>` (lê `MenuContributionRegistry` automaticamente). Novo `<svge-status-bar>` lendo 8 services com 7 sections opt-in. `<svge-editor>` ganhou inputs `[showToolbar]`/`[showStatusBar]` + slots de projeção, garantindo 3 modos de consumo (D-037 — invariantes Mosaicoo): headless puro / shell completo / shell parcial. Playground ganhou rota `/shell-partial-demo`. **993/993 specs** (+15 novos), 6 entry points clean.
 
@@ -456,7 +456,7 @@
 > quando houver demanda explícita ou push de acessibilidade.
 
 - [x] **Fase 8.1 — Rule-based NLU** ✅ (sem ML, < 50 KB)
-  - Entry points separados agrupados sob `ai/`: `svg-engine/ai/nlu` (headless) + `svg-engine/ai/nlu-ui` (Material + Web Speech). Toda camada AI desacoplada — Modo 1 headless puro não importa NLU. Fase 8.2 (`ai/nlu-ml`) e 8.3 (`ai/nlu-slm`) entrarão no mesmo agrupamento.
+  - Entry points separados agrupados sob `ai/`: `@mosaicoo/svg-engine/ai/nlu` (headless) + `@mosaicoo/svg-engine/ai/nlu-ui` (Material + Web Speech). Toda camada AI desacoplada — Modo 1 headless puro não importa NLU. Fase 8.2 (`ai/nlu-ml`) e 8.3 (`ai/nlu-slm`) entrarão no mesmo agrupamento.
   - `NaturalLanguageService.parse(text, ctx)` com regex + dicionário PT/EN + fuzzy match (Levenshtein)
   - Auto-descoberta de intents do `MenuContributionRegistry` (todo menu item vira candidato; `label` como exemplo)
   - `registerIntent(...)` para plugins adicionarem intents customizados
@@ -465,18 +465,18 @@
   - Cobertura validada: "undo", "select all", "delete", "criar retângulo vermelho 100x50", "create a blue circle"
   - +89 specs (tokenize/levenshtein/fuzzy/slot-extractor/service/discovery/plugin) → **1138 passing** em 88 arquivos
 - [ ] **Fase 8.2 — Intent classifier ML leve** (30–50 MB, lazy-load)
-  - Entry point `svg-engine/ai/nlu-ml`
+  - Entry point `@mosaicoo/svg-engine/ai/nlu-ml`
   - Distilled BERT / MiniLM via **Transformers.js** (ONNX no browser, sem WebGPU obrigatório)
   - Confidence score → fallback para Fase 1 se baixa
   - Resolve ambiguidades semânticas ("torna isso maior", "alinha à esquerda")
   - Multilíngue (XLM-R / Multilingual MiniLM)
 - [ ] **Fase 8.3 — SLM com function-calling** (500 MB – 2 GB, lazy-load, WebGPU)
-  - Entry point `svg-engine/ai/nlu-slm`
+  - Entry point `@mosaicoo/svg-engine/ai/nlu-slm`
   - Llama-3.2-1B ou Gemma 2B via **WebLLM** (WebGPU obrigatório; fallback para Fase 2 se ausente)
   - Comandos compostos ("duplica 3 vezes e alinha em grid 2x2")
   - Function-calling style: o SLM emite JSON `{intent, slots}`, código clássico executa
   - Cache do modelo via OPFS / IndexedDB (cold start só na 1ª vez)
-- [ ] **Surfaces UI (entry separado `svg-engine/nlu-ui`)**
+- [ ] **Surfaces UI (entry separado `@mosaicoo/svg-engine/nlu-ui`)**
   - Command palette (Ctrl+K) com input texto + autocomplete
   - Voice input via Web Speech API (gratuito, browser-native)
   - Chat sidebar opcional (modo conversacional, útil pra 8.3)
@@ -516,7 +516,7 @@ decisão completa, invariantes de não-quebra e o status de implementação.
 **Decisões em aberto fechadas no F0**: v1 = só-preview (export adiado p/ F9+);
 persistência no documento (round-trip via metadata/`data-svge-animation`);
 props do v1 = geometria + transform + style (path-`d` morph adiado); reuso dos
-entry points `core`/`edit`/`ui` (sem novo `svg-engine/animate`).
+entry points `core`/`edit`/`ui` (sem novo `@mosaicoo/svg-engine/animate`).
 
 ---
 

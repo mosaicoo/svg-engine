@@ -5,7 +5,7 @@ import {
   type SvgNode,
   type SymbolUseNode,
   walk,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import type { LibraryItem } from '../library-item';
 import { LibraryRegistry } from '../library-registry';
 

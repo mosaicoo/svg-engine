@@ -1,4 +1,4 @@
-import { createGroup, createPath, type SvgNode } from 'svg-engine/core';
+import { createGroup, createPath, type SvgNode } from '@mosaicoo/svg-engine/core';
 
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../../plugin/plugin';
 import {

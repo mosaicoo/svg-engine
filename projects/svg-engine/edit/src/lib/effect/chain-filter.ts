@@ -1,5 +1,5 @@
 import { computed, inject, Injectable } from '@angular/core';
-import { EditorStateService, type SvgNode, walk } from 'svg-engine/core';
+import { EditorStateService, type SvgNode, walk } from '@mosaicoo/svg-engine/core';
 import type { Effect } from './effect';
 import { EffectRegistry } from './effect-registry.service';
 

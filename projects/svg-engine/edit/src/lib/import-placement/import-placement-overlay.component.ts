@@ -7,8 +7,8 @@ import {
   HostListener,
   inject,
 } from '@angular/core';
-import { type BoundingBox, type Point, type SvgNode } from 'svg-engine/core';
-import { screenToDoc, SvgeNodeRenderer, ViewportService } from 'svg-engine/render';
+import { type BoundingBox, type Point, type SvgNode } from '@mosaicoo/svg-engine/core';
+import { screenToDoc, SvgeNodeRenderer, ViewportService } from '@mosaicoo/svg-engine/render';
 
 import { capturePointer, releasePointer } from '../pointer';
 import { ImportPlacementService } from './import-placement.service';

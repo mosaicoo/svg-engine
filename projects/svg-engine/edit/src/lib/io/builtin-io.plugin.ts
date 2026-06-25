@@ -1,4 +1,9 @@
-import { ExporterRegistry, ImporterRegistry, svgExporter, svgImporter } from 'svg-engine/io';
+import {
+  ExporterRegistry,
+  ImporterRegistry,
+  svgExporter,
+  svgImporter,
+} from '@mosaicoo/svg-engine/io';
 import type { EditorPlugin, PluginContext } from '../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../plugin/plugin';
 

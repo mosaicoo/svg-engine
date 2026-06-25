@@ -5,8 +5,8 @@ import {
   MenuContributionRegistry,
   provideSvgEnginePlugin,
   provideSvgEngineEditorScope,
-} from 'svg-engine/edit';
-import { CodeGeneratorRegistry } from 'svg-engine/io';
+} from '@mosaicoo/svg-engine/edit';
+import { CodeGeneratorRegistry } from '@mosaicoo/svg-engine/io';
 import { codeGeneratorsPlugin } from './code-generators.plugin';
 
 /**

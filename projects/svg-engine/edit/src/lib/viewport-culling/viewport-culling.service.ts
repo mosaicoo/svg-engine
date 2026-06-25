@@ -7,8 +7,8 @@ import {
   type BoundingBox,
   type NodeId,
   type SvgNode,
-} from 'svg-engine/core';
-import { ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/core';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 
 /**
  * Sentinel id ensuring our injected stylesheet is added only once even

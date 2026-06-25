@@ -6,7 +6,7 @@ import {
   createPath,
   type PathNode,
   type Point,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 
 /**
  * Reactive state for the Pen tool — the path under construction lives

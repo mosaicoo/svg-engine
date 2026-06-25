@@ -1,6 +1,6 @@
 import { Injector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { MenuContributionRegistry } from 'svg-engine/edit';
+import { MenuContributionRegistry } from '@mosaicoo/svg-engine/edit';
 import { describe, expect, it } from 'vitest';
 import {
   discoverMenuIntents,

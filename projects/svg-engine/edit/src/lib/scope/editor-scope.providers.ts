@@ -5,8 +5,8 @@ import {
   HistoryService,
   INSERT_PARENT_RESOLVER,
   SnapshotsService,
-} from 'svg-engine/core';
-import { ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/core';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 
 import { AlignmentService } from '../alignment/alignment.service';
 import { KeyObjectService } from '../alignment/key-object.service';

@@ -1,5 +1,5 @@
 import { computed, inject, Injectable } from '@angular/core';
-import { EditorStateService } from 'svg-engine/core';
+import { EditorStateService } from '@mosaicoo/svg-engine/core';
 
 import { ChainFilterRegistry } from '../effect/chain-filter';
 import { EffectRegistry } from '../effect/effect-registry.service';

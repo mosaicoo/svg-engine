@@ -5,7 +5,7 @@ import {
   type NodeId,
   type Point,
   TranslateManyCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import {
   type AlignAxis,
   computeAlignDeltas,

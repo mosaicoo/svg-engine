@@ -17,8 +17,8 @@ import {
   type NodeId,
   type Point,
   type Transform,
-} from 'svg-engine/core';
-import { screenToDoc, ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/core';
+import { screenToDoc, ViewportService } from '@mosaicoo/svg-engine/render';
 import { capturePointer, releasePointer } from '../pointer';
 import { allAnchors, BBOX_ANCHORS, type BBoxAnchor } from '../geometry/bbox-anchors';
 import { getCombinedBBox, getRenderedNodeOBB, type RenderedOBB } from '../geometry/node-bbox';

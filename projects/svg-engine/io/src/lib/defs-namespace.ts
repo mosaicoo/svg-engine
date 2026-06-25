@@ -1,4 +1,4 @@
-import { isGroupNode, type SvgNode, type SvgStyle } from 'svg-engine/core';
+import { isGroupNode, type SvgNode, type SvgStyle } from '@mosaicoo/svg-engine/core';
 
 /**
  * **D-101 — defs id-namespacing (cross-SVG collision fix).**

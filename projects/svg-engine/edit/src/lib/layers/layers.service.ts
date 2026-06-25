@@ -1,5 +1,5 @@
 import { computed, Injectable, signal } from '@angular/core';
-import type { NodeId } from 'svg-engine/core';
+import type { NodeId } from '@mosaicoo/svg-engine/core';
 
 /**
  * Editor-side per-node visibility + lock state. **Editor presentation

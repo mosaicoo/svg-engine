@@ -1,7 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { MenuContributionRegistry } from 'svg-engine/edit';
+import { MenuContributionRegistry } from '@mosaicoo/svg-engine/edit';
 import { MENU_SLOT, SvgeMenuBar } from './menu-bar.component';
 
 @Component({

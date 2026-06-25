@@ -11,7 +11,7 @@ import {
   ok,
   type ParentRef,
   removeNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 
 /**
  * **D-059** — Insert a symbol instance (`SymbolUseNode`) at the

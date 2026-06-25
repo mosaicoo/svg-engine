@@ -4,7 +4,7 @@ import {
   precisionOptimizer,
   pruneEmptyGroupsOptimizer,
   stripAuthoredTitlesOptimizer,
-} from 'svg-engine/optimize';
+} from '@mosaicoo/svg-engine/optimize';
 import type { EditorPlugin, PluginContext } from '../plugin/plugin';
 import { PLUGIN_API_VERSION } from '../plugin/plugin';
 

@@ -19,8 +19,8 @@ import {
   MoveNodeInTreeCommand,
   type NodeId,
   RenamePageCommand,
-} from 'svg-engine/core';
-import { ActivePageService, PagesService } from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/core';
+import { ActivePageService, PagesService } from '@mosaicoo/svg-engine/edit';
 
 /**
  * **D-079 / PAGES-C** — `<svge-pages-panel>`: horizontal tab bar at

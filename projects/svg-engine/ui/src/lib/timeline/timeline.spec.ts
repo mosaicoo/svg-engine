@@ -8,8 +8,8 @@ import {
   DEFAULT_EASING,
   EditorStateService,
   type RectNode,
-} from 'svg-engine/core';
-import { AnimationService, PlaybackService, SelectionService } from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/core';
+import { AnimationService, PlaybackService, SelectionService } from '@mosaicoo/svg-engine/edit';
 import { clientXToTime, SvgeTimeline } from './timeline.component';
 
 @Component({

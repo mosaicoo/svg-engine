@@ -1,6 +1,6 @@
 import { Component, input } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import type { SvgNode } from 'svg-engine/core';
+import type { SvgNode } from '@mosaicoo/svg-engine/core';
 import { NodeRendererRegistry } from './node-renderer-registry.service';
 
 @Component({ selector: 'svge-test-fake-star', standalone: true, template: '' })

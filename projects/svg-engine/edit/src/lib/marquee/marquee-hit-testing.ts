@@ -1,4 +1,4 @@
-import type { BoundingBox, NodeId } from 'svg-engine/core';
+import type { BoundingBox, NodeId } from '@mosaicoo/svg-engine/core';
 import type { MarqueeHitMode } from './marquee.service';
 
 /** Pair of `(id, bbox)` consumed by `nodesInsideMarquee`. */

@@ -9,9 +9,9 @@ import {
   createText,
   EditorStateService,
   InsertNodeCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { regularPolygonPoints, regularStarPoints } from '../dictionaries/shapes-canonical';
-import { PluginRegistry, SelectionService } from 'svg-engine/edit';
+import { PluginRegistry, SelectionService } from '@mosaicoo/svg-engine/edit';
 import { describe, expect, it } from 'vitest';
 import { builtinNluPlugin } from '../builtin-nlu.plugin';
 import { NaturalLanguageService } from '../natural-language.service';

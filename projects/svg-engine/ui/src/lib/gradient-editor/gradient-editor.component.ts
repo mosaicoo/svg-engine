@@ -6,7 +6,7 @@ import {
   Injector,
   signal,
 } from '@angular/core';
-import { CommandBus } from 'svg-engine/core';
+import { CommandBus } from '@mosaicoo/svg-engine/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatIconButton } from '@angular/material/button';
@@ -19,7 +19,7 @@ import {
   GradientLibraryService,
   type GradientStop,
   SetGradientCommand,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 
 import { SvgeColorPicker } from '../color-picker/color-picker.component';
 

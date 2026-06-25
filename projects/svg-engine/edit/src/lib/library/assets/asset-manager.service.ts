@@ -6,7 +6,7 @@ import {
   EditorStateService,
   type ImageNode,
   InsertNodeCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 
 /**
  * Asset Manager (D-048 Item 2) — in-memory catalog of imported

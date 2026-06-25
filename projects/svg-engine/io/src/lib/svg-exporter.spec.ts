@@ -8,7 +8,7 @@ import {
   createText,
   type SvgDocument,
   type SvgNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { svgExporter } from './svg-exporter';
 
 /**
@@ -158,7 +158,7 @@ describe('svgExporter — D-056 metadata.visible', () => {
 // (preserves the runtime-only intent for the common case).
 
 import { collectReferencedPathIds } from './svg-exporter';
-import type { GroupNode, NodeId } from 'svg-engine/core';
+import type { GroupNode, NodeId } from '@mosaicoo/svg-engine/core';
 
 describe('svgExporter — D-068 follow-up: id emission for referenced paths', () => {
   it('emits id="..." on a path that some text node references via textPathRef', () => {

@@ -21,9 +21,9 @@ import {
   RotateNodesCommand,
   type TextNode,
   type Transform,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { composeAncestorMatrix } from '../anchor-editor/compose-ancestor-matrix';
-import { screenToDoc, ViewportService } from 'svg-engine/render';
+import { screenToDoc, ViewportService } from '@mosaicoo/svg-engine/render';
 import { capturePointer, releasePointer } from '../pointer';
 import { allAnchors, type BBoxAnchor } from '../geometry/bbox-anchors';
 import {
@@ -1071,9 +1071,9 @@ function obbsEqual(a: RenderedOBB, b: RenderedOBB): boolean {
  * the estimate lands on the rendered position, not on raw `(x, y)`.
  */
 function estimateTextBBox(
-  root: import('svg-engine/core').GroupNode,
+  root: import('@mosaicoo/svg-engine/core').GroupNode,
   text: TextNode,
-  textId: import('svg-engine/core').NodeId,
+  textId: import('@mosaicoo/svg-engine/core').NodeId,
 ): BoundingBox {
   const fontSize = text.fontSize ?? 16;
   const lines = text.content.length === 0 ? [''] : text.content.split('\n');
@@ -1108,9 +1108,9 @@ export { HANDLE_DATA_ATTR };
  * and the walk is the same.
  */
 function findFocusedType(
-  node: import('svg-engine/core').SvgNode,
-  id: import('svg-engine/core').NodeId,
-): import('svg-engine/core').SvgNode['type'] | null {
+  node: import('@mosaicoo/svg-engine/core').SvgNode,
+  id: import('@mosaicoo/svg-engine/core').NodeId,
+): import('@mosaicoo/svg-engine/core').SvgNode['type'] | null {
   if (node.id === id) return node.type;
   if (node.type === 'group') {
     for (const child of node.children) {

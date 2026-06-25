@@ -5,8 +5,8 @@ import {
   createImage,
   type ImageNode,
   InsertNodeCommand,
-} from 'svg-engine/core';
-import { ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/core';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 
 import { ActivePageService } from '../pages/active-page.service';
 import { SelectionService } from '../selection/selection.service';

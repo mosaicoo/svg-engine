@@ -1,5 +1,5 @@
 import { computed, Directive, input } from '@angular/core';
-import type { PolylineNode } from 'svg-engine/core';
+import type { PolylineNode } from '@mosaicoo/svg-engine/core';
 
 /** Apply to `<svg:polyline>` to bind attributes from a {@link PolylineNode}. */
 @Directive({

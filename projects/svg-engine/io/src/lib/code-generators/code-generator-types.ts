@@ -1,4 +1,4 @@
-import type { SvgDocument } from 'svg-engine/core';
+import type { SvgDocument } from '@mosaicoo/svg-engine/core';
 
 /**
  * **D-110 — Code Generators (Group A).** Contract for a "code output"

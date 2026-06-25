@@ -1,7 +1,7 @@
 import { inject, Injectable } from '@angular/core';
-import type { NodeId } from 'svg-engine/core';
-import { ImportPlacementService } from 'svg-engine/edit';
-import { svgImporter } from 'svg-engine/io';
+import type { NodeId } from '@mosaicoo/svg-engine/core';
+import { ImportPlacementService } from '@mosaicoo/svg-engine/edit';
+import { svgImporter } from '@mosaicoo/svg-engine/io';
 
 import { isStopword } from '../dictionaries/stopwords';
 import { NaturalLanguageService } from '../natural-language.service';

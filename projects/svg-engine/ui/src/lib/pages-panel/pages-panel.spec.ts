@@ -9,8 +9,8 @@ import {
   EditorStateService,
   isPage,
   type NodeId,
-} from 'svg-engine/core';
-import { ActivePageService, PagesService } from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/core';
+import { ActivePageService, PagesService } from '@mosaicoo/svg-engine/edit';
 import { SvgePagesPanel } from './pages-panel.component';
 
 /**

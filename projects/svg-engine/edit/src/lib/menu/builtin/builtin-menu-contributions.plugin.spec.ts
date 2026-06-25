@@ -13,7 +13,7 @@ import {
   type SvgNode,
   withLayerFlag,
   withPageFlag,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { ClipboardService } from '../../clipboard/clipboard.service';
 import { RecentFilesService } from '../../recent-files/recent-files.service';
 import { ActivePageService } from '../../pages/active-page.service';

@@ -31,7 +31,7 @@ import {
   type SvgNode,
   type SvgStyle,
   type TextRun,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { CssStyleSheet } from './css-style-resolver';
 import type { Importer, ImportResult } from './io-types';
 
@@ -469,7 +469,7 @@ function parseAuthoredName(el: Element): string | undefined {
 
 /**
  * **D-082 F7** — best-effort parse of a `data-svge-animation` attribute value
- * into an {@link import('svg-engine/core').AnimationDoc}. Returns `null` on
+ * into an {@link import('@mosaicoo/svg-engine/core').AnimationDoc}. Returns `null` on
  * malformed JSON or a value that doesn't satisfy {@link isAnimationDoc} — the
  * importer never throws on foreign/corrupt input.
  */

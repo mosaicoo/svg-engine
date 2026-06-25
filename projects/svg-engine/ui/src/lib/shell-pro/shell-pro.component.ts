@@ -17,7 +17,7 @@ import {
   EditorStateService,
   EnsureDefaultPageCommand,
   type SvgNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import {
   ActiveDefsService,
   ActivePageService,
@@ -46,8 +46,8 @@ import {
   ToolHostService,
   WorkspaceBackground,
   WorkspaceService,
-} from 'svg-engine/edit';
-import { SvgeRenderer } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/edit';
+import { SvgeRenderer } from '@mosaicoo/svg-engine/render';
 import { CONTEXT_MENU_SLOT, SvgeContextMenuTrigger } from '../context-menu';
 import { SvgeEffectsPanel } from '../effects-panel';
 import { SvgeGradientEditor } from '../gradient-editor';

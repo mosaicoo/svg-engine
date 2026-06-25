@@ -16,5 +16,5 @@ export {
   pruneEmptyGroupsOptimizer,
   stripAuthoredTitlesOptimizer,
   OptimizeCommand,
-} from 'svg-engine/optimize';
+} from '@mosaicoo/svg-engine/optimize';
 export { builtinOptimizersPlugin } from './builtin-optimizers.plugin';

@@ -7,8 +7,8 @@ import {
   ReleaseSmartObjectCommand,
   ReplaceSmartObjectContentsCommand,
   type SvgNode,
-} from 'svg-engine/core';
-import { mergeDefsFragments, svgImporter } from 'svg-engine/io';
+} from '@mosaicoo/svg-engine/core';
+import { mergeDefsFragments, svgImporter } from '@mosaicoo/svg-engine/io';
 
 /** Outcome of {@link SmartObjectActionsService.applyReplaceText}. */
 export interface ReplaceContentsResult {

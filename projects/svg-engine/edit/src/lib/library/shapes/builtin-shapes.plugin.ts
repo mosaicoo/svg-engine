@@ -8,7 +8,7 @@ import { ShapeLibraryService } from './shape-library.service';
  *
  * Bootstrap:
  * ```ts
- * import { builtinShapesPlugin, provideSvgEnginePlugin } from 'svg-engine/edit';
+ * import { builtinShapesPlugin, provideSvgEnginePlugin } from '@mosaicoo/svg-engine/edit';
  * providers: [provideSvgEnginePlugin(builtinShapesPlugin)];
  * ```
  *

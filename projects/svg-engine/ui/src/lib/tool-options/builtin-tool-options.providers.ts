@@ -19,7 +19,7 @@ import {
   SYMBOL_SPRAYER_TOOL_ID,
   TEXT_TOOL_ID,
   WIDTH_TOOL_ID,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 import { SvgeDirectSelectOptions } from './direct-select-options/direct-select-options.component';
 import { SvgeEyedropperToolOptions } from './eyedropper-tool-options/eyedropper-tool-options.component';
 import { SvgeGradientToolOptions } from './gradient-tool-options/gradient-tool-options.component';
@@ -43,7 +43,7 @@ import { SvgeWidthToolOptions } from './width-tool-options/width-tool-options.co
  * **Usage** (in `app.config.ts`):
  *
  * ```ts
- * import { provideSvgeBuiltinToolOptions } from 'svg-engine/ui';
+ * import { provideSvgeBuiltinToolOptions } from '@mosaicoo/svg-engine/ui';
  *
  * export const appConfig: ApplicationConfig = {
  *   providers: [

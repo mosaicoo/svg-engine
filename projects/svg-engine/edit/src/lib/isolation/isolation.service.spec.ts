@@ -9,7 +9,7 @@ import {
   type SvgDocument,
   withLayerFlag,
   withPageFlag,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { IsolationService } from './isolation.service';
 
 /**

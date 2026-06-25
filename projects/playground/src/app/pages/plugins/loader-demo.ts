@@ -3,7 +3,7 @@ import {
   type ExternalPluginManifest,
   PLUGIN_API_VERSION,
   type PluginModuleLoader,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 
 /**
  * **Fase 2 loader demo (playground only).** Exercises the real

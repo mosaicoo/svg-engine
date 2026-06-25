@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { ShapeToolService } from 'svg-engine/edit';
+import { ShapeToolService } from '@mosaicoo/svg-engine/edit';
 import { TOOL_OPT_SHARED_STYLES } from '../shared-styles';
 
 /**

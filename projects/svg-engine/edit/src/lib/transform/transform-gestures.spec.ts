@@ -11,8 +11,8 @@ import {
   HistoryService,
   IDENTITY_TRANSFORM,
   rotate,
-} from 'svg-engine/core';
-import { ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/core';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 import { LayersService } from '../layers/layers.service';
 import { SelectionService } from '../selection/selection.service';
 import { TransformService } from './transform.service';

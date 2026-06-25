@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createEmptyDocument, EditorStateService } from 'svg-engine/core';
+import { createEmptyDocument, EditorStateService } from '@mosaicoo/svg-engine/core';
 import { AnimationService } from './animation.service';
 import { PlaybackService } from './playback.service';
 

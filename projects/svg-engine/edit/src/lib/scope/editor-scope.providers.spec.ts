@@ -10,8 +10,8 @@ import {
   HistoryService,
   InsertNodeCommand,
   SnapshotsService,
-} from 'svg-engine/core';
-import { ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/core';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 import { describe, expect, it } from 'vitest';
 
 import { AlignmentService } from '../alignment/alignment.service';

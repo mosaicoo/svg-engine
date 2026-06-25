@@ -57,7 +57,7 @@ import {
   type TextNode,
   UngroupCommand,
   walk,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import {
   ActivePageService,
   type AlignAxis,
@@ -76,7 +76,7 @@ import {
   SelectionService,
   SmartObjectActionsService,
   TransformService,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 import { SvgeColorPalette } from '../color-palette/color-palette.component';
 import { SvgeColorPicker } from '../color-picker/color-picker.component';
 import { SvgePanelGroup, SvgePanelGroupTab } from '../panel-group';
@@ -3380,7 +3380,7 @@ export class SvgeInspector {
   protected resetTransform(): void {
     const node = this.focusNode();
     if (node === null || this.layers.isLocked(node.id)) return;
-    const next: import('svg-engine/core').Transform = [
+    const next: import('@mosaicoo/svg-engine/core').Transform = [
       1,
       0,
       0,

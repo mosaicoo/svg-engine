@@ -7,7 +7,7 @@
  * string conventions:
  *
  * ```ts
- * import { MENU_SLOT, TOOLBAR_SLOT, CONTEXT_MENU_SLOT } from 'svg-engine/edit';
+ * import { MENU_SLOT, TOOLBAR_SLOT, CONTEXT_MENU_SLOT } from '@mosaicoo/svg-engine/edit';
  *
  * reg.register({ slot: MENU_SLOT.EDIT, ... });
  * reg.register({ slot: TOOLBAR_SLOT.MAIN, ... });
@@ -19,7 +19,7 @@
  * register from `edit` scope and shouldn't need to import from `ui` to
  * know the canonical slot names. UI components re-export these for
  * backward compatibility with consumers that already wrote
- * `import { MENU_SLOT } from 'svg-engine/ui'` — both imports work and
+ * `import { MENU_SLOT } from '@mosaicoo/svg-engine/ui'` — both imports work and
  * resolve to the same object.
  *
  * **Custom slots are allowed**: `slot` in {@link MenuContribution} is

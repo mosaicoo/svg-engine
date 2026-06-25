@@ -5,7 +5,7 @@ import {
   createRect,
   EditorStateService,
   InsertNodeCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import {
   AnchorOverlay,
   InlineTextEditor,
@@ -18,8 +18,8 @@ import {
   ShapeOverlay,
   SnapGuides,
   SymbolSprayerOverlay,
-} from 'svg-engine/edit';
-import { SvgeShellPro } from 'svg-engine/ui';
+} from '@mosaicoo/svg-engine/edit';
+import { SvgeShellPro } from '@mosaicoo/svg-engine/ui';
 
 /**
  * **SVG Studio main editor** — clone of the playground's `ProEditor`

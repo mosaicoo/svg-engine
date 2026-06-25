@@ -6,8 +6,8 @@ import {
   createRect,
   EditorStateService,
   type SvgDocument,
-} from 'svg-engine/core';
-import { ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/core';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 import { ViewportCullingService } from './viewport-culling.service';
 
 function setupWithDoc(doc: SvgDocument): {

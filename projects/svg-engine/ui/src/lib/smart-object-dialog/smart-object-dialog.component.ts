@@ -10,8 +10,8 @@ import {
   isSmartObject,
   type NodeId,
   type SvgNode,
-} from 'svg-engine/core';
-import { mergeDefsFragments, svgExporter, svgImporter } from 'svg-engine/io';
+} from '@mosaicoo/svg-engine/core';
+import { mergeDefsFragments, svgExporter, svgImporter } from '@mosaicoo/svg-engine/io';
 import { SvgeDialogShell } from '../dialog-shell';
 
 /**

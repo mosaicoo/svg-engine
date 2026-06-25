@@ -6,8 +6,8 @@ import {
   type SnapshotsLimits,
   SnapshotsService,
   type SnapshotSource,
-} from 'svg-engine/core';
-import { svgExporter, svgImporter } from 'svg-engine/io';
+} from '@mosaicoo/svg-engine/core';
+import { svgExporter, svgImporter } from '@mosaicoo/svg-engine/io';
 
 /**
  * **D-073 — Snapshots persistence layer.** Round-trips

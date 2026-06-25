@@ -8,7 +8,7 @@ import {
   EditorStateService,
   InsertNodeCommand,
   type SvgDocument,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { SvgeSvgSourceDialog } from './svg-source-dialog.component';
 
 function seedDoc(): SvgDocument {

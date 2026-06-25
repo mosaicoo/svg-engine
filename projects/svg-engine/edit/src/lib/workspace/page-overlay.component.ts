@@ -4,8 +4,8 @@ import {
   getPageViewBox,
   type NodeId,
   PAGE_BACKGROUND_IMAGE_PAR,
-} from 'svg-engine/core';
-import { ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/core';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 import { ActivePageService } from '../pages/active-page.service';
 import { PageDragService } from '../pages/page-drag.service';
 import { PAGE_TOOL_ID } from '../tool/builtin-tools';

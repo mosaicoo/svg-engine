@@ -9,8 +9,8 @@ import {
   EditorStateService,
   findNodeById,
   type NodeId,
-} from 'svg-engine/core';
-import { SelectionService } from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/core';
+import { SelectionService } from '@mosaicoo/svg-engine/edit';
 import { SvgeSelectToolOptions } from './select-tool-options.component';
 
 /**

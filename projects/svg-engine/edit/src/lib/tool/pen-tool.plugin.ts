@@ -1,4 +1,4 @@
-import { AUTO_PARENT, CommandBus, InsertNodeCommand, type Point } from 'svg-engine/core';
+import { AUTO_PARENT, CommandBus, InsertNodeCommand, type Point } from '@mosaicoo/svg-engine/core';
 import { type EditorPlugin, PLUGIN_API_VERSION } from '../plugin/plugin';
 import { SelectionService } from '../selection/selection.service';
 import { PenToolService } from './pen-tool.service';

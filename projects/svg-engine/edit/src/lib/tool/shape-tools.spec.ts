@@ -1,5 +1,10 @@
 import { TestBed } from '@angular/core/testing';
-import { createEmptyDocument, EditorStateService, isGroupNode, type Point } from 'svg-engine/core';
+import {
+  createEmptyDocument,
+  EditorStateService,
+  isGroupNode,
+  type Point,
+} from '@mosaicoo/svg-engine/core';
 import { PluginRegistry } from '../plugin/plugin-registry.service';
 import { provideSvgEnginePlugin } from '../plugin/provide-plugin';
 import {

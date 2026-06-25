@@ -1,5 +1,5 @@
 import { computed, Injectable, signal } from '@angular/core';
-import type { Point } from 'svg-engine/core';
+import type { Point } from '@mosaicoo/svg-engine/core';
 
 /**
  * Which primitive a press-drag-release gesture is creating. Drives the

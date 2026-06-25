@@ -1,5 +1,11 @@
 import { TestBed } from '@angular/core/testing';
-import { applyTransform, bbox, generateNodeId, IDENTITY_TRANSFORM, rotate } from 'svg-engine/core';
+import {
+  applyTransform,
+  bbox,
+  generateNodeId,
+  IDENTITY_TRANSFORM,
+  rotate,
+} from '@mosaicoo/svg-engine/core';
 import { SelectionService } from '../selection/selection.service';
 import { TransformService } from './transform.service';
 

@@ -1,5 +1,5 @@
 import { computed, Injectable, signal } from '@angular/core';
-import type { AnchorRef } from 'svg-engine/core';
+import type { AnchorRef } from '@mosaicoo/svg-engine/core';
 
 /**
  * Composite key for storing AnchorRefs in a Set. AnchorRef objects

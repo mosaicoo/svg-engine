@@ -1,10 +1,10 @@
 import { effect, type Injector, runInInjectionContext } from '@angular/core';
-import type { Disposable } from 'svg-engine/core';
+import type { Disposable } from '@mosaicoo/svg-engine/core';
 import {
   type MenuContribution,
   type MenuContributionContext,
   MenuContributionRegistry,
-} from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/edit';
 import { ACTION_DICTIONARY, resolveActionCanonical } from './dictionaries/actions';
 import { normalize, tokenizeWithoutStopwords } from './parsers/tokenize';
 import { STOPWORDS } from './dictionaries/stopwords';

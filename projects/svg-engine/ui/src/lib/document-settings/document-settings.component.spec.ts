@@ -16,8 +16,8 @@ import {
   type PageMargins,
   type PageOrientation,
   type SvgNode,
-} from 'svg-engine/core';
-import { ActivePageService } from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/core';
+import { ActivePageService } from '@mosaicoo/svg-engine/edit';
 import { SvgeDocumentSettings } from './document-settings.component';
 import { SvgeDocumentSettingsDialogService } from './document-settings-dialog.service';
 

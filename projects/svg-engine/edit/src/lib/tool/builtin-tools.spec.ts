@@ -1,5 +1,10 @@
 import { TestBed } from '@angular/core/testing';
-import { CommandBus, createEmptyDocument, EditorStateService, type Point } from 'svg-engine/core';
+import {
+  CommandBus,
+  createEmptyDocument,
+  EditorStateService,
+  type Point,
+} from '@mosaicoo/svg-engine/core';
 import { PluginRegistry } from '../plugin/plugin-registry.service';
 import { provideSvgEnginePlugin } from '../plugin/provide-plugin';
 import { SelectionService } from '../selection/selection.service';

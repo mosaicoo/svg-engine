@@ -1,5 +1,5 @@
 import type { Injector, Type } from '@angular/core';
-import type { Point } from 'svg-engine/core';
+import type { Point } from '@mosaicoo/svg-engine/core';
 
 /**
  * Pointer event handed to {@link Tool} pointer handlers. Wraps the raw

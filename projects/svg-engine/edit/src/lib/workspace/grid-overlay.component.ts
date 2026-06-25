@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { getPageViewBox } from 'svg-engine/core';
-import { ViewportService } from 'svg-engine/render';
+import { getPageViewBox } from '@mosaicoo/svg-engine/core';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 import { ActivePageService } from '../pages/active-page.service';
 import { PageDragService } from '../pages/page-drag.service';
 import { type PageRect, resolvePageBounds, WorkspaceService } from './workspace.service';

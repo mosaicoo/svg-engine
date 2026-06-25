@@ -1,5 +1,5 @@
 import { type Provider } from '@angular/core';
-import { VOICE_WHISPER_PROVIDER } from 'svg-engine/ai/nlu';
+import { VOICE_WHISPER_PROVIDER } from '@mosaicoo/svg-engine/ai/nlu';
 import { provideWhisperVoice, type WhisperVoiceConfig } from './whisper-voice.config';
 import { WhisperVoiceService } from './whisper-voice.service';
 

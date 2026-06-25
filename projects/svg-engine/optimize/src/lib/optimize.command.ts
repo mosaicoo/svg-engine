@@ -5,7 +5,7 @@ import {
   generateNodeId,
   ok,
   type SvgDocument,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import type { OptimizerRegistry } from './optimizer-registry.service';
 
 /**

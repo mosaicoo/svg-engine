@@ -10,7 +10,7 @@ import {
   type SvgDocument,
   type SvgNode,
   toNodeId,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { SelectionService } from '../selection/selection.service';
 import { ACTIVE_PAGE_STORAGE_KEY } from './active-page.config';
 import { PagesService } from './pages.service';

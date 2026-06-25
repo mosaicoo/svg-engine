@@ -7,10 +7,10 @@ import {
   EditorStateService,
   getPageViewBox,
   withPageFlag,
-} from 'svg-engine/core';
-import { findNodeById } from 'svg-engine/core';
-import { ViewportService } from 'svg-engine/render';
-import { CommandBus } from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
+import { findNodeById } from '@mosaicoo/svg-engine/core';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
+import { CommandBus } from '@mosaicoo/svg-engine/core';
 import { SelectionService } from '../selection/selection.service';
 import { PAGE_TOOL_ID } from '../tool/builtin-tools';
 import { ToolHostService } from '../tool/tool-host.service';

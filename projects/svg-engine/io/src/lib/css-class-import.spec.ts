@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SvgNode } from 'svg-engine/core';
+import type { SvgNode } from '@mosaicoo/svg-engine/core';
 import { CssStyleSheet } from './css-style-resolver';
 import { svgImporter } from './svg-importer';
 

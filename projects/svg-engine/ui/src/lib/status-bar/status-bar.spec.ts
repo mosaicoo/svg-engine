@@ -8,14 +8,14 @@ import {
   EditorStateService,
   InsertNodeCommand,
   type SvgDocument,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import {
   SelectionService,
   SnapService,
   TraceProgressService,
   WorkspaceService,
-} from 'svg-engine/edit';
-import { ViewportService } from 'svg-engine/render';
+} from '@mosaicoo/svg-engine/edit';
+import { ViewportService } from '@mosaicoo/svg-engine/render';
 import { SvgeStatusBar, STATUS_BAR_SECTIONS } from './status-bar.component';
 
 function seedDoc(): SvgDocument {

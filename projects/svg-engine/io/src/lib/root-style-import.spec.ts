@@ -1,4 +1,4 @@
-import type { GroupNode, PathNode, SvgNode } from 'svg-engine/core';
+import type { GroupNode, PathNode, SvgNode } from '@mosaicoo/svg-engine/core';
 import { describe, expect, it } from 'vitest';
 
 import { svgImporter } from './svg-importer';

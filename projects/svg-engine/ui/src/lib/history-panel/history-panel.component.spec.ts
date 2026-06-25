@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
-import { type Command, CommandBus, HistoryService } from 'svg-engine/core';
+import { type Command, CommandBus, HistoryService } from '@mosaicoo/svg-engine/core';
 import { SvgeHistoryPanel } from './history-panel.component';
 
 /**

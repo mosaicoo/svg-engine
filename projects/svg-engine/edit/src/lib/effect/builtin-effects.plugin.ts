@@ -21,7 +21,7 @@ import { EffectRegistry } from './effect-registry.service';
  *
  * Bootstrap:
  * ```ts
- * import { builtinEffectsPlugin, provideSvgEnginePlugin } from 'svg-engine/edit';
+ * import { builtinEffectsPlugin, provideSvgEnginePlugin } from '@mosaicoo/svg-engine/edit';
  * providers: [provideSvgEnginePlugin(builtinEffectsPlugin)];
  * ```
  */

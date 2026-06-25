@@ -25,7 +25,11 @@ Sem façade, sem método por categoria, sem framework próprio. **O
 ## Anatomia mínima
 
 ```ts
-import { type EditorPlugin, type PluginContext, PLUGIN_API_VERSION } from 'svg-engine/edit';
+import {
+  type EditorPlugin,
+  type PluginContext,
+  PLUGIN_API_VERSION,
+} from '@mosaicoo/svg-engine/edit';
 
 export const myPlugin: EditorPlugin = {
   id: 'com.acme.my-plugin', // reverse-DNS recomendado, único na registry
@@ -49,7 +53,7 @@ Provisione no bootstrap:
 
 ```ts
 // app.config.ts
-import { provideSvgEnginePlugin } from 'svg-engine/edit';
+import { provideSvgEnginePlugin } from '@mosaicoo/svg-engine/edit';
 providers: [provideSvgEnginePlugin(myPlugin)];
 ```
 
@@ -110,8 +114,8 @@ Caso mais simples. O exemplo abaixo é literalmente uma versão reduzida
 do `selectionNudgePlugin` que ships na lib:
 
 ```ts
-import type { EditorPlugin, PluginContext } from 'svg-engine/edit';
-import { PLUGIN_API_VERSION, ShortcutRegistry } from 'svg-engine/edit';
+import type { EditorPlugin, PluginContext } from '@mosaicoo/svg-engine/edit';
+import { PLUGIN_API_VERSION, ShortcutRegistry } from '@mosaicoo/svg-engine/edit';
 
 export const myShortcutPlugin: EditorPlugin = {
   id: 'com.acme.shortcuts',
@@ -162,7 +166,7 @@ Ferramentas (lápis, formas, eyedropper) implementam `Tool` e
 contribuem via `ToolRegistry`:
 
 ```ts
-import type { Tool, ToolContext, ToolPointerEvent } from 'svg-engine/edit';
+import type { Tool, ToolContext, ToolPointerEvent } from '@mosaicoo/svg-engine/edit';
 
 const myShapeTool: Tool = {
   id: 'com.acme.tools.star',
@@ -206,11 +210,11 @@ routing). Você só implementa os hooks.
 
 ## Receita 3 — Adicionar um Exporter (binário/async)
 
-Padrão de referência: `pngExporterPlugin` na lib (`svg-engine/edit/lib/io/png-exporter.plugin.ts`).
+Padrão de referência: `pngExporterPlugin` na lib (`@mosaicoo/svg-engine/edit/lib/io/png-exporter.plugin.ts`).
 Resumido:
 
 ```ts
-import type { Exporter } from 'svg-engine/edit';
+import type { Exporter } from '@mosaicoo/svg-engine/edit';
 
 const myPdfExporter: Exporter = {
   id: 'com.acme.exporters.pdf',
@@ -248,7 +252,7 @@ const blob = typeof out === 'string' ? new Blob([out], { type: exporter.mediaTyp
 ## Receita 4 — Adicionar um Optimizer
 
 ```ts
-import type { Optimizer } from 'svg-engine/edit';
+import type { Optimizer } from '@mosaicoo/svg-engine/edit';
 
 const noopOptimizer: Optimizer = {
   id: 'com.acme.optimizers.noop',
@@ -289,13 +293,13 @@ via comando** (undoable, passa pelo CommandBus); **leitura é o helper puro**
 `readCustomAttrs`.
 
 ```ts
-import { CommandBus, EditorStateService } from 'svg-engine/core';
+import { CommandBus, EditorStateService } from '@mosaicoo/svg-engine/core';
 import {
   readCustomAttrs,
   RemoveCustomAttrCommand,
   RenameCustomAttrCommand,
   SetCustomAttrCommand,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 
 const bus = ctx.injector.get(CommandBus);
 const state = ctx.injector.get(EditorStateService);
@@ -408,7 +412,7 @@ Algumas necessidades parecem plugin mas não são:
   via serviços escopados (`AnimationService` + `PlaybackService` do
   `provideSvgEngineEditorScope`) + o componente `<svge-timeline>`, montado
   pelo shell via `<svge-shell-pro [showTimeline]="true">`. O modelo
-  (`AnimationDoc`) e os comandos undoable vivem em `svg-engine/core`; a
+  (`AnimationDoc`) e os comandos undoable vivem em `@mosaicoo/svg-engine/core`; a
   persistência é automática (round-trip do exporter/importer SVG via
   `data-svge-animation`). Para animar programaticamente, injete o
   `AnimationService` e chame `addKeyframe(...)`/`setDuration(...)` — tudo
@@ -454,7 +458,7 @@ A library exemplifica todos os padrões — verifique:
 ## Gerência de plugins (D-083 — Fase 1)
 
 Plugins providos via `provideSvgEnginePlugin` agora são **gerenciáveis** em
-runtime: o `<svge-plugin-manager>` (`svg-engine/ui`) lista todos, agrupados
+runtime: o `<svge-plugin-manager>` (`@mosaicoo/svg-engine/ui`) lista todos, agrupados
 por tipo (Internal/External), e permite **ativar/desativar** (a preferência
 persiste) + **desinstalar** (external only). Você não faz nada de especial —
 todo plugin provido entra no catálogo automaticamente.
@@ -513,7 +517,7 @@ as origens confiáveis **e** fornece o `moduleLoader` (onde mora o `import()` �
 a library não embute "carregar URL arbitrária"). No `app.config`:
 
 ```ts
-import { providePluginLoader } from 'svg-engine/edit';
+import { providePluginLoader } from '@mosaicoo/svg-engine/edit';
 
 providePluginLoader({
   trustedOrigins: ['https://plugins.my-cdn.com'], // só estas origens
@@ -553,6 +557,6 @@ infraestrutura para o consumer, não um "cole URL e rode" para o usuário final.
   - `projects/svg-engine/edit/src/lib/palette/builtin-palettes.plugin.ts`
   - `projects/svg-engine/edit/src/lib/selection/selection-nudge.plugin.ts`
   - **Plugin de menu**: `projects/svg-engine/edit/src/lib/menu/builtin/builtin-menu-contributions.plugin.ts` (D-043)
-  - **Plugin de menu UI-side** (depende de MatDialog, vive em `svg-engine/ui`): `projects/svg-engine/ui/src/lib/menu-extras/builtin-ui-menu-contributions.plugin.ts` (D-044)
+  - **Plugin de menu UI-side** (depende de MatDialog, vive em `@mosaicoo/svg-engine/ui`): `projects/svg-engine/ui/src/lib/menu-extras/builtin-ui-menu-contributions.plugin.ts` (D-044)
   - **Plugin de NLU** (10ª categoria, novo desde D-046): `projects/svg-engine/ai/nlu/src/lib/builtin-nlu.plugin.ts` — registra intents customizados via `NaturalLanguageService.registerIntent()` (auto-discovery do `MenuContributionRegistry` também roda no install do plugin)
   - **Plugin de Effects** (categoria 7, D-047): `projects/svg-engine/edit/src/lib/effect/builtin-effects.plugin.ts` — 19 builtin effects (single-filter + chained)

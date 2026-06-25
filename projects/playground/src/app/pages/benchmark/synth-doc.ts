@@ -5,7 +5,7 @@ import {
   createRect,
   type SvgDocument,
   type SvgNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 
 /**
  * Synthetic document generator used by the `/benchmark` page (ex `/perf`,

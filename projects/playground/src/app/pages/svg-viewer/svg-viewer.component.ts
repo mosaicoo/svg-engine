@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import type { SvgDocument } from 'svg-engine/core';
-import { svgImporter } from 'svg-engine/io';
-import { SvgeRenderer } from 'svg-engine/render';
+import type { SvgDocument } from '@mosaicoo/svg-engine/core';
+import { svgImporter } from '@mosaicoo/svg-engine/io';
+import { SvgeRenderer } from '@mosaicoo/svg-engine/render';
 
 /**
  * **Visualizador SVG (read-only)** — demonstra o **menor footprint

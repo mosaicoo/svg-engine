@@ -1,4 +1,4 @@
-import type { SvgDocument } from 'svg-engine/core';
+import type { SvgDocument } from '@mosaicoo/svg-engine/core';
 import { svgExporter } from '../svg-exporter';
 import type { CodeGenerator, CodeGeneratorOptions } from './code-generator-types';
 

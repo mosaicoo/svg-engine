@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { describe, expect, it } from 'vitest';
-import { WidthToolService } from 'svg-engine/edit';
+import { WidthToolService } from '@mosaicoo/svg-engine/edit';
 import { SvgeWidthToolOptions } from './width-tool-options.component';
 
 /**

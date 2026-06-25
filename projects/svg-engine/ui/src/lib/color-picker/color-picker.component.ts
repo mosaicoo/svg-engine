@@ -12,7 +12,7 @@ import {
 } from '@angular/core';
 import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
-import { capturePointer, releasePointer } from 'svg-engine/edit';
+import { capturePointer, releasePointer } from '@mosaicoo/svg-engine/edit';
 import {
   formatHex,
   formatHsvAsHex,

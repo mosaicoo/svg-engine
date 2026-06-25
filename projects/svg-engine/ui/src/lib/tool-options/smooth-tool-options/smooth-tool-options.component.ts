@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { SmoothToolService } from 'svg-engine/edit';
+import { SmoothToolService } from '@mosaicoo/svg-engine/edit';
 import { TOOL_OPT_SHARED_STYLES } from '../shared-styles';
 
 /**

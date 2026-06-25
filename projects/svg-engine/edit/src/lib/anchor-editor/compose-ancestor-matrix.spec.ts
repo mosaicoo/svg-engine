@@ -1,4 +1,4 @@
-import { createGroup, createPath, createRect, type GroupNode } from 'svg-engine/core';
+import { createGroup, createPath, createRect, type GroupNode } from '@mosaicoo/svg-engine/core';
 import { composeAncestorMatrix } from './compose-ancestor-matrix';
 
 /**

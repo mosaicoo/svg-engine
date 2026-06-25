@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { type NodeId, type SvgNode, type TextNode, walk } from 'svg-engine/core';
+import { type NodeId, type SvgNode, type TextNode, walk } from '@mosaicoo/svg-engine/core';
 
 /**
  * **D-070** — Discriminated union describing what to search for. Each
@@ -74,7 +74,10 @@ export class FindReplaceService {
    * Pure / sync / order-stable: pre-order traversal, never re-orders
    * results. Empty array on no-match — never throws.
    */
-  findAll(root: import('svg-engine/core').GroupNode, criteria: FindCriteria): readonly FindMatch[] {
+  findAll(
+    root: import('@mosaicoo/svg-engine/core').GroupNode,
+    criteria: FindCriteria,
+  ): readonly FindMatch[] {
     const out: FindMatch[] = [];
     walk(root, (n) => {
       const m = matchNode(n, criteria);

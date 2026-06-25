@@ -5,7 +5,7 @@ import {
   type SvgDocument,
   type SvgNode,
   type SymbolUseNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { describe, expect, it } from 'vitest';
 
 import { svgExporter } from './svg-exporter';

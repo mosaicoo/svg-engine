@@ -1,7 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import { inject, Injectable } from '@angular/core';
-import { EditorStateService } from 'svg-engine/core';
-import { ExporterRegistry, renderPng } from 'svg-engine/io';
+import { EditorStateService } from '@mosaicoo/svg-engine/core';
+import { ExporterRegistry, renderPng } from '@mosaicoo/svg-engine/io';
 import { ActiveDefsService } from '../library/active-defs.service';
 import { ActivePageService } from '../pages/active-page.service';
 import { AssetExportRegistry } from './asset-export-registry.service';

@@ -1,5 +1,5 @@
 import { computed, Injectable, signal } from '@angular/core';
-import { bbox, type BoundingBox } from 'svg-engine/core';
+import { bbox, type BoundingBox } from '@mosaicoo/svg-engine/core';
 
 const DEFAULT_MIN_ZOOM = 0.05;
 const DEFAULT_MAX_ZOOM = 32;

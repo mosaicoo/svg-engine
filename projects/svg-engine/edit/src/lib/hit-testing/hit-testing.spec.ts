@@ -1,4 +1,10 @@
-import { createGroup, createRect, toNodeId, withLayerFlag, withPageFlag } from 'svg-engine/core';
+import {
+  createGroup,
+  createRect,
+  toNodeId,
+  withLayerFlag,
+  withPageFlag,
+} from '@mosaicoo/svg-engine/core';
 import {
   collectNodeAncestorIds,
   findOwningNodeId,

@@ -6,7 +6,7 @@ import {
   multiply,
   type NodeId,
   type Transform,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 
 /**
  * Compose the full ancestor-chain matrix from `root` down to `targetId`.

@@ -8,7 +8,7 @@ import {
   EditorStateService,
   generateNodeId,
   type NodeId,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { AnimationService } from './animation.service';
 
 function setup(): {

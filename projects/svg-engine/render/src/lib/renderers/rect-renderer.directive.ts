@@ -1,5 +1,5 @@
 import { Directive, input } from '@angular/core';
-import type { RectNode } from 'svg-engine/core';
+import type { RectNode } from '@mosaicoo/svg-engine/core';
 
 /**
  * Apply to a `<svg:rect>` element to bind its attributes from a

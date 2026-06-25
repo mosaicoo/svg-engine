@@ -13,8 +13,8 @@ import {
   type SvgNode,
   unwrapUrlRef,
   walk,
-} from 'svg-engine/core';
-import { nodeToSvgMarkup, svgImporter } from 'svg-engine/io';
+} from '@mosaicoo/svg-engine/core';
+import { nodeToSvgMarkup, svgImporter } from '@mosaicoo/svg-engine/io';
 
 import { SelectionService } from '../selection/selection.service';
 

@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import type { PathNode } from 'svg-engine/core';
+import type { PathNode } from '@mosaicoo/svg-engine/core';
 import { describe, expect, it } from 'vitest';
 
 import { provideSvgEnginePlugin } from '../../plugin/provide-plugin';

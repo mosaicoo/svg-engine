@@ -1,4 +1,4 @@
-import { bbox, generateNodeId, type NodeId } from 'svg-engine/core';
+import { bbox, generateNodeId, type NodeId } from '@mosaicoo/svg-engine/core';
 import {
   type MarqueeCandidate,
   nodesInsideMarquee,

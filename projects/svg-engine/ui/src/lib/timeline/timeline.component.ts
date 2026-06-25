@@ -11,8 +11,8 @@ import {
   type NodeId,
   readAnimatableValue,
   type SvgNode,
-} from 'svg-engine/core';
-import { AnimationService, PlaybackService, SelectionService } from 'svg-engine/edit';
+} from '@mosaicoo/svg-engine/core';
+import { AnimationService, PlaybackService, SelectionService } from '@mosaicoo/svg-engine/edit';
 
 /** One keyframe positioned along a track lane (percent of the duration). */
 interface KeyframeView {

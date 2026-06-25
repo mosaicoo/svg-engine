@@ -1,5 +1,5 @@
 import { computed, Injectable, signal, type Signal } from '@angular/core';
-import type { Disposable } from 'svg-engine/core';
+import type { Disposable } from '@mosaicoo/svg-engine/core';
 
 import { resolveActionCanonical, type ActionCanonical } from './dictionaries/actions';
 import { resolveColorName } from './dictionaries/colors';

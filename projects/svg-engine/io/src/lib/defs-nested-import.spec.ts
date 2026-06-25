@@ -1,4 +1,4 @@
-import type { SvgDocument } from 'svg-engine/core';
+import type { SvgDocument } from '@mosaicoo/svg-engine/core';
 import { describe, expect, it } from 'vitest';
 
 import { svgImporter } from './svg-importer';

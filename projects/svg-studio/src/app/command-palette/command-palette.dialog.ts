@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { SvgeNluInput } from 'svg-engine/ai/nlu-ui';
-import { SvgeDialogShell } from 'svg-engine/ui';
+import { SvgeNluInput } from '@mosaicoo/svg-engine/ai/nlu-ui';
+import { SvgeDialogShell } from '@mosaicoo/svg-engine/ui';
 
 /**
  * **`<studio-command-palette>`** — Command Palette do SVG Studio (estilo

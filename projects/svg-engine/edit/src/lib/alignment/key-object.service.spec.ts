@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { generateNodeId, type NodeId } from 'svg-engine/core';
+import { generateNodeId, type NodeId } from '@mosaicoo/svg-engine/core';
 import { describe, expect, it } from 'vitest';
 
 import { SelectionService } from '../selection/selection.service';

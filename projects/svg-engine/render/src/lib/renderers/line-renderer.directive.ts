@@ -1,5 +1,5 @@
 import { Directive, input } from '@angular/core';
-import type { LineNode } from 'svg-engine/core';
+import type { LineNode } from '@mosaicoo/svg-engine/core';
 
 /** Apply to `<svg:line>` to bind attributes from a {@link LineNode}. */
 @Directive({

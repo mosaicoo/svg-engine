@@ -7,7 +7,7 @@ import {
   createText,
   type GroupNode,
   type SvgNode,
-} from 'svg-engine/core';
+} from '@mosaicoo/svg-engine/core';
 import { FindReplaceService } from './find-replace.service';
 
 /**

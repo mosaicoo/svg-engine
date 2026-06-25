@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Angular](https://img.shields.io/badge/Angular-21%2B-DD0031.svg)](https://angular.dev/)
 
-`svg-engine` ships **9 secondary entry points** so you only pay for what
+`@mosaicoo/svg-engine` ships **9 secondary entry points** so you only pay for what
 you use. The model + commands + renderer + editor primitives are
 **headless** (zero Material / CDK dependency). Material UI panels are
 **opt-in** via a separate entry point — keep your bundle lean if you
@@ -34,7 +34,7 @@ Each entry point is independently tree-shakeable.
 ## Install
 
 ```sh
-npm install svg-engine
+npm install @mosaicoo/svg-engine
 ```
 
 ### Peer dependencies
@@ -52,28 +52,28 @@ The library declares Angular as peer (you bring your own):
 ```
 
 `@angular/material` and `@angular/cdk` are **optional** — only required
-if you import from `svg-engine/ui`. `@huggingface/transformers` is also
-**optional** — only required for `svg-engine/ai/nlu-voice-wasm`
+if you import from `@mosaicoo/svg-engine/ui`. `@huggingface/transformers` is also
+**optional** — only required for `@mosaicoo/svg-engine/ai/nlu-voice-wasm`
 (on-device speech-to-text).
 
 `polygon-clipping` is bundled as a regular dependency (used by the
-pathfinder boolean operations in `svg-engine/core`).
+pathfinder boolean operations in `@mosaicoo/svg-engine/core`).
 
 ---
 
 ## Entry points
 
-| Package                        | What's inside                                                                                                                                                    | Material? |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| `svg-engine/core`              | Immutable `SvgDocument` model, 9 node types, commands, undo/redo history, geometry, tree ops, anchor + pathfinder commands                                       | ❌        |
-| `svg-engine/render`            | `<svge-renderer>`, per-type directives, `ViewportService`, pluggable `NodeRendererRegistry`, `screenToDoc` util                                                  | ❌        |
-| `svg-engine/io`                | `ImporterRegistry` / `ExporterRegistry` + types, `svgImporter`, `svgExporter`, `pngExporter`, `renderPng`                                                        | ❌        |
-| `svg-engine/optimize`          | `Optimizer` + `OptimizerRegistry`, 3 built-in passes (precision rounding / drop defaults / prune empty groups), `OptimizeCommand`                                | ❌        |
-| `svg-engine/edit`              | Selection, transform, marquee, snap, alignment, anchor editor, pathfinder, pages, animation, snapshots, effects, libraries, autotrace, tools, plugin scaffolding | ❌        |
-| `svg-engine/ui`                | `<svge-editor>` / `<svge-shell-pro>`, layers panel, inspector, toolbar, status bar, color picker, palette, rulers, dialogs, theme toggle                         | ✅        |
-| `svg-engine/ai/nlu`            | Natural-language command engine (intents, PT/EN dictionaries, fuzzy match); headless                                                                             | ❌        |
-| `svg-engine/ai/nlu-ui`         | `<svge-nlu-input>` — text/voice command box                                                                                                                      | ✅        |
-| `svg-engine/ai/nlu-voice-wasm` | On-device speech-to-text (Whisper via `@huggingface/transformers`)                                                                                               | ❌        |
+| Package                                  | What's inside                                                                                                                                                    | Material? |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `@mosaicoo/svg-engine/core`              | Immutable `SvgDocument` model, 9 node types, commands, undo/redo history, geometry, tree ops, anchor + pathfinder commands                                       | ❌        |
+| `@mosaicoo/svg-engine/render`            | `<svge-renderer>`, per-type directives, `ViewportService`, pluggable `NodeRendererRegistry`, `screenToDoc` util                                                  | ❌        |
+| `@mosaicoo/svg-engine/io`                | `ImporterRegistry` / `ExporterRegistry` + types, `svgImporter`, `svgExporter`, `pngExporter`, `renderPng`                                                        | ❌        |
+| `@mosaicoo/svg-engine/optimize`          | `Optimizer` + `OptimizerRegistry`, 3 built-in passes (precision rounding / drop defaults / prune empty groups), `OptimizeCommand`                                | ❌        |
+| `@mosaicoo/svg-engine/edit`              | Selection, transform, marquee, snap, alignment, anchor editor, pathfinder, pages, animation, snapshots, effects, libraries, autotrace, tools, plugin scaffolding | ❌        |
+| `@mosaicoo/svg-engine/ui`                | `<svge-editor>` / `<svge-shell-pro>`, layers panel, inspector, toolbar, status bar, color picker, palette, rulers, dialogs, theme toggle                         | ✅        |
+| `@mosaicoo/svg-engine/ai/nlu`            | Natural-language command engine (intents, PT/EN dictionaries, fuzzy match); headless                                                                             | ❌        |
+| `@mosaicoo/svg-engine/ai/nlu-ui`         | `<svge-nlu-input>` — text/voice command box                                                                                                                      | ✅        |
+| `@mosaicoo/svg-engine/ai/nlu-voice-wasm` | On-device speech-to-text (Whisper via `@huggingface/transformers`)                                                                                               | ❌        |
 
 ---
 
@@ -82,8 +82,8 @@ pathfinder boolean operations in `svg-engine/core`).
 ```ts
 import { bootstrapApplication } from '@angular/platform-browser';
 import { Component } from '@angular/core';
-import { SvgeRenderer } from 'svg-engine/render';
-import { createRect, createGroup, type SvgDocument } from 'svg-engine/core';
+import { SvgeRenderer } from '@mosaicoo/svg-engine/render';
+import { createRect, createGroup, type SvgDocument } from '@mosaicoo/svg-engine/core';
 
 @Component({
   selector: 'app-root',
@@ -118,8 +118,8 @@ import {
   SnapGuides,
   provideSvgEnginePlugin,
   selectToolPlugin,
-} from 'svg-engine/edit';
-import { SvgeEditor } from 'svg-engine/ui';
+} from '@mosaicoo/svg-engine/edit';
+import { SvgeEditor } from '@mosaicoo/svg-engine/ui';
 
 @Component({
   selector: 'app-root',
@@ -145,9 +145,13 @@ bootstrapApplication(App, {
 
 ```ts
 import { TestBed } from '@angular/core/testing';
-import { builtinOptimizersPlugin, OptimizeCommand, OptimizerRegistry } from 'svg-engine/optimize';
-import { svgImporter, svgExporter } from 'svg-engine/io';
-import { CommandBus, EditorStateService } from 'svg-engine/core';
+import {
+  builtinOptimizersPlugin,
+  OptimizeCommand,
+  OptimizerRegistry,
+} from '@mosaicoo/svg-engine/optimize';
+import { svgImporter, svgExporter } from '@mosaicoo/svg-engine/io';
+import { CommandBus, EditorStateService } from '@mosaicoo/svg-engine/core';
 
 const state = TestBed.inject(EditorStateService);
 const reg = TestBed.inject(OptimizerRegistry);
@@ -175,8 +179,8 @@ menu items, shortcuts, renderers, effects). Your plugin implements the
 `EditorPlugin` interface and gets installed via DI:
 
 ```ts
-import type { EditorPlugin } from 'svg-engine/edit';
-import { ToolRegistry, PLUGIN_API_VERSION } from 'svg-engine/edit';
+import type { EditorPlugin } from '@mosaicoo/svg-engine/edit';
+import { ToolRegistry, PLUGIN_API_VERSION } from '@mosaicoo/svg-engine/edit';
 
 export const myPlugin: EditorPlugin = {
   id: 'com.acme.tools.lasso',
