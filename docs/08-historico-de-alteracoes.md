@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-06-25 — E2E-F3b — Jornada de pages (artboards) ✅
+
+Fecha a pendência aberta na F3, **sem mudança em código de lib**:
+
+- **`e2e/specs/pages.spec.ts`** — dirige a UI de pages que vive no `/pro-editor`
+  (`<svge-shell-pro>` monta `<svge-pages-panel class="pages-overlay">`; o
+  `/custom-editor` não tem essa UI). Escopa as tabs ao `role="tablist"` **"Pages"**
+  (`page.getByRole('tablist',{name:'Pages'})`) porque o shell-pro tem outros
+  `role="tab"` nos panel-groups do right rail.
+- **Fluxo**: conta as tabs iniciais (pro-editor auto-bootstrapa Page 1) → clica
+  **"Add page"** (`aria-label`) → afirma `+1` tab e que a nova (última) fica ativa
+  (`aria-selected="true"`) → clica a primeira tab → afirma que ela vira a ativa e a
+  última deixa de ser. Assertions só por ARIA (`role="tab"` + `aria-selected`), sem
+  `data-testid`.
+
+**Pirâmide consolidada**: ~2953 specs Vitest (base) + **10** testes Playwright
+(smoke + draw + 4 tool/teclado/histórico + 3 import/export + pages). **Verde**
+(`npx playwright test`): **10 passed** em ~16s. Encerra a fundação E2E (F0–F4 + F3b).
+
+---
+
 ## 2026-06-25 — E2E-F4 — CI + docs do harness E2E ✅
 
 Fecha a fundação do E2E (plano aprovado), **sem mudança em código de lib**:

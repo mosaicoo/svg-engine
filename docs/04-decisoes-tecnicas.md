@@ -2712,7 +2712,9 @@ specs}`. Fixture limpa `localStorage`/`sessionStorage` e desliga animações via
   tool/teclado/histórico (r, Ellipse, Esc-cancel, undo/redo); F3 import/export
   (svg-viewer render + Export SVG download); F4 CI (job `e2e` no `ci.yml`:
   `playwright install --with-deps chromium` + `npm run e2e`, report como
-  artifact) + docs. **Pendente**: F3b fluxo de pages (UI só no `/pro-editor`).
+  artifact) + docs; **F3b** fluxo de pages no `/pro-editor` (add page → nova fica
+  ativa → switch volta à primeira; tabs escopadas ao `role="tablist"` "Pages").
+  Fundação **encerrada** com **10** testes Playwright sobre ~2953 specs Vitest.
 - **Consequências**: PRs ganham um portão de jornada real; em CI a config liga
   retries/2 + workers/2 + report HTML. Custo: ~1 download de browser por job e
-  um `ng serve` frio por execução. Referência: histórico 08 (2026-06-25, E2E-F0…F4).
+  um `ng serve` frio por execução. Referência: histórico 08 (2026-06-25, E2E-F0…F4 + F3b).
