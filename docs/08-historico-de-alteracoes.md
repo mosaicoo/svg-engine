@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-06-25 — E2E-F3 — Import / Export no navegador real ✅
+
+3 fluxos de IO em `e2e/specs/import-export.spec.ts`, **sem mudança em código de
+lib** (dirige a textarea do `/svg-viewer` e o botão "Export SVG" do custom-editor):
+
+- **Import renderiza** — cola SVG na textarea (`#svg-source`) → `<svge-renderer>`
+  mostra o `<rect>` com `fill="#1976d2"`.
+- **Import hoist de `<defs>` aninhado (D-115)** — cola o SVG com `<defs>` dentro de
+  `<g transform>` → o `<linearGradient id="g_ic">` + stops aparecem no markup
+  renderizado (prova do D-115 em navegador real, complementando o unit spec).
+- **Export SVG baixa o documento** — desenha um rect → clica "Export SVG" →
+  `page.waitForEvent('download')` captura o download; o arquivo (`svge-export-*.svg`)
+  é lido do disco e contém `<svg>` + `<rect>` (pipeline draw→export ponta a ponta).
+
+**Verde** (`npx playwright test`): **9 passed** (smoke + draw + 4 F2 + 3 F3) em ~15s.
+
+**Pendente (F3b):** fluxo de **pages** — a UI de pages não existe no `/custom-editor`
+(vive no `/pro-editor` como overlay no canvas); fica para uma fatia dedicada.
+
+---
+
 ## 2026-06-25 — E2E-F2 — Jornadas de tool / teclado / histórico ✅
 
 4 fluxos novos em `e2e/specs/tools-and-history.spec.ts`, reaproveitando a infra
