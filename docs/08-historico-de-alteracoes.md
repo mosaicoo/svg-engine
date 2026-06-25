@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-06-25 — E2E-F1 — Page Objects + helper de pointer-drag no canvas ✅
+
+Infra de interação para os fluxos E2E, **sem mudança em código de lib** (asserção
+por DOM — o hook `window.__svge` seguiu **adiado**, nenhum fluxo exigiu):
+
+- `e2e/utils/canvas.ts` — `dragOnCanvas(page, canvas, from, to)`: arrasta com
+  **eventos de mouse/pointer reais** (CDP), `from`/`to` em **frações da bbox**
+  do canvas (resiliente a tamanho/zoom), com `steps` interpolando o move.
+- `e2e/pages/editor.page.ts` — `EditorPage` (Page Object do `/custom-editor`):
+  `goto()`, `canvas` (`[aria-label="SVG canvas"]` — o alvo dos handlers de
+  pointer), `renderer` (`svge-renderer svg`), `activateTool(label)` (clica o
+  botão da tool + confirma `aria-pressed`), `rectCount()`.
+- `e2e/specs/draw-rectangle.spec.ts` — **teste-prova**: ativa Rectangle, arrasta
+  no canvas; o gesto roteia pela app (`onCanvasPointerDown/Move/Up` →
+  `routeToActiveTool` → `toolHost.routePointer*`) até a RectangleTool, que
+  commita 1 `InsertNodeCommand` no pointer-up → `<rect>` novo no SVG. Afirma
+  `rectCount === before+1` (via `expect.poll`). É exatamente o caminho de gesto
+  que os specs headless não cobrem.
+
+**Verde** (`npx playwright test`): 2 passed (smoke + draw) em ~8s (server quente).
+
+---
+
 ## 2026-06-25 — E2E-F0 — Harness de E2E (Playwright) — fundação ✅
 
 Primeira camada de **testes end-to-end em navegador real** (Chromium via
