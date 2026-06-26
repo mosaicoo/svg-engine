@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-06-26 — NPM-MINIFY — Minificação do FESM no artefato de distribuição ✅
+
+Os bundles publicados eram legíveis e **comentados** (o Angular Package Format
+não minifica de propósito; o consumidor minificaria). Para um artefato enxuto
+também ao consumir direto do `dist`/npm (ver **ADR D-117**):
+
+- **`scripts/minify-fesm.mjs`** (esbuild: `minify`, `format: esm`,
+  `legalComments: none`) minifica os `dist/svg-engine/fesm2022/*.mjs` —
+  remove comentários/whitespace/dead-code local e encurta nomes **locais**,
+  preservando **ESM + nomes exportados** (o tree-shaking/minify do consumidor
+  seguem funcionando; `sideEffects: false`).
+- Novo fluxo **`dist:prepare`** = `build:lib` → `minify:fesm` → `strip:maps`,
+  usado por `pack:lib`/`publish:lib` e pelo workflow Release (passo "Minify
+  FESM"). O `build:lib` puro continua **legível** (debug local, testes, CI).
+- **Sem ofuscação** (decisão): a lib é Apache-2.0/aberta — ofuscar não protege e
+  incha/quebra tree-shaking. Os `.d.ts` permanecem (API + JSDoc de autocomplete).
+- **Números**: FESM 4,0 → **1,8 MB** (−54%); tarball **1,4 MB → 765 KB**;
+  `core.mjs` 472 → **134 KB**. Verificado: `pack:lib` (tarball 765 KB) + **build
+  de produção do playground consumindo o `dist` minificado** (exports/tree-shaking
+  intactos).
+
+---
+
 ## 2026-06-25 — NPM-PUBLISH — Pacote escopado `@mosaicoo/svg-engine` + OIDC + só-compilado ✅
 
 Preparação completa para publicar a lib no npm (ver **ADR D-117**):

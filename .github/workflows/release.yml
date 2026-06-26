@@ -73,7 +73,12 @@ jobs:
       - name: Build library
         run: npx ng build svg-engine
 
-      # Publica apenas o compilado: remove os *.map (que embutem o .ts).
+      # Artefato de distribuição enxuto: minifica os FESM (remove comentários/
+      # whitespace/dead-code local, encurta nomes locais; mantém ESM + exports
+      # para o tree-shaking do consumidor) e remove os *.map (que embutem o .ts).
+      - name: Minify FESM
+        run: npm run minify:fesm
+
       - name: Strip sourcemaps
         run: npm run strip:maps
 

@@ -2757,13 +2757,9 @@ specs}`. Fixture limpa `localStorage`/`sessionStorage` e desliga animações via
   com 2FA) porque o Trusted Publisher só pode ser configurado num pacote que já
   existe; depois liga-se o publisher (org=mosaicoo, repo=svg-engine,
   workflow=release.yml) e as próximas tags publicam via CI.
-- **Decisão (conteúdo do pacote)**: publicar **apenas o compilado** — `fesm2022/
-*.mjs` + `types/*.d.ts` + metadados. Os sourcemaps `*.mjs.map` (que embutem o
-  `.ts` via `sourcesContent`) são removidos por `scripts/strip-sourcemaps.mjs`
-  (ng-packagr não tem flag para suprimi-los) no fluxo `pack:lib`/`publish:lib`/
-  release. Os `.map` continuam nos builds locais para debug. `publishConfig.access
-= "public"` (escopado é privado por padrão). Resultado: tarball 34→**24
-  arquivos**, 2,6 MB→**1,4 MB**, sem `.ts`.
+- **Decisão (conteúdo do pacote)**: publicar **apenas o compilado** — `fesm2022/*.mjs` + `types/*.d.ts` + metadados. Os sourcemaps `*.mjs.map` (que embutem o `.ts` via `sourcesContent`) são removidos por `scripts/strip-sourcemaps.mjs` (ng-packagr não tem flag para suprimi-los). `publishConfig.access = "public"` (escopado é privado por padrão).
+- **Decisão (minificação)**: o Angular Package Format **não minifica** de propósito — o FESM publicado é legível/comentado (como `@angular/material`), pois a minificação/tree-shaking final é do build do **consumidor**. Para um artefato enxuto também ao consumir direto do `dist`/npm, `scripts/minify-fesm.mjs` (esbuild: `minify`, `format: esm`, `legalComments: none`) entra no fluxo `dist:prepare` (`build:lib` → `minify:fesm` → `strip:maps`), usado por `pack:lib`/`publish:lib`/release. Mantém **formato ESM + nomes exportados** → tree-shaking/minify do consumidor seguem ok (`sideEffects: false`). O `build:lib` puro permanece **legível** (debug/testes/CI). Resultado: tarball 34→**24 arquivos**, 2,6 MB→**765 KB**; FESM 4,0→**1,8 MB** (−54%); sem `.ts`, sem comentários.
+- **Decisão (ofuscação): NÃO.** A lib é Apache-2.0 (fonte público no GitHub) — ofuscar não protege nada e é contraproducente: quebra tree-shaking e debug do consumidor e tende a **inchar** o bundle (control-flow flattening). A minificação já remove comentários/código-morto e encurta nomes locais, que é o ganho real. Os `.d.ts` ficam (API pública + JSDoc de autocomplete, não implementação interna).
 - **Apps e CI**: os apps **não** são publicados (o `npm publish` roda só em
   `dist/svg-engine`). Verificado pós-rename: `build:lib`, build `playground`,
   build `svg-studio`, `test:lib` (2953), lint (3 projetos) e `pack:lib` verdes.
