@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-06-26 — NPM-FIX — Reverter minificação do FESM (quebrava o Angular Linker) → v0.1.1 🔧
+
+A v0.1.0 (minificada) **quebrava em runtime** no app consumidor:
+`'_vt' needs to be compiled using the JIT compiler, but '@angular/compiler' is
+not available`.
+
+- **Causa**: o ng-packagr publica a lib em **partial compilation** (`ɵɵngDeclare…`),
+  que o **Angular Linker** do build do consumidor compila para AOT. O esbuild
+  (NPM-MINIFY) **escapou o caractere `ɵ` (U+0275) para `ɵ`**; o Linker detecta
+  o que processar procurando o `ɵ` **literal** → escapado, ele **pula** a lib →
+  runtime cai em **JIT** → erro (o build de produção não inclui `@angular/compiler`).
+  Confirmado: FESM minificado tinha **0** `ɵɵngDeclare` literais; o legível tem 4.
+- **Fix**: revertida a minificação — removido `scripts/minify-fesm.mjs` e o passo
+  `Minify FESM` do `release.yml`; `dist:prepare` = `build:lib` → `strip:maps`. O
+  pacote volta a 24 arquivos / **1,4 MB** (FESM legível partial-compiled).
+- **Versão**: bump para **0.1.1** (a 0.1.0 é imutável no npm). A 0.1.0 deve ser
+  **deprecada** (`npm deprecate`).
+- **Lição**: validar lib publicada em **runtime** (não só "build passa") — o erro
+  só aparecia ao executar o app; minificar libs Angular partial-compiled é
+  incompatível com o Linker. Ver **ADR D-117** (decisão de minificação revertida).
+
+---
+
 ## 2026-06-26 — NPM-LIVE — `@mosaicoo/svg-engine@0.1.0` publicado 🚀
 
 A lib está **no npm** (`latest` = 0.1.0, Apache-2.0, maintainer `mrcavalcanti`,
