@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-06-26 — NPM-LIVE — `@mosaicoo/svg-engine@0.1.0` publicado 🚀
+
+A lib está **no npm** (`latest` = 0.1.0, Apache-2.0, maintainer `mrcavalcanti`,
+24 arquivos, unpacked 3,2 MB). Bootstrap da 1ª versão feito **localmente**
+(`npm login` web/passkey → `npm run publish:lib`, 2FA por security key) —
+necessário porque o Trusted Publisher só pode ser ligado num pacote já existente.
+
+- **Trusted Publisher LIGADO** (npmjs.com → pacote → Settings): GitHub Actions,
+  org `mosaicoo`, repo `svg-engine`, workflow `release.yml`, ação `npm publish`.
+- **Publishing access** = "Require 2FA and disallow tokens" — sem token de longa
+  duração; o OIDC continua válido.
+- **Releases dali em diante (via CI)**: `npm run release` (bump + CHANGELOG +
+  tag `vX.Y.Z`) → `git push --follow-tags` → `release.yml` publica via OIDC com
+  provenance. Encerra a pendência registrada em NPM-PUBLISH.
+
+---
+
 ## 2026-06-26 — NPM-MINIFY — Minificação do FESM no artefato de distribuição ✅
 
 Os bundles publicados eram legíveis e **comentados** (o Angular Package Format
