@@ -5,26 +5,27 @@ import { cloneNodeWithNewIds, type NodeId, type SvgNode } from '@mosaicoo/svg-en
  * **In-memory editor clipboard** — D-044 (UI controls full-functionality, follow-up).
  *
  * Holds a snapshot of one or more `SvgNode`s for Copy/Cut/Paste flows.
- * **Pure in-memory** — no localStorage, no OS clipboard (`navigator.clipboard`),
- * no MIME negotiation. This is deliberate for v1:
+ * This service is the **in-memory core**: it stores deep-cloned nodes
+ * losslessly (ids + metadata preserved), independent of the OS clipboard.
+ * Intra-editor Copy/Paste always works through it with zero permission
+ * prompts or MIME negotiation.
  *
- * - **Predictable**: no permission prompts, no async cross-origin races,
- *   no MIME-type guessing.
- * - **Works in any browser context**: including iframes / extensions /
- *   sandboxed pages where `navigator.clipboard` is gated.
- * - **No security surface**: avoids reading clipboard content the user
- *   didn't put there with our editor.
+ * **OS clipboard sync (D-111)** — copy-out to / paste-in from other apps
+ * (Illustrator, Inkscape, the browser, …) IS supported, but it lives in a
+ * separate **system-clipboard bridge** (`system-clipboard.ts`), NOT here.
+ * On copy the bridge writes the serialized SVG to `navigator.clipboard` and
+ * records it via {@link setExternalStamp}; on paste it compares the OS
+ * clipboard against that stamp — if they match, the OS still holds OUR copy
+ * so paste uses these lossless in-memory nodes, otherwise it round-trips the
+ * foreign clipboard SVG through `svgImporter`. The bridge needs a secure
+ * context + user gesture + clipboard permission; when any is missing, this
+ * in-memory core still drives intra-editor Copy/Paste with the trade-offs
+ * below.
  *
- * The trade-offs are explicit:
- *
- * - Clipboard is **lost on page reload** (not persisted).
- * - Cannot **copy out** of SVGEngine into other apps (Illustrator etc.).
- * - Cannot **paste in** from other apps.
- *
- * **Future iterations** (registered as deferred in D-044):
- * - OS clipboard sync via `navigator.clipboard.writeText/readText` with
- *   `image/svg+xml` MIME, behind a `provideSvgEngineClipboardOsBridge()` opt-in.
- * - localStorage persistence for cross-tab paste.
+ * **In-memory-core trade-offs** (independent of the OS bridge):
+ * - This signal-backed store is **lost on page reload** (an OS clipboard the
+ *   bridge wrote to survives, but this store does not).
+ * - `localStorage` persistence for cross-tab paste is still not implemented.
  *
  * **Multi-editor (D-042 scope-aware)**: `ClipboardService` is included in
  * `provideSvgEngineEditorScope()` so each editor instance has its own
