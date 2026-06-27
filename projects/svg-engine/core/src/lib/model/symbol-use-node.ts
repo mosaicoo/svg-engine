@@ -38,11 +38,13 @@ import type { SvgNodeBase } from './svg-node-base';
  *   (after the master is expanded), so you can blur/glow/etc. a
  *   single instance without affecting siblings.
  *
- * **Round-trip**: importer should recognize `<use href="#id">` and
- * construct a `SymbolUseNode`. v1 of D-059 ships with exporter
- * support; importer enhancement deferred to a future iteration (the
- * importer currently strips `<use>` — falls back to "missing symbol"
- * which the renderer paints as empty space).
+ * **Round-trip**: the exporter emits `<use href="#{symbolId}">` (D-059)
+ * and the importer reconstructs a `SymbolUseNode` from `<use href="#id">`
+ * (D-098), with the referenced `<symbol>`/def preserved verbatim in the
+ * document `<defs>` so the renderer resolves it at paint time. Known
+ * limitation: a `<use>` pointing at a *plain sibling shape* by id can
+ * dangle (the importer regenerates ids on regular nodes); `<use>`→symbol/
+ * def works.
  */
 export interface SymbolUseNode extends SvgNodeBase {
   readonly type: 'symbol-use';

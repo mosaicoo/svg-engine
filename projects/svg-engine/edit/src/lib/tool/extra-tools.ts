@@ -29,7 +29,7 @@ import type { Tool, ToolContext, ToolPointerEvent } from './tool';
 import { ToolRegistry } from './tool-registry.service';
 
 /**
- * D-050 (Item 5 — Tools faltantes). Implements 7 new editor tools to
+ * D-050 (Item 5 — missing tools) + D-062. Registers 6 editor tools to
  * close the parity gap with Illustrator / Affinity:
  *
  * | Tool                | id                              | shortcut |
@@ -39,27 +39,32 @@ import { ToolRegistry } from './tool-registry.service';
  * | Smooth / Simplify   | `com.svge.tool.smooth`          | `s`      |
  * | Gradient            | `com.svge.tool.gradient`        | `g`      |
  * | Width               | `com.svge.tool.width`           | `w`      |
- * | Mesh                | `com.svge.tool.mesh`            | `u`      |
  * | Symbol Sprayer      | `com.svge.tool.symbol-sprayer`  | `o`      |
  *
- * **Implementation depth**:
+ * **Implementation depth** (updated in D-062 / D-058 — all tools below
+ * are functional; none is a stub):
  *
- * - **Fully wired** (Eyedropper, Knife, Smooth): pointerdown produces an
- *   immediate, undoable mutation. No overlay state needed.
- * - **Light-touch** (Gradient): pointerdown sets the focus + emits a
- *   hint signal the gradient panel uses to scroll into view. Real
- *   in-canvas stop handles are deferred (would require new overlay
- *   infra; left as a TODO marker in the service).
- * - **Stub** (Width, Mesh, Symbol Sprayer): the tools register so the
- *   toolbar exposes them, but pointerdown only `console.info`s a
- *   "not yet wired" notice. They occupy the catalog ids so future
- *   implementations can land without an additional D-revision.
+ * - **Direct mutation** (Eyedropper, Knife, Smooth): pointerdown produces
+ *   an immediate, undoable change. No overlay state.
+ * - **Width** (D-062b): applies a variable-width profile to the selected
+ *   path via `expandStrokeWithProfile` (same algorithm as the D-060
+ *   brushes); destructive (replaces `d`), recoverable via undo.
+ * - **Symbol Sprayer** (D-062a + D-063): drag to spray instances of the
+ *   active symbol; drops are batched into a single
+ *   `InsertSymbolInstancesBatchCommand` (one undo per spray) with a live
+ *   preview via `SymbolSprayerPreviewService`.
+ * - **Gradient** (focus router): the tool itself only focuses the node /
+ *   activates the panel; the real editing (draggable stops, axis, colors)
+ *   lives in `<svge-gradient-overlay>` + `<svge-gradient-editor>` (D-058),
+ *   which activate from the selection and don't require this tool active.
  *
- * All tools live in this single file because they share helpers
- * (`hitTestPathNode`, `distanceToSegment`) and would otherwise need to
- * cross-import; keeping them co-located avoids that web. Each is its
- * own class so plugins can register a subset (the plugin at the bottom
- * registers the full 7).
+ * **Mesh was REMOVED** in D-062-fix (SVG has no usable mesh primitive; the
+ * radial approximation added no value). `MESH_TOOL_ID` was dropped in
+ * Audit Round 3.
+ *
+ * All tools live in this single file because they share geometry helpers.
+ * Each is its own class so plugins can register a subset (the plugin at
+ * the bottom registers the 6).
  */
 
 // ── Stable ids ───────────────────────────────────────────────────────

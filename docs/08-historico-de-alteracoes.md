@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-06-27 — COMMENT-FIX — Comentários de "estado de implementação" desatualizados 🧹
+
+Comentário que mente sobre o que está pronto é pior que comentário nenhum
+(alimenta a documentação errada). Varredura de marcadores de estado
+(`stub`/`not implemented`/`Mesh`/`TODO`/`deferred`) na lib; **2 docstrings
+factualmente errados** corrigidos:
+
+- **`tool/extra-tools.ts`** (cabeçalho): ainda listava **Width** e **Symbol
+  Sprayer** como "Stub (console.info)" e o **Mesh** como existente — herança do
+  D-050. O código real implementa Width (D-062b) e Symbol Sprayer (D-062a/D-063);
+  o Mesh foi removido (D-062-fix). Reescrito.
+- **`core/.../symbol-use-node.ts`**: dizia "importer currently strips `<use>`".
+  O importer reconstrói `SymbolUseNode` a partir de `<use href="#id">` desde o
+  **D-098**. Corrigido.
+
+Verificados e **mantidos** (estavam corretos): `workspace.service.ts`
+("InteractionConfig only `wheelZoomSpeed`" — confere) e
+`builtin-ui-menu-contributions` ("future items… probably superseded by D-077" —
+honesto). Sem referências órfãs ao Mesh. `build:lib` + lint svg-engine verdes.
+Varredura **direcionada** a marcadores de estado (não auditoria exaustiva).
+
+---
+
 ## 2026-06-26 — NPM-FIX — Reverter minificação do FESM (quebrava o Angular Linker) → v0.1.1 🔧
 
 A v0.1.0 (minificada) **quebrava em runtime** no app consumidor:
