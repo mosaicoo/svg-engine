@@ -33,10 +33,13 @@ import { LibraryRegistry } from '../library-registry';
  * `SymbolUseNode`.
  *
  * **Round-trip**: exporter emits both `<symbol>` (via
- * `buildMarkup()`) and `<use>` (via the `SymbolUseNode` branch).
- * Importer recognition of `<symbol>` + `<use>` is **deferred** — v1
- * of D-059 covers Editor → exported file; round-tripping the
- * imported file back into editable symbols comes later.
+ * `buildMarkup()`) and `<use>` (via the `SymbolUseNode` branch). The
+ * importer reconstructs a `SymbolUseNode` from `<use href="#id">`
+ * (D-098) and preserves the referenced `<symbol>` def verbatim in the
+ * document `<defs>`, so an exported file re-imports and renders. What
+ * remains deferred: re-populating THIS editable library catalog from
+ * an imported `<symbol>` master — the instance round-trips, but the
+ * master isn't auto-added back as an editable library item.
  */
 export interface SymbolLibraryItem extends LibraryItem {
   /**
