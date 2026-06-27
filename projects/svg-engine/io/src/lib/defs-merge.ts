@@ -21,10 +21,13 @@
  * if parsing is unavailable/fails (non-DOM env, malformed fragment) it falls
  * back to plain concatenation rather than throwing.
  *
- * **Known limitation** (engine-wide): ids are document-global and NOT
- * namespaced. Two unrelated SVGs that both use `id="grad"` collide — the first
- * definition wins. Faithful multi-asset isolation would require id-rewriting,
- * out of scope here (matches the additive-import behavior).
+ * **Id collisions across SVGs**: ids are document-global in SVG, so two
+ * unrelated SVGs that both define `id="grad"` would clash — and because this
+ * function dedups by id, the FIRST (existing) definition wins and the incoming
+ * one is dropped. The import pipeline guards against that by running
+ * {@link import('./defs-namespace').namespaceCollidingDefs} (D-101) BEFORE this
+ * merge, renaming the incoming colliding ids + every reference so both survive.
+ * `mergeDefsFragments` on its own does NOT namespace — it only dedups by id.
  */
 export function mergeDefsFragments(
   existing: string | undefined,

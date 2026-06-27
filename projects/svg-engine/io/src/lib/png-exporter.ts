@@ -21,9 +21,12 @@ import { svgExporter } from './svg-exporter';
  * - Draw to an offscreen `<canvas>` sized to the viewBox
  * - `toBlob('image/png')` extracts the binary PNG
  *
- * **Quality**: the canvas runs at 2× the viewBox resolution to keep
- * the export crisp on retina displays. Configurable in a future
- * polish via constructor arg (kept hard-coded here for simplicity).
+ * **Quality**: the `pngExporter` Exporter defaults to 2× the viewBox
+ * resolution (retina-crisp, matching Affinity / Figma export defaults).
+ * The scale is configurable via {@link renderPng}(doc, scale) — any
+ * positive multiplier — which the editor's @1x/@2x/@3x export presets
+ * use. Only the `Exporter.export(doc)` entry point is fixed at 2×,
+ * because the `Exporter` interface has no scale parameter.
  *
  * **Failure modes**: when `Image.onerror` fires (malformed SVG, cross-
  * origin issues) OR `canvas.toBlob` returns `null` (canvas tainted /
