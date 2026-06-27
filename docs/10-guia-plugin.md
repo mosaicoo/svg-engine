@@ -100,7 +100,7 @@ auto-cleanup. Sem dor.
 | 4   | Importers          | `ImporterRegistry`                              | 5 ✅             | parser SVG, AI, EPS              |
 | 5   | Exporters          | `ExporterRegistry`                              | 5 ✅             | SVG, PNG via canvas, JSX         |
 | 6   | Inspector panels   | `InspectorPanelRegistry`                        | 4 _(planejada)_  | aba custom no inspector          |
-| 7   | Efeitos / filtros  | `EffectRegistry`                                | 6 _(planejada)_  | preset de `<filter>` SVG         |
+| 7   | Efeitos / filtros  | `EffectRegistry`                                | 6d ✅ (D-047)    | preset de `<filter>` SVG         |
 | 8   | Paletas / swatches | `PaletteRegistry`                               | 4 ✅             | conjunto de cores nomeadas       |
 | 9   | Menus + atalhos    | `MenuContributionRegistry` + `ShortcutRegistry` | 4 ✅             | botão de toolbar, combo de tecla |
 

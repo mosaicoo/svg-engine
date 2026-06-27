@@ -1,11 +1,12 @@
 # 12 — Gerenciamento de plugins (documento de decisão)
 
-> **Status: decidido — Fase 1 implementada (2026-06-11).** As decisões
+> **Status: decidido — Fases 1 e 2 implementadas (2026-06-11).** As decisões
 > foram tomadas e registradas em
 > [D-083](04-decisoes-tecnicas.md#d-083--gerenciamento-e-distribuição-de-plugins);
-> a **Fase 1** (gerenciador dos plugins bundlados) está implementada e
-> verde. Fases 2–3 seguem planejadas. Este documento permanece como o
-> mapa de raciocínio: estado atual (ancorado no código), gaps, opções com
+> a **Fase 1** (gerenciador dos plugins bundlados) e a **Fase 2**
+> (carregamento runtime de origem confiável) estão implementadas e verdes.
+> A **Fase 3** (repositório/marketplace + scripts sandboxed) segue planejada.
+> Este documento permanece como o mapa de raciocínio: opções com
 > trade-offs e a recomendação faseada que foi adotada.
 >
 > Pré-requisitos de leitura: [D-020](04-decisoes-tecnicas.md#d-020--sistema-de-plugins-de-primeira-classe)
@@ -37,27 +38,28 @@ Duas perguntas distintas:
 A infra de plugins do SVGEngine já é madura. O que **existe hoje** vs o
 que **falta** para "gerenciar plugins" como produto:
 
-| Capacidade                              |            Existe?            | Onde / Observação                                                                                                  |
-| --------------------------------------- | :---------------------------: | ------------------------------------------------------------------------------------------------------------------ |
-| Contrato `EditorPlugin`                 |              ✅               | `edit/lib/plugin/plugin.ts` — `id/version/name/apiVersion/dependencies?/install/uninstall?`                        |
-| `PluginContext` (DI + `track`)          |              ✅               | injector cru + `track<T>(d):T` (LIFO cleanup)                                                                      |
-| Install em **build-time**               |              ✅               | `provideSvgEnginePlugin(p)` via `ENVIRONMENT_INITIALIZER` (ordem do array)                                         |
-| Install/uninstall em **runtime**        |              ✅               | `PluginRegistry.install(p)` / `uninstall(id)` — **idempotente**, rollback no throw, disposal LIFO best-effort      |
-| Introspeção                             |              ✅               | `has(id)`, `get(id)`, `list()`, `installed` (signal reativo)                                                       |
-| Gate de versão de API                   |              ✅               | semver **major** contra `PLUGIN_API_VERSION = '1.0.0'`                                                             |
-| Checagem de dependências                |              ✅               | cada id em `dependencies` precisa estar instalado antes (hard error)                                               |
-| Atomicidade / cleanup determinístico    |              ✅               | install que joga → roll back; uninstall → `uninstall()` hook + dispose LIFO; erros isolados não abortam o restante |
-| **Ativar / desativar** (≠ desinstalar)  |              ❌               | só existe install/uninstall. Não há estado "instalado-porém-inativo"                                               |
-| **Persistência** do estado de plugins   |              ❌               | nada salvo em localStorage/projeto; a cada boot o set é o do `app.config`                                          |
-| **Metadata de exibição**                |              ❌               | sem `description`, `author`, `icon`, `category`, `homepage` — só `name`/`version`                                  |
-| **UI de gerência** (Plugin Manager)     |              ❌               | `installed` é signal, mas **nenhum componente o consome**. Não existe `<svge-plugin-manager>`                      |
-| **Carregar plugin de terceiro runtime** |              ❌               | não há `import(url)` dinâmico nem loader; plugins entram só por bundling no `app.config`                           |
-| **Repositório / descoberta**            |              ❌               | sem manifesto, sem índice remoto, sem marketplace                                                                  |
-| Scripts de usuário final (sandbox)      | 🟡 decidido, não implementado | `ScriptRuntimePlugin` (D-024) — WebWorker isolado + API curada; **deferido p/ Fase 6+**                            |
+| Capacidade                              |            Existe?            | Onde / Observação                                                                                                      |
+| --------------------------------------- | :---------------------------: | ---------------------------------------------------------------------------------------------------------------------- |
+| Contrato `EditorPlugin`                 |              ✅               | `edit/lib/plugin/plugin.ts` — `id/version/name/apiVersion/dependencies?/install/uninstall?`                            |
+| `PluginContext` (DI + `track`)          |              ✅               | injector cru + `track<T>(d):T` (LIFO cleanup)                                                                          |
+| Install em **build-time**               |              ✅               | `provideSvgEnginePlugin(p)` via `ENVIRONMENT_INITIALIZER` (ordem do array)                                             |
+| Install/uninstall em **runtime**        |              ✅               | `PluginRegistry.install(p)` / `uninstall(id)` — **idempotente**, rollback no throw, disposal LIFO best-effort          |
+| Introspeção                             |              ✅               | `has(id)`, `get(id)`, `list()`, `installed` (signal reativo)                                                           |
+| Gate de versão de API                   |              ✅               | semver **major** contra `PLUGIN_API_VERSION = '1.0.0'`                                                                 |
+| Checagem de dependências                |              ✅               | cada id em `dependencies` precisa estar instalado antes (hard error)                                                   |
+| Atomicidade / cleanup determinístico    |              ✅               | install que joga → roll back; uninstall → `uninstall()` hook + dispose LIFO; erros isolados não abortam o restante     |
+| **Ativar / desativar** (≠ desinstalar)  |            ✅ (F1)            | `PluginManagerService` (D-083 F1): enable/disable = uninstall + lembrar; `PluginRegistry` intacto                      |
+| **Persistência** do estado de plugins   |            ✅ (F1)            | `PluginStateStore` + `PluginCatalog` (D-083 F1): set persistido; `provideSvgEnginePlugin` pula install dos desativados |
+| **Metadata de exibição**                |            ✅ (F1)            | `EditorPlugin` ganhou `description`/`author`/`icon`/`category` (aditivos, D-083 F1)                                    |
+| **UI de gerência** (Plugin Manager)     |            ✅ (F1)            | `<svge-plugin-manager>` (`svg-engine/ui`) consome o catálogo + rota `/plugins` no playground (D-083 F1)                |
+| **Carregar plugin de terceiro runtime** |            ✅ (F2)            | `PluginLoader` + `installExternal` + `providePluginLoader({ trustedOrigins, moduleLoader })` — fail-closed (D-083 F2)  |
+| **Repositório / descoberta**            |            ❌ (F3)            | sem manifesto, sem índice remoto, sem marketplace — **Fase 3, não iniciada**                                           |
+| Scripts de usuário final (sandbox)      | 🟡 decidido, não implementado | `ScriptRuntimePlugin` (D-024) — WebWorker isolado + API curada; **deferido p/ Fase 3 (Bloco 6e)**                      |
 
-**Resumo:** o _motor_ de ciclo de vida está pronto e é sólido. Falta a
-**camada de produto** em cima dele: ativar/desativar como conceito,
-persistência, metadata, UI, e — separadamente — distribuição.
+**Resumo:** o _motor_ de ciclo de vida e a **camada de produto** (Fases 1–2:
+ativar/desativar, persistência, metadata, UI de gerência, carregamento
+runtime de origem confiável) estão prontos. Falta apenas a **distribuição**
+(Fase 3: repositório/marketplace + scripts sandboxed) — não iniciada.
 
 ---
 

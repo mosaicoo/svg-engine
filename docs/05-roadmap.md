@@ -545,6 +545,36 @@ consumer controla acesso).
 
 ---
 
+## Hardening & IA local (pós-D-082) ✅
+
+Sprint final da primeira etapa (2026-06): refinamentos profissionais +
+camada de IA local. Narrativa completa por item em
+[`docs/08-historico-de-alteracoes.md`](08-historico-de-alteracoes.md) e
+decisão em [`docs/04-decisoes-tecnicas.md`](04-decisoes-tecnicas.md).
+
+- [x] **D-086** — Keybindings customizáveis (`KeybindingsService`: overrides +
+      persistência + `tryMatch`) + `<svge-keyboard-shortcuts-dialog>`.
+- [x] **D-088** — Reset Workspace layout (`WorkspaceLayoutService` + `resetEpoch`).
+- [x] **D-089** — Custom Attributes (atributos `data-*`/arbitrários por nó:
+      modelo + round-trip IO + painel no Inspector).
+- [x] **D-090** — Operações de path: Convert to Path, Simplify, Split, Join,
+      Reverse, Outline Stroke, Offset, Clean Up (menu Path real).
+- [x] **D-091** — Hit tolerance / seleção por área para formas sem fill e
+      strokes finos (`resolveSelectableNodeIdFromElement`).
+- [x] **D-092** — Padronização no color picker avançado + popup responsivo.
+- [x] **D-093 / D-094 / D-095** — Camada LLM **local** (Ollama):
+      escalonamento opcional do NLU + geração de SVG por prompt +
+      `OllamaChatProvider` (`listModels`/`chat`) + lista curada de modelos no
+      `<svge-nlu-input>`.
+- [x] **D-096** — Help links (catálogo de links de ajuda contextuais).
+- [x] **D-097** — Smart Object: preservação de `<defs>` na edição de conteúdo.
+- [x] **Fidelidade de import** — tipografia/`textPath`/`preserveAspectRatio`,
+      unidades em geometria, `<use>` genérico, **D-099** (vector-effect por nó),
+      **D-100** (rich text via `TextRun`/`tspan`), **D-101** (namespacing de
+      `<defs>` colidentes no import).
+
+---
+
 ## Princípios de evolução
 
 - Toda fase termina com **documentação atualizada** e build verde.
