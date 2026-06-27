@@ -34,8 +34,10 @@ import { SvgeTextDirective } from './text-renderer.directive';
  * namespace.
  *
  * Built-in dispatch:
- * - 8 leaf types are bound by per-type directives (`[svgeRect]`,
- *   `[svgeEllipse]`, …) on their native SVG element.
+ * - 9 leaf types are bound by per-type directives (`[svgeRect]`,
+ *   `[svgeEllipse]`, `[svgeLine]`, `[svgePolygon]`, `[svgePolyline]`,
+ *   `[svgePath]`, `[svgeText]`, `[svgeImage]`, `[svgeSymbolUse]`) on
+ *   their native SVG element (`symbol-use` added in D-059).
  * - `group` is handled inline (recursive case) — each child becomes a
  *   nested `<svg:g svgeNode>`.
  * - Unknown types fall through to {@link NodeRendererRegistry} (D-020

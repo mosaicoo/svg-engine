@@ -8,9 +8,11 @@ import type { TextNode } from '@mosaicoo/svg-engine/core';
  * template, because directives cannot inject child nodes. The dispatcher
  * splits `node.content` on `\n` and emits one `<tspan dy>` per line, so
  * multi-line text is rendered by simply embedding line breaks in the
- * `content` field. Explicit `<tspan>` runs with per-run styling are
- * still not modelled at the data layer — that would require an extra
- * `runs` field on `TextNode`.
+ * `content` field. Explicit `<tspan>` runs with per-run styling ARE
+ * modelled (D-100) via the optional `TextNode.runs` field; the dispatcher
+ * emits one inline `<tspan>` per run (this directive only binds the
+ * parent `<text>` attributes — the runs/tspans live in the dispatcher
+ * template, not here).
  */
 @Directive({
   selector: '[svgeText]',
