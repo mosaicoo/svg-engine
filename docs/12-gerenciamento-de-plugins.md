@@ -113,9 +113,10 @@ As funções pedidas, mapeadas ao que falta:
 - **Runtime, plugin já carregado em memória** (já existe):
   `PluginRegistry.install(p)`. É o que a UI usa para "ativar" algo que já
   está no bundle.
-- **Runtime, plugin de terceiro vindo de fora** (não existe): exige um
-  `PluginLoader` que faça `import(url)` de um bundle ESM e instale o export
-  default. **É a parte sensível** — ver §5 e §6.
+- **Runtime, plugin de terceiro vindo de fora** (✅ entregue — Fase 2): o
+  `PluginLoader` faz `import(url)` de um bundle ESM (via `moduleLoader` do
+  consumer) e instala o export default, fail-closed. **É a parte sensível**
+  — design em §5 e §6.
 
 ### 4.2 Desinstalar
 
@@ -128,7 +129,8 @@ oferecer cascata explícita).
 
 ### 4.3 Ativar / Desativar (o gap conceitual mais importante)
 
-Hoje **não existe** "instalado porém inativo". Duas formas de implementar:
+✅ **Entregue na Fase 1** (Abordagem A abaixo). Antes não existia "instalado
+porém inativo"; duas formas foram consideradas:
 
 | Abordagem                               | Como                                                                                                 | Prós                                                               | Contras                                                                                                            |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |

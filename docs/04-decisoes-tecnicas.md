@@ -1459,17 +1459,17 @@ Depois: **fonte única em `edit/lib/menu/menu-slots.ts`**. `ui` re-exporta para 
 
 ## Decisões pendentes (em aberto)
 
-| ID provis. | Tema                                                                   |
-| ---------- | ---------------------------------------------------------------------- |
-| D-025?     | Registry de publicação (npm público / GitHub Packages / Mosaicoo)      |
-| D-027?     | Migração para zoneless (revisar D-010)                                 |
-| D-028?     | Lint rule customizada para enforcer headless boundary                  |
-| D-029?     | Estratégia de testes E2E (Playwright?)                                 |
-| D-032?     | Multi-page (`WorkspacesRegistry`) — extensão futura de D-021           |
-| D-033?     | Estratégia de i18n no editor                                           |
-| D-045?     | Distribuição cross-framework (React / Vue / Vanilla JS / RN)           |
-| D-046?     | NLU/SLM para comandos — Fase 1 ✅ (2026-05-22); Fases 2 + 3 pendentes  |
-| D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3 |
+| ID provis. | Tema                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------------ |
+| ~~D-025?~~ | Registry de publicação — ✅ **resolvido por D-117** (npm público `@mosaicoo/svg-engine` + Trusted Publishing OIDC) |
+| D-027?     | Migração para zoneless (revisar D-010)                                                                             |
+| D-028?     | Lint rule customizada para enforcer headless boundary                                                              |
+| ~~D-029?~~ | Estratégia de testes E2E — ✅ **resolvido por D-116** (Playwright)                                                 |
+| ~~D-032?~~ | Multi-page — ✅ **resolvido por D-079/D-080** (Pages / Artboards)                                                  |
+| D-033?     | Estratégia de i18n no editor                                                                                       |
+| D-045?     | Distribuição cross-framework (React / Vue / Vanilla JS / RN)                                                       |
+| D-046?     | NLU/SLM para comandos — Fase 1 ✅ (2026-05-22); Fases 2 + 3 pendentes                                              |
+| D-022b?    | Pivot afetar scale/resize (estilo Affinity completo); adiar pós-Fase 3                                             |
 
 > **Nota**: D-023 era "API formal de plugins" (cumprida pelo D-020 expandido em 2026-05-15). D-024 era "Versionamento + changelog" (renumerada para D-031 porque o número D-024 foi reusado para `ScriptRuntimePlugin`). D-030 era "Workspace/Página: A vs B" (cumprida pelo D-021 resolvido como Option C). D-032 entra como pendente para multi-page futuro. Sequência de IDs cumpridas em 2026-05-15: D-020, D-021, D-023, D-024. Em 2026-05-20: D-026 (alinhamento estrutural io/optimize); o número D-026 era previamente reservado para i18n — renomeado para D-033. D-036 (consolidação de helpers compartilhados) entrou no mesmo dia. **D-034 + D-035 + D-037** (shell-refinement) entraram em 2026-05-20 mais tarde no mesmo dia — adiamento "pós-Fase 6d" foi reduzido pois caso de uso Mosaicoo (canvas embedável em painéis menores + editor completo) demandou ambas formas garantidamente. **D-038 + D-039 + D-040** (Sprint Pro-Editor + interactions + polish) entraram em 2026-05-20 fechando o ciclo do shell profissional. **D-031** (release tooling) também entrou em 2026-05-20 — destrava `npm publish` via `standard-version` + workflow `release.yml` condicional ao secret `NPM_TOKEN`; a decisão de registry definitivo (D-025?) permanece pendente.
 
