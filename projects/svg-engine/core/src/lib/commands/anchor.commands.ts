@@ -194,8 +194,10 @@ function mutateAnchor(
 /**
  * Insert a new anchor at fractional position `t ∈ [0, 1]` along
  * the bezier segment between `ref` and its NEXT anchor. The new
- * anchor lands as `cusp` by default (Affinity convention: user
- * promotes to smooth after).
+ * anchor is created as `smooth`, carrying the handles produced by the
+ * split so the curve is preserved continuously. (On a STRAIGHT
+ * segment the split handles collapse onto the point, so the anchor
+ * reads back as a `cusp` once re-classified from its geometry.)
  *
  * Uses de Casteljau subdivision so the visual curve is preserved
  * exactly — splitting at `t=0.5` of a cubic gives two cubics

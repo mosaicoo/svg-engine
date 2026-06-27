@@ -25,9 +25,11 @@ import { type Command, type CommandContext, type CommandResult, fail, ok } from 
  * **Lost**: type-specific authored fields (rect width vs path d) —
  * obvious from the model change.
  *
- * **No-op for group / text / image / path**: those types aren't
- * convertible to a geometric path equivalent here. Group conversion
- * (flatten subtree to compound path) is a future Pathfinder extension.
+ * **Rejected (returns `fail`) for group / text / image / path**: those
+ * types aren't convertible to a geometric path equivalent here, so
+ * `execute` fails without mutating (it does NOT silently no-op). Group
+ * conversion (flatten subtree to compound path) is a future Pathfinder
+ * extension.
  *
  * **Undo**: snapshots the previous node and restores it on undo.
  */

@@ -265,13 +265,12 @@ function normalize(v: Point): Point {
 /**
  * Sweep flag for an SVG arc rounding the corner at `b` coming from
  * `a` going to `c`. We use the 2D cross product sign:
- * - cross > 0 → counter-clockwise turn → sweep 0 (CCW arc).
- * - cross < 0 → clockwise turn → sweep 1 (CW arc).
+ * - cross > 0 → sweep 1.
+ * - cross ≤ 0 → sweep 0.
  *
- * SVG's `y` axis points DOWN, so visual "clockwise on screen" matches
- * mathematical "counter-clockwise" in screen coords. The flag returned
- * is what gives the visually-correct INSIDE rounding (arc bulges
- * toward the corner, not away from it).
+ * SVG's `y` axis points DOWN, so this mapping gives the visually-correct
+ * INSIDE rounding (arc bulges toward the corner interior, not away from
+ * it) — the sign convention is already accounting for the flipped axis.
  */
 function turnSweep(a: Point, b: Point, c: Point): number {
   const ux = b.x - a.x;

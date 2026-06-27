@@ -19,7 +19,9 @@ import type { TextNode, TextRun } from './text-node';
 /**
  * Common optional inputs shared by every node factory. Defaults: a
  * freshly-generated id, identity transform, {@link DEFAULT_STYLE},
- * empty metadata.
+ * empty metadata. Exception: container factories like {@link createGroup}
+ * default to {@link EMPTY_STYLE} instead (a group is never painted — see
+ * the D-104 note on `createGroup`).
  */
 export interface NodeFactoryOptions {
   readonly id?: NodeId;

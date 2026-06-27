@@ -68,15 +68,17 @@ export class ReorderNodeCommand implements Command {
 
     if (newIndex === oldIndex) return ok(); // no-op: already at target edge
 
-    // Mutate: remove then re-insert at the new index. Note that
-    // removing first shifts indices BEFORE re-insert — passing `newIndex`
-    // computed against the original positions assumes `removeNode`
-    // doesn't change the way `insertNode` resolves a target index when
-    // the node has been temporarily detached. Since `newIndex` is the
-    // FINAL position we want in the post-mutation array, and insertNode
-    // accepts an index into the children array AFTER potential shifts,
-    // we need to adjust: if newIndex was AFTER oldIndex, subtract 1
-    // because the slot is now one shorter.
+    // Mutate: remove then re-insert at `newIndex`. `newIndex` is the
+    // FINAL position we want in the post-removal array, and that is
+    // exactly the index to pass to `insertNode` — NO off-by-one
+    // adjustment is needed in either direction:
+    // - moving toward the back (newIndex < oldIndex): the removed slot is
+    //   after newIndex, so positions up to newIndex are unaffected.
+    // - moving toward the front (newIndex > oldIndex): inserting at the
+    //   original newIndex into the one-shorter array lands the node after
+    //   the sibling it should follow (verified for all four directions;
+    //   `insertNode` also clamps, covering the toFront/end case).
+    // The ternary is therefore a deliberate no-op (both arms = newIndex).
     const adjusted = newIndex > oldIndex ? newIndex : newIndex;
     let root = removeNode(doc.root, this.nodeId);
     if (root === doc.root) {

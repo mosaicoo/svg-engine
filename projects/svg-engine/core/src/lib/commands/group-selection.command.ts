@@ -22,9 +22,11 @@ import { type Command, type CommandContext, type CommandResult, fail, ok } from 
  * - **Children order**: the wrapped children appear inside the new
  *   group in their **original parent-order** (not selection order).
  *   Visually consistent with how the user already sees them stacked.
- * - **No transform/style on the new group**: it carries IDENTITY +
- *   default style. Children's transforms/styles are preserved
- *   verbatim, so the visual result is identical to pre-grouping.
+ * - **No transform/paint on the new group**: it carries the IDENTITY
+ *   transform + `EMPTY_STYLE` (a container is never painted — D-104),
+ *   so the wrapper itself adds nothing visible. Children's
+ *   transforms/styles are preserved verbatim, so the visual result is
+ *   identical to pre-grouping.
  * - **Undo**: restores the original parent's children in their exact
  *   original order. Each previously-selected child is reattached at
  *   the index it occupied before grouping (captured at execute time).

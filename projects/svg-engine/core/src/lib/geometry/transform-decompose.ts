@@ -20,8 +20,10 @@ import {
  * - `tx`, `ty`: translation components (always exact — read directly
  *   from `transform[4]`, `transform[5]`)
  * - `rotationRad`: rotation in radians, range `[-π, π]`
- * - `scaleX`, `scaleY`: signed scale factors. Sign can flip when the
- *   matrix encodes a reflection (e.g., negative scale)
+ * - `scaleX`: always non-negative — the magnitude of the matrix's first
+ *   column. Any reflection is folded into `scaleY`'s sign, never here.
+ * - `scaleY`: signed scale factor — negative when the matrix encodes a
+ *   reflection (a Y-flip, i.e. determinant < 0)
  *
  * **Skew is NOT decomposed**: the editor doesn't currently let users
  * apply skew, and conflating skew + non-uniform scale produces
@@ -47,7 +49,8 @@ export interface DecomposedTransform {
  * **Math**: given `[a, b, c, d, e, f]` (column-major `[[a,c,e],[b,d,f]]`),
  * - `tx = e`, `ty = f`
  * - `rotation = atan2(b, a)` (angle of the first column from +X axis)
- * - `scaleX = sign(a) · √(a² + b²)` (magnitude of first column)
+ * - `scaleX = √(a² + b²)` (magnitude of first column; always
+ *   non-negative — any reflection is folded into `scaleY`)
  * - `scaleY = sign(d') · √(c² + d²)` where `d' = a*d - b*c` (det sign
  *   preserves Y-flip information; without it both sX and sY would
  *   always come out positive and reflections would silently round-trip
@@ -61,8 +64,8 @@ export function decomposeTransform(t: Transform): DecomposedTransform {
   const tx = e;
   const ty = f;
   const rotationRad = Math.atan2(b, a);
-  // Magnitude of first column = |scaleX|; sign from `a` since rotation
-  // by an angle close to 0 leaves `a` ≈ scaleX directly.
+  // Magnitude of first column = scaleX, kept non-negative: the rotation
+  // angle absorbs orientation and any reflection lands in scaleY.
   const sxMag = Math.hypot(a, b);
   // For scaleY: project second column onto axis perpendicular to first.
   // The Y-component of that projection IS the signed scaleY (det-aware).

@@ -18,7 +18,7 @@ import type { SvgDocument } from '../document/svg-document';
  * - **Non-linear navigation**: jumping to "Version A" of a logo
  *   doesn't require Ctrl+Z 47 times.
  * - **Survives history pruning**: when the undo stack reaches its
- *   max size (50 entries default), old commands get dropped. A
+ *   max size (100 entries default), old commands get dropped. A
  *   snapshot taken before then survives until the user deletes it.
  * - **Identity**: snapshots have human-readable names, undo entries
  *   only have a programmatic label like "Translate".

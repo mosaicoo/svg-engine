@@ -58,11 +58,10 @@ import { bakePathD } from './path-d-scaler';
  * length interval).
  *
  * Examples:
- * - `scaleAxis(10, 20, 10, 2)` → `{ start: 10, length: 40 }`
- * - `scaleAxis(10, 20, 10, -1)` → `{ start: -20, length: 20 }`
- *   (rect was 10..30; mirrored around 10 becomes -10..-20; sorted
- *   gives start=-20, length=20 — and the "−10 to −20" range is
- *   really "−20 to −10", hence start=-20.)
+ * - `scaleAxisInterval(10, 20, 10, 2)` → `{ start: 10, length: 40 }`
+ * - `scaleAxisInterval(10, 20, 10, -1)` → `{ start: -10, length: 20 }`
+ *   (the interval was 10..30; mirrored around anchor 10 it maps to
+ *   10..-10 — i.e. -10..10 once sorted — hence start=-10, length=20.)
  */
 export function scaleAxisInterval(
   start: number,

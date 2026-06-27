@@ -62,8 +62,9 @@ export class MakeCompoundPathCommand implements Command {
   /**
    * Marked destructive (D-073 marker). Unlike `MakeLiveBooleanCommand`
    * (D-056) which preserves inputs as hidden children, this command
-   * **removes** the operand inputs (linhas 119-121) after baking
-   * their transforms into a single combined `d`. Lossy in two ways:
+   * **removes** the operand inputs (the combined result keeps operand
+   * A's id/slot; the others are removed) after baking their transforms
+   * into a single combined `d`. Lossy in two ways:
    * (a) the input nodes' ids/metadata disappear from the tree,
    * (b) for non-path inputs, the auto-convert-to-path step loses
    * the original semantic shape type. Justifies an auto-snapshot
