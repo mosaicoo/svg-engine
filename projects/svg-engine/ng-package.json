@@ -4,6 +4,6 @@
   "lib": {
     "entryFile": "src/public-api.ts"
   },
-  "assets": ["LICENSE", "NOTICE"],
+  "assets": ["LICENSE", "NOTICE", "brand"],
   "allowedNonPeerDependencies": ["polygon-clipping"]
 }

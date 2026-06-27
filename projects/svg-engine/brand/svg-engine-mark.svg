@@ -1,0 +1,11 @@
+<svg width="512" height="512" viewBox="0 0 512 512" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>svg-engine</title>
+<desc>A blue Bézier-node symbol: a smooth S-curve with a central anchor point and two control handles.</desc>
+<path d="M96,400 C184,400 184,256 256,256 S328,112 416,112" fill="none" stroke="#2563eb" stroke-width="18" stroke-linecap="round"/>
+<line x1="184" y1="256" x2="328" y2="256" stroke="#93c5fd" stroke-width="7" stroke-linecap="round"/>
+<circle cx="184" cy="256" r="13" fill="#2563eb"/>
+<circle cx="328" cy="256" r="13" fill="#2563eb"/>
+<rect x="84" y="388" width="24" height="24" rx="3" fill="#ffffff" stroke="#2563eb" stroke-width="6"/>
+<rect x="404" y="100" width="24" height="24" rx="3" fill="#ffffff" stroke="#2563eb" stroke-width="6"/>
+<rect x="239" y="239" width="34" height="34" rx="4" fill="#ffffff" stroke="#2563eb" stroke-width="8"/>
+</svg>

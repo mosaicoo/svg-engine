@@ -1,0 +1,7 @@
+<svg width="512" height="512" viewBox="0 0 512 512" role="img" xmlns="http://www.w3.org/2000/svg" aria-label="svg-engine">
+<path d="M96,400 C184,400 184,256 256,256 S328,112 416,112" fill="none" stroke="#2563eb" stroke-width="20" stroke-linecap="round"/>
+<line x1="184" y1="256" x2="328" y2="256" stroke="#93c5fd" stroke-width="8" stroke-linecap="round"/>
+<circle cx="184" cy="256" r="14" fill="#2563eb"/>
+<circle cx="328" cy="256" r="14" fill="#2563eb"/>
+<rect x="237" y="237" width="38" height="38" rx="5" fill="#ffffff" stroke="#2563eb" stroke-width="10"/>
+</svg>
