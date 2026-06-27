@@ -17,8 +17,8 @@
 - **SemVer estável**: a partir de `1.0.0`.
 - **Política até `1.0.0`**: minor pode ter breaking se devidamente documentado.
 - **Política após `1.0.0`**: breaking = major.
-- **Cobertura atual**: **1825 specs** passando em 132 arquivos (`npm run test:lib` —
-  validado 2026-05-29 no commit `42f8334`).
+- **Cobertura**: **223 arquivos `.spec.ts`** na library (≈2885 casos `it`),
+  cobrindo os 9 entry points (`npm run test:lib`).
 - **Status por fase** (ver `docs/05-roadmap.md` para histórico completo):
   - Fase 5 (IO + Optimize) ✅
   - Fase 6a (perf baseline) ✅
@@ -320,15 +320,14 @@ a fase do roadmap implementa o conteúdo.
 
 > **Plugin wrapper** (`builtinOptimizersPlugin`) fica em `svg-engine/edit`.
 
-### `svg-engine/edit` (Fase 3 Blocos 1+2+3) ⏳ em progresso
+### `svg-engine/edit` ✅
 
-> Seleção, transformação, canvas interativo, plugins. **Zero deps de UI Material** (D-017).
->
-> **Bloco 1** ✅ entregue: `SelectionService` + hit-testing helpers.
-> **Bloco 2** ✅ entregue: geometry utils + `TransformService` skeleton + overlay visual + pivot Affinity-grade interativo.
-> **Bloco 3** ✅ entregue: `TransformService` expandido com gestos move/rotate/resize; comandos `RotateNodeCommand` e `ResizeNodeCommand` no core; handles do overlay funcionais; body-drag no consumidor (playground).
-> **Bloco 4** ⏳ próximo: `<svge-marquee>`, `SnapService`, alignment.
-> **Bloco 5** ⏳: `ToolRegistry` (D-020 plugin point).
+> Seleção, transformação, canvas interativo, tools e plugins.
+> **Zero deps de UI Material** (D-017). É o maior entry point headless:
+> agrega selection, hit-testing, geometry, transform/pivot, overlays,
+> marquee/snap/alignment, scaffolding + gerência de plugins, tools,
+> path editor, isolation, auto-save, pages, animation e os wrappers de
+> IO/optimize. As subseções abaixo detalham cada área.
 
 #### Selection (`./lib/selection/`)
 
@@ -668,6 +667,47 @@ seção 2026-05-18.
 | `ThemeService` (`@Injectable({ root })`)                       | `theme: Signal<Theme>`, `resolvedTheme: Signal<ResolvedTheme>`, `setTheme`, `cycle`. Reflete em `<html data-theme>`                                                                                                                                                          |
 | `Theme` / `ResolvedTheme` (types)                              | `'system'\|'light'\|'dark'` e `'light'\|'dark'`                                                                                                                                                                                                                              |
 | `WorkspaceLayoutService` (`@Injectable({ root })`) **(D-088)** | `reset()` limpa o **layout** persistido (tab side dos panel-groups + collapse dos rails do shell-pro) e bumpa `resetEpoch: Signal<number>`; panel-group/shell-pro observam o epoch e revertem o estado vivo. Reset Workspace; distinto do "Reset defaults" das configurações |
+
+---
+
+### `svg-engine/ai/nlu` (D-046) ✅
+
+> Camada de comandos por linguagem natural, **rule-based, headless**
+> (sem Material). Depende de `@angular/core` + `svg-engine/core` +
+> `svg-engine/edit`. **Opt-in** — Modos D-037 que não importam não pagam.
+
+| Símbolo                                            | Descrição                                                                                                                                              |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NaturalLanguageService` (`@Injectable({ root })`) | `registerIntent` / `parse` / `execute`. Regex + dicionário multilíngue PT/EN + Levenshtein fuzzy matching                                              |
+| `builtinNluPlugin`                                 | Bootstrap opt-in: auto-discovery dos menu items (`discoverMenuIntents`) + intents customizados (`create-shape`)                                        |
+| `discoverMenuIntents`                              | Helper para transformar `MenuContributionRegistry` (ou registries custom) em intents NLU                                                               |
+| `LlmIntentResolverService`                         | Escalonamento opcional para LLM local quando o rule-based não resolve; também gera SVG via prompt (D-093/D-095)                                        |
+| `OllamaChatProvider` / `AI_CHAT_PROVIDER`          | Provider de chat (Ollama) injetável via token `AI_CHAT_PROVIDER`; `listModels()` + `chat()`                                                            |
+| Dicionários / parsers                              | `COLOR_DICTIONARY` / `SHAPE_DICTIONARY` / `ACTION_DICTIONARY` / `STOPWORDS` (extensíveis) + `tokenize` / `levenshtein` / `fuzzyMatch` / `extractSlots` |
+| Tipos                                              | `NluIntent`, `NluContext`, `NluCandidate`, `NluSlotSchema`, `NluExecuteResult`                                                                         |
+
+### `svg-engine/ai/nlu-ui` (D-046) ✅
+
+> UI da NLU. Depende de `@angular/material` + `@angular/cdk` (junto com
+> `ui`, o único par que pode importar Material — D-017).
+
+| Símbolo                             | Descrição                                                                                                            |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `SvgeNluInput` (`<svge-nlu-input>`) | Input de texto + botão de voz + autocomplete de intents + lista de resultados com confiança; model picker (modo LLM) |
+| `VoiceRecognitionService`           | Wrapper da Web Speech API (detecção de suporte + estado de gravação via signals)                                     |
+| `VoiceEngineService`                | Seleciona o provider de voz ativo (Web Speech nativo ou Whisper WASM)                                                |
+
+### `svg-engine/ai/nlu-voice-wasm` (D-046) ✅
+
+> Reconhecimento de voz **100% local/offline** via Whisper
+> (`@huggingface/transformers` + `onnxruntime-web`, ambos lazy `import()`).
+> Mesmo contrato do `VoiceRecognitionService`.
+
+| Símbolo                                               | Descrição                                                                              |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `WhisperVoiceService`                                 | Provider de voz local; assets (modelo + binários `.wasm`) servidos pela própria origem |
+| `provideWhisperVoice` / `WHISPER_VOICE_CONFIG`        | Configuração de caminhos de assets, dtype e idioma                                     |
+| `WhisperVoiceConfig` / `DEFAULT_WHISPER_VOICE_CONFIG` | Tipo + defaults da configuração                                                        |
 
 ---
 
