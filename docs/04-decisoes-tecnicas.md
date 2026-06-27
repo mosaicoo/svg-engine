@@ -1257,7 +1257,7 @@ Em uma frase: **"Vendemos uma engine. A UI profissional é cortesia."**
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **SVG Engine** (produto)    | npm package `@mosaicoo/svg-engine`                                                                                                                  |
 | **Canvas Engine / Core**    | conjunto: `@mosaicoo/svg-engine/{core,render,io,optimize,edit}` (5 entry points headless)                                                           |
-| **Canvas físico**           | `<svge-renderer>` (read-only) ou `<svge-canvas>` (com gestures via diretivas `edit`)                                                                |
+| **Canvas físico**           | `<svge-renderer>` (read-only, em `render`); gestures via diretivas de `edit` (`[svgeShellInteractions]`) — **não existe `<svge-canvas>`**           |
 | **SVG Engine Professional** | entry point `@mosaicoo/svg-engine/ui` — em particular `<svge-shell-pro>` (editor drop-in completo) e `<svge-editor [shell]="true">` (editor padrão) |
 | **Shell parcial**           | Modo 3 (D-037) — composição manual de componentes de `@mosaicoo/svg-engine/ui`                                                                      |
 | **Playground**              | app `projects/playground/` — sandbox + showcase + benchmark, **não** produto                                                                        |

@@ -868,7 +868,7 @@ fosse um export). Validado contra canário (re-export redundante → falha).
 ## Convenções
 
 - **Nomes**: `PascalCase` para classes/interfaces/tipos; `camelCase` para
-  funções/serviços; `kebab-case` para selectors (`<svge-canvas>`).
+  funções/serviços; `kebab-case` para selectors (`<svge-renderer>`).
 - **Standalone components** sempre.
 - **Inputs/outputs**: usar `input()`, `output()` (D-009 Angular guidance);
   nunca `@Input`/`@Output` decorators.

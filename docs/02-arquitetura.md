@@ -402,7 +402,7 @@ flowchart TB
   end
 
   subgraph Mode3["Modo 3 - Shell parcial (pick and choose)"]
-    M3["svge-canvas + svge-toolbar +<br/>svge-layers-panel (qualquer combinacao)<br/>Consumer monta o layout"]
+    M3["svge-renderer + svge-toolbar +<br/>svge-layers-panel (qualquer combinacao)<br/>Consumer monta o layout"]
   end
 
   subgraph Mode4["Modo 4 - Canvas only"]
