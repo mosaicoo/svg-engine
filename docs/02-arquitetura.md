@@ -4,7 +4,7 @@
 
 O **SVGEngine** é um **workspace Angular v21** contendo:
 
-- Uma **library** publicável: `@mosaicoo/svg-engine` (núcleo + UI do editor) com **8 secondary entry points + 1 umbrella** (versão atual 0.1.0).
+- Uma **library** publicável: `@mosaicoo/svg-engine` (núcleo + UI do editor) com **9 secondary entry points + 1 umbrella** (versão atual 0.1.1).
 - **Duas** aplicações consumers (D-041 follow-up de 2026-05-28):
   - `playground` — showcase/sandbox para devs integrando (8 rotas, plugins demo)
   - `svg-studio` — deliverable de produto (full-bleed `<svge-shell-pro>` puro, 1 rota)
@@ -132,18 +132,22 @@ projects/svg-engine/
 │       ├── public-api.ts            # builtinUiMenuContributionsPlugin (D-044)
 │       └── lib/...
 └── ai/                              # AI layer (D-046, opt-in)
-    ├── nlu/                         # NaturalLanguageService (rule-based, Fase 8.1)
-    │   ├── ng-package.json          # parsers PT/EN, dicionários, 33 intents,
-    │   └── src/...                  # builtinNluPlugin (auto-discovery one-shot)
-    └── nlu-ui/                      # <svge-nlu-input> + VoiceRecognitionService
-        ├── ng-package.json          # (Web Speech API wrapper, default pt-BR)
-        └── src/...
+    ├── nlu/                         # NaturalLanguageService (rule-based) + LLM
+    │   ├── ng-package.json          # escalation (Ollama, D-093/D-095); parsers
+    │   └── src/...                  # PT/EN, dicionários, ~33 intents, builtinNluPlugin
+    ├── nlu-ui/                      # <svge-nlu-input> + VoiceRecognitionService
+    │   ├── ng-package.json          # (Web Speech API wrapper, default pt-BR)
+    │   └── src/...
+    └── nlu-voice-wasm/             # WhisperVoiceService — voz 100% local (Whisper
+        ├── ng-package.json          # WASM, D-046); provider de voz selecionável,
+        └── src/...                  # headless (sem Material/CDK)
 ```
 
 ### Dependências entre entry points (regra inviolável — D-017)
 
 ```
 ai/nlu-ui → ai/nlu  (+ @angular/material — único caso de Material fora de ui/)
+ai/nlu-voice-wasm → ai/nlu  (Whisper WASM, voz local; headless, sem Material)
 ai/nlu    → edit, core
 ui        → edit, io, render, core  (+ @angular/material + @angular/cdk)
 edit      → optimize, io, render, core
@@ -153,8 +157,9 @@ optimize  → core
 core      → (nenhum entry interno; apenas @angular/core + polygon-clipping bundled)
 ```
 
-`core/`, `render/`, `io/`, `optimize/`, `edit/`, `ai/nlu/` **não importam** de
-`@angular/material` nem de `@angular/cdk`. Apenas `ui/` e `ai/nlu-ui/` podem.
+`core/`, `render/`, `io/`, `optimize/`, `edit/`, `ai/nlu/` e `ai/nlu-voice-wasm/`
+**não importam** de `@angular/material` nem de `@angular/cdk`. Apenas `ui/` e
+`ai/nlu-ui/` podem.
 
 ### Consumo por terceiros — exemplos
 
@@ -200,7 +205,7 @@ flowchart TD
     EXT["3rd party<br/>(npm consumer)"]
   end
 
-  subgraph Library["@mosaicoo/svg-engine (library, 8 secondary entry points + 1 umbrella)"]
+  subgraph Library["@mosaicoo/svg-engine (library, 9 secondary entry points + 1 umbrella)"]
     direction TB
 
     subgraph AIBox["AI / NLU layer (opt-in, separada)"]
@@ -290,7 +295,7 @@ flowchart TD
 
 **Regras invioláveis codificadas no grafo**:
 
-1. **D-017 Headless boundary**: tudo abaixo de `ui` é Material-free e CDK-free. Verificado: **todos** os 16 arquivos que importam `@angular/material|cdk` estão em `@mosaicoo/svg-engine/ui`.
+1. **D-017 Headless boundary**: imports reais de `@angular/material`/`@angular/cdk` existem **apenas** em `@mosaicoo/svg-engine/ui` e `@mosaicoo/svg-engine/ai/nlu-ui`. Os 5 entry points headless (`core`/`render`/`io`/`optimize`/`edit`) + `ai/nlu` + `ai/nlu-voice-wasm` não têm nenhum import real — só menções a Material em comentários que documentam o próprio boundary.
 2. **Sem ciclos**: `core` não importa ninguém de `@mosaicoo/svg-engine/*`. `render`, `io`, `optimize` só importam `core`. `edit` importa `core+render+io+optimize`. `ui` é o topo.
 3. **`polygon-clipping`** está em `core` (motor de pathfinder boolean ops) — bundled como dep direta, não peer.
 4. **Material + CDK são `optional` peer deps** — consumer headless (Modo 1) não precisa instalá-los.
@@ -405,7 +410,7 @@ flowchart TB
   end
 
   M1 -.->|usa apenas| L1["core / render / edit (services)"]
-  M2 -.->|usa| L2["TODOS os 8 entry points<br/>+ Material + CDK (+ opcional ai/nlu)"]
+  M2 -.->|usa| L2["TODOS os 9 entry points<br/>+ Material + CDK (+ opcional ai/nlu)"]
   M3 -.->|usa| L3["core / render / edit / ui (parte)<br/>+ Material + CDK"]
   M4 -.->|usa| L4["core / render / edit (gestures)"]
 
@@ -432,15 +437,15 @@ flowchart TB
 | `ui`                   | **~42 componentes Material** divididos em Shells (2) / Bars (6) / Panels (10) / Dialogs (7 com padrão D-044) / Misc (4) / Tool-options (14). `ToolOptionsRegistry` (D-066) + `provideSvgeBuiltinToolOptions()`. `builtinUiMenuContributionsPlugin` (D-044) e `ThemeService`. Inspector mega-componente (2314 linhas) com tabs (D-078)                                                                                                                                     |    Sim    | `core`, `render`, `io`, `edit`       |
 | `ai/nlu`               | `NaturalLanguageService` (rule-based, D-046 Fase 1). Parsers PT/EN (tokenize/Levenshtein/fuzzy/slot-extractor). Dicionários (actions/colors/shapes/stopwords merged PT+EN). `discoverMenuIntents` (one-shot, audit item #12). `builtinNluPlugin` registra ~33 intents (5 customizados + 28 professional)                                                                                                                                                                  |    Não    | `core`, `edit`                       |
 | `ai/nlu-ui`            | `<svge-nlu-input>` (Material, único componente). `VoiceRecognitionService` (Web Speech API wrapper, default `pt-BR`)                                                                                                                                                                                                                                                                                                                                                      |    Sim    | `ai/nlu`                             |
-| `@mosaicoo/svg-engine` | **Umbrella** (não funcional). Apenas exporta `SVG_ENGINE_VERSION = '0.1.0'`. Política D-018: consumers devem importar dos secondary entry points específicos                                                                                                                                                                                                                                                                                                              |    Não    | — (não importa nada)                 |
+| `@mosaicoo/svg-engine` | **Umbrella** (não funcional). Apenas exporta `SVG_ENGINE_VERSION = '0.1.1'`. Política D-018: consumers devem importar dos secondary entry points específicos                                                                                                                                                                                                                                                                                                              |    Não    | — (não importa nada)                 |
 
 ### 4.5 Como manter esses diagramas em dia
 
 Quando adicionar/remover entry points, services, registries ou alterar imports cross-entry-point, **atualize esta seção** no mesmo PR. Comando para reverificar a fronteira headless:
 
 ```bash
-# Deve retornar apenas arquivos em svg-engine/ui/:
-grep -r "from '@angular/(material|cdk)" projects/svg-engine/
+# Deve retornar apenas arquivos em svg-engine/ui/ e svg-engine/ai/nlu-ui/:
+grep -rn "from '@angular/material\|from '@angular/cdk" projects/svg-engine/ --include=*.ts
 ```
 
 Comando para reverificar grafo de deps interno:
@@ -449,71 +454,3 @@ Comando para reverificar grafo de deps interno:
 # Mostra todos os imports cross-entry-point:
 grep -rn "from '@mosaicoo/svg-engine/" projects/svg-engine/
 ```
-
----
-
-## 2. Camadas internas da library
-
-### 2.1 `core/` — Núcleo independente de UI
-
-- **Modelo**: árvore de nós (`SvgNode`) — tipos como `RectNode`,
-  `EllipseNode`, `PathNode`, `GroupNode`, `TextNode`, `ImageNode`.
-- **Estado**: `EditorStateService` (signals do Angular como fonte de verdade).
-- **Comandos**: pattern Command para mutações (cada ação = comando reversível).
-- **Histórico**: `HistoryService` com undo/redo baseado em pilhas de comandos.
-- **IDs**: gerador determinístico por sessão (auditável; sem `Math.random`).
-
-### 2.2 `canvas/` — Renderização e viewport
-
-- Componente `<svg-canvas>` que renderiza a árvore via templates Angular
-  (não manipulação DOM imperativa, exceto onde necessário por
-  performance — registrado caso a caso).
-- Pan/zoom via matriz de transformação aplicada no `<svg viewBox>`.
-- Camadas de overlay separadas: conteúdo, seleção, handles, snap-guides.
-
-### 2.3 `selection/` + `transform/`
-
-- `SelectionService` mantém set de IDs selecionados.
-- `transform/` aplica operações via comandos (sempre passam pelo
-  `HistoryService`).
-
-### 2.4 `layers/`, `inspector/`, `toolbar/`, `palette/`
-
-- Componentes Angular Material puros, **sem lógica de negócio inline**:
-  consomem serviços de `core/` e despacham comandos.
-
-### 2.5 `io/`
-
-- Import: parser SVG → árvore de `SvgNode` com **sanitização**
-  (script/eventos removidos; `xlink:href` validado).
-- Export: serialização determinística (mesma entrada → mesma saída byte-a-byte).
-
-### 2.6 `plugins/`
-
-- Interface `EditorPlugin` com hooks (`onInit`, `registerTool`,
-  `registerCommand`, `registerInspectorPanel`).
-- Carregamento declarativo via `provideSvgEngine({ plugins: [...] })`.
-
-## 3. Princípios arquiteturais
-
-1. **Separação UI ↔ estado**: componentes não mutam estado direto;
-   despacham comandos.
-2. **Imutabilidade no modelo**: nós são tratados como imutáveis;
-   mutações geram nova versão (estrutural sharing onde fizer sentido).
-3. **Signals primeiro**: estado reativo via Angular signals; RxJS
-   só onde houver necessidade real (eventos do DOM, async).
-4. **Standalone components**: sem `NgModule` (Angular moderno).
-5. **Tree-shakable**: `public-api.ts` exporta apenas o necessário;
-   internos não vazam.
-6. **Sem efeitos colaterais no import**: nenhum side-effect em top-level
-   de arquivos da library.
-7. **Testabilidade**: serviços puros injetáveis; componentes finos.
-
-## 4. Decisões pendentes
-
-- Estratégia de teste (Karma vs Vitest vs Web Test Runner).
-- Estratégia de build da library (apenas `ng-packagr` ou customizar).
-- Estratégia de versionamento (SemVer + changelog automatizado?).
-- Registry de publicação (npm público, GitHub Packages, registry interno).
-
-> Cada decisão acima vira uma entrada em `04-decisoes-tecnicas.md` quando resolvida.

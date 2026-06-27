@@ -46,16 +46,16 @@ Detalhes completos em D-041 (`docs/04-decisoes-tecnicas.md`).
 
 Para alinhamento entre time, doc e marketing, usamos este vocabulário:
 
-| Termo conceitual            | Implementação real                                                                                                                                                                                                            |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **SVG Engine** (produto)    | npm package `svg-engine` — versão atual `0.1.0`                                                                                                                                                                               |
-| **Canvas Engine / Core**    | conjunto headless: `svg-engine/{core,render,io,optimize,edit}` — 5 entry points sem dependência de Material                                                                                                                   |
-| **Canvas físico**           | `<svge-renderer>` (read-only, em `render`) — gestures vêm via diretivas de `edit` aplicadas em projeção. **Não existe `<svge-canvas>`** — esse selector era da fase de planejamento, a composição real é renderer+diretivas.  |
-| **SVG Engine Professional** | entry point `svg-engine/ui` — em particular `<svge-shell-pro>` (drop-in completo) e `<svge-editor>` (configurável)                                                                                                            |
-| **Shell parcial**           | Modo 3 (D-037) — composição manual de componentes de `svg-engine/ui`                                                                                                                                                          |
-| **NLU layer** (D-046)       | Entry points `svg-engine/ai/{nlu,nlu-ui}` — comandos por linguagem natural (Fase 8.1 rule-based ✅; 8.2/8.3 não iniciadas). Opt-in, separado do core                                                                          |
-| **Playground**              | app `projects/playground/` — sandbox + showcase + benchmark com **8 rotas + stampToolPlugin demo**. Não é produto, é referência para consumers entenderem cada modo                                                           |
-| **SVG Studio**              | app `projects/svg-studio/` — **deliverable de produto** standalone (1 rota full-bleed, `<svge-shell-pro>` puro). Set de plugins espelhado do playground **menos demos pedagógicos**. Single-page, deep-links sempre no editor |
+| Termo conceitual            | Implementação real                                                                                                                                                                                                                                       |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **SVG Engine** (produto)    | npm package `@mosaicoo/svg-engine` — versão atual `0.1.1`                                                                                                                                                                                                |
+| **Canvas Engine / Core**    | conjunto headless: `svg-engine/{core,render,io,optimize,edit}` — 5 entry points sem dependência de Material                                                                                                                                              |
+| **Canvas físico**           | `<svge-renderer>` (read-only, em `render`) — gestures vêm via diretivas de `edit` aplicadas em projeção. **Não existe `<svge-canvas>`** — esse selector era da fase de planejamento, a composição real é renderer+diretivas.                             |
+| **SVG Engine Professional** | entry point `svg-engine/ui` — em particular `<svge-shell-pro>` (drop-in completo) e `<svge-editor>` (configurável)                                                                                                                                       |
+| **Shell parcial**           | Modo 3 (D-037) — composição manual de componentes de `svg-engine/ui`                                                                                                                                                                                     |
+| **NLU layer** (D-046)       | Entry points `svg-engine/ai/{nlu,nlu-ui,nlu-voice-wasm}` — comandos por linguagem natural: NLU rule-based (~33 intents) + escalonamento opcional para LLM (Ollama, D-093/D-095) + voz (Web Speech e Whisper WASM local, D-046). Opt-in, separado do core |
+| **Playground**              | app `projects/playground/` — sandbox + showcase + benchmark com **8 rotas + stampToolPlugin demo**. Não é produto, é referência para consumers entenderem cada modo                                                                                      |
+| **SVG Studio**              | app `projects/svg-studio/` — **deliverable de produto** standalone (1 rota full-bleed, `<svge-shell-pro>` puro). Set de plugins espelhado do playground **menos demos pedagógicos**. Single-page, deep-links sempre no editor                            |
 
 ### Rotas do playground (slugs EN / labels PT — D-041)
 
@@ -103,7 +103,7 @@ A `playground` demonstra os 4 modos em rotas separadas.
 
 ## Estado atual (2026-05-29)
 
-- **Library publicável** (`projects/svg-engine/`) versão **0.1.0** com **8 secondary entry points** (`core`, `render`, `io`, `optimize`, `edit`, `ui`, `ai/nlu`, `ai/nlu-ui`) + 1 umbrella não-funcional. Headless boundary D-017 íntegra (Material/CDK só em `ui` e `ai/nlu-ui`).
+- **Library publicável** (`projects/svg-engine/`) versão **0.1.1** com **9 secondary entry points** (`core`, `render`, `io`, `optimize`, `edit`, `ui`, `ai/nlu`, `ai/nlu-ui`, `ai/nlu-voice-wasm`) + 1 umbrella não-funcional. Headless boundary D-017 íntegra (Material/CDK só em `ui` e `ai/nlu-ui`; nenhum import real de Material/CDK nos 5 entry points headless).
 - **2 apps consumers**: `playground` (showcase com 8 rotas) e `svg-studio` (deliverable de produto, full-bleed pro-editor).
 - **Cobertura de testes**: **1825 specs passando** em 132 arquivos (1 skip intencional: FUTURE-FIX NLU tiebreaker). Build clean nos 3 projetos. Lint clean.
 - **Features shipadas** (resumido — ver `docs/05-roadmap.md`):
@@ -127,8 +127,9 @@ A `playground` demonstra os 4 modos em rotas separadas.
 - **Estilo de SVG**: DOM SVG nativo + camada de abstração própria.
   Sem dependência de `svg.js`, `snap.svg`, `fabric.js` ou similares.
 - **Distribuição**: workspace Angular com **library** `svg-engine`
-  (npm package, 6 entry points) + **app** `playground`
-  (sandbox/showcase/benchmark — **não** é o produto).
+  (npm package `@mosaicoo/svg-engine`, 9 secondary entry points) + **apps**
+  `playground` (sandbox/showcase/benchmark) e `svg-studio` (deliverable de
+  produto) — **nenhum** dos apps é o produto distribuído.
 - **Back-end**: .NET 10 LTS — **somente se** surgir necessidade real
   (persistência server-side, colaboração, exportação pesada).
 

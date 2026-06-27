@@ -26,4 +26,4 @@
  * Surfaced for consumers that want to log/warn on version mismatch,
  * or for debugging which build is currently embedded in a host app.
  */
-export const SVG_ENGINE_VERSION = '0.1.0';
+export const SVG_ENGINE_VERSION = '0.1.1';
