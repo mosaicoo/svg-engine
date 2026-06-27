@@ -33,8 +33,9 @@ export interface SvgDocument {
    *
    * When a node carries `metadata.name` (set via the Layers Panel
    * rename or `CreateLayerCommand`'s default `"Layer N"`), the SVG
-   * exporter emits a `<title>Bercos</title>` child element on that
-   * node so the name survives export → re-import.
+   * exporter emits a `<title>` child element carrying that name (e.g.
+   * `<title>Layer 1</title>`) on that node so it survives export →
+   * re-import.
    *
    * **Why `<title>` (W3C spec) instead of `id`/`inkscape:label`**:
    *

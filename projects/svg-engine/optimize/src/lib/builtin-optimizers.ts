@@ -84,7 +84,8 @@ export const dropDefaultsOptimizer: Optimizer = {
  * otherwise emit for every node with `metadata.name`.
  *
  * **What it does NOT do**: remove `metadata.name` itself. The name
- * stays on the model — the layer panel still shows "Bercos", a future
+ * stays on the model — the layer panel still shows the authored name (e.g.
+ * "Layer 1"), a future
  * export with the preference un-stripped (or the in-editor session)
  * still has the name available. Stripping is purely an export-side
  * decision, reversible by toggling the preference back to `true`.
