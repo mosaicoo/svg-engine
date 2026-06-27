@@ -1,13 +1,14 @@
 # 06 — Componentes do Editor SVG
 
-> Catálogo dos componentes/serviços previstos, organizado por **entry point**
-> da library (D-018). Detalhes de API só são registrados quando a fase
-> correspondente é implementada — antes disso, cada item é escopo +
-> responsabilidade. Selectors usam prefixo `svge-` (definido pelo schematic).
+> Catálogo dos componentes/serviços implementados, organizado por **entry
+> point** da library (D-018). A API pública versionada fica em
+> [09 — API Pública](09-api-publica.md); este documento descreve escopo +
+> responsabilidade de cada peça. Selectors usam prefixo `svge-` (componentes)
+> ou `svge*` (diretivas), definido pelo schematic.
 
 > **Headless boundary (D-017)**: nada nos entry points `core`, `render`,
 > `io`, `optimize`, `edit` pode importar `@angular/material` ou
-> `@angular/cdk`. Apenas `ui` pode.
+> `@angular/cdk`. Apenas `ui` e `ai/nlu-ui` podem.
 
 ---
 
@@ -42,16 +43,17 @@
 
 ### Diretivas per-tipo (built-in)
 
-| Uso                                     | SVG host         | Diretiva                |
-| --------------------------------------- | ---------------- | ----------------------- |
-| `<svg:rect [svgeRect]="rectNode" />`    | `<svg:rect>`     | `SvgeRectDirective`     |
-| `<svg:ellipse [svgeEllipse]="..." />`   | `<svg:ellipse>`  | `SvgeEllipseDirective`  |
-| `<svg:line [svgeLine]="..." />`         | `<svg:line>`     | `SvgeLineDirective`     |
-| `<svg:polygon [svgePolygon]="..." />`   | `<svg:polygon>`  | `SvgePolygonDirective`  |
-| `<svg:polyline [svgePolyline]="..." />` | `<svg:polyline>` | `SvgePolylineDirective` |
-| `<svg:path [svgePath]="..." />`         | `<svg:path>`     | `SvgePathDirective`     |
-| `<svg:text [svgeText]="..." />`         | `<svg:text>`     | `SvgeTextDirective`     |
-| `<svg:image [svgeImage]="..." />`       | `<svg:image>`    | `SvgeImageDirective`    |
+| Uso                                     | SVG host         | Diretiva                                                                                                                                          |
+| --------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<svg:rect [svgeRect]="rectNode" />`    | `<svg:rect>`     | `SvgeRectDirective`                                                                                                                               |
+| `<svg:ellipse [svgeEllipse]="..." />`   | `<svg:ellipse>`  | `SvgeEllipseDirective`                                                                                                                            |
+| `<svg:line [svgeLine]="..." />`         | `<svg:line>`     | `SvgeLineDirective`                                                                                                                               |
+| `<svg:polygon [svgePolygon]="..." />`   | `<svg:polygon>`  | `SvgePolygonDirective`                                                                                                                            |
+| `<svg:polyline [svgePolyline]="..." />` | `<svg:polyline>` | `SvgePolylineDirective`                                                                                                                           |
+| `<svg:path [svgePath]="..." />`         | `<svg:path>`     | `SvgePathDirective`                                                                                                                               |
+| `<svg:text [svgeText]="..." />`         | `<svg:text>`     | `SvgeTextDirective`                                                                                                                               |
+| `<svg:image [svgeImage]="..." />`       | `<svg:image>`    | `SvgeImageDirective`                                                                                                                              |
+| `<svg:use [svgeSymbolUse]="..." />`     | `<svg:use>`      | `SvgeSymbolUseDirective` (D-059) — instância de `<symbol>` master; o def é contribuído ao `<defs>` por `ActiveSymbolsService` (`svg-engine/edit`) |
 
 > Cada diretiva popula apenas atributos do próprio elemento via host config.
 > O wrapper `<svg:g data-node-id transform>` é fornecido pela host do
@@ -113,11 +115,12 @@ Plugins wrappers (`builtinIoPlugin`, `pngExporterPlugin`) ficam em `svg-engine/e
 
 ### Passes built-in (conservadores)
 
-| Símbolo                     | Order | Efeito                                                                    |
-| --------------------------- | ----- | ------------------------------------------------------------------------- |
-| `precisionOptimizer`        | 10    | Arredonda numerics a 3 casas (rect x/y/w/h, path `d`, styles)             |
-| `dropDefaultsOptimizer`     | 50    | Remove `opacity:1`/`fillOpacity:1`/`strokeOpacity:1`/`visibility:visible` |
-| `pruneEmptyGroupsOptimizer` | 90    | Remove `<g></g>` recursivamente (root preservado)                         |
+| Símbolo                        | Order | Efeito                                                                                |
+| ------------------------------ | ----- | ------------------------------------------------------------------------------------- |
+| `precisionOptimizer`           | 10    | Arredonda numerics a 3 casas (rect x/y/w/h, path `d`, styles)                         |
+| `dropDefaultsOptimizer`        | 50    | Remove `opacity:1`/`fillOpacity:1`/`strokeOpacity:1`/`visibility:visible`             |
+| `stripAuthoredTitlesOptimizer` | 80    | Remove `<title>` autorais (opt-in, D-072g) — `metadata.name` vira `<title>` no export |
+| `pruneEmptyGroupsOptimizer`    | 90    | Remove `<g></g>` recursivamente (root preservado)                                     |
 
 Plugin wrapper (`builtinOptimizersPlugin`) fica em `svg-engine/edit`.
 
@@ -307,6 +310,48 @@ edit-side `builtinMenuContributionsPlugin`) — caso contrário a build do
 edit quebra com import inválido. Mesmo motivo do D-066 ter movido o
 Trace Image menu entry para o plugin UI.
 
+---
+
+## Entry points de IA `svg-engine/ai/*` (D-046)
+
+Camada de comandos por linguagem natural, **opt-in** e desacoplada do
+core (Modos D-037 headless não pagam o custo se não importarem).
+
+### `svg-engine/ai/nlu` — NLU rule-based (headless)
+
+Depende apenas de `@angular/core` + `svg-engine/core` + `svg-engine/edit`
+(sem Material). Traduz texto natural em comandos do `CommandBus`.
+
+| Símbolo                                                                | Responsabilidade                                                                                                                           |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NaturalLanguageService`                                               | Singleton root: `registerIntent` / `parse` / `execute`. Regex + dicionário multilíngue PT/EN + Levenshtein fuzzy matching                  |
+| `builtinNluPlugin`                                                     | Bootstrap opt-in: auto-discovery dos menu items (`discoverMenuIntents`) + intents customizados (`create-shape`)                            |
+| `LlmIntentResolverService` / `OllamaChatProvider` (`AI_CHAT_PROVIDER`) | Escalonamento opcional para LLM local (Ollama, D-093/D-095) quando o rule-based não resolve; também gera SVG via prompt                    |
+| Dicionários / parsers                                                  | `COLOR_DICTIONARY`/`SHAPE_DICTIONARY`/`ACTION_DICTIONARY`/`STOPWORDS` (extensíveis) + `tokenize`/`levenshtein`/`fuzzyMatch`/`extractSlots` |
+| Tipos                                                                  | `NluIntent`, `NluContext`, `NluCandidate`, `NluSlotSchema`                                                                                 |
+
+### `svg-engine/ai/nlu-ui` — UI da NLU (Material)
+
+Depende de `@angular/material` + `@angular/cdk` (junto com `ui`, único par
+que pode importar Material — D-017).
+
+| Símbolo                             | Responsabilidade                                                                                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `<svge-nlu-input>` (`SvgeNluInput`) | Input de texto + botão de voz + autocomplete de intents + lista de resultados com confiança; model picker para o modo LLM |
+| `VoiceRecognitionService`           | Wrapper da Web Speech API (detecção de suporte + estado de gravação via signals)                                          |
+| `VoiceEngineService`                | Seleciona o provider de voz ativo (Web Speech nativo ou Whisper WASM)                                                     |
+
+### `svg-engine/ai/nlu-voice-wasm` — Voz 100% local (Whisper)
+
+Reconhecimento de voz offline via Whisper (`@huggingface/transformers` +
+`onnxruntime-web`, ambos lazy `import()` — só carregam quando a voz Whisper
+é acionada). Mesmo contrato do `VoiceRecognitionService`.
+
+| Símbolo                                        | Responsabilidade                                                              |
+| ---------------------------------------------- | ----------------------------------------------------------------------------- |
+| `WhisperVoiceService`                          | Provider de voz local; assets (modelo + `.wasm`) servidos pela própria origem |
+| `provideWhisperVoice` / `WHISPER_VOICE_CONFIG` | Configuração de caminhos de assets, dtype e idioma (`WhisperVoiceConfig`)     |
+
 ## Comandos
 
 | Comando                                                                              | Mutação                                                                                                                               |
@@ -335,10 +380,12 @@ Trace Image menu entry para o plugin UI.
 | **Pathfinder (Bloco 6-PE)**                                                          |                                                                                                                                       |
 | `UnionCommand`/`IntersectCommand`/`SubtractCommand`/`ExcludeCommand`/`DivideCommand` | 5 boolean ops via polygon-clipping. Divide retorna N regions com `styleSourceIdx` (regiões privadas herdam style do input originador) |
 
-## Modelo de dados (preview)
+## Modelo de dados
+
+`SVG_NODE_TYPES` (em `svg-engine/core`) define **10 tipos** de nó:
 
 ```
-SvgNode (abstrato)
+SvgNode (união discriminada por `type`)
 ├── ShapeNode
 │   ├── RectNode
 │   ├── EllipseNode
@@ -346,9 +393,10 @@ SvgNode (abstrato)
 │   ├── PolygonNode
 │   ├── PolylineNode
 │   └── PathNode
-├── TextNode
+├── TextNode          (rich text via `runs`, D-100)
 ├── ImageNode
-└── GroupNode  (contém SvgNode[])
+├── SymbolUseNode     (instância de `<symbol>` master, D-059)
+└── GroupNode         (contém SvgNode[])
 ```
 
 > Todo nó tem: `id`, `type`, `transform`, `style`, `metadata`.
@@ -356,9 +404,17 @@ SvgNode (abstrato)
 
 ---
 
-## A definir nas fases correspondentes
+## Decisões de design já tomadas
 
-- API pública exata de cada componente/serviço (props, eventos, signals).
-- Estratégia de hit-testing (DOM `elementsFromPoint` vs cálculo geométrico próprio).
-- Estratégia de path editing (edição de pontos de Bézier).
-- Sistema de constraints/guides avançado.
+Os pontos que este documento listava como "a definir" foram resolvidos
+ao longo da primeira etapa:
+
+- **API pública exata** de cada componente/serviço → ver
+  [09 — API Pública](09-api-publica.md) e os `public-api.ts` de cada entry point.
+- **Hit-testing**: baseado no DOM (`data-node-id` + `elementsFromPoint`),
+  com tolerância por área para formas sem fill/stroke fino
+  (`resolveSelectableNodeIdFromElement`, D-091).
+- **Path editing**: edição de pontos de Bézier via `AnchorOverlay` +
+  comandos `MoveAnchor`/`InsertAnchor`/`RemoveAnchor`/`ConvertAnchorType`.
+- **Constraints/guides**: `SnapService` (grid + objetos), smart guides
+  durante drag e `AlignmentService` (alinhar/distribuir).

@@ -54,7 +54,7 @@ Para alinhamento entre time, doc e marketing, usamos este vocabulário:
 | **SVG Engine Professional** | entry point `svg-engine/ui` — em particular `<svge-shell-pro>` (drop-in completo) e `<svge-editor>` (configurável)                                                                                                                                       |
 | **Shell parcial**           | Modo 3 (D-037) — composição manual de componentes de `svg-engine/ui`                                                                                                                                                                                     |
 | **NLU layer** (D-046)       | Entry points `svg-engine/ai/{nlu,nlu-ui,nlu-voice-wasm}` — comandos por linguagem natural: NLU rule-based (~33 intents) + escalonamento opcional para LLM (Ollama, D-093/D-095) + voz (Web Speech e Whisper WASM local, D-046). Opt-in, separado do core |
-| **Playground**              | app `projects/playground/` — sandbox + showcase + benchmark com **8 rotas + stampToolPlugin demo**. Não é produto, é referência para consumers entenderem cada modo                                                                                      |
+| **Playground**              | app `projects/playground/` — sandbox + showcase + benchmark com **9 rotas + stampToolPlugin demo**. Não é produto, é referência para consumers entenderem cada modo                                                                                      |
 | **SVG Studio**              | app `projects/svg-studio/` — **deliverable de produto** standalone (1 rota full-bleed, `<svge-shell-pro>` puro). Set de plugins espelhado do playground **menos demos pedagógicos**. Single-page, deep-links sempre no editor                            |
 
 ### Rotas do playground (slugs EN / labels PT — D-041)
@@ -70,6 +70,8 @@ Cada rota tem **nome que descreve a atividade**, não a categoria arquitetural:
 | `/pro-editor`        | `<svge-shell-pro>` editor **profissional completo** (Illustrator/Affinity-grade)                                        | Modo 2 pro            |
 | `/svg-viewer`        | `<svge-renderer>` puro **read-only** — textarea/arquivo SVG, sem `edit`, **bundle mínimo**                              | Render-only           |
 | `/benchmark`         | Harness de **performance** (FPS + render-to-paint latency)                                                              | Bench                 |
+| `/nlu-test`          | NLU bench: `<svge-editor>` lado a lado com `<svge-nlu-input>` (texto + voz) — comandos em linguagem natural (D-046)     | Showcase              |
+| `/plugins`           | Showcase do `<svge-plugin-manager>` — instala/desinstala plugin externo em runtime (D-083)                              | Showcase              |
 
 **URLs antigas redirecionam para os novos slugs** (`/raw-primitives`,
 `/shell-demo`, `/shell-partial-demo`, `/shell-canvas-only`,
@@ -102,23 +104,27 @@ rotas separadas.
 - Owner: `mosaicoo`
 - Branch padrão: `main`
 
-## Estado atual (2026-05-29)
+## Estado atual (2026-06-27)
+
+A **primeira etapa de desenvolvimento está concluída**: a library é
+publicável e cobre engine, edição, UI profissional e camada de IA.
 
 - **Library publicável** (`projects/svg-engine/`) versão **0.1.1** com **9 secondary entry points** (`core`, `render`, `io`, `optimize`, `edit`, `ui`, `ai/nlu`, `ai/nlu-ui`, `ai/nlu-voice-wasm`) + 1 umbrella não-funcional. Headless boundary D-017 íntegra (Material/CDK só em `ui` e `ai/nlu-ui`; nenhum import real de Material/CDK nos 5 entry points headless).
-- **2 apps consumers**: `playground` (showcase com 8 rotas) e `svg-studio` (deliverable de produto, full-bleed pro-editor).
-- **Cobertura de testes**: **1825 specs passando** em 132 arquivos (1 skip intencional: FUTURE-FIX NLU tiebreaker). Build clean nos 3 projetos. Lint clean.
+- **2 apps consumers**: `playground` (showcase com 9 rotas) e `svg-studio` (deliverable de produto, full-bleed pro-editor).
+- **Cobertura de testes**: **223 arquivos `.spec.ts`** na library (≈2885 casos `it`), cobrindo os 9 entry points. Build limpo nos 3 projetos; lint limpo.
 - **Features shipadas** (resumido — ver `docs/05-roadmap.md`):
-  - **Core engine** (Fase 2+3): 10 tipos de nó, 38 comandos, scope per-editor (D-042), CommandBus com auto-snapshot interceptor
-  - **Render** (Fase 2 Bloco 2): `<svge-renderer>` + 9 directives per-tipo + ViewportService + NodeRendererRegistry
-  - **IO + Optimize** (Fase 5): SVG importer/exporter determinístico + PNG exporter + 4 optimizers built-in
-  - **Edit + UI completos**: 15 tools, 6 capability registries + 9 library catalogs, 27 plugins built-in, 43 componentes UI (todos `standalone`+`OnPush`), 6 dialogs com service opener centralizado (D-044)
-  - **Performance** (Fase 6): meta 60fps@1k+ atingida (1k=161 FPS), viewport culling opt-in, perf harness
-  - **Path Editor + Pathfinder**: AnchorOverlay + 4 anchor commands + 5 boolean ops via `polygon-clipping`
-  - **NLU** (Fase 8.1): `NaturalLanguageService` rule-based, ~33 intents customizados (5 builtin + 28 professional), voice via Web Speech
-  - **Pages / Artboards** (D-079 + D-080): multi-page com `<svge-page-selection-overlay>`, brackets em L + mid-edge brackets, page tool (Illustrator Artboard Tool pattern), persistência localStorage
-  - **History Snapshots** (D-073), **Smart Objects** (D-074), **Asset Export** (D-077), **Find & Replace** (D-070), **Logical Layers** (D-072), **Effects ecosystem** (D-047), **Libraries ecosystem** (D-048)
-- **Auditoria persistente**: `docs/11-auditoria-pendencias.md` cataloga **22 pendências reais** (8 código + 8 doc drift + 6 originais) com `file:line` por item. Protocolo "auditar antes de agir" estabelecido como regra absoluta.
-- **Próximo grande passo**: doc 04 (decisões técnicas) — ~35 seções D-XXX faltando entre D-046 e D-079; e completar mermaid diagrams do doc 02.
+  - **Core engine**: 10 tipos de nó, 71 comandos undoable, scope per-editor (D-042), CommandBus com auto-snapshot interceptor (D-073)
+  - **Render**: `<svge-renderer>` + 9 diretivas per-tipo + ViewportService + NodeRendererRegistry (extensível)
+  - **IO + Optimize**: SVG importer/exporter determinístico + PNG exporter (@1x/@2x/@3x) + 4 optimizers built-in
+  - **Edit + UI**: 15 tools, 10 catálogos de biblioteca built-in (shapes/palettes/graphic-styles/gradients/patterns/templates/symbols/brushes/clip-paths/masks), 30 plugins built-in, 51 componentes UI (todos `standalone`+`OnPush`), 10 dialogs Material via service opener centralizado (D-044)
+  - **Performance**: viewport culling opt-in + harness de performance (rota `/benchmark`)
+  - **Path Editor + Pathfinder**: AnchorOverlay + comandos de anchor + 5 boolean ops via `polygon-clipping` + operações de path (Simplify/Split/Join/Reverse/Outline Stroke/Offset/Clean Up, D-090)
+  - **NLU + IA** (D-046): `NaturalLanguageService` rule-based (intents builtin + auto-descobertos do menu) + escalonamento opcional para LLM (Ollama, D-093/D-095) + voz (Web Speech + Whisper WASM local) — entry points `ai/nlu`, `ai/nlu-ui`, `ai/nlu-voice-wasm`
+  - **Pages / Artboards** (D-079 + D-080): multi-page com `<svge-page-selection-overlay>`, page tool (padrão Illustrator Artboard), persistência localStorage
+  - **Animation Timeline** (D-082): tracks/keyframes não-destrutivos + `<svge-timeline>` editável
+  - **Outros**: History Snapshots (D-073), Smart Objects (D-074), Asset Export (D-077), Find & Replace (D-070), Logical Layers (D-072), Custom Attributes (D-089), Keybindings customizáveis (D-086), Effects ecosystem (D-047), Libraries ecosystem (D-048), fidelidade de import (D-098–D-101)
+- **Auditoria persistente**: `docs/11-auditoria-pendencias.md` cataloga as pendências conhecidas com `file:line` por item. Protocolo "auditar antes de agir" estabelecido como regra.
+- **Próximos passos**: ver `docs/05-roadmap.md`.
 
 ## Stack alvo
 
