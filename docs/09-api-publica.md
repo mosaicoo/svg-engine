@@ -12,7 +12,7 @@
 
 ## Status
 
-- **Versão**: `0.1.0` (pré-release; APIs hardening durante Fase 6/7 — `1.0.0`
+- **Versão**: `0.1.1` (pré-release; APIs hardening durante Fase 6/7 — `1.0.0`
   alvo após estabilização de superfície pública).
 - **SemVer estável**: a partir de `1.0.0`.
 - **Política até `1.0.0`**: minor pode ter breaking se devidamente documentado.
@@ -33,7 +33,9 @@
     Artboards (D-079), PAGES-REFACTOR (D-080). ✅ — _detalhamento por sprint
     pendente em doc 04/05_
   - Fase 6e (`ScriptRuntimePlugin`, D-024) — decisão A/B/C pendente
-  - Fase 8.1 (NLU rule-based, D-046 Fase 1) ✅ — 8.2/8.3 não iniciadas
+  - NLU (D-046): rule-based ✅ + escalonamento opcional para LLM (Ollama,
+    D-093/D-095) ✅ + voz (Web Speech + Whisper WASM local) ✅ — entry points
+    `ai/nlu`, `ai/nlu-ui`, `ai/nlu-voice-wasm`
 
 ---
 

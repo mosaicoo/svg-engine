@@ -88,8 +88,9 @@ distintas. Todas precisam funcionar sem quebrar as outras:
 | **4. Canvas-only**    | `svg-engine/render` (`<svge-renderer>`) + opcionalmente `edit` para gestures via `[svgeShellInteractions]` | Só o canvas + pan/zoom                 |
 
 **Consequência arquitetural**: nenhum entry point headless pode
-importar Material/CDK (D-017). `svg-engine/ui` é o único que pode.
-A `playground` demonstra os 4 modos em rotas separadas.
+importar Material/CDK (D-017). Apenas `svg-engine/ui` e
+`svg-engine/ai/nlu-ui` podem. A `playground` demonstra os 4 modos em
+rotas separadas.
 
 ## Diretório raiz
 
