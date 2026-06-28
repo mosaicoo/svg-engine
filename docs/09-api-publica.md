@@ -12,7 +12,7 @@
 
 ## Status
 
-- **Versão**: `0.1.1` (pré-release; APIs hardening durante Fase 6/7 — `1.0.0`
+- **Versão**: `0.1.2` (pré-release; APIs hardening durante Fase 6/7 — `1.0.0`
   alvo após estabilização de superfície pública).
 - **SemVer estável**: a partir de `1.0.0`.
 - **Política até `1.0.0`**: minor pode ter breaking se devidamente documentado.

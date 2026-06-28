@@ -13,7 +13,7 @@ from a ~30 kB read-only viewer to a full Material-styled editor with path
 editing, boolean operations, pages/artboards, effects, libraries and an
 optional AI/natural-language command layer.
 
-> **Status**: pre-`1.0` (`0.1.1`, APIs hardening). Build green; **2953
+> **Status**: pre-`1.0` (`0.1.2`, APIs hardening). Build green; **2953
 > specs passing across 223 files** (Vitest, 1 skipped). Licensed
 > **Apache-2.0**. Public surface in
 > [`docs/09-api-publica.md`](docs/09-api-publica.md); changes in

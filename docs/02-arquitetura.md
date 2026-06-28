@@ -4,7 +4,7 @@
 
 O **SVGEngine** é um **workspace Angular v21** contendo:
 
-- Uma **library** publicável: `@mosaicoo/svg-engine` (núcleo + UI do editor) com **9 secondary entry points + 1 umbrella** (versão atual 0.1.1).
+- Uma **library** publicável: `@mosaicoo/svg-engine` (núcleo + UI do editor) com **9 secondary entry points + 1 umbrella** (versão atual 0.1.2).
 - **Duas** aplicações consumers (D-041 follow-up de 2026-05-28):
   - `playground` — showcase/sandbox para devs integrando (8 rotas, plugins demo)
   - `svg-studio` — deliverable de produto (full-bleed `<svge-shell-pro>` puro, 1 rota)
@@ -437,7 +437,7 @@ flowchart TB
 | `ui`                   | **~42 componentes Material** divididos em Shells (2) / Bars (6) / Panels (10) / Dialogs (7 com padrão D-044) / Misc (4) / Tool-options (14). `ToolOptionsRegistry` (D-066) + `provideSvgeBuiltinToolOptions()`. `builtinUiMenuContributionsPlugin` (D-044) e `ThemeService`. Inspector mega-componente (2314 linhas) com tabs (D-078)                                                                                                                                     |    Sim    | `core`, `render`, `io`, `edit`       |
 | `ai/nlu`               | `NaturalLanguageService` (rule-based, D-046 Fase 1). Parsers PT/EN (tokenize/Levenshtein/fuzzy/slot-extractor). Dicionários (actions/colors/shapes/stopwords merged PT+EN). `discoverMenuIntents` (one-shot, audit item #12). `builtinNluPlugin` registra ~33 intents (5 customizados + 28 professional)                                                                                                                                                                  |    Não    | `core`, `edit`                       |
 | `ai/nlu-ui`            | `<svge-nlu-input>` (Material, único componente). `VoiceRecognitionService` (Web Speech API wrapper, default `pt-BR`)                                                                                                                                                                                                                                                                                                                                                      |    Sim    | `ai/nlu`                             |
-| `@mosaicoo/svg-engine` | **Umbrella** (não funcional). Apenas exporta `SVG_ENGINE_VERSION = '0.1.1'`. Política D-018: consumers devem importar dos secondary entry points específicos                                                                                                                                                                                                                                                                                                              |    Não    | — (não importa nada)                 |
+| `@mosaicoo/svg-engine` | **Umbrella** (não funcional). Apenas exporta `SVG_ENGINE_VERSION = '0.1.2'`. Política D-018: consumers devem importar dos secondary entry points específicos                                                                                                                                                                                                                                                                                                              |    Não    | — (não importa nada)                 |
 
 ### 4.5 Como manter esses diagramas em dia
 

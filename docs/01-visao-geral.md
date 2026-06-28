@@ -48,7 +48,7 @@ Para alinhamento entre time, doc e marketing, usamos este vocabulário:
 
 | Termo conceitual            | Implementação real                                                                                                                                                                                                                                       |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **SVG Engine** (produto)    | npm package `@mosaicoo/svg-engine` — versão atual `0.1.1`                                                                                                                                                                                                |
+| **SVG Engine** (produto)    | npm package `@mosaicoo/svg-engine` — versão atual `0.1.2`                                                                                                                                                                                                |
 | **Canvas Engine / Core**    | conjunto headless: `svg-engine/{core,render,io,optimize,edit}` — 5 entry points sem dependência de Material                                                                                                                                              |
 | **Canvas físico**           | `<svge-renderer>` (read-only, em `render`) — gestures vêm via diretivas de `edit` aplicadas em projeção. **Não existe `<svge-canvas>`** — esse selector era da fase de planejamento, a composição real é renderer+diretivas.                             |
 | **SVG Engine Professional** | entry point `svg-engine/ui` — em particular `<svge-shell-pro>` (drop-in completo) e `<svge-editor>` (configurável)                                                                                                                                       |
@@ -109,7 +109,7 @@ rotas separadas.
 A **primeira etapa de desenvolvimento está concluída**: a library é
 publicável e cobre engine, edição, UI profissional e camada de IA.
 
-- **Library publicável** (`projects/svg-engine/`) versão **0.1.1** com **9 secondary entry points** (`core`, `render`, `io`, `optimize`, `edit`, `ui`, `ai/nlu`, `ai/nlu-ui`, `ai/nlu-voice-wasm`) + 1 umbrella não-funcional. Headless boundary D-017 íntegra (Material/CDK só em `ui` e `ai/nlu-ui`; nenhum import real de Material/CDK nos 5 entry points headless).
+- **Library publicável** (`projects/svg-engine/`) versão **0.1.2** com **9 secondary entry points** (`core`, `render`, `io`, `optimize`, `edit`, `ui`, `ai/nlu`, `ai/nlu-ui`, `ai/nlu-voice-wasm`) + 1 umbrella não-funcional. Headless boundary D-017 íntegra (Material/CDK só em `ui` e `ai/nlu-ui`; nenhum import real de Material/CDK nos 5 entry points headless).
 - **2 apps consumers**: `playground` (showcase com 9 rotas) e `svg-studio` (deliverable de produto, full-bleed pro-editor).
 - **Cobertura de testes**: **223 arquivos `.spec.ts`** na library (≈2885 casos `it`), cobrindo os 9 entry points. Build limpo nos 3 projetos; lint limpo.
 - **Features shipadas** (resumido — ver `docs/05-roadmap.md`):
