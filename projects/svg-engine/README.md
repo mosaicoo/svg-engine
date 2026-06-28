@@ -1,9 +1,13 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mosaicoo/svgengine-site/main/public/og.png" alt="SVGEngine" width="640">
+</p>
+
 # svg-engine
 
 > Headless-first, plugin-extensible **SVG editor library** for Angular v21+.
 > Render, manipulate and optimize SVG inside any Angular app.
 
-[![npm version](https://img.shields.io/npm/v/svg-engine.svg)](https://www.npmjs.com/package/svg-engine)
+[![npm version](https://img.shields.io/npm/v/@mosaicoo/svg-engine.svg)](https://www.npmjs.com/package/@mosaicoo/svg-engine)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Angular](https://img.shields.io/badge/Angular-21%2B-DD0031.svg)](https://angular.dev/)
 
