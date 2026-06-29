@@ -1,88 +1,188 @@
-import type { Effect } from './effect';
+import { type Effect, type EffectParams, resolveEffectParams } from './effect';
 
 /**
- * Built-in effects shipped with the library (Fase 6d expandido em D-047,
- * 2026-05-23). Each is a fixed visual — for parametric variants
- * (slider-driven blur, custom shadow color), consumers register
- * additional effects with different ids.
+ * Built-in effects shipped with the library (Fase 6d / D-047, parametric
+ * em D-118 2026-06-28). Each effect is an SVG `<filter>` factory with an
+ * optional typed `params` schema so the `<svge-effects-panel>` can expose
+ * sliders / color pickers / selects per knob.
  *
- * **Why fixed-visual builtins instead of parameter dialogs**:
- * - Proves the `EffectRegistry` contract works end-to-end (D-023 cat 7).
- * - 19 ready-to-use effects (4 originais + 15 D-047) cobrem o vocabulário
- *   visual mais usado em editores de SVG: blur, sombras, glows, color
- *   adjustments, distortion, pixel art.
- * - Parametric effects need a UI for the param input — out of scope
- *   for the v1 panel. Once the panel grows a slider, plugins can
- *   define parametric effects via a future `paramsSchema` extension.
+ * **Backwards compatible**: every `buildFilterMarkup()` called with no
+ * argument reproduces the original fixed visual (defaults equal the old
+ * hard-coded values), so existing documents referencing `url(#id)` render
+ * unchanged. Custom values are encoded statelessly into the `style.filter`
+ * URL (see `effect-instance.ts`).
  *
- * **Picker-friendly groupings**: each effect declares a `category`
- * so `<svge-effects-panel>` can render them in named sections (`blur`,
- * `shadow`, `glow`, `color`, `adjustment`, `distortion`, `stylize`).
+ * **Param coverage**: knobs are added where they are meaningful and safe
+ * (blur radius, shadow/glow offset·blur·color·opacity, brightness/contrast/
+ * saturate/hue amounts, noise/displacement intensity, posterize levels…).
+ * A few effects are intentionally fixed toggles with no params: emboss,
+ * grayscale, sepia, invert.
+ *
+ * **Picker-friendly groupings**: each effect declares a `category` so the
+ * panel can render named sections (`blur`, `shadow`, `glow`, `stylize`,
+ * `color`, `adjustment`, `distortion`).
  *
  * **Filter region** (`x/y/width/height`): effects that produce halos
- * (blur, shadow, glow) widen the filter region beyond the default
- * 110% padding so the result doesn't get clipped at the bounding box.
- * Effects that only re-color in-place (grayscale, sepia, invert)
- * leave the region at its default — no wasted GPU pixels.
+ * (blur, shadow, glow) widen the filter region beyond the default 110%
+ * padding so the result isn't clipped at the bounding box.
  */
+
+/** Format a number for markup: integers bare, floats trimmed to 4dp. */
+function fmt(n: number): string {
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 1e4) / 1e4);
+}
+
+/**
+ * Evenly-spaced discrete levels in `[0, 1]` for `feFunc*` `tableValues`,
+ * e.g. `discrete(4)` → `"0 0.333 0.667 1"`. `levels <= 1` collapses to a
+ * single mid value so the filter stays valid.
+ */
+function discrete(levels: number): string {
+  const n = Math.max(2, Math.round(levels));
+  return Array.from({ length: n }, (_, i) => fmt(Math.round((i / (n - 1)) * 1e3) / 1e3)).join(' ');
+}
 
 // ── BLUR ─────────────────────────────────────────────────────────────
 
-/** @internal Soft Gaussian blur. stdDeviation tuned for "noticeable but not destroying detail". */
+/** @internal Soft Gaussian blur; `radius` drives `stdDeviation`. */
 export const blurEffect: Effect = {
   id: 'svge.builtin.effect.blur',
   name: 'Blur',
   category: 'blur',
-  buildFilterMarkup(): string {
-    // x/y/width/height extended (-50%/200%) so the blur halo doesn't
-    // get clipped at the filter region's default 110% padding.
+  params: [
+    {
+      key: 'radius',
+      label: 'Radius',
+      type: 'number',
+      default: 3,
+      min: 0,
+      max: 50,
+      step: 0.5,
+      unit: 'px',
+    },
+  ],
+  presets: [
+    { id: 'soft', name: 'Soft', params: { radius: 1.5 } },
+    { id: 'medium', name: 'Medium', params: { radius: 3 } },
+    { id: 'strong', name: 'Strong', params: { radius: 8 } },
+  ],
+  buildFilterMarkup(params?: EffectParams): string {
+    const p = resolveEffectParams(this, params);
+    // x/y/width/height extended so the blur halo isn't clipped at the
+    // default 110% filter region.
     return `<filter id="${this.id}" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="3" />
+      <feGaussianBlur in="SourceGraphic" stdDeviation="${fmt(p['radius'] as number)}" />
     </filter>`;
   },
 };
 
 // ── SHADOWS ─────────────────────────────────────────────────────────
 
-/**
- * @internal
- * Drop shadow at 4px offset, 4px blur, semi-transparent black. Default
- * direction matches most design tools (light from top-left).
- */
+/** @internal Drop shadow — colored, blurred, offset copy behind the source. */
 export const dropShadowEffect: Effect = {
   id: 'svge.builtin.effect.drop-shadow',
   name: 'Drop shadow',
   category: 'shadow',
-  buildFilterMarkup(): string {
-    return `<filter id="${this.id}" x="-25%" y="-25%" width="150%" height="150%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="4" />
-      <feOffset dx="4" dy="4" result="offsetblur" />
-      <feComponentTransfer><feFuncA type="linear" slope="0.5" /></feComponentTransfer>
+  params: [
+    {
+      key: 'offsetX',
+      label: 'Offset X',
+      type: 'number',
+      default: 4,
+      min: -50,
+      max: 50,
+      step: 1,
+      unit: 'px',
+    },
+    {
+      key: 'offsetY',
+      label: 'Offset Y',
+      type: 'number',
+      default: 4,
+      min: -50,
+      max: 50,
+      step: 1,
+      unit: 'px',
+    },
+    {
+      key: 'blur',
+      label: 'Blur',
+      type: 'number',
+      default: 4,
+      min: 0,
+      max: 50,
+      step: 0.5,
+      unit: 'px',
+    },
+    { key: 'color', label: 'Color', type: 'color', default: '#000000' },
+    { key: 'opacity', label: 'Opacity', type: 'percent', default: 0.5, min: 0, max: 1, step: 0.05 },
+  ],
+  presets: [
+    { id: 'soft', name: 'Soft', params: { offsetX: 2, offsetY: 2, blur: 6, opacity: 0.35 } },
+    { id: 'hard', name: 'Hard', params: { offsetX: 3, offsetY: 3, blur: 0, opacity: 0.6 } },
+    { id: 'long', name: 'Long', params: { offsetX: 10, offsetY: 10, blur: 8, opacity: 0.4 } },
+  ],
+  buildFilterMarkup(params?: EffectParams): string {
+    const p = resolveEffectParams(this, params);
+    return `<filter id="${this.id}" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="${fmt(p['blur'] as number)}" result="blur" />
+      <feOffset in="blur" dx="${fmt(p['offsetX'] as number)}" dy="${fmt(p['offsetY'] as number)}" result="off" />
+      <feFlood flood-color="${p['color'] as string}" flood-opacity="${fmt(p['opacity'] as number)}" result="color" />
+      <feComposite in="color" in2="off" operator="in" result="shadow" />
       <feMerge>
-        <feMergeNode />
+        <feMergeNode in="shadow" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
     </filter>`;
   },
 };
 
-/**
- * @internal
- * Inner shadow — shadow CAST INTO the shape (Photoshop-style "inner
- * shadow" layer effect). Technique: invert alpha, blur, offset, then
- * intersect with original source so the shadow only appears inside the
- * shape's bounds.
- */
+/** @internal Inner shadow — shadow cast INTO the shape (Photoshop-style). */
 export const innerShadowEffect: Effect = {
   id: 'svge.builtin.effect.inner-shadow',
   name: 'Inner shadow',
   category: 'shadow',
-  buildFilterMarkup(): string {
+  params: [
+    {
+      key: 'offsetX',
+      label: 'Offset X',
+      type: 'number',
+      default: 3,
+      min: -50,
+      max: 50,
+      step: 1,
+      unit: 'px',
+    },
+    {
+      key: 'offsetY',
+      label: 'Offset Y',
+      type: 'number',
+      default: 3,
+      min: -50,
+      max: 50,
+      step: 1,
+      unit: 'px',
+    },
+    {
+      key: 'blur',
+      label: 'Blur',
+      type: 'number',
+      default: 3,
+      min: 0,
+      max: 50,
+      step: 0.5,
+      unit: 'px',
+    },
+    { key: 'color', label: 'Color', type: 'color', default: '#000000' },
+    { key: 'opacity', label: 'Opacity', type: 'percent', default: 0.6, min: 0, max: 1, step: 0.05 },
+  ],
+  buildFilterMarkup(params?: EffectParams): string {
+    const p = resolveEffectParams(this, params);
     return `<filter id="${this.id}" x="-10%" y="-10%" width="120%" height="120%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="3" />
-      <feOffset dx="3" dy="3" />
+      <feGaussianBlur in="SourceAlpha" stdDeviation="${fmt(p['blur'] as number)}" />
+      <feOffset dx="${fmt(p['offsetX'] as number)}" dy="${fmt(p['offsetY'] as number)}" />
       <feComposite in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="shadowDiff" />
-      <feFlood flood-color="black" flood-opacity="0.6" />
+      <feFlood flood-color="${p['color'] as string}" flood-opacity="${fmt(p['opacity'] as number)}" />
       <feComposite in2="shadowDiff" operator="in" />
       <feComposite in2="SourceGraphic" operator="over" />
     </filter>`;
@@ -91,20 +191,35 @@ export const innerShadowEffect: Effect = {
 
 // ── GLOWS ───────────────────────────────────────────────────────────
 
-/**
- * @internal
- * Outer glow — soft white halo around the shape (UI hover hint style).
- * Technique: blur the alpha, flood with glow color, composite on top of
- * the original source.
- */
+/** @internal Outer glow — soft colored halo around the shape. */
 export const outerGlowEffect: Effect = {
   id: 'svge.builtin.effect.outer-glow',
   name: 'Outer glow',
   category: 'glow',
-  buildFilterMarkup(): string {
+  params: [
+    {
+      key: 'blur',
+      label: 'Blur',
+      type: 'number',
+      default: 5,
+      min: 0,
+      max: 50,
+      step: 0.5,
+      unit: 'px',
+    },
+    { key: 'color', label: 'Color', type: 'color', default: '#ffffff' },
+    { key: 'opacity', label: 'Opacity', type: 'percent', default: 0.9, min: 0, max: 1, step: 0.05 },
+  ],
+  presets: [
+    { id: 'subtle', name: 'Subtle', params: { blur: 3, opacity: 0.6 } },
+    { id: 'intense', name: 'Intense', params: { blur: 9, opacity: 1 } },
+    { id: 'neon', name: 'Neon', params: { blur: 6, color: '#00e5ff', opacity: 1 } },
+  ],
+  buildFilterMarkup(params?: EffectParams): string {
+    const p = resolveEffectParams(this, params);
     return `<filter id="${this.id}" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="5" result="blur" />
-      <feFlood flood-color="white" flood-opacity="0.9" />
+      <feGaussianBlur in="SourceAlpha" stdDeviation="${fmt(p['blur'] as number)}" result="blur" />
+      <feFlood flood-color="${p['color'] as string}" flood-opacity="${fmt(p['opacity'] as number)}" />
       <feComposite in2="blur" operator="in" result="glow" />
       <feMerge>
         <feMergeNode in="glow" />
@@ -114,21 +229,31 @@ export const outerGlowEffect: Effect = {
   },
 };
 
-/**
- * @internal
- * Inner glow — soft white halo on the INSIDE edges of the shape (the
- * "lit from within" look). Mirrors innerShadow's technique but with a
- * bright flood instead of dark.
- */
+/** @internal Inner glow — colored halo on the INSIDE edges of the shape. */
 export const innerGlowEffect: Effect = {
   id: 'svge.builtin.effect.inner-glow',
   name: 'Inner glow',
   category: 'glow',
-  buildFilterMarkup(): string {
+  params: [
+    {
+      key: 'blur',
+      label: 'Blur',
+      type: 'number',
+      default: 4,
+      min: 0,
+      max: 50,
+      step: 0.5,
+      unit: 'px',
+    },
+    { key: 'color', label: 'Color', type: 'color', default: '#ffffff' },
+    { key: 'opacity', label: 'Opacity', type: 'percent', default: 0.8, min: 0, max: 1, step: 0.05 },
+  ],
+  buildFilterMarkup(params?: EffectParams): string {
+    const p = resolveEffectParams(this, params);
     return `<filter id="${this.id}" x="-10%" y="-10%" width="120%" height="120%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="4" />
+      <feGaussianBlur in="SourceAlpha" stdDeviation="${fmt(p['blur'] as number)}" />
       <feComposite in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="glowDiff" />
-      <feFlood flood-color="white" flood-opacity="0.8" />
+      <feFlood flood-color="${p['color'] as string}" flood-opacity="${fmt(p['opacity'] as number)}" />
       <feComposite in2="glowDiff" operator="in" />
       <feComposite in2="SourceGraphic" operator="over" />
     </filter>`;
@@ -137,22 +262,41 @@ export const innerGlowEffect: Effect = {
 
 // ── 3D / STYLIZE ────────────────────────────────────────────────────
 
-/**
- * @internal
- * Bevel — illusion of raised edges via light + shadow casting on the
- * inside boundary. Uses feSpecularLighting + a blurred alpha as the
- * height map (classic Photoshop "Bevel and Emboss" technique).
- */
+/** @internal Bevel — raised-edge illusion via specular lighting on a height map. */
 export const bevelEffect: Effect = {
   id: 'svge.builtin.effect.bevel',
   name: 'Bevel',
   category: 'stylize',
-  buildFilterMarkup(): string {
+  params: [
+    {
+      key: 'blur',
+      label: 'Smoothness',
+      type: 'number',
+      default: 2,
+      min: 0.5,
+      max: 15,
+      step: 0.5,
+      unit: 'px',
+    },
+    { key: 'depth', label: 'Depth', type: 'number', default: 3, min: 1, max: 20, step: 1 },
+    {
+      key: 'lightAngle',
+      label: 'Light angle',
+      type: 'angle',
+      default: 225,
+      min: 0,
+      max: 360,
+      step: 5,
+      unit: '°',
+    },
+  ],
+  buildFilterMarkup(params?: EffectParams): string {
+    const p = resolveEffectParams(this, params);
     return `<filter id="${this.id}" x="-10%" y="-10%" width="120%" height="120%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur" />
-      <feSpecularLighting in="blur" surfaceScale="3" specularConstant="1" specularExponent="20"
+      <feGaussianBlur in="SourceAlpha" stdDeviation="${fmt(p['blur'] as number)}" result="blur" />
+      <feSpecularLighting in="blur" surfaceScale="${fmt(p['depth'] as number)}" specularConstant="1" specularExponent="20"
                           lighting-color="white" result="spec">
-        <feDistantLight azimuth="225" elevation="45" />
+        <feDistantLight azimuth="${fmt(p['lightAngle'] as number)}" elevation="45" />
       </feSpecularLighting>
       <feComposite in="spec" in2="SourceAlpha" operator="in" result="specCut" />
       <feComposite in="SourceGraphic" in2="specCut" operator="arithmetic"
@@ -161,12 +305,7 @@ export const bevelEffect: Effect = {
   },
 };
 
-/**
- * @internal
- * Emboss — flatter, grayscale "engraved" look. Convolves the source
- * with a diagonal kernel that emphasises NW→SE edges. Final result is
- * neutral gray with highlights/shadows on the relief edges.
- */
+/** @internal Emboss — grayscale "engraved" look via a diagonal convolution. Fixed. */
 export const embossEffect: Effect = {
   id: 'svge.builtin.effect.emboss',
   name: 'Emboss',
@@ -181,19 +320,14 @@ export const embossEffect: Effect = {
   },
 };
 
-// ── COLOR (re-color in place) ───────────────────────────────────────
+// ── COLOR (re-color in place — fixed toggles) ───────────────────────
 
-/**
- * @internal
- * Convert to grayscale via standard luminance weights (CIE 1931).
- * Identity on alpha (preserves transparency).
- */
+/** @internal Grayscale via CIE 1931 luminance weights; alpha preserved. */
 export const grayscaleEffect: Effect = {
   id: 'svge.builtin.effect.grayscale',
   name: 'Grayscale',
   category: 'color',
   buildFilterMarkup(): string {
-    // Matrix rows = [r, g, b, a, additive] for each channel
     return `<filter id="${this.id}">
       <feColorMatrix type="matrix" values="0.2126 0.7152 0.0722 0 0
                                             0.2126 0.7152 0.0722 0 0
@@ -203,11 +337,7 @@ export const grayscaleEffect: Effect = {
   },
 };
 
-/**
- * @internal
- * Sepia tone — classic vintage filter. Standard matrix from the W3C
- * SVG filters note.
- */
+/** @internal Sepia tone — standard matrix from the W3C SVG filters note. */
 export const sepiaEffect: Effect = {
   id: 'svge.builtin.effect.sepia',
   name: 'Sepia',
@@ -222,11 +352,7 @@ export const sepiaEffect: Effect = {
   },
 };
 
-/**
- * @internal
- * Invert colors — RGB inverted, alpha untouched. `1 - channel` via
- * negative slope + intercept on each feFuncRGB.
- */
+/** @internal Invert RGB; alpha untouched. */
 export const invertEffect: Effect = {
   id: 'svge.builtin.effect.invert',
   name: 'Invert',
@@ -244,100 +370,123 @@ export const invertEffect: Effect = {
 
 // ── ADJUSTMENTS (color correction primitives) ───────────────────────
 
-/**
- * @internal
- * Brightness +30% — additive lift on each RGB channel via feFuncRGB
- * `intercept`. Caps at 1.0 automatically (filter clamps).
- */
+/** @internal Brightness — additive lift on each RGB channel (`amount`). */
 export const brightnessEffect: Effect = {
   id: 'svge.builtin.effect.brightness',
-  name: 'Brightness +30%',
+  name: 'Brightness',
   category: 'adjustment',
-  buildFilterMarkup(): string {
+  params: [
+    { key: 'amount', label: 'Amount', type: 'number', default: 0.3, min: -1, max: 1, step: 0.05 },
+  ],
+  buildFilterMarkup(params?: EffectParams): string {
+    const p = resolveEffectParams(this, params);
+    const a = fmt(p['amount'] as number);
     return `<filter id="${this.id}">
       <feComponentTransfer>
-        <feFuncR type="linear" slope="1" intercept="0.3" />
-        <feFuncG type="linear" slope="1" intercept="0.3" />
-        <feFuncB type="linear" slope="1" intercept="0.3" />
+        <feFuncR type="linear" slope="1" intercept="${a}" />
+        <feFuncG type="linear" slope="1" intercept="${a}" />
+        <feFuncB type="linear" slope="1" intercept="${a}" />
       </feComponentTransfer>
     </filter>`;
   },
 };
 
-/**
- * @internal
- * Contrast +50% — multiplicative slope (1.5) centered on mid-gray
- * (intercept = -(slope-1)/2 = -0.25). Above mid gets brighter, below
- * gets darker.
- */
+/** @internal Contrast — slope `amount` centered on mid-gray. */
 export const contrastEffect: Effect = {
   id: 'svge.builtin.effect.contrast',
-  name: 'Contrast +50%',
+  name: 'Contrast',
   category: 'adjustment',
-  buildFilterMarkup(): string {
+  params: [
+    { key: 'amount', label: 'Amount', type: 'number', default: 1.5, min: 0, max: 4, step: 0.1 },
+  ],
+  buildFilterMarkup(params?: EffectParams): string {
+    const p = resolveEffectParams(this, params);
+    const slope = p['amount'] as number;
+    const intercept = fmt(-(slope - 1) / 2);
     return `<filter id="${this.id}">
       <feComponentTransfer>
-        <feFuncR type="linear" slope="1.5" intercept="-0.25" />
-        <feFuncG type="linear" slope="1.5" intercept="-0.25" />
-        <feFuncB type="linear" slope="1.5" intercept="-0.25" />
+        <feFuncR type="linear" slope="${fmt(slope)}" intercept="${intercept}" />
+        <feFuncG type="linear" slope="${fmt(slope)}" intercept="${intercept}" />
+        <feFuncB type="linear" slope="${fmt(slope)}" intercept="${intercept}" />
       </feComponentTransfer>
     </filter>`;
   },
 };
 
-/**
- * @internal
- * Saturate 200% — boost color saturation via feColorMatrix
- * `type="saturate"` (built-in shortcut, no manual matrix math).
- */
+/** @internal Saturate — `feColorMatrix type="saturate"` amount. */
 export const saturateEffect: Effect = {
   id: 'svge.builtin.effect.saturate',
-  name: 'Saturate 200%',
+  name: 'Saturate',
   category: 'adjustment',
-  buildFilterMarkup(): string {
+  params: [
+    { key: 'amount', label: 'Amount', type: 'number', default: 2, min: 0, max: 4, step: 0.1 },
+  ],
+  presets: [
+    { id: 'muted', name: 'Muted', params: { amount: 0.5 } },
+    { id: 'vivid', name: 'Vivid', params: { amount: 2.5 } },
+  ],
+  buildFilterMarkup(params?: EffectParams): string {
+    const p = resolveEffectParams(this, params);
     return `<filter id="${this.id}">
-      <feColorMatrix type="saturate" values="2" />
+      <feColorMatrix type="saturate" values="${fmt(p['amount'] as number)}" />
     </filter>`;
   },
 };
 
-/**
- * @internal
- * Hue rotate 90° — shift hue by quarter-turn around the color wheel
- * via feColorMatrix `type="hueRotate"`. Useful for chromatic theming.
- */
+/** @internal Hue rotate — `feColorMatrix type="hueRotate"` by `angle`. */
 export const hueRotateEffect: Effect = {
   id: 'svge.builtin.effect.hue-rotate',
-  name: 'Hue rotate 90°',
+  name: 'Hue rotate',
   category: 'adjustment',
-  buildFilterMarkup(): string {
+  params: [
+    {
+      key: 'angle',
+      label: 'Angle',
+      type: 'angle',
+      default: 90,
+      min: 0,
+      max: 360,
+      step: 5,
+      unit: '°',
+    },
+  ],
+  buildFilterMarkup(params?: EffectParams): string {
+    const p = resolveEffectParams(this, params);
     return `<filter id="${this.id}">
-      <feColorMatrix type="hueRotate" values="90" />
+      <feColorMatrix type="hueRotate" values="${fmt(p['angle'] as number)}" />
     </filter>`;
   },
 };
 
 // ── DISTORTION ──────────────────────────────────────────────────────
 
-/**
- * @internal
- * Noise / turbulence — Perlin noise texture composited on top of the
- * source via "in" (texture only appears where the source is opaque).
- * Subtle film-grain look.
- */
+/** @internal Noise / film grain — turbulence composited onto the source. */
 export const noiseEffect: Effect = {
   id: 'svge.builtin.effect.noise',
   name: 'Noise',
   category: 'distortion',
-  buildFilterMarkup(): string {
+  params: [
+    {
+      key: 'frequency',
+      label: 'Frequency',
+      type: 'number',
+      default: 0.9,
+      min: 0.05,
+      max: 2,
+      step: 0.05,
+    },
+    { key: 'amount', label: 'Amount', type: 'percent', default: 0.4, min: 0, max: 1, step: 0.05 },
+  ],
+  buildFilterMarkup(params?: EffectParams): string {
+    const p = resolveEffectParams(this, params);
     return `<filter id="${this.id}">
-      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="5"
+      <feTurbulence type="fractalNoise" baseFrequency="${fmt(p['frequency'] as number)}" numOctaves="2" seed="5"
                     stitchTiles="stitch" result="noise" />
       <feColorMatrix in="noise" type="matrix"
                      values="0 0 0 0 0
                              0 0 0 0 0
                              0 0 0 0 0
-                             0 0 0 0.4 0" result="noiseAlpha" />
+                             0 0 0 ${fmt(p['amount'] as number)} 0" result="noiseAlpha" />
       <feComposite in="noiseAlpha" in2="SourceAlpha" operator="in" result="grain" />
       <feMerge>
         <feMergeNode in="SourceGraphic" />
@@ -347,44 +496,61 @@ export const noiseEffect: Effect = {
   },
 };
 
-/**
- * @internal
- * Displacement map — uses a turbulence noise texture as the displacement
- * source to warp the original graphic (wavy/distorted look). Scale
- * controls intensity of the warp.
- */
+/** @internal Displacement map — warp the source using a turbulence texture. */
 export const displacementMapEffect: Effect = {
   id: 'svge.builtin.effect.displacement-map',
   name: 'Displacement map',
   category: 'distortion',
-  buildFilterMarkup(): string {
+  params: [
+    { key: 'scale', label: 'Scale', type: 'number', default: 10, min: 0, max: 100, step: 1 },
+    {
+      key: 'frequency',
+      label: 'Frequency',
+      type: 'number',
+      default: 0.05,
+      min: 0.005,
+      max: 0.5,
+      step: 0.005,
+    },
+  ],
+  buildFilterMarkup(params?: EffectParams): string {
+    const p = resolveEffectParams(this, params);
     return `<filter id="${this.id}" x="-10%" y="-10%" width="120%" height="120%">
-      <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="2" seed="2"
+      <feTurbulence type="turbulence" baseFrequency="${fmt(p['frequency'] as number)}" numOctaves="2" seed="2"
                     result="turb" />
-      <feDisplacementMap in="SourceGraphic" in2="turb" scale="10"
+      <feDisplacementMap in="SourceGraphic" in2="turb" scale="${fmt(p['scale'] as number)}"
                          xChannelSelector="R" yChannelSelector="G" />
     </filter>`;
   },
 };
 
-/**
- * @internal
- * Chromatic aberration — RGB split (classic glitch / lo-fi look).
- * Splits each channel via feColorMatrix and offsets them slightly in
- * different directions, then merges.
- */
+/** @internal Chromatic aberration — RGB split by `offset` px (glitch look). */
 export const chromaticAberrationEffect: Effect = {
   id: 'svge.builtin.effect.chromatic-aberration',
   name: 'Chromatic aberration',
   category: 'distortion',
-  buildFilterMarkup(): string {
+  params: [
+    {
+      key: 'offset',
+      label: 'Offset',
+      type: 'number',
+      default: 2,
+      min: 0,
+      max: 20,
+      step: 0.5,
+      unit: 'px',
+    },
+  ],
+  buildFilterMarkup(params?: EffectParams): string {
+    const p = resolveEffectParams(this, params);
+    const o = p['offset'] as number;
     return `<filter id="${this.id}" x="-10%" y="-10%" width="120%" height="120%">
       <feColorMatrix in="SourceGraphic" type="matrix"
                      values="1 0 0 0 0
                              0 0 0 0 0
                              0 0 0 0 0
                              0 0 0 1 0" result="r" />
-      <feOffset in="r" dx="-2" dy="0" result="rShift" />
+      <feOffset in="r" dx="${fmt(-o)}" dy="0" result="rShift" />
       <feColorMatrix in="SourceGraphic" type="matrix"
                      values="0 0 0 0 0
                              0 1 0 0 0
@@ -395,7 +561,7 @@ export const chromaticAberrationEffect: Effect = {
                              0 0 0 0 0
                              0 0 1 0 0
                              0 0 0 1 0" result="b" />
-      <feOffset in="b" dx="2" dy="0" result="bShift" />
+      <feOffset in="b" dx="${fmt(o)}" dy="0" result="bShift" />
       <feBlend in="rShift" in2="g" mode="screen" result="rg" />
       <feBlend in="rg" in2="bShift" mode="screen" />
     </filter>`;
@@ -404,93 +570,81 @@ export const chromaticAberrationEffect: Effect = {
 
 // ── PIXEL ART ───────────────────────────────────────────────────────
 
-/**
- * @internal
- * Pixelate — downsamples to ~8px blocks via feFlood + feComposite
- * trickery. Technically uses `feImage` would be cleaner but requires
- * data URIs; here we use a turbulence trick that gives a chunky look.
- *
- * Pure SVG filter pixelation requires `feColorMatrix` to quantize
- * AFTER a step-blur — but a single deterministic filter chain that
- * does true pixel-grid downsample isn't possible without CSS
- * `image-rendering: pixelated` on a bitmap. This filter uses a
- * coarse mosaic effect via feComponentTransfer step.
- */
+/** @internal Pixelate — blur + per-channel quantization (`levels`). */
 export const pixelateEffect: Effect = {
   id: 'svge.builtin.effect.pixelate',
   name: 'Pixelate',
   category: 'stylize',
-  buildFilterMarkup(): string {
-    // True pixelation in pure SVG is constrained — we approximate via
-    // a heavy quantize on each RGB channel (4 discrete steps per
-    // channel) combined with a small blur. Visual is "chunky color
-    // banding" which reads as pixel art on most subjects.
+  params: [
+    {
+      key: 'blur',
+      label: 'Blur',
+      type: 'number',
+      default: 1.5,
+      min: 0,
+      max: 10,
+      step: 0.5,
+      unit: 'px',
+    },
+    { key: 'levels', label: 'Levels', type: 'number', default: 5, min: 2, max: 12, step: 1 },
+  ],
+  buildFilterMarkup(params?: EffectParams): string {
+    const p = resolveEffectParams(this, params);
+    const steps = discrete(p['levels'] as number);
     return `<filter id="${this.id}">
-      <feGaussianBlur stdDeviation="1.5" />
+      <feGaussianBlur stdDeviation="${fmt(p['blur'] as number)}" />
       <feComponentTransfer>
-        <feFuncR type="discrete" tableValues="0 0.25 0.5 0.75 1" />
-        <feFuncG type="discrete" tableValues="0 0.25 0.5 0.75 1" />
-        <feFuncB type="discrete" tableValues="0 0.25 0.5 0.75 1" />
+        <feFuncR type="discrete" tableValues="${steps}" />
+        <feFuncG type="discrete" tableValues="${steps}" />
+        <feFuncB type="discrete" tableValues="${steps}" />
       </feComponentTransfer>
     </filter>`;
   },
 };
 
-/**
- * @internal
- * Posterize — quantizes RGB into 4 discrete levels per channel
- * (classic poster art look). Pure feComponentTransfer, no blur.
- * Distinct from pixelate (which adds blur to fake low-res).
- */
+/** @internal Posterize — quantize RGB into `levels` discrete steps. */
 export const posterizeEffect: Effect = {
   id: 'svge.builtin.effect.posterize',
   name: 'Posterize',
   category: 'stylize',
-  buildFilterMarkup(): string {
+  params: [
+    { key: 'levels', label: 'Levels', type: 'number', default: 4, min: 2, max: 10, step: 1 },
+  ],
+  buildFilterMarkup(params?: EffectParams): string {
+    const p = resolveEffectParams(this, params);
+    const steps = discrete(p['levels'] as number);
     return `<filter id="${this.id}">
       <feComponentTransfer>
-        <feFuncR type="discrete" tableValues="0 0.33 0.66 1" />
-        <feFuncG type="discrete" tableValues="0 0.33 0.66 1" />
-        <feFuncB type="discrete" tableValues="0 0.33 0.66 1" />
+        <feFuncR type="discrete" tableValues="${steps}" />
+        <feFuncG type="discrete" tableValues="${steps}" />
+        <feFuncB type="discrete" tableValues="${steps}" />
       </feComponentTransfer>
     </filter>`;
   },
 };
 
 /**
- * The 19 builtin effects, in the order they'll appear in the picker.
- *
- * Order rationale: group by category (blur → shadow → glow → stylize
- * → color → adjustment → distortion → pixel-art) so the picker's
- * `byCategory` grouping renders in an intuitive sequence even when
- * the panel UI iterates the flat array.
+ * The 19 builtin effects, in picker order (grouped by category: blur →
+ * shadow → glow → stylize → color → adjustment → distortion → pixel-art).
  */
 export const BUILTIN_EFFECTS: readonly Effect[] = [
-  // blur
   blurEffect,
-  // shadows
   dropShadowEffect,
   innerShadowEffect,
-  // glows
   outerGlowEffect,
   innerGlowEffect,
-  // 3D / stylize
   bevelEffect,
   embossEffect,
-  // color (re-color in place)
   grayscaleEffect,
   sepiaEffect,
   invertEffect,
-  // adjustments
   brightnessEffect,
   contrastEffect,
   saturateEffect,
   hueRotateEffect,
-  // distortion
   noiseEffect,
   displacementMapEffect,
   chromaticAberrationEffect,
-  // pixel art
   pixelateEffect,
   posterizeEffect,
 ];

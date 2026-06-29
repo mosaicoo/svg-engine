@@ -1,4 +1,19 @@
-export { type Effect } from './effect';
+export {
+  type Effect,
+  type EffectParam,
+  type EffectNumberParam,
+  type EffectColorParam,
+  type EffectSelectParam,
+  type EffectBooleanParam,
+  type EffectParamType,
+  type EffectParamValue,
+  type EffectParams,
+  type EffectPreset,
+  effectDefaults,
+  resolveEffectParams,
+  nonDefaultParams,
+  isNumberParam,
+} from './effect';
 export { EffectRegistry } from './effect-registry.service';
 export {
   BUILTIN_EFFECTS,
