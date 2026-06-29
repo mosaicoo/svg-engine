@@ -797,7 +797,8 @@ e specs). Não eram anunciados nem consumidos externamente — **zero break**:
 >   stateless: `EffectInstance`, `ParametricEffectRegistry`,
 >   `encodeEffectFilterId`/`parseEffectFilterId`/`extractEffectFilterId`,
 >   `PARAM_FILTER_ID_PREFIX` (`extract`/`parse` consumidos pelo
->   svge-effects-panel em `ui`).
+>   svge-effects-panel em `ui`). **D-146**: `EffectInstance` ganhou
+>   `enabled?: boolean` (mute não-destrutivo; `false` → `x:0` no id).
 > - `render/projectDocumentToRenderer`, `render/renderTransformAttr`,
 >   `snap/{gridTargetsNear,rectsToSnapTargets}`,
 >   `shortcut/{parseCombo,comboMatches,ParsedCombo}` — **anunciados** nas tabelas

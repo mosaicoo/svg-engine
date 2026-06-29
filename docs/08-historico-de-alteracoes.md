@@ -6,6 +6,31 @@
 
 ---
 
+## 2026-06-29 — D-146 — Effects panel: UX acordeão + mute (ligar/desligar) por efeito 🎛️
+
+Revisão de UX/UI do `svge-effects-panel` aplicando divulgação progressiva, e
+adição do controle não-destrutivo que faltava para um painel profissional.
+
+- **Acordeão por estágio**: cada efeito do pipeline virou um cartão recolhível
+  (cabeçalho com nº · nome · reordenar/mute/remover; corpo com presets +
+  parâmetros abre só no estágio em foco — um por vez). Resolve o problema de
+  "não acessar/priorizar" com vários efeitos: a lista fica escaneável e
+  reordenável sem rolar um painel gigante. Adicionar um efeito o auto-expande.
+- **Mute (D-146)**: ícone de olho por efeito — liga/desliga **sem remover**
+  (padrão Photoshop/Figma). Encoding stateless `x:0` no `EffectInstance`; o
+  `ParametricEffectRegistry` pula os mutados ao compor e, se **todos** estão
+  mutados, emite um `<filter>` **identidade** (nunca um filtro vazio/ausente,
+  que esconderia o nó). undo/IO de graça, como o resto.
+- **Picker compacto**: as 19 categorias deixaram de ocupar o painel inteiro —
+  agora um botão "Add effect" abre/fecha o seletor sob demanda.
+- **Polimento**: readout de **valor + unidade** (px/°) ao lado do slider; ponto
+  de "customizado"; estados de foco/hover acessíveis; só `MatIcon`/
+  `MatIconButton` (headless boundary preservado).
+- **Verificação**: `build:lib` + `lint` (3 projetos) + `test:lib` (**2992**, +6)
+  verdes; navegado no `/pro-editor` (acordeão 1-expandido, mute remove o
+  `feFlood` do drop-shadow mantendo o blur, unidade `px` no slider). Decisão em
+  [04-decisoes-tecnicas](04-decisoes-tecnicas.md) (D-146).
+
 ## 2026-06-29 — D-145 — Fix: filtros compostos/paramétricos renderizavam a forma PRETA 🐞
 
 Bug crítico de fidelidade introduzido na composição de filtros (chains D-047 e

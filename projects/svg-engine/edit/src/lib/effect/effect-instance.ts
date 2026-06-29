@@ -32,15 +32,25 @@ import { EffectRegistry } from './effect-registry.service';
 export interface EffectInstance {
   readonly effectId: string;
   readonly params?: EffectParams;
+  /**
+   * Non-destructive mute (D-146). `false` keeps the effect in the pipeline
+   * (so the panel still shows it) but skips it when composing the `<filter>`.
+   * Absent/`true` = active. Encoded as `x:0` in the filter id.
+   */
+  readonly enabled?: boolean;
 }
 
 /** Stable prefix for parametric instance filter IDs. */
 export const PARAM_FILTER_ID_PREFIX = 'svge-fx-';
 
-/** Compact serialised entry: `e` = effect id, `p` = (optional) params. */
+/**
+ * Compact serialised entry: `e` = effect id, `p` = (optional) params,
+ * `x` = `0` when the effect is muted (omitted when active — see D-146).
+ */
 interface EncodedEntry {
   readonly e: string;
   readonly p?: EffectParams;
+  readonly x?: 0;
 }
 
 /** base64 → base64url (XML-id-safe), padding stripped. */
@@ -60,11 +70,12 @@ function fromBase64Url(s: string): string {
  * the exact same instance share a single composed `<filter>` in defs.
  */
 export function encodeEffectFilterId(instances: readonly EffectInstance[]): string {
-  const payload: EncodedEntry[] = instances.map((i) =>
-    i.params && Object.keys(i.params).length > 0
-      ? { e: i.effectId, p: i.params }
-      : { e: i.effectId },
-  );
+  const payload: EncodedEntry[] = instances.map((i) => {
+    const entry: { e: string; p?: EffectParams; x?: 0 } = { e: i.effectId };
+    if (i.params && Object.keys(i.params).length > 0) entry.p = i.params;
+    if (i.enabled === false) entry.x = 0;
+    return entry;
+  });
   return PARAM_FILTER_ID_PREFIX + toBase64Url(JSON.stringify(payload));
 }
 
@@ -82,7 +93,12 @@ export function parseEffectFilterId(id: string): readonly EffectInstance[] | nul
     const out: EffectInstance[] = [];
     for (const entry of decoded as EncodedEntry[]) {
       if (entry === null || typeof entry !== 'object' || typeof entry.e !== 'string') return null;
-      out.push(entry.p ? { effectId: entry.e, params: entry.p } : { effectId: entry.e });
+      const inst: { effectId: string; params?: EffectParams; enabled?: boolean } = {
+        effectId: entry.e,
+      };
+      if (entry.p) inst.params = entry.p;
+      if (entry.x === 0) inst.enabled = false;
+      out.push(inst);
     }
     return out;
   } catch {
@@ -101,6 +117,20 @@ export function extractEffectFilterId(styleFilter: string | undefined): string |
   if (m === null) return null;
   const id = m[1]!;
   return id.startsWith(PARAM_FILTER_ID_PREFIX) ? id : null;
+}
+
+/**
+ * A no-op pass-through `<filter>` (identity color matrix). Used when every
+ * effect of a parametric instance is muted: the id is still referenced via
+ * `url(#id)`, so it must resolve to *something* — a missing/empty filter
+ * would hide the element instead of rendering it untouched (D-146).
+ */
+function identityFilter(id: string): string {
+  return (
+    `<filter id="${id}">` +
+    `<feColorMatrix type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 1 0" />` +
+    `</filter>`
+  );
 }
 
 /**
@@ -140,6 +170,11 @@ export class ParametricEffectRegistry {
   /**
    * Composed `<filter>` markup for every parametric instance referenced
    * by the current document. Empty string when none are in use.
+   *
+   * **Muted effects** (`enabled === false`, D-146) are skipped when
+   * composing. When every effect of an instance is muted the filter still
+   * must exist in defs as an **identity pass-through** — a missing or empty
+   * `<filter>` referenced by `url(#id)` would make the element vanish.
    */
   buildAllInstancesMarkup(): string {
     const ids = this.activeInstances();
@@ -151,6 +186,7 @@ export class ParametricEffectRegistry {
       const inners: string[] = [];
       let ok = true;
       for (const inst of instances) {
+        if (inst.enabled === false) continue; // muted — keep slot, skip render
         const fx = this.effects.get(inst.effectId);
         if (fx === null) {
           ok = false;
@@ -158,7 +194,8 @@ export class ParametricEffectRegistry {
         }
         inners.push(stripFilterWrapper(fx.buildFilterMarkup(inst.params)));
       }
-      if (ok) parts.push(composeFilterMarkups(inners, id));
+      if (!ok) continue;
+      parts.push(inners.length === 0 ? identityFilter(id) : composeFilterMarkups(inners, id));
     }
     return parts.join('\n');
   }

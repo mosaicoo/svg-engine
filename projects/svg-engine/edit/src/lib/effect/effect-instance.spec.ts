@@ -36,6 +36,21 @@ describe('effect-instance — id encode/parse', () => {
     expect(parseEffectFilterId(encodeEffectFilterId(instances))).toEqual(instances);
   });
 
+  it('round-trips the muted flag (enabled:false → x:0, D-146)', () => {
+    const instances: EffectInstance[] = [
+      { effectId: 'svge.builtin.effect.blur', enabled: false },
+      { effectId: 'svge.builtin.effect.sepia', params: { amount: 1 }, enabled: false },
+    ];
+    expect(parseEffectFilterId(encodeEffectFilterId(instances))).toEqual(instances);
+  });
+
+  it('omits the muted flag for active effects (compact)', () => {
+    const parsed = parseEffectFilterId(
+      encodeEffectFilterId([{ effectId: 'svge.builtin.effect.blur', enabled: true }]),
+    );
+    expect(parsed).toEqual([{ effectId: 'svge.builtin.effect.blur' }]);
+  });
+
   it('omits the params key when empty (compact, params-less entry)', () => {
     const parsed = parseEffectFilterId(
       encodeEffectFilterId([{ effectId: 'svge.builtin.effect.blur', params: {} }]),
@@ -135,5 +150,30 @@ describe('ParametricEffectRegistry — derives instance filters from the documen
       'url(#svge-chain-svge.builtin.effect.blur__svge.builtin.effect.sepia)',
     );
     expect(reg.activeInstances()).toEqual([]);
+  });
+
+  it('skips muted effects when composing but keeps the others (D-146)', () => {
+    const { state, bus, reg } = setup();
+    const id = encodeEffectFilterId([
+      { effectId: 'svge.builtin.effect.blur', enabled: false },
+      { effectId: 'svge.builtin.effect.sepia' },
+    ]);
+    addRectWithFilter(bus, state, `url(#${id})`);
+    const markup = reg.buildAllInstancesMarkup();
+    expect(markup).toContain(`id="${id}"`);
+    expect(markup).toContain('feColorMatrix'); // sepia present
+    expect(markup).not.toContain('feGaussianBlur'); // blur muted → absent
+  });
+
+  it('emits an identity pass-through filter when every effect is muted (D-146)', () => {
+    const { state, bus, reg } = setup();
+    const id = encodeEffectFilterId([{ effectId: 'svge.builtin.effect.blur', enabled: false }]);
+    addRectWithFilter(bus, state, `url(#${id})`);
+    const markup = reg.buildAllInstancesMarkup();
+    // Identity matrix so the element renders untouched (never a missing/empty
+    // filter, which would hide it).
+    expect(markup).toContain(`id="${id}"`);
+    expect(markup).toContain('1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 1 0');
+    expect(markup).not.toContain('feGaussianBlur');
   });
 });

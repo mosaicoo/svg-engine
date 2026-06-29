@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { MatIcon } from '@angular/material/icon';
 import { MatIconButton } from '@angular/material/button';
 import {
@@ -46,35 +46,37 @@ interface PipelineItem {
   readonly presets: readonly EffectPreset[];
   /** True when any param differs from its default (enables "Reset"). */
   readonly customized: boolean;
+  /** Non-destructive mute state (D-146): false = skipped when rendering. */
+  readonly enabled: boolean;
   /** Effect is missing from the registry (broken reference). */
   readonly broken: boolean;
 }
 
 /**
  * Effects pipeline editor — Fase 6d (D-023 cat 7), chains em D-047,
- * **parâmetros editáveis + presets em D-144**.
+ * **parâmetros editáveis + presets em D-144**, **UX acordeão + mute em D-146**.
  *
- * **Three things per applied effect**:
- * 1. Reorder / remove (chain order = aplicação do filtro).
- * 2. **Param controls** (D-144): slider/number/cor/select/checkbox por knob
- *    declarado em `Effect.params` — editar dispara um
- *    {@link SetStylePropertyOnManyCommand} (undo unificado).
- * 3. **Presets** (D-144): chips de configurações nomeadas (`Effect.presets`).
+ * **UX (D-146)** — divulgação progressiva para escalar com vários efeitos:
+ * - Cada estágio é um **cartão recolhível** (accordion): o cabeçalho mostra
+ *   nº · nome · categoria e os controles (reordenar/mute/remover); o corpo
+ *   (presets + parâmetros) abre só no estágio em foco. Adicionar um efeito o
+ *   expande automaticamente.
+ * - **Mute** por efeito (ícone de olho): não-destrutivo — mantém o efeito no
+ *   pipeline mas o pula na composição (encoding `x:0`, ver `effect-instance`).
+ * - **Picker compacto**: "Add effect" abre/fecha as categorias sob demanda,
+ *   em vez de ocupar o painel inteiro.
  *
  * **Storage stateless** (`style.filter`):
  * - vazio → `undefined`
- * - 1 effect sem params custom → `url(#effectId)` (compat v1)
- * - 2+ effects sem params custom → `url(#svge-chain-a__b)` (compat D-047)
- * - qualquer params custom → `url(#svge-fx-<base64url>)` (D-144; a
- *   `ParametricEffectRegistry` deriva o `<filter>` e o renderer injeta).
+ * - 1 efeito ativo sem params custom → `url(#effectId)` (compat v1)
+ * - 2+ efeitos sem params/mute → `url(#svge-chain-a__b)` (compat D-047)
+ * - qualquer params custom **ou** mute → `url(#svge-fx-<base64url>)` (D-144/146)
  *
  * Cada efeito aparece no máximo uma vez no pipeline (para variar o mesmo
- * efeito, ajuste seus parâmetros). Multi-select aplica a mesma mudança a
- * todos os nós selecionados.
+ * efeito, ajuste os parâmetros). Multi-seleção aplica a todos os nós.
  *
  * **Headless boundary**: só `MatIcon` + `MatIconButton`; controles de
- * parâmetro usam inputs nativos (range/number/color/select/checkbox) —
- * acessíveis e sem dependências Material extras.
+ * parâmetro usam inputs nativos (range/number/color/select/checkbox).
  */
 @Component({
   selector: 'svge-effects-panel',
@@ -89,179 +91,242 @@ interface PipelineItem {
     } @else {
       @if (pipelineItems().length > 0) {
         <section class="pipeline">
-          <h4>Active pipeline ({{ pipelineItems().length }})</h4>
+          <div class="pipeline-head">
+            <h4>Active pipeline ({{ pipelineItems().length }})</h4>
+            <button type="button" class="link-btn" title="Remove all effects" (click)="clearAll()">
+              <mat-icon aria-hidden="true">delete_sweep</mat-icon>
+              Clear all
+            </button>
+          </div>
           <ol class="pipeline-list">
             @for (item of pipelineItems(); track item.effectId; let i = $index) {
-              <li class="pipeline-item">
+              <li
+                class="pipeline-item"
+                [class.expanded]="isExpanded(item.effectId)"
+                [class.muted]="!item.enabled"
+              >
                 <div class="step-head">
-                  <span class="step-num" aria-hidden="true">{{ i + 1 }}</span>
-                  <span class="step-name">{{ item.name }}</span>
-                  <span class="step-category">{{ item.category ?? 'other' }}</span>
-                  <span class="spacer"></span>
                   <button
-                    mat-icon-button
                     type="button"
-                    class="step-btn"
-                    [disabled]="i === 0"
-                    [attr.aria-label]="'Move ' + item.name + ' up'"
-                    title="Move up"
-                    (click)="moveUp(item.effectId)"
+                    class="step-summary"
+                    [attr.aria-expanded]="isExpanded(item.effectId)"
+                    [title]="(isExpanded(item.effectId) ? 'Collapse ' : 'Expand ') + item.name"
+                    (click)="toggleExpand(item.effectId)"
                   >
-                    <mat-icon>arrow_upward</mat-icon>
+                    <mat-icon class="chevron" aria-hidden="true">
+                      {{ isExpanded(item.effectId) ? 'expand_more' : 'chevron_right' }}
+                    </mat-icon>
+                    <span class="step-num" aria-hidden="true">{{ i + 1 }}</span>
+                    <span class="step-name">{{ item.name }}</span>
+                    @if (item.customized) {
+                      <span class="edited-dot" title="Customized" aria-label="Customized"></span>
+                    }
                   </button>
-                  <button
-                    mat-icon-button
-                    type="button"
-                    class="step-btn"
-                    [disabled]="i === pipelineItems().length - 1"
-                    [attr.aria-label]="'Move ' + item.name + ' down'"
-                    title="Move down"
-                    (click)="moveDown(item.effectId)"
-                  >
-                    <mat-icon>arrow_downward</mat-icon>
-                  </button>
-                  <button
-                    mat-icon-button
-                    type="button"
-                    class="step-btn step-btn-remove"
-                    [attr.aria-label]="'Remove ' + item.name"
-                    title="Remove"
-                    (click)="remove(item.effectId)"
-                  >
-                    <mat-icon>close</mat-icon>
-                  </button>
+                  <span class="step-actions">
+                    <button
+                      mat-icon-button
+                      type="button"
+                      class="step-btn"
+                      [attr.aria-label]="(item.enabled ? 'Disable ' : 'Enable ') + item.name"
+                      [attr.aria-pressed]="!item.enabled"
+                      [title]="item.enabled ? 'Disable effect' : 'Enable effect'"
+                      (click)="toggleEnabled(item.effectId)"
+                    >
+                      <mat-icon>{{ item.enabled ? 'visibility' : 'visibility_off' }}</mat-icon>
+                    </button>
+                    <button
+                      mat-icon-button
+                      type="button"
+                      class="step-btn"
+                      [disabled]="i === 0"
+                      [attr.aria-label]="'Move ' + item.name + ' up'"
+                      title="Move up"
+                      (click)="moveUp(item.effectId)"
+                    >
+                      <mat-icon>arrow_upward</mat-icon>
+                    </button>
+                    <button
+                      mat-icon-button
+                      type="button"
+                      class="step-btn"
+                      [disabled]="i === pipelineItems().length - 1"
+                      [attr.aria-label]="'Move ' + item.name + ' down'"
+                      title="Move down"
+                      (click)="moveDown(item.effectId)"
+                    >
+                      <mat-icon>arrow_downward</mat-icon>
+                    </button>
+                    <button
+                      mat-icon-button
+                      type="button"
+                      class="step-btn step-btn-remove"
+                      [attr.aria-label]="'Remove ' + item.name"
+                      title="Remove"
+                      (click)="remove(item.effectId)"
+                    >
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </span>
                 </div>
 
-                @if (item.presets.length > 0) {
-                  <div class="presets" role="group" [attr.aria-label]="item.name + ' presets'">
-                    @for (preset of item.presets; track preset.id) {
-                      <button
-                        type="button"
-                        class="preset-chip"
-                        [title]="'Apply preset: ' + preset.name"
-                        (click)="applyPreset(item.effectId, preset)"
-                      >
-                        {{ preset.name }}
-                      </button>
+                @if (isExpanded(item.effectId)) {
+                  <div class="step-body">
+                    @if (item.broken) {
+                      <p class="broken-note">This effect is not registered in this editor.</p>
                     }
-                    @if (item.customized) {
-                      <button
-                        type="button"
-                        class="preset-chip reset"
-                        title="Reset to defaults"
-                        (click)="resetParams(item.effectId)"
-                      >
-                        <mat-icon aria-hidden="true">restart_alt</mat-icon>
-                        Reset
-                      </button>
-                    }
-                  </div>
-                }
-
-                @if (item.controls.length > 0) {
-                  <div class="params">
-                    @for (ctrl of item.controls; track ctrl.param.key) {
-                      <div class="param-row">
-                        <span class="param-label">{{ ctrl.param.label }}</span>
-                        @switch (ctrl.kind) {
-                          @case ('number') {
-                            <input
-                              type="range"
-                              class="param-range"
-                              [min]="numMin(ctrl)"
-                              [max]="numMax(ctrl)"
-                              [step]="numStep(ctrl)"
-                              [value]="ctrl.value"
-                              [attr.aria-label]="ctrl.param.label"
-                              (input)="onParam(item.effectId, ctrl, $event)"
-                            />
-                            <input
-                              type="number"
-                              class="param-number"
-                              [min]="numMin(ctrl)"
-                              [max]="numMax(ctrl)"
-                              [step]="numStep(ctrl)"
-                              [value]="ctrl.value"
-                              [attr.aria-label]="ctrl.param.label + ' value'"
-                              (change)="onParam(item.effectId, ctrl, $event)"
-                            />
-                          }
-                          @case ('color') {
-                            <input
-                              type="color"
-                              class="param-color"
-                              [value]="ctrl.value"
-                              [attr.aria-label]="ctrl.param.label"
-                              (change)="onParam(item.effectId, ctrl, $event)"
-                            />
-                          }
-                          @case ('select') {
-                            <select
-                              class="param-select"
-                              [value]="ctrl.value"
-                              [attr.aria-label]="ctrl.param.label"
-                              (change)="onParam(item.effectId, ctrl, $event)"
-                            >
-                              @for (opt of selectOptions(ctrl); track opt.value) {
-                                <option [value]="opt.value" [selected]="opt.value === ctrl.value">
-                                  {{ opt.label }}
-                                </option>
-                              }
-                            </select>
-                          }
-                          @case ('boolean') {
-                            <input
-                              type="checkbox"
-                              class="param-checkbox"
-                              [checked]="ctrl.value === true"
-                              [attr.aria-label]="ctrl.param.label"
-                              (change)="onParam(item.effectId, ctrl, $event)"
-                            />
-                          }
+                    @if (item.presets.length > 0) {
+                      <div class="presets" role="group" [attr.aria-label]="item.name + ' presets'">
+                        @for (preset of item.presets; track preset.id) {
+                          <button
+                            type="button"
+                            class="preset-chip"
+                            [title]="'Apply preset: ' + preset.name"
+                            (click)="applyPreset(item.effectId, preset)"
+                          >
+                            {{ preset.name }}
+                          </button>
+                        }
+                        @if (item.customized) {
+                          <button
+                            type="button"
+                            class="preset-chip reset"
+                            title="Reset to defaults"
+                            (click)="resetParams(item.effectId)"
+                          >
+                            <mat-icon aria-hidden="true">restart_alt</mat-icon>
+                            Reset
+                          </button>
                         }
                       </div>
+                    }
+
+                    @if (item.controls.length > 0) {
+                      <div class="params">
+                        @for (ctrl of item.controls; track ctrl.param.key) {
+                          <div class="param-row">
+                            <span class="param-label" [title]="ctrl.param.label">
+                              {{ ctrl.param.label }}
+                            </span>
+                            @switch (ctrl.kind) {
+                              @case ('number') {
+                                <input
+                                  type="range"
+                                  class="param-range"
+                                  [min]="numMin(ctrl)"
+                                  [max]="numMax(ctrl)"
+                                  [step]="numStep(ctrl)"
+                                  [value]="ctrl.value"
+                                  [attr.aria-label]="ctrl.param.label"
+                                  (input)="onParam(item.effectId, ctrl, $event)"
+                                />
+                                <span class="param-value">
+                                  <input
+                                    type="number"
+                                    class="param-number"
+                                    [min]="numMin(ctrl)"
+                                    [max]="numMax(ctrl)"
+                                    [step]="numStep(ctrl)"
+                                    [value]="ctrl.value"
+                                    [attr.aria-label]="ctrl.param.label + ' value'"
+                                    (change)="onParam(item.effectId, ctrl, $event)"
+                                  />
+                                  @if (unit(ctrl)) {
+                                    <span class="param-unit">{{ unit(ctrl) }}</span>
+                                  }
+                                </span>
+                              }
+                              @case ('color') {
+                                <input
+                                  type="color"
+                                  class="param-color"
+                                  [value]="ctrl.value"
+                                  [attr.aria-label]="ctrl.param.label"
+                                  (change)="onParam(item.effectId, ctrl, $event)"
+                                />
+                              }
+                              @case ('select') {
+                                <select
+                                  class="param-select"
+                                  [value]="ctrl.value"
+                                  [attr.aria-label]="ctrl.param.label"
+                                  (change)="onParam(item.effectId, ctrl, $event)"
+                                >
+                                  @for (opt of selectOptions(ctrl); track opt.value) {
+                                    <option
+                                      [value]="opt.value"
+                                      [selected]="opt.value === ctrl.value"
+                                    >
+                                      {{ opt.label }}
+                                    </option>
+                                  }
+                                </select>
+                              }
+                              @case ('boolean') {
+                                <input
+                                  type="checkbox"
+                                  class="param-checkbox"
+                                  [checked]="ctrl.value === true"
+                                  [attr.aria-label]="ctrl.param.label"
+                                  (change)="onParam(item.effectId, ctrl, $event)"
+                                />
+                              }
+                            }
+                          </div>
+                        }
+                      </div>
+                    } @else if (!item.broken && item.presets.length === 0) {
+                      <p class="no-params">No adjustable parameters.</p>
                     }
                   </div>
                 }
               </li>
             }
           </ol>
-          <button type="button" class="clear-all" (click)="clearAll()">
-            <mat-icon aria-hidden="true">delete_sweep</mat-icon>
-            Clear all
-          </button>
         </section>
       }
 
       <section class="add-section">
-        <h4>{{ pipelineItems().length > 0 ? 'Add another effect' : 'Add effect' }}</h4>
-        @for (group of grouped(); track group.category) {
-          <div class="group">
-            <h5>{{ group.category }}</h5>
-            <div class="chips">
-              @for (e of group.effects; track e.id) {
-                <button
-                  type="button"
-                  class="chip"
-                  [class.active]="isInPipeline(e.id)"
-                  [disabled]="isInPipeline(e.id)"
-                  [attr.aria-pressed]="isInPipeline(e.id)"
-                  [title]="
-                    isInPipeline(e.id)
-                      ? e.name + ' already in pipeline'
-                      : 'Add ' + e.name + ' to pipeline'
-                  "
-                  (click)="add(e.id)"
-                >
-                  @if (isInPipeline(e.id)) {
-                    <mat-icon aria-hidden="true">check</mat-icon>
-                  } @else {
-                    <mat-icon aria-hidden="true">add</mat-icon>
+        <button
+          type="button"
+          class="add-toggle"
+          [class.open]="pickerOpen()"
+          [attr.aria-expanded]="pickerOpen()"
+          (click)="togglePicker()"
+        >
+          <mat-icon aria-hidden="true">{{ pickerOpen() ? 'expand_more' : 'add' }}</mat-icon>
+          <span>{{ pipelineItems().length > 0 ? 'Add another effect' : 'Add effect' }}</span>
+        </button>
+        @if (pickerOpen()) {
+          <div class="picker">
+            @for (group of grouped(); track group.category) {
+              <div class="group">
+                <h5>{{ group.category }}</h5>
+                <div class="chips">
+                  @for (e of group.effects; track e.id) {
+                    <button
+                      type="button"
+                      class="chip"
+                      [class.active]="isInPipeline(e.id)"
+                      [disabled]="isInPipeline(e.id)"
+                      [attr.aria-pressed]="isInPipeline(e.id)"
+                      [title]="
+                        isInPipeline(e.id)
+                          ? e.name + ' already in pipeline'
+                          : 'Add ' + e.name + ' to pipeline'
+                      "
+                      (click)="add(e.id)"
+                    >
+                      @if (isInPipeline(e.id)) {
+                        <mat-icon aria-hidden="true">check</mat-icon>
+                      } @else {
+                        <mat-icon aria-hidden="true">add</mat-icon>
+                      }
+                      <span>{{ e.name }}</span>
+                    </button>
                   }
-                  <span>{{ e.name }}</span>
-                </button>
-              }
-            </div>
+                </div>
+              </div>
+            }
           </div>
         }
       </section>
@@ -293,18 +358,45 @@ interface PipelineItem {
       border-radius: 3px;
     }
     .pipeline {
-      margin-top: 8px;
+      margin-top: 4px;
       padding-bottom: 8px;
       border-bottom: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
     }
-    .pipeline h4,
-    .add-section h4 {
+    .pipeline-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .pipeline-head h4,
+    .group h5 {
       font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.55));
-      margin: 0 0 6px;
+      margin: 0;
       font-weight: 500;
+    }
+    .link-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      border: none;
+      background: transparent;
+      color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.55));
+      font-size: 11px;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+    .link-btn:hover {
+      background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.05));
+      color: var(--mat-sys-error, #b3261e);
+    }
+    .link-btn mat-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
     }
     .pipeline-list {
       list-style: none;
@@ -312,53 +404,97 @@ interface PipelineItem {
       margin: 0;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 4px;
     }
     .pipeline-item {
-      border-radius: 4px;
+      border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+      border-radius: 6px;
       background: var(--mat-sys-surface-container-low, rgba(0, 0, 0, 0.02));
-      padding: 4px 6px;
+      overflow: hidden;
+    }
+    .pipeline-item.expanded {
+      border-color: var(--mat-sys-primary, #1976d2);
+      background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.03));
+    }
+    .pipeline-item.muted .step-name {
+      text-decoration: line-through;
+      opacity: 0.6;
+    }
+    .pipeline-item.muted .step-num {
+      opacity: 0.5;
     }
     .step-head {
       display: flex;
       align-items: center;
+    }
+    .step-summary {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
       gap: 6px;
+      min-width: 0;
+      border: none;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      padding: 5px 4px 5px 2px;
+      cursor: pointer;
+    }
+    .step-summary:focus-visible {
+      outline: 2px solid var(--mat-sys-primary, #1976d2);
+      outline-offset: -2px;
+      border-radius: 4px;
+    }
+    .chevron {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.55));
     }
     .step-num {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
       border-radius: 50%;
       background: var(--mat-sys-primary-container, #cce0ff);
       color: var(--mat-sys-on-primary-container, #001b3d);
       font-size: 10px;
       font-weight: 600;
+      flex-shrink: 0;
     }
     .step-name {
       font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .edited-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--mat-sys-primary, #1976d2);
       flex-shrink: 0;
     }
-    .step-category {
-      font-size: 10px;
-      opacity: 0.6;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-    .spacer {
-      flex: 1 1 auto;
+    .step-actions {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      padding-right: 2px;
     }
     .step-btn {
-      width: 28px !important;
-      height: 28px !important;
-      line-height: 28px !important;
+      width: 26px !important;
+      height: 26px !important;
+      line-height: 26px !important;
       padding: 0 !important;
     }
     .step-btn mat-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
+      font-size: 15px;
+      width: 15px;
+      height: 15px;
     }
     .step-btn-remove mat-icon {
       color: var(--mat-sys-error, #b3261e);
@@ -366,11 +502,24 @@ interface PipelineItem {
     .step-btn:disabled mat-icon {
       opacity: 0.3;
     }
+    .step-body {
+      padding: 2px 8px 8px 24px;
+    }
+    .broken-note,
+    .no-params {
+      font-size: 11px;
+      font-style: italic;
+      color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.55));
+      margin: 4px 0;
+    }
+    .broken-note {
+      color: var(--mat-sys-error, #b3261e);
+    }
     .presets {
       display: flex;
       flex-wrap: wrap;
       gap: 4px;
-      margin: 6px 0 2px 24px;
+      margin: 4px 0 8px;
     }
     .preset-chip {
       display: inline-flex;
@@ -385,10 +534,7 @@ interface PipelineItem {
       cursor: pointer;
     }
     .preset-chip:hover {
-      background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.04));
-    }
-    .preset-chip.reset {
-      color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.55));
+      background: var(--mat-sys-surface-container-high, rgba(0, 0, 0, 0.06));
     }
     .preset-chip mat-icon {
       font-size: 13px;
@@ -398,12 +544,11 @@ interface PipelineItem {
     .params {
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      margin: 6px 0 2px 24px;
+      gap: 6px;
     }
     .param-row {
       display: grid;
-      grid-template-columns: 78px 1fr auto;
+      grid-template-columns: 76px 1fr auto;
       align-items: center;
       gap: 8px;
     }
@@ -417,15 +562,26 @@ interface PipelineItem {
     .param-range {
       width: 100%;
       accent-color: var(--mat-sys-primary, #1976d2);
+      min-width: 0;
+    }
+    .param-value {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
     }
     .param-number {
-      width: 56px;
+      width: 50px;
       font-size: 12px;
       padding: 2px 4px;
       border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.2));
       border-radius: 4px;
       background: var(--mat-sys-surface, #fff);
       color: var(--mat-sys-on-surface, inherit);
+    }
+    .param-unit {
+      font-size: 10px;
+      color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.5));
+      width: 14px;
     }
     .param-color {
       grid-column: 2 / 4;
@@ -452,41 +608,46 @@ interface PipelineItem {
       justify-self: start;
       accent-color: var(--mat-sys-primary, #1976d2);
     }
-    .clear-all {
-      display: inline-flex;
+    .add-section {
+      margin-top: 10px;
+    }
+    .add-toggle {
+      display: flex;
       align-items: center;
-      gap: 4px;
-      margin-top: 8px;
-      padding: 4px 10px;
-      border-radius: 4px;
-      border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+      gap: 6px;
+      width: 100%;
+      padding: 7px 10px;
+      border-radius: 6px;
+      border: 1px dashed var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.3));
       background: transparent;
-      color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.6));
+      color: var(--mat-sys-on-surface, inherit);
       font-size: 12px;
+      font-weight: 500;
       cursor: pointer;
     }
-    .clear-all:hover {
+    .add-toggle:hover {
       background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.04));
-      color: var(--mat-sys-error, #b3261e);
+      border-color: var(--mat-sys-primary, #1976d2);
     }
-    .clear-all mat-icon {
-      font-size: 14px;
-      width: 14px;
-      height: 14px;
+    .add-toggle.open {
+      border-style: solid;
     }
-    .add-section {
-      margin-top: 12px;
+    .add-toggle mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+    .picker {
+      margin-top: 8px;
     }
     .group {
       margin-top: 8px;
     }
+    .group:first-child {
+      margin-top: 0;
+    }
     .group h5 {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.55));
       margin: 0 0 4px;
-      font-weight: 500;
     }
     .chips {
       display: flex;
@@ -537,6 +698,12 @@ export class SvgeEffectsPanel {
   private readonly state = inject(EditorStateService);
   private readonly bus = inject(CommandBus);
 
+  /** Effect id of the single expanded accordion stage (null = all collapsed). */
+  private readonly _expandedId = signal<string | null>(null);
+  /** Whether the "Add effect" picker is open. */
+  private readonly _pickerOpen = signal(false);
+  protected readonly pickerOpen = this._pickerOpen.asReadonly();
+
   /** All registered effects (reactive). */
   protected readonly effects = this.registry.effects;
 
@@ -550,7 +717,7 @@ export class SvgeEffectsPanel {
   /**
    * Applied pipeline on the focus node as an ordered list of
    * {@link EffectInstance}s. Reads `style.filter`, supporting:
-   * - parametric `url(#svge-fx-...)` → instances with params
+   * - parametric `url(#svge-fx-...)` → instances with params / mute
    * - chain `url(#svge-chain-a__b)` → instances (no params)
    * - single `url(#effectId)` → one instance (no params)
    */
@@ -601,6 +768,18 @@ export class SvgeEffectsPanel {
     return this.currentEffectIds().includes(id);
   }
 
+  protected isExpanded(id: string): boolean {
+    return this._expandedId() === id;
+  }
+
+  protected toggleExpand(id: string): void {
+    this._expandedId.update((cur) => (cur === id ? null : id));
+  }
+
+  protected togglePicker(): void {
+    this._pickerOpen.update((v) => !v);
+  }
+
   // ── template helpers (avoid type-narrowing in the template) ──────────
   protected numMin(c: ParamControl): number | null {
     return c.param.type === 'number' || c.param.type === 'percent' || c.param.type === 'angle'
@@ -622,16 +801,23 @@ export class SvgeEffectsPanel {
   ): readonly { readonly value: string; readonly label: string }[] {
     return c.param.type === 'select' ? c.param.options : [];
   }
+  /** Unit suffix shown after a numeric value (e.g. `px`, `°`); '' when none. */
+  protected unit(c: ParamControl): string {
+    const p = c.param;
+    return p.type === 'number' || p.type === 'percent' || p.type === 'angle' ? (p.unit ?? '') : '';
+  }
 
   // ── pipeline mutations ───────────────────────────────────────────────
 
-  /** Add an effect to the END of the pipeline (default params). */
+  /** Add an effect to the END of the pipeline (default params) and expand it. */
   protected add(id: string): void {
     if (this.isInPipeline(id)) return;
+    this._expandedId.set(id);
     this.applyInstances([...this.currentInstances(), { effectId: id }], `Add ${id}`);
   }
 
   protected remove(id: string): void {
+    if (this._expandedId() === id) this._expandedId.set(null);
     this.applyInstances(
       this.currentInstances().filter((i) => i.effectId !== id),
       `Remove ${id}`,
@@ -654,7 +840,23 @@ export class SvgeEffectsPanel {
     this.applyInstances(list, `Reorder ${id} down`);
   }
 
+  /** Non-destructive mute/unmute (D-146) — keeps the stage, toggles render. */
+  protected toggleEnabled(id: string): void {
+    const wasMuted = this.currentInstances().find((i) => i.effectId === id)?.enabled === false;
+    const next = this.currentInstances().map<EffectInstance>((i) =>
+      i.effectId !== id
+        ? i
+        : {
+            effectId: i.effectId,
+            ...(i.params ? { params: i.params } : {}),
+            ...(wasMuted ? {} : { enabled: false }), // was active → mute
+          },
+    );
+    this.applyInstances(next, `${wasMuted ? 'Enable' : 'Disable'} ${id}`);
+  }
+
   protected clearAll(): void {
+    this._expandedId.set(null);
     this.applyInstances([], 'Clear filter');
   }
 
@@ -708,12 +910,14 @@ export class SvgeEffectsPanel {
     label: string,
   ): void {
     const custom = nonDefaultParams(effect, resolved);
-    const next = this.currentInstances().map((i) =>
-      i.effectId === effectId
-        ? Object.keys(custom).length > 0
-          ? { effectId, params: custom }
-          : { effectId }
-        : i,
+    const next = this.currentInstances().map<EffectInstance>((i) =>
+      i.effectId !== effectId
+        ? i
+        : {
+            effectId,
+            ...(Object.keys(custom).length > 0 ? { params: custom } : {}),
+            ...(i.enabled === false ? { enabled: false } : {}), // preserve mute through edits
+          },
     );
     this.applyInstances(next, label);
   }
@@ -728,6 +932,7 @@ export class SvgeEffectsPanel {
         controls: [],
         presets: [],
         customized: false,
+        enabled: inst.enabled !== false,
         broken: true,
       };
     }
@@ -747,6 +952,7 @@ export class SvgeEffectsPanel {
       controls,
       presets: effect.presets ?? [],
       customized: Object.keys(nonDefaultParams(effect, resolved)).length > 0,
+      enabled: inst.enabled !== false,
       broken: false,
     };
   }
@@ -767,13 +973,15 @@ export class SvgeEffectsPanel {
   /**
    * Build the `style.filter` value for a pipeline:
    * - empty → `undefined`
-   * - no custom params: 1 → `url(#effectId)`; 2+ → `url(#svge-chain-...)`
-   * - any custom params → `url(#svge-fx-<encoded>)` (D-144)
+   * - no custom params and no mute: 1 → `url(#effectId)`; 2+ → `url(#svge-chain-...)`
+   * - any custom params OR any muted effect → `url(#svge-fx-<encoded>)` (D-144/146)
    */
   private buildFilterUrl(instances: readonly EffectInstance[]): string | undefined {
     if (instances.length === 0) return undefined;
-    const hasParams = instances.some((i) => i.params && Object.keys(i.params).length > 0);
-    if (!hasParams) {
+    const needsParametric = instances.some(
+      (i) => (i.params && Object.keys(i.params).length > 0) || i.enabled === false,
+    );
+    if (!needsParametric) {
       const ids = instances.map((i) => i.effectId);
       return ids.length === 1 ? `url(#${ids[0]!})` : `url(#${makeChainFilterId(ids)})`;
     }

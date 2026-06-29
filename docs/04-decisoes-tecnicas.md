@@ -2832,3 +2832,51 @@ EffectPreset[]`. `buildFilterMarkup(params?)` passou a receber os valores;
 - **Consequências**: efeitos passam de "toggles fixos" a **paramétricos e
   customizáveis** sem introduzir estado novo; base pronta para efeitos com mais
   knobs. Referência: histórico 08 (2026-06-29, D-144).
+
+## D-145 — Fix de composição de filtros: a última primitiva não pode ser a captura de alpha
+
+- **Data**: 2026-06-29
+- **Status**: Aceita (correção de bug)
+- **Contexto**: chains (D-047) e instâncias paramétricas (D-144) compõem N
+  efeitos num único `<filter>` via `composeFilterMarkups`/`renameStep`, que
+  anexa a cada passo duas primitivas de captura (`step{i}-out` RGBA +
+  `step{i}-out-alpha` só-alpha) para alimentar o passo seguinte. Bug: as
+  capturas eram anexadas **inclusive ao último passo** — e a saída de um
+  `<filter>` é a **última primitiva**, então o resultado virava a matriz de
+  alpha (silhueta **preta**), destruindo a cor de toda forma com efeito
+  customizado/encadeado.
+- **Decisão**: anexar as capturas **apenas em passos com sucessor** (`i < n-1`);
+  o último passo já é a saída do filtro (sua própria primitiva final preserva o
+  `SourceGraphic`). Specs de regressão garantem que a última primitiva nunca é a
+  matriz alpha.
+- **Lição transversal**: validar fidelidade com formas **coloridas** — testar
+  com `fill:#000` mascara este bug (silhueta preta ≈ forma preta), reforçando a
+  regra de validar em runtime (não só "build passa").
+- **Consequência**: efeitos paramétricos/chain renderizam com cor correta.
+  Referência: histórico 08 (2026-06-29, D-145).
+
+## D-146 — Effects panel: UX acordeão + mute (ligar/desligar) por efeito
+
+- **Data**: 2026-06-29
+- **Status**: Aceita
+- **Contexto**: o painel pós-D-144 expunha todos os controles, mas com **tudo
+  sempre expandido** + o seletor das 19 categorias sempre aberto, ocupando o
+  painel inteiro — difícil acessar/configurar/priorizar com vários efeitos. E
+  faltava o **liga/desliga** não-destrutivo que todo painel de efeitos
+  profissional tem (Photoshop/Figma).
+- **Decisão (UX)**: **divulgação progressiva** — cada estágio é um cartão
+  **recolhível** (accordion, um expandido por vez; novo efeito auto-expande), e
+  o seletor "Add effect" passa a **abrir sob demanda**. Readout de valor+unidade
+  no slider, ponto de "customizado", foco/hover acessíveis.
+- **Decisão (mute)**: `EffectInstance.enabled?: boolean` (ausente/true = ativo;
+  `false` = mutado), codificado como `x:0` no id stateless. O
+  `ParametricEffectRegistry` pula os mutados ao compor; quando **todos** estão
+  mutados emite um `<filter>` **identidade** (um filtro vazio/ausente
+  referenciado por `url(#id)` esconderia o nó). buildFilterUrl emite `svge-fx-`
+  sempre que houver params custom **ou** algum mute; senão mantém
+  `url(#effectId)`/`url(#svge-chain-…)`.
+- **Alternativas rejeitadas**: drag-to-reorder (as setas ↑/↓ bastam e são mais
+  acessíveis); múltiplos estágios expandidos (acordeão de 1 reduz ruído no rail
+  estreito).
+- **Verificação**: `build:lib` + `lint` + `test:lib` (**2992**, +6) verdes;
+  browser no `/pro-editor`. Referência: histórico 08 (2026-06-29, D-146).

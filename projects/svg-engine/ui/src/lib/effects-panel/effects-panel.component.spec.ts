@@ -61,13 +61,23 @@ function filterOf(state: EditorStateService, id: NodeId): string | undefined {
   return findNodeById(state.document().root, id)?.style.filter;
 }
 
-/** Click the picker chip whose label matches `name` (e.g. 'Blur'). */
-function clickChip(host: HTMLElement, name: string): void {
+/**
+ * Add an effect via the picker chip whose label matches `name`. The picker
+ * is collapsed by default (D-146 accordion), so open it first.
+ */
+function clickChip(fixture: { nativeElement: unknown; detectChanges(): void }, name: string): void {
+  const host = fixture.nativeElement as HTMLElement;
+  const toggle = host.querySelector<HTMLButtonElement>('.add-toggle');
+  if (toggle && toggle.getAttribute('aria-expanded') !== 'true') {
+    toggle.click();
+    fixture.detectChanges();
+  }
   const chip = Array.from(host.querySelectorAll<HTMLButtonElement>('.chip')).find(
     (b) => b.textContent?.includes(name) && !b.disabled,
   );
   if (!chip) throw new Error(`picker chip "${name}" not found / disabled`);
   chip.click();
+  fixture.detectChanges();
 }
 
 describe('SvgeEffectsPanel — selection gating', () => {
@@ -77,11 +87,15 @@ describe('SvgeEffectsPanel — selection gating', () => {
     expect(host.querySelector('.pipeline')).toBeNull();
   });
 
-  it('shows the effect picker once a node is selected', () => {
+  it('shows a collapsed picker once a node is selected; opens on demand', () => {
     const { fixture, host, state, selection, bus } = setup();
     addAndSelectRect(bus, state, selection);
     fixture.detectChanges();
-    expect(host.querySelector('.add-section')).not.toBeNull();
+    const toggle = host.querySelector<HTMLButtonElement>('.add-toggle');
+    expect(toggle).not.toBeNull();
+    expect(host.querySelectorAll('.chip').length).toBe(0); // collapsed by default
+    toggle!.click();
+    fixture.detectChanges();
     expect(host.querySelectorAll('.chip').length).toBeGreaterThan(0);
     expect(host.querySelector('.pipeline')).toBeNull(); // none applied yet
   });
@@ -92,7 +106,7 @@ describe('SvgeEffectsPanel — applying effects', () => {
     const { fixture, host, state, selection, bus } = setup();
     const id = addAndSelectRect(bus, state, selection);
     fixture.detectChanges();
-    clickChip(host, 'Blur');
+    clickChip(fixture, 'Blur');
     fixture.detectChanges();
     expect(filterOf(state, id)).toBe(`url(#${BLUR})`);
     // pipeline now renders one stage with the blur radius control.
@@ -101,12 +115,12 @@ describe('SvgeEffectsPanel — applying effects', () => {
   });
 
   it('adding two effects (defaults) writes a chain url, not a parametric id', () => {
-    const { fixture, host, state, selection, bus } = setup();
+    const { fixture, state, selection, bus } = setup();
     const id = addAndSelectRect(bus, state, selection);
     fixture.detectChanges();
-    clickChip(host, 'Blur');
+    clickChip(fixture, 'Blur');
     fixture.detectChanges();
-    clickChip(host, 'Sepia');
+    clickChip(fixture, 'Sepia');
     fixture.detectChanges();
     const filter = filterOf(state, id)!;
     expect(filter).toContain('url(#svge-chain-');
@@ -118,7 +132,7 @@ describe('SvgeEffectsPanel — applying effects', () => {
     const { fixture, host, state, selection, bus } = setup();
     const id = addAndSelectRect(bus, state, selection);
     fixture.detectChanges();
-    clickChip(host, 'Blur');
+    clickChip(fixture, 'Blur');
     fixture.detectChanges();
 
     const number = host.querySelector<HTMLInputElement>('.param-number')!;
@@ -136,7 +150,7 @@ describe('SvgeEffectsPanel — applying effects', () => {
     const { fixture, host, state, selection, bus } = setup();
     const id = addAndSelectRect(bus, state, selection);
     fixture.detectChanges();
-    clickChip(host, 'Blur');
+    clickChip(fixture, 'Blur');
     fixture.detectChanges();
 
     const strong = Array.from(host.querySelectorAll<HTMLButtonElement>('.preset-chip')).find((b) =>
@@ -153,7 +167,7 @@ describe('SvgeEffectsPanel — applying effects', () => {
     const { fixture, host, state, selection, bus } = setup();
     const id = addAndSelectRect(bus, state, selection);
     fixture.detectChanges();
-    clickChip(host, 'Blur');
+    clickChip(fixture, 'Blur');
     fixture.detectChanges();
 
     // customise → parametric, then Reset → plain.
@@ -173,7 +187,7 @@ describe('SvgeEffectsPanel — applying effects', () => {
     const { fixture, host, state, selection, bus } = setup();
     const id = addAndSelectRect(bus, state, selection);
     fixture.detectChanges();
-    clickChip(host, 'Blur');
+    clickChip(fixture, 'Blur');
     fixture.detectChanges();
 
     host.querySelector<HTMLButtonElement>('.step-btn-remove')!.click();
@@ -188,7 +202,7 @@ describe('SvgeEffectsPanel — undo integration', () => {
     const { fixture, host, state, selection, bus } = setup();
     const id = addAndSelectRect(bus, state, selection);
     fixture.detectChanges();
-    clickChip(host, 'Blur');
+    clickChip(fixture, 'Blur');
     fixture.detectChanges();
 
     const number = host.querySelector<HTMLInputElement>('.param-number')!;
@@ -198,6 +212,50 @@ describe('SvgeEffectsPanel — undo integration', () => {
     expect(filterOf(state, id)).toContain('svge-fx-');
 
     bus.undo(); // back to plain blur reference
+    expect(filterOf(state, id)).toBe(`url(#${BLUR})`);
+  });
+});
+
+describe('SvgeEffectsPanel — mute / enable toggle (D-146)', () => {
+  function muteButton(host: HTMLElement): HTMLButtonElement {
+    const btn = host.querySelector<HTMLButtonElement>(
+      '.step-actions button[aria-label^="Disable"], .step-actions button[aria-label^="Enable"]',
+    );
+    if (!btn) throw new Error('mute toggle not found');
+    return btn;
+  }
+
+  it('muting an effect encodes enabled:false (parametric id) without removing it', () => {
+    const { fixture, host, state, selection, bus } = setup();
+    const id = addAndSelectRect(bus, state, selection);
+    fixture.detectChanges();
+    clickChip(fixture, 'Blur');
+    fixture.detectChanges();
+    expect(filterOf(state, id)).toBe(`url(#${BLUR})`);
+
+    muteButton(host).click(); // disable
+    fixture.detectChanges();
+
+    const m = /^url\(#(.+)\)$/.exec(filterOf(state, id)!)!;
+    expect(parseEffectFilterId(m[1]!)).toEqual([{ effectId: BLUR, enabled: false }]);
+    // still in the pipeline (slot kept, just muted)
+    expect(host.querySelectorAll('.pipeline-item').length).toBe(1);
+    expect(host.querySelector('.pipeline-item.muted')).not.toBeNull();
+  });
+
+  it('unmuting restores the plain url(#effectId) reference', () => {
+    const { fixture, host, state, selection, bus } = setup();
+    const id = addAndSelectRect(bus, state, selection);
+    fixture.detectChanges();
+    clickChip(fixture, 'Blur');
+    fixture.detectChanges();
+
+    muteButton(host).click(); // disable → svge-fx-
+    fixture.detectChanges();
+    expect(filterOf(state, id)).toContain('svge-fx-');
+
+    muteButton(host).click(); // enable → plain
+    fixture.detectChanges();
     expect(filterOf(state, id)).toBe(`url(#${BLUR})`);
   });
 });
