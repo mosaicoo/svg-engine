@@ -128,7 +128,12 @@ export function composeFilterMarkups(inners: readonly string[], id: string): str
   for (let i = 0; i < inners.length; i++) {
     const previousOut = i === 0 ? null : `step${i - 1}-out`;
     const previousAlpha = i === 0 ? null : `step${i - 1}-out-alpha`;
-    steps.push(renameStep(inners[i]!, i, previousOut, previousAlpha));
+    // Only steps with a successor need their RGBA/alpha captures appended;
+    // the LAST step's own final primitive IS the filter's output. Appending
+    // the alpha-only capture to the last step made it the filter result —
+    // rendering every composed/parametric filter as a black silhouette (D-145).
+    const isLast = i === inners.length - 1;
+    steps.push(renameStep(inners[i]!, i, previousOut, previousAlpha, isLast));
   }
   return (
     `<filter id="${id}" x="-50%" y="-50%" width="200%" height="200%">\n` +
@@ -154,13 +159,15 @@ export function stripFilterWrapper(markup: string): string {
  * step's primitives so they are uniquely namespaced; rewrite
  * SourceGraphic/SourceAlpha to point at the previous step's outputs
  * when not the first step; append two output captures (RGBA + alpha-
- * only) at the end of the step.
+ * only) at the end of the step **unless it is the last step** — the last
+ * step's own final primitive must remain the filter's output (D-145).
  */
 function renameStep(
   inner: string,
   stepIdx: number,
   previousOut: string | null,
   previousAlpha: string | null,
+  isLast: boolean,
 ): string {
   const prefix = `step${stepIdx}-`;
   let out = inner;
@@ -199,16 +206,21 @@ function renameStep(
     out = out.replace(/(in2?)="SourceAlpha"/g, `$1="${previousAlpha}"`);
   }
 
-  // 5. Append output captures so the next step (if any) can consume:
+  // 5. Append output captures so the NEXT step can consume:
   //    - `step{i}-out`        — RGBA pass-through of this step's last
   //      primitive output (feOffset without `in` defaults to it).
   //    - `step{i}-out-alpha`  — alpha channel only, in case the next
   //      step uses SourceAlpha.
-  out +=
-    `\n      <feOffset dx="0" dy="0" result="${prefix}out" />` +
-    `\n      <feColorMatrix in="${prefix}out" type="matrix" ` +
-    `values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0" ` +
-    `result="${prefix}out-alpha" />`;
+  //    Skipped for the last step: a trailing alpha-only `feColorMatrix`
+  //    would become the filter's visible output (black silhouette). The
+  //    last step's own final primitive is the result (D-145).
+  if (!isLast) {
+    out +=
+      `\n      <feOffset dx="0" dy="0" result="${prefix}out" />` +
+      `\n      <feColorMatrix in="${prefix}out" type="matrix" ` +
+      `values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0" ` +
+      `result="${prefix}out-alpha" />`;
+  }
 
   return out;
 }

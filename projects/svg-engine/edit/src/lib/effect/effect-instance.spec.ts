@@ -102,6 +102,10 @@ describe('ParametricEffectRegistry — derives instance filters from the documen
     const markup = reg.buildAllInstancesMarkup();
     expect(markup).toContain(`id="${id}"`);
     expect(markup).toContain('stdDeviation="8"'); // custom radius, not the default 3
+    // D-145 regression: a single parametric instance must output RGBA, not the
+    // alpha-only silhouette (that bug made every customized shape render black).
+    const lastPrimitive = markup.slice(markup.lastIndexOf('<fe'));
+    expect(lastPrimitive).not.toContain('0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0');
   });
 
   it('deduplicates identical instances referenced by multiple nodes', () => {

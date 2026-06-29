@@ -71,14 +71,31 @@ describe('composeChainFilter — markup composition', () => {
     expect(out).toBe('<filter id="svge-chain-empty"></filter>');
   });
 
-  it('single effect produces a filter that contains the original primitives', () => {
+  it('single effect produces a filter whose output is the effect itself (no trailing alpha capture)', () => {
     const e = mkEffect('a', '<feGaussianBlur stdDeviation="3" />');
     const out = composeChainFilter([e], 'svge-chain-a');
     expect(out).toContain('id="svge-chain-a"');
     expect(out).toContain('feGaussianBlur');
-    // The step-0 output captures must be present even for a single effect.
-    expect(out).toContain('result="step0-out"');
-    expect(out).toContain('result="step0-out-alpha"');
+    // D-145 regression: the LAST (here only) step must NOT get the alpha-only
+    // output captures appended — otherwise the alpha `feColorMatrix` becomes
+    // the filter's visible output and the shape renders as a black silhouette.
+    expect(out).not.toContain('result="step0-out"');
+    expect(out).not.toContain('result="step0-out-alpha"');
+  });
+
+  it('D-145: the composed filter does NOT end with an alpha-only feColorMatrix (no black silhouette)', () => {
+    const a = mkEffect('a', '<feGaussianBlur in="SourceGraphic" stdDeviation="3" />');
+    const b = mkEffect('b', '<feColorMatrix in="SourceGraphic" type="saturate" values="2" />');
+    // The alpha-extraction matrix used for inter-step captures must never be
+    // the LAST primitive — that is what produced the black-shape bug.
+    const alphaMatrix = 'values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0"';
+    for (const out of [
+      composeChainFilter([a], 'svge-chain-a'),
+      composeChainFilter([a, b], 'svge-chain-a__b'),
+    ]) {
+      const lastPrimitive = out.slice(out.lastIndexOf('<fe'));
+      expect(lastPrimitive).not.toContain(alphaMatrix);
+    }
   });
 
   it('two-step chain rewrites SourceGraphic in step 2 to point at step 1 output', () => {

@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-06-29 — D-145 — Fix: filtros compostos/paramétricos renderizavam a forma PRETA 🐞
+
+Bug crítico de fidelidade introduzido na composição de filtros (chains D-047 e
+instâncias paramétricas D-144): **toda forma com efeito customizado ou
+encadeado era exibida como silhueta preta**, perdendo a cor.
+
+- **Causa raiz** (`edit/effect/chain-filter.ts` → `renameStep`): ao compor N
+  efeitos num único `<filter>`, cada passo recebia ao final duas primitivas de
+  captura (`step{i}-out` RGBA + `step{i}-out-alpha` só-alpha) para alimentar o
+  passo seguinte. O problema: as capturas eram anexadas **inclusive ao último
+  passo** — e como a saída de um `<filter>` é a **última primitiva**, o
+  resultado visível virava o `feColorMatrix` de alpha (silhueta preta).
+- **Por que "alguns efeitos"**: o caminho plain `url(#effectId)` (efeito único
+  no default) usa o markup do efeito direto e estava correto; o bug só aparecia
+  ao **customizar um parâmetro** (→ `url(#svge-fx-…)`) ou **encadear** (≥2
+  efeitos → `url(#svge-chain-…)`), que passam por `composeFilterMarkups`.
+- **Correção**: anexar as capturas **apenas em passos com sucessor**
+  (`i < n-1`). O último passo já é a saída do filtro — sua própria primitiva
+  final (ex.: o `<feMerge>` do drop-shadow) preserva o `SourceGraphic`.
+- **Regressão coberta**: specs em `chain-filter.spec` (a última primitiva nunca
+  é a matriz alpha; efeito único não ganha captura) e `effect-instance.spec`
+  (instância paramétrica emite RGBA). Validado no navegador real: estrela
+  `#cccccc` + drop-shadow customizado → cinza com sombra (não preta).
+- **Aprendizado registrado**: validar fidelidade visual com formas **coloridas**
+  — testar com `fill:#000` mascara exatamente este bug (silhueta preta ≈ forma
+  preta). `2986` testes verdes.
+
 ## 2026-06-29 — D-144 — Efeitos paramétricos: parâmetros editáveis + presets (stateless) ✨
 
 Os 19 _builtin effects_ (D-047) só eram aplicáveis nos defaults; o
