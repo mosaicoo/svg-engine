@@ -2903,3 +2903,32 @@ number 50 + unit`), o slider sobrava ~75px.
 - **Verificação**: `build:lib` + `lint` verdes; `/pro-editor` com
   `--svge-right-w` computado = 360px. Referência: histórico 08 (2026-06-29,
   D-147).
+
+## D-148 — Right rail redimensionável (drag + persistência) + ids de efeito mais curtos
+
+- **Data**: 2026-06-29
+- **Status**: Aceita
+- **Rail redimensionável** (cumpre o roadmap do D-147): grip de arraste na borda
+  esquerda do rail direito do `svge-shell-pro`. A largura vira uma camada
+  separada — `--svge-right-w: var(--svge-right-w-user, 360px)`; o grip escreve
+  `--svge-right-w-user` (px) inline no `.main` via signal `rightWidth`, e o
+  colapso continua sobrescrevendo `--svge-right-w` diretamente (36px). Clamp
+  240–560px, persistido em `localStorage` e restaurado no load; a11y de
+  `separator` (←/→/Home/End); `setPointerCapture` evita listeners globais.
+  - **Por que só o rail direito**: é onde vivem os painéis densos (Effects/
+    Inspector). O `.libraries-side` tem `overflow:auto` (um grip absoluto
+    rolaria com o conteúdo) — adiado até um pequeno refactor de wrapper.
+- **Ids de efeito mais curtos** (`effect-instance.ts`): o payload codificado
+  passa a **omitir o prefixo comum** `svge.builtin.effect.` (vira `.` + sufixo,
+  re-expandido no decode). Corta ~20 chars/efeito antes do base64 (ex.:
+  drop-shadow custom ~88 → 63 chars). **Retrocompat**: ids legados (prefixo
+  completo, sem o marcador `.`) decodificam verbatim.
+  - **Alternativa para ids realmente curtos (deferida)**: id-hash + payload
+    armazenado nos `<defs>` — encolhe também a referência `url(#…)` em CADA nó
+    (ganho grande em docs com muitas formas), mas troca a auto-contenção atual
+    por estado serializado, exigindo mudança no IO (importer/exporter) com
+    round-trip dedicado. Mantido como roadmap.
+- **Verificação**: `build:lib` + `lint` (3 projetos) + `test:lib` (**2994**, +2)
+  verdes; browser no `/pro-editor` (drag 360→440px + persistência; id
+  `.drop-shadow` sem o prefixo longo). Referência: histórico 08 (2026-06-29,
+  D-148).

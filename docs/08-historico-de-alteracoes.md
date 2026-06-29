@@ -6,6 +6,31 @@
 
 ---
 
+## 2026-06-29 — D-148 — Right rail redimensionável + ids de efeito paramétrico mais curtos 📐🔖
+
+Dois ajustes pedidos: rail direito arrastável (a solução definitiva do D-147) e
+encurtamento dos ids `svge-fx-…` (estavam enormes no markup exportado).
+
+- **Rail redimensionável** (`svge-shell-pro`): grip de arraste na borda
+  esquerda do rail direito. Grava `--svge-right-w-user` (px) inline no `.main`;
+  o grid lê `--svge-right-w: var(--svge-right-w-user, 360px)`, então o colapso
+  (que seta `--svge-right-w: 36px` direto) continua vencendo. Clamp 240–560px,
+  **persistido** em `localStorage` (`svge-shell-pro-right-w`) e restaurado no
+  load; **a11y** `role="separator"` + ←/→/Home/End; `setPointerCapture` (sem
+  listeners globais). Reset de Workspace volta ao default. O `.libraries-side`
+  ficou de fora por ter `overflow:auto` (grip absoluto rolaria) — refactor
+  futuro. Verificado: arrastar 80px → 360→440px + persistência.
+- **Id mais curto** (`effect-instance.ts`): o payload deixa de carregar o
+  prefixo comum `svge.builtin.effect.` — `svge.builtin.effect.drop-shadow` vira
+  `.drop-shadow` (re-expandido no decode). ~20 chars/efeito a menos antes do
+  base64; ex.: drop-shadow custom caiu de ~88 → **63 chars**. **Retrocompat**:
+  ids legados (prefixo completo, sem o marcador `.`) decodificam normalmente.
+  O id genuinamente curto (hash + payload nos `<defs>`) exigiria mexer no IO —
+  registrado como roadmap.
+- `build:lib` + `lint` (3 projetos) + `test:lib` (**2994**, +2) verdes;
+  navegado no `/pro-editor`. Decisão em
+  [04-decisoes-tecnicas](04-decisoes-tecnicas.md) (D-148).
+
 ## 2026-06-29 — D-147 — Right rail mais largo (280 → 360px) para painéis densos em controles 📐
 
 O rail direito do `svge-shell-pro` (`--svge-right-w`, 4ª coluna do grid `.main`)

@@ -44,6 +44,27 @@ export interface EffectInstance {
 export const PARAM_FILTER_ID_PREFIX = 'svge-fx-';
 
 /**
+ * Common namespace of every built-in effect id (D-148 id-size optimization).
+ * Stored effect ids drop this prefix and gain a leading `.` marker, so
+ * `svge.builtin.effect.blur` is serialised as `.blur` — ~20 chars saved per
+ * effect before base64, the dominant cost in a multi-effect id. Decoding
+ * re-expands `.`-prefixed entries; entries WITHOUT the marker (plugin ids, or
+ * legacy ids written before this change) round-trip verbatim, so the encoding
+ * is backward-compatible.
+ */
+const BUILTIN_EFFECT_PREFIX = 'svge.builtin.effect.';
+
+/** Shorten a builtin effect id for storage (`svge.builtin.effect.blur` → `.blur`). */
+function packEffectId(id: string): string {
+  return id.startsWith(BUILTIN_EFFECT_PREFIX) ? '.' + id.slice(BUILTIN_EFFECT_PREFIX.length) : id;
+}
+
+/** Re-expand a stored effect id (`.blur` → `svge.builtin.effect.blur`). */
+function unpackEffectId(stored: string): string {
+  return stored.startsWith('.') ? BUILTIN_EFFECT_PREFIX + stored.slice(1) : stored;
+}
+
+/**
  * Compact serialised entry: `e` = effect id, `p` = (optional) params,
  * `x` = `0` when the effect is muted (omitted when active — see D-146).
  */
@@ -71,7 +92,7 @@ function fromBase64Url(s: string): string {
  */
 export function encodeEffectFilterId(instances: readonly EffectInstance[]): string {
   const payload: EncodedEntry[] = instances.map((i) => {
-    const entry: { e: string; p?: EffectParams; x?: 0 } = { e: i.effectId };
+    const entry: { e: string; p?: EffectParams; x?: 0 } = { e: packEffectId(i.effectId) };
     if (i.params && Object.keys(i.params).length > 0) entry.p = i.params;
     if (i.enabled === false) entry.x = 0;
     return entry;
@@ -94,7 +115,7 @@ export function parseEffectFilterId(id: string): readonly EffectInstance[] | nul
     for (const entry of decoded as EncodedEntry[]) {
       if (entry === null || typeof entry !== 'object' || typeof entry.e !== 'string') return null;
       const inst: { effectId: string; params?: EffectParams; enabled?: boolean } = {
-        effectId: entry.e,
+        effectId: unpackEffectId(entry.e),
       };
       if (entry.p) inst.params = entry.p;
       if (entry.x === 0) inst.enabled = false;

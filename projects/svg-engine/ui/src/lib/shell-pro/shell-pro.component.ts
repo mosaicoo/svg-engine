@@ -193,7 +193,7 @@ import { SvgeToolsPalette } from '../tools-palette';
       <svge-toolbar slot="toolbar.main" />
     </div>
     <svge-tool-options class="tool-options-row" [showPlaceholder]="true" />
-    <div class="main">
+    <div class="main" [style.--svge-right-w-user.px]="rightWidth()">
       <aside class="tools-side" aria-label="Tools palette">
         <svge-tools-palette />
       </aside>
@@ -337,6 +337,25 @@ import { SvgeToolsPalette } from '../tools-palette';
         [class.is-collapsed]="rightCollapsed()"
         aria-label="Layers, properties and appearance panels"
       >
+        <!-- D-148 — drag-resize grip (hidden when collapsed). Widens the rail
+             on leftward drag; ←/→ adjust by 16px; persisted in localStorage. -->
+        @if (!rightCollapsed()) {
+          <div
+            class="right-resizer"
+            [class.is-dragging]="resizing()"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize panels rail"
+            tabindex="0"
+            [attr.aria-valuenow]="rightWidthPx()"
+            aria-valuemin="240"
+            aria-valuemax="560"
+            (pointerdown)="onResizeDown($event)"
+            (pointermove)="onResizeMove($event)"
+            (pointerup)="onResizeUp($event)"
+            (keydown)="onResizeKey($event)"
+          ></div>
+        }
         <!--
           **D-081** — right-rail panel-group now defaults to tabSide=right
           (icons docked against the right edge of the screen). Users can
@@ -550,9 +569,12 @@ import { SvgeToolsPalette } from '../tools-palette';
        * is label(76) + slider(1fr) + number(50)+unit, leaving the slider only
        * ~75px at 280. At 360 the slider gets ~150px+ while the 1fr canvas keeps
        * room even on 1366px laptops (with libraries open). A future drag-resize
-       * handle (roadmap) will let users tune it further; the value lives in this
-       * single custom property so it is the one lever to adjust. */
-      --svge-right-w: 360px;
+       * single custom property so it is the one lever to adjust.
+       * D-148 — the live value now reads the user's drag-resize override
+       * (--svge-right-w-user, set inline by the resize handle and persisted),
+       * falling back to 360px. The collapse rule below still overrides
+       * --svge-right-w directly (36px), so it wins regardless of the override. */
+      --svge-right-w: var(--svge-right-w-user, 360px);
       grid-template-columns: auto var(--svge-libraries-w) 1fr var(--svge-right-w);
       min-height: 0;
       overflow: hidden;
@@ -669,6 +691,10 @@ import { SvgeToolsPalette } from '../tools-palette';
     .right-side {
       display: flex;
       flex-direction: column;
+      /* D-148 — positioning context for the absolute drag-resize grip on the
+         left edge. Safe here (unlike .libraries-side) because .right-side has
+         no overflow of its own — scroll lives inside .rs-group. */
+      position: relative;
       /* D-061 follow-up 3 — single tabbed container. The lone
        * panel-group expands to fill the full rail height; tabs
        * (Layers | Properties | Appearance) trocam o body. Cada
@@ -681,6 +707,29 @@ import { SvgeToolsPalette } from '../tools-palette';
       flex: 1 1 auto;
       min-height: 0;
       overflow: hidden;
+    }
+    /* D-148 — drag-resize grip on the LEFT edge of the right rail. A 6px
+       hit area straddling the border; widens the rail when dragged left.
+       Hidden while collapsed (the @if in the template removes it). */
+    .right-resizer {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -3px;
+      width: 6px;
+      z-index: 4;
+      cursor: col-resize;
+      touch-action: none;
+      background: transparent;
+    }
+    .right-resizer:hover,
+    .right-resizer:focus-visible,
+    .right-resizer.is-dragging {
+      background: var(--mat-sys-primary, #1976d2);
+      opacity: 0.6;
+    }
+    .right-resizer:focus-visible {
+      outline: none;
     }
     .status-row {
       /* No rules — svge-status-bar paints its own top border + background;
@@ -835,6 +884,10 @@ export class SvgeShellPro {
       // re-write '0' into the just-cleared localStorage keys.
       this.leftCollapsed.set(false);
       this.rightCollapsed.set(false);
+      // D-148 — also revert the drag-resized rail width to the default. The
+      // workspace service doesn't know this key, so clear it here explicitly.
+      this.rightWidth.set(null);
+      SvgeShellPro.writeWidth(SvgeShellPro.WIDTH_KEY_RIGHT, null);
     });
 
     // **D-098** — react to Window ▸ Panels ▸ … reveal requests. The menu
@@ -904,6 +957,107 @@ export class SvgeShellPro {
   protected setRightCollapsed(v: boolean): void {
     this.rightCollapsed.set(v);
     SvgeShellPro.writeCollapsed(SvgeShellPro.COLLAPSE_KEY_RIGHT, v);
+  }
+
+  // ── D-148 — RESIZABLE right rail ────────────────────────────────────
+  //
+  // The 4th grid column reads `--svge-right-w: var(--svge-right-w-user, 360px)`.
+  // The grip writes `--svge-right-w-user` (px, inline on `.main`) via the
+  // `rightWidth` signal — `null` falls back to the 360px default. The value is
+  // clamped + persisted; collapse still wins (its rule sets `--svge-right-w`
+  // directly). `setPointerCapture` routes move/up to the grip, so no global
+  // document listeners are needed.
+
+  private static readonly WIDTH_KEY_RIGHT = 'svge-shell-pro-right-w';
+  private static readonly RIGHT_W_MIN = 240;
+  private static readonly RIGHT_W_MAX = 560;
+
+  protected readonly rightWidth = signal<number | null>(
+    SvgeShellPro.readWidth(SvgeShellPro.WIDTH_KEY_RIGHT),
+  );
+  /** True while a drag is in progress (highlights the grip). */
+  protected readonly resizing = signal(false);
+
+  /** Effective rail width in px for `aria-valuenow` (default when unset). */
+  protected rightWidthPx(): number {
+    return this.rightWidth() ?? 360;
+  }
+
+  private resizeStartX = 0;
+  private resizeStartW = 0;
+
+  protected onResizeDown(ev: PointerEvent): void {
+    const grip = ev.currentTarget as HTMLElement;
+    const aside = grip.closest('.right-side') as HTMLElement | null;
+    if (aside === null) return;
+    ev.preventDefault();
+    this.resizeStartX = ev.clientX;
+    this.resizeStartW = aside.getBoundingClientRect().width;
+    this.resizing.set(true);
+    grip.setPointerCapture?.(ev.pointerId);
+  }
+
+  protected onResizeMove(ev: PointerEvent): void {
+    if (!this.resizing()) return;
+    // Dragging LEFT (clientX decreases) widens the right rail.
+    this.rightWidth.set(
+      SvgeShellPro.clampRightW(this.resizeStartW + (this.resizeStartX - ev.clientX)),
+    );
+  }
+
+  protected onResizeUp(ev: PointerEvent): void {
+    if (!this.resizing()) return;
+    this.resizing.set(false);
+    (ev.currentTarget as HTMLElement).releasePointerCapture?.(ev.pointerId);
+    SvgeShellPro.writeWidth(SvgeShellPro.WIDTH_KEY_RIGHT, this.rightWidth());
+  }
+
+  protected onResizeKey(ev: KeyboardEvent): void {
+    const STEP = 16;
+    let next: number;
+    switch (ev.key) {
+      case 'ArrowLeft':
+        next = this.rightWidthPx() + STEP; // wider
+        break;
+      case 'ArrowRight':
+        next = this.rightWidthPx() - STEP; // narrower
+        break;
+      case 'Home':
+        next = SvgeShellPro.RIGHT_W_MAX;
+        break;
+      case 'End':
+        next = SvgeShellPro.RIGHT_W_MIN;
+        break;
+      default:
+        return;
+    }
+    ev.preventDefault();
+    this.rightWidth.set(SvgeShellPro.clampRightW(next));
+    SvgeShellPro.writeWidth(SvgeShellPro.WIDTH_KEY_RIGHT, this.rightWidth());
+  }
+
+  private static clampRightW(v: number): number {
+    return Math.max(SvgeShellPro.RIGHT_W_MIN, Math.min(SvgeShellPro.RIGHT_W_MAX, Math.round(v)));
+  }
+
+  private static readWidth(key: string): number | null {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw === null) return null;
+      const n = Number(raw);
+      return Number.isFinite(n) ? SvgeShellPro.clampRightW(n) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private static writeWidth(key: string, value: number | null): void {
+    try {
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, String(value));
+    } catch {
+      /* private mode / SSR — ignore */
+    }
   }
 
   // ── D-098 — Window ▸ Panels reveal target ──────────────────────────

@@ -58,6 +58,33 @@ describe('effect-instance — id encode/parse', () => {
     expect(parsed).toEqual([{ effectId: 'svge.builtin.effect.blur' }]);
   });
 
+  it('packs the builtin prefix to keep ids short, still round-tripping (D-148)', () => {
+    const id = encodeEffectFilterId([
+      { effectId: 'svge.builtin.effect.blur', params: { radius: 8 } },
+    ]);
+    // The encoded payload must NOT carry the long "svge.builtin.effect." prefix.
+    const body = id.slice(PARAM_FILTER_ID_PREFIX.length);
+    const b64 = body.replace(/-/g, '+').replace(/_/g, '/');
+    const json = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
+    expect(json).not.toContain('svge.builtin.effect.');
+    expect(json).toContain('.blur');
+    // …but parsing still yields the FULL effect id (transparent expansion).
+    expect(parseEffectFilterId(id)).toEqual([
+      { effectId: 'svge.builtin.effect.blur', params: { radius: 8 } },
+    ]);
+  });
+
+  it('decodes legacy ids that stored the full effect id (backward compat)', () => {
+    // Pre-D-148 encoding embedded the full id (no leading-dot marker).
+    const legacyJson = JSON.stringify([{ e: 'svge.builtin.effect.blur', p: { radius: 8 } }]);
+    const legacyId =
+      PARAM_FILTER_ID_PREFIX +
+      btoa(legacyJson).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    expect(parseEffectFilterId(legacyId)).toEqual([
+      { effectId: 'svge.builtin.effect.blur', params: { radius: 8 } },
+    ]);
+  });
+
   it('produces an XML-id-safe id (only [A-Za-z0-9-_])', () => {
     const id = encodeEffectFilterId([
       { effectId: 'svge.builtin.effect.drop-shadow', params: { color: '#abcdef', offsetX: -3 } },
