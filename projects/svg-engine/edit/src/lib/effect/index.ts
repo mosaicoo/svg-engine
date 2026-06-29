@@ -55,3 +55,11 @@ export {
   CHAIN_FILTER_ID_PREFIX,
   CHAIN_FILTER_SEPARATOR,
 } from './chain-filter';
+export {
+  type EffectInstance,
+  ParametricEffectRegistry,
+  encodeEffectFilterId,
+  parseEffectFilterId,
+  extractEffectFilterId,
+  PARAM_FILTER_ID_PREFIX,
+} from './effect-instance';

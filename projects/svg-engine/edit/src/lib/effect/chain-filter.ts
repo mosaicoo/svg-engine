@@ -104,18 +104,34 @@ export function extractChainFilterId(styleFilter: string | undefined): string | 
  *   chain markup is fully self-contained.
  */
 export function composeChainFilter(effects: readonly Effect[], chainId: string): string {
-  if (effects.length === 0) {
-    return `<filter id="${chainId}"></filter>`;
+  return composeFilterMarkups(
+    effects.map((e) => stripFilterWrapper(e.buildFilterMarkup())),
+    chainId,
+  );
+}
+
+/**
+ * Compose already-stripped filter-primitive fragments into one self-
+ * contained `<filter id="${id}">`, threading each step's output into the
+ * next (see file-level docs for the algorithm). Shared by
+ * {@link composeChainFilter} (param-less effect chains) and the
+ * parametric instance registry (`effect-instance.ts`, D-118), which
+ * passes `buildFilterMarkup(params)` output per step.
+ *
+ * Empty list → empty `<filter>` (renders as a no-op identity).
+ */
+export function composeFilterMarkups(inners: readonly string[], id: string): string {
+  if (inners.length === 0) {
+    return `<filter id="${id}"></filter>`;
   }
   const steps: string[] = [];
-  for (let i = 0; i < effects.length; i++) {
-    const inner = stripFilterWrapper(effects[i]!.buildFilterMarkup());
+  for (let i = 0; i < inners.length; i++) {
     const previousOut = i === 0 ? null : `step${i - 1}-out`;
     const previousAlpha = i === 0 ? null : `step${i - 1}-out-alpha`;
-    steps.push(renameStep(inner, i, previousOut, previousAlpha));
+    steps.push(renameStep(inners[i]!, i, previousOut, previousAlpha));
   }
   return (
-    `<filter id="${chainId}" x="-50%" y="-50%" width="200%" height="200%">\n` +
+    `<filter id="${id}" x="-50%" y="-50%" width="200%" height="200%">\n` +
     `${steps.join('\n')}\n` +
     `</filter>`
   );
@@ -128,7 +144,7 @@ export function composeChainFilter(effects: readonly Effect[], chainId: string):
  * unchanged when no wrapper is found (defensive — callers may pass
  * already-stripped fragments).
  */
-function stripFilterWrapper(markup: string): string {
+export function stripFilterWrapper(markup: string): string {
   const m = /<filter\b[^>]*>([\s\S]*)<\/filter>/.exec(markup);
   return m === null ? markup : m[1]!.trim();
 }

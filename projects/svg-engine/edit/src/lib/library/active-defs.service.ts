@@ -2,6 +2,7 @@ import { computed, inject, Injectable } from '@angular/core';
 import { EditorStateService } from '@mosaicoo/svg-engine/core';
 
 import { ChainFilterRegistry } from '../effect/chain-filter';
+import { ParametricEffectRegistry } from '../effect/effect-instance';
 import { EffectRegistry } from '../effect/effect-registry.service';
 import { ActiveClipPathsService } from './clip-paths/clip-path-library.service';
 import { ActiveGradientsService } from './gradients/gradient-library.service';
@@ -68,6 +69,9 @@ export class ActiveDefsService {
   private readonly state = inject(EditorStateService);
   private readonly effects = inject(EffectRegistry);
   private readonly chains = inject(ChainFilterRegistry);
+  // D-118 — parametric effect instances (custom param values encoded in
+  // the style.filter URL). Derived from the document like chains.
+  private readonly parametric = inject(ParametricEffectRegistry);
   private readonly gradients = inject(ActiveGradientsService);
   private readonly patterns = inject(ActivePatternsService);
   private readonly clipPaths = inject(ActiveClipPathsService);
@@ -99,6 +103,7 @@ export class ActiveDefsService {
     const parts = [
       this.effects.buildAllFiltersMarkup(),
       this.chains.buildAllChainsMarkup(),
+      this.parametric.buildAllInstancesMarkup(),
       this.gradients.buildAllActiveGradientsMarkup(),
       this.patterns.buildAllActivePatternsMarkup(),
       this.clipPaths.buildAllActiveClipPathsMarkup(),
@@ -131,6 +136,7 @@ export class ActiveDefsService {
     const dynamic = [
       this.effects.buildUsedFiltersMarkup(root),
       this.chains.buildAllChainsMarkup(),
+      this.parametric.buildAllInstancesMarkup(),
       this.gradients.buildAllActiveGradientsMarkup(),
       this.patterns.buildAllActivePatternsMarkup(),
       this.clipPaths.buildAllActiveClipPathsMarkup(),

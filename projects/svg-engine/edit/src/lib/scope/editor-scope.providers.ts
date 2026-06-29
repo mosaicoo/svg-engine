@@ -21,6 +21,7 @@ import { AutoSaveService } from '../autosave/autosave.service';
 import { SmartObjectActionsService } from '../smart-object-actions/smart-object-actions.service';
 import { ClipboardService } from '../clipboard/clipboard.service';
 import { ChainFilterRegistry } from '../effect/chain-filter';
+import { ParametricEffectRegistry } from '../effect/effect-instance';
 import { SelectSameService } from '../find-replace/select-same.service';
 import { SnapshotsPersistenceService } from '../snapshots/snapshots-persistence.service';
 import { ImportPlacementService } from '../import-placement/import-placement.service';
@@ -356,6 +357,10 @@ export function provideSvgEngineEditorScope(options?: SvgEngineEditorScopeOption
     // current document's nodes — scoped per-editor so two editors
     // mounted side-by-side compute their chains from their own state.
     ChainFilterRegistry,
+    // D-118 — ParametricEffectRegistry derives `<filter>` markup for
+    // effects applied with custom param values (encoded in style.filter).
+    // Same per-editor scoping rationale as ChainFilterRegistry.
+    ParametricEffectRegistry,
     // ── edit / libraries (D-048) ────────────────────────────────
     // **D-048 FIX (UX follow-up #2)**: Library architecture is split
     // by responsibility:

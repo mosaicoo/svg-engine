@@ -23,6 +23,7 @@ import { AUTOSAVE_STORAGE_KEY } from '../autosave/autosave.config';
 import { AutoSaveService } from '../autosave/autosave.service';
 import { ClipboardService } from '../clipboard/clipboard.service';
 import { ChainFilterRegistry } from '../effect/chain-filter';
+import { ParametricEffectRegistry } from '../effect/effect-instance';
 import { AssetExportPersistenceService } from '../asset-export/asset-export-persistence.service';
 import { AssetExportRegistry } from '../asset-export/asset-export-registry.service';
 import { AssetExportRunner } from '../asset-export/asset-export-runner.service';
@@ -232,6 +233,7 @@ const STATEFUL_SCOPED_TOKENS: readonly ProviderToken<unknown>[] = [
   ShortcutService,
   // edit — effects + libraries (active-* + selection-* derived state)
   ChainFilterRegistry,
+  ParametricEffectRegistry,
   AssetManagerService,
   ActiveGradientsService,
   ActivePatternsService,
