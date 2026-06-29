@@ -64,6 +64,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Garante que package.json .version === SVG_ENGINE_VERSION antes de tudo.
+      - name: Check version lockstep
+        run: npm run check:version
+
       - name: Lint
         run: npx ng lint
 
