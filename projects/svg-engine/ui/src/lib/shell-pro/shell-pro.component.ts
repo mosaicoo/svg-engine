@@ -545,7 +545,14 @@ import { SvgeToolsPalette } from '../tools-palette';
        * The aside's .is-collapsed class flips the variable; the grid
        * tracks it live (no JS layout math). Default widths preserved. */
       --svge-libraries-w: 220px;
-      --svge-right-w: 280px;
+      /* D-147 — right rail widened 280 -> 360px. The 280px default cramped the
+       * control-dense panels (Effects param rows, Inspector tabs): a param row
+       * is label(76) + slider(1fr) + number(50)+unit, leaving the slider only
+       * ~75px at 280. At 360 the slider gets ~150px+ while the 1fr canvas keeps
+       * room even on 1366px laptops (with libraries open). A future drag-resize
+       * handle (roadmap) will let users tune it further; the value lives in this
+       * single custom property so it is the one lever to adjust. */
+      --svge-right-w: 360px;
       grid-template-columns: auto var(--svge-libraries-w) 1fr var(--svge-right-w);
       min-height: 0;
       overflow: hidden;

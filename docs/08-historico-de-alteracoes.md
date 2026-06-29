@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-06-29 — D-147 — Right rail mais largo (280 → 360px) para painéis densos em controles 📐
+
+O rail direito do `svge-shell-pro` (`--svge-right-w`, 4ª coluna do grid `.main`)
+tinha **280px** de default — apertado para os painéis ricos em controle (Effects
+com sliders, Inspector com abas). No Effects, uma `param-row` é
+`label(76) + slider(1fr) + number(50)+unit`, sobrando ~75px para o slider.
+
+- **Ajuste**: default `--svge-right-w` **280 → 360px** (single source — a
+  variável é o único lever; colapso continua indo a 36px). A 360 o slider ganha
+  ~150px+ e o canvas (1fr) ainda tem folga em laptops 1366px.
+- **Por que 360 e não 380** (valor testado manualmente pelo usuário): 360 é o
+  meio-termo confortável que não come canvas demais em telas menores; a
+  diferença visual é mínima e o ajuste fino fica trivial.
+- **Próximo passo recomendado**: rail **redimensionável** (handle de arraste +
+  persistência) — a solução definitiva para diferentes telas/preferências, sem
+  número mágico universal.
+- `build:lib` + `lint` (3 projetos) verdes; verificado no `/pro-editor`
+  (`--svge-right-w` computado = 360px). Decisão em
+  [04-decisoes-tecnicas](04-decisoes-tecnicas.md) (D-147).
+
 ## 2026-06-29 — D-146 — Effects panel: UX acordeão + mute (ligar/desligar) por efeito 🎛️
 
 Revisão de UX/UI do `svge-effects-panel` aplicando divulgação progressiva, e
