@@ -2880,3 +2880,26 @@ EffectPreset[]`. `buildFilterMarkup(params?)` passou a receber os valores;
   estreito).
 - **Verificação**: `build:lib` + `lint` + `test:lib` (**2992**, +6) verdes;
   browser no `/pro-editor`. Referência: histórico 08 (2026-06-29, D-146).
+
+## D-147 — Largura do right rail (default 360px) + roadmap de rail redimensionável
+
+- **Data**: 2026-06-29
+- **Status**: Aceita
+- **Contexto**: o rail direito do `svge-shell-pro` (`--svge-right-w`, 4ª coluna
+  do grid `.main`) tinha **280px** de default — apertado para os painéis densos
+  em controle (Effects/Inspector). Numa `param-row` (`label 76 | slider 1fr |
+number 50 + unit`), o slider sobrava ~75px.
+- **Decisão**: subir o default `--svge-right-w` **280 → 360px**. A variável
+  continua sendo o **único lever** (colapso vai a 36px; sem JS de layout).
+- **Valor (360 × 380)**: o usuário testou 380px manualmente e achou ideal; como
+  default **de biblioteca** (várias telas/consumidores) adotei **360** —
+  confortável para os controles e menos agressivo com o canvas (1fr) em laptops
+  1366px. Ajuste fino é trivial (1 propriedade).
+- **Roadmap**: **rail redimensionável** (handle de arraste + persistência em
+  localStorage + a11y de separador) é a solução definitiva — elimina o
+  "número mágico" universal, deixando cada usuário/tela escolher. Mantido como
+  próximo passo recomendado (não implementado neste ajuste para não acoplar uma
+  feature interativa a uma correção de default).
+- **Verificação**: `build:lib` + `lint` verdes; `/pro-editor` com
+  `--svge-right-w` computado = 360px. Referência: histórico 08 (2026-06-29,
+  D-147).
