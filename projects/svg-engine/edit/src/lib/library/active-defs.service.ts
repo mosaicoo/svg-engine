@@ -69,7 +69,7 @@ export class ActiveDefsService {
   private readonly state = inject(EditorStateService);
   private readonly effects = inject(EffectRegistry);
   private readonly chains = inject(ChainFilterRegistry);
-  // D-118 — parametric effect instances (custom param values encoded in
+  // D-144 — parametric effect instances (custom param values encoded in
   // the style.filter URL). Derived from the document like chains.
   private readonly parametric = inject(ParametricEffectRegistry);
   private readonly gradients = inject(ActiveGradientsService);

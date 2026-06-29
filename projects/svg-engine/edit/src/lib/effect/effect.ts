@@ -16,7 +16,7 @@
  * - `category`: optional grouping (`'blur'`, `'shadow'`, `'color'`,
  *   `'distortion'`). UIs organize the picker by category; unknown
  *   categories are treated as `'other'`.
- * - `params`: optional schema of editable knobs (D-118). When present the
+ * - `params`: optional schema of editable knobs (D-144). When present the
  *   `<svge-effects-panel>` renders a control per param and re-encodes the
  *   chosen values into the node's `style.filter` URL — keeping the whole
  *   thing stateless (see `effect-instance.ts`). Effects without `params`
@@ -40,7 +40,7 @@
  * factory parametrized by a small typed `params` schema is what plugin
  * authors actually want.
  *
- * **D-118 (params)**: parametric effects are **stateless** — the chosen
+ * **D-144 (params)**: parametric effects are **stateless** — the chosen
  * values are encoded into the `style.filter` URL id (see
  * `effect-instance.ts`), exactly like effect chains encode their member
  * ids. No new per-node model, so undo/redo, IO round-trip and per-editor
@@ -51,9 +51,9 @@ export interface Effect {
   readonly id: string;
   readonly name: string;
   readonly category?: string;
-  /** Editable parameters (D-118). Absent = fixed visual (no controls). */
+  /** Editable parameters (D-144). Absent = fixed visual (no controls). */
   readonly params?: readonly EffectParam[];
-  /** Named one-click param presets (D-118), shown as chips in the panel. */
+  /** Named one-click param presets (D-144), shown as chips in the panel. */
   readonly presets?: readonly EffectPreset[];
   /**
    * Build the full `<filter>` element markup for this effect. The

@@ -115,7 +115,7 @@ export function composeChainFilter(effects: readonly Effect[], chainId: string):
  * contained `<filter id="${id}">`, threading each step's output into the
  * next (see file-level docs for the algorithm). Shared by
  * {@link composeChainFilter} (param-less effect chains) and the
- * parametric instance registry (`effect-instance.ts`, D-118), which
+ * parametric instance registry (`effect-instance.ts`, D-144), which
  * passes `buildFilterMarkup(params)` output per step.
  *
  * Empty list → empty `<filter>` (renders as a no-op identity).

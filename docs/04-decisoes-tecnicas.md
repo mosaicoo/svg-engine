@@ -2766,3 +2766,69 @@ specs}`. Fixture limpa `localStorage`/`sessionStorage` e desliga animações via
 - **Consequências**: nome de marca consistente em source e registry; sem segredo
   de longa duração no CI; pacote enxuto e sem fonte. Referência: histórico 08
   (2026-06-25, NPM-PUBLISH).
+
+## D-144 — Efeitos paramétricos: parâmetros editáveis + presets, com encoding stateless
+
+- **Data**: 2026-06-29
+- **Status**: Aceita
+- **Numeração**: registrada como **D-144** (próximo número livre). Os commits
+  iniciais da implementação usaram provisoriamente **D-118**, número que já
+  pertencia ao `View ▸ Zoom ▸ Fit Selection` — renumerado em seguida em todo o
+  código novo (só as menções dos efeitos paramétricos; o D-118 do Zoom ficou
+  intacto).
+- **Contexto**: até D-047 os 19 _builtin effects_ eram aplicáveis apenas nos seus
+  **defaults** (adicionar/remover/encadear). O `svge-effects-panel` não expunha
+  nenhum controle: não dava para ajustar raio do blur, cor/offset da sombra,
+  ângulo do hue-rotate, etc. Para nível profissional faltavam **parâmetros
+  editáveis** por efeito e **presets** (configurações nomeadas de 1 clique).
+- **Decisão (modelo de dados)**: cada `Effect` ganhou um schema **declarativo e
+  tipado** de knobs em `params?: readonly EffectParam[]` (variantes
+  `number`/`percent`/`angle` com `min`/`max`/`step`/`unit`, `color`, `select`
+  com `options`, `boolean`; todas com `default`) e `presets?: readonly
+EffectPreset[]`. `buildFilterMarkup(params?)` passou a receber os valores;
+  helpers puros em `effect.ts`: `effectDefaults`, `resolveEffectParams` (merge
+  sobre defaults + **clamp** numérico a min/max + fallback de não-finito),
+  `nonDefaultParams`, `isNumberParam`. **Zero regressão**: `buildFilterMarkup()`
+  sem args ≡ `buildFilterMarkup(effectDefaults(e))` ≡ visual antigo (spec
+  `effect-params.spec.ts` prova isso para os 19).
+- **Decisão (storage stateless)** — _chave da arquitetura_: a instância
+  paramétrica é codificada **dentro do próprio `style.filter`**, espelhando o
+  padrão dos chains (D-047). O id vira
+  `url(#svge-fx-<base64url(JSON [{e:effectId, p:params}])>)` — `base64url`
+  mantém o id XML-safe. Consequência: **nenhum estado novo por nó** → undo/redo,
+  round-trip de IO e escopo multi-editor (D-042) funcionam **de graça**, sem
+  tocar em `core` nem `io`. Um `ParametricEffectRegistry` (escopado por editor,
+  irmão do `ChainFilterRegistry`) varre o documento, decodifica cada id e
+  recompõe o `<filter>` via `composeFilterMarkups` — função **extraída** de
+  `composeChainFilter` para ser compartilhada (chains param-less _e_ instâncias
+  paramétricas usam o mesmo threading de primitivas). `ActiveDefsService` injeta
+  o markup no `composed()` (render ao vivo) e no `buildExportDefs()` (export
+  podado), valendo para `svge-editor`, `svge-shell-pro` e editores custom.
+- **Decisão (retrocompatibilidade)**: `url(#effectId)` (1 efeito default) e
+  `url(#svge-chain-a__b)` (≥2 efeitos default) **permanecem**; o id `svge-fx-`
+  só é emitido quando **algum** parâmetro difere do default — markup exportado
+  fica limpo e documentos antigos continuam válidos.
+- **Decisão (UI)**: `svge-effects-panel` evoluiu do modelo "lista de ids" para
+  `EffectInstance[]` (lê plain/chain/paramétrico do `style.filter`). Sob cada
+  estágio do pipeline renderiza **controles nativos** (range + number / color /
+  select / checkbox — acessíveis, sem dependências Material além de
+  `MatIcon`/`MatIconButton`), **chips de preset** e um **Reset**. Edição aplica
+  via re-encode + `SetStylePropertyOnManyCommand` (uma entrada de undo por
+  ação, multi-seleção). Cada efeito aparece **no máximo uma vez** no pipeline
+  (para variar o mesmo efeito, ajustam-se seus parâmetros).
+- **Alternativas rejeitadas**: (a) **campo estruturado por nó** (ex.
+  `node.effects: EffectInstance[]`) — exigiria mexer em `core` + `io` +
+  migração de documentos e ampliaria a superfície/risco; o encoding no
+  `style.filter` entrega o mesmo poder tocando só `edit` + `ui`. (b) **mesmo
+  efeito repetido** no pipeline com params distintos — adiado; hoje 1 efeito por
+  pipeline (a variação se faz pelos parâmetros), evolução possível sem quebrar o
+  encoding (o payload já é uma lista ordenada).
+- **Verificação**: `build:lib`, `lint` (3 projetos) e `test:lib` (**2985**
+  testes; +21 entre `effect-params`, `effect-instance` e
+  `effects-panel.component`) verdes; snapshot de API regenerado (novos exports
+  do `edit`: `EffectInstance`, `ParametricEffectRegistry`,
+  `encode/parse/extractEffectFilterId`, `PARAM_FILTER_ID_PREFIX`,
+  `EffectParam*`/`EffectPreset` types, helpers de params).
+- **Consequências**: efeitos passam de "toggles fixos" a **paramétricos e
+  customizáveis** sem introduzir estado novo; base pronta para efeitos com mais
+  knobs. Referência: histórico 08 (2026-06-29, D-144).

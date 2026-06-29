@@ -25,7 +25,9 @@
   - Fase 6b (viewport culling) ✅
   - **Bloco 6-PathEditor** (Path/Anchor editor + Pathfinder 5 boolean ops) ✅
   - **Fase 6c** (defs/clipPath no importer + ARIA + keyboard nav) ✅
-  - **Fase 6d** (`EffectRegistry` + 19 builtin effects + chain editor) ✅ (D-047)
+  - **Fase 6d** (`EffectRegistry` + 19 builtin effects + chain editor) ✅ (D-047);
+    **efeitos paramétricos** (params editáveis + presets + encoding stateless
+    `svge-fx-` via `ParametricEffectRegistry`) ✅ (D-144)
   - **Fase 7** (sprint pós-D-046 até D-080) — Libraries (D-048), composição/recorte
     (D-049), tools faltantes (D-050/D-062), Inspector polish (D-068/D-069/D-076/D-078),
     Find & Replace (D-070), Batch ops (D-071), Logical Layers (D-072), History
@@ -788,6 +790,14 @@ e specs). Não eram anunciados nem consumidos externamente — **zero break**:
 >
 > - `workspace/pageBoundsIn` (consumido pelo playground custom-editor).
 > - `effect/{extract,make,parse}ChainFilterId` (svge-effects-panel em `ui`).
+> - **D-144** — modelo paramétrico do `edit/effect` (público): tipos
+>   `EffectParam`/`EffectNumber|Color|Select|BooleanParam`/`EffectPreset`/
+>   `EffectParams`/`EffectParamValue`, helpers `effectDefaults`,
+>   `resolveEffectParams`, `nonDefaultParams`, `isNumberParam`, e a instância
+>   stateless: `EffectInstance`, `ParametricEffectRegistry`,
+>   `encodeEffectFilterId`/`parseEffectFilterId`/`extractEffectFilterId`,
+>   `PARAM_FILTER_ID_PREFIX` (`extract`/`parse` consumidos pelo
+>   svge-effects-panel em `ui`).
 > - `render/projectDocumentToRenderer`, `render/renderTransformAttr`,
 >   `snap/{gridTargetsNear,rectsToSnapTargets}`,
 >   `shortcut/{parseCombo,comboMatches,ParsedCombo}` — **anunciados** nas tabelas

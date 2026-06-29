@@ -14,7 +14,7 @@ import {
 } from './index';
 import type { EffectNumberParam } from './effect';
 
-describe('Effect params (D-118) — model + resolution', () => {
+describe('Effect params (D-144) — model + resolution', () => {
   it('blur declares a numeric radius param (default 3) and parametrizes stdDeviation', () => {
     expect(blurEffect.params?.length).toBe(1);
     const radius = blurEffect.params![0] as EffectNumberParam;

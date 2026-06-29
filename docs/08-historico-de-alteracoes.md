@@ -6,6 +6,41 @@
 
 ---
 
+## 2026-06-29 — D-144 — Efeitos paramétricos: parâmetros editáveis + presets (stateless) ✨
+
+Os 19 _builtin effects_ (D-047) só eram aplicáveis nos defaults; o
+`svge-effects-panel` não expunha um único controle. Agora cada efeito é
+**paramétrico e customizável**, sem introduzir estado novo no documento.
+
+- **Modelo (`edit/effect/effect.ts`)**: `Effect` ganhou `params?`
+  (`number`/`percent`/`angle` com min/max/step/unit, `color`, `select` com
+  `options`, `boolean` — todos com `default`) e `presets?`. `buildFilterMarkup`
+  passou a aceitar os valores. Helpers puros: `effectDefaults`,
+  `resolveEffectParams` (merge + clamp + fallback de não-finito),
+  `nonDefaultParams`, `isNumberParam`. **Zero regressão**: chamar sem args
+  reproduz exatamente o visual antigo dos 19 (provado em `effect-params.spec`).
+- **Encoding stateless (`edit/effect/effect-instance.ts`)**: a instância vai
+  **dentro** do `style.filter` como `url(#svge-fx-<base64url(JSON)>)` — mesmo
+  princípio dos chains (D-047). Sem campo novo por nó → undo/redo, IO e escopo
+  multi-editor (D-042) de graça. `ParametricEffectRegistry` (escopado, irmão do
+  `ChainFilterRegistry`) varre o doc, decodifica e recompõe o `<filter>` via
+  `composeFilterMarkups` — **extraído** de `composeChainFilter` para
+  reaproveitar o threading de primitivas. `ActiveDefsService` injeta no
+  `composed()` (live) e `buildExportDefs()` (export).
+- **Retrocompat**: `url(#effectId)` e `url(#svge-chain-...)` permanecem; o id
+  `svge-fx-` só surge quando há parâmetro ≠ default (markup exportado limpo).
+- **UI (`ui/effects-panel`)**: reescrito para o modelo `EffectInstance[]`;
+  controles nativos (range+number/cor/select/checkbox) por estágio + chips de
+  preset + Reset; aplica via re-encode + `SetStylePropertyOnManyCommand` (1
+  undo por ação, multi-seleção). Headless boundary mantido (só
+  `MatIcon`/`MatIconButton`).
+- **Numeração**: os commits iniciais usaram provisoriamente **D-118** (número
+  que já era do `Zoom ▸ Fit Selection`); o código novo foi **renumerado para
+  D-144** (o D-118 do Zoom ficou intacto). Decisão completa em
+  [04-decisoes-tecnicas](04-decisoes-tecnicas.md) (D-144).
+- **Verificação**: `build:lib` + `lint` (3 projetos) + `test:lib` (**2985**,
+  +21) verdes; snapshot de API regenerado (novos exports do `edit`).
+
 ## 2026-06-27 — COMMENT-FIX — Comentários de "estado de implementação" desatualizados 🧹
 
 Comentário que mente sobre o que está pronto é pior que comentário nenhum

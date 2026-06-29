@@ -5,7 +5,7 @@ import type { EffectParams } from './effect';
 import { EffectRegistry } from './effect-registry.service';
 
 /**
- * Parametric effect instances — D-118 (2026-06-28).
+ * Parametric effect instances — D-144 (2026-06-28).
  *
  * Where {@link Effect}s are **definitions** (with default visuals) and
  * chains combine several of them at their defaults, a *parametric

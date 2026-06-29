@@ -329,7 +329,13 @@
 - [x] **Bloco 6d — EffectRegistry** ✅ (D-047 — entregue em 2026-05-23)
   - 15 builtin effects single-filter (drop-shadow, blur, glow, inner-shadow, brightness, contrast, saturate, hue-rotate, grayscale, sepia, invert, opacity, blend-overlay, blend-multiply, color-matrix) + 4 chained presets
   - `EffectRegistry` em `edit/effect/effect-registry.service.ts` + `builtinEffectsPlugin` + `ChainFilterRegistry` (scoped via D-042)
-  - UI `<svge-effects-panel>` com pipeline editor (drag-drop reorder, enable toggle, parameter inputs)
+  - UI `<svge-effects-panel>` com pipeline editor (reorder, add/remove, chain)
+  - [x] **D-144 — efeitos paramétricos** ✅ (2026-06-29): cada `Effect` ganhou
+        `params` (number/percent/angle/color/select/boolean) + `presets`; o painel
+        expõe controles nativos + chips de preset + Reset por estágio. Encoding
+        **stateless** no `style.filter` (`url(#svge-fx-<base64url>)`) via
+        `ParametricEffectRegistry` — undo/IO/multi-editor de graça; retrocompat com
+        `url(#effectId)` e `url(#svge-chain-…)`. Zero regressão nos 19 defaults.
 - [ ] **Bloco 6e — ScriptRuntimePlugin** (D-024) — não iniciado
 - [ ] **Débitos reconhecidos**:
   - LayersPanel virtualization (CDK virtual-scroll requer ResizeObserver — jsdom mock pendente; refactor de specs para component-instance testing)

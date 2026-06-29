@@ -10,47 +10,71 @@ import {
 } from '@mosaicoo/svg-engine/core';
 import {
   type Effect,
+  type EffectInstance,
+  type EffectParam,
+  type EffectParams,
+  type EffectParamValue,
+  type EffectPreset,
   EffectRegistry,
+  effectDefaults,
+  encodeEffectFilterId,
   extractChainFilterId,
+  extractEffectFilterId,
   makeChainFilterId,
+  nonDefaultParams,
   parseChainFilterId,
+  parseEffectFilterId,
+  resolveEffectParams,
   SelectionService,
 } from '@mosaicoo/svg-engine/edit';
 
+/** Resolved control descriptor for one param of a pipeline stage. */
+interface ParamControl {
+  readonly param: EffectParam;
+  /** `'number'` covers number/percent/angle; others map 1:1. */
+  readonly kind: 'number' | 'color' | 'select' | 'boolean';
+  readonly value: EffectParamValue;
+}
+
+/** A resolved pipeline stage (one applied effect + its editable controls). */
+interface PipelineItem {
+  readonly effectId: string;
+  readonly name: string;
+  readonly category: string | undefined;
+  /** Custom param values currently applied (resolved over defaults). */
+  readonly controls: readonly ParamControl[];
+  readonly presets: readonly EffectPreset[];
+  /** True when any param differs from its default (enables "Reset"). */
+  readonly customized: boolean;
+  /** Effect is missing from the registry (broken reference). */
+  readonly broken: boolean;
+}
+
 /**
- * Effects pipeline editor — Fase 6d (D-023 cat 7) expandido em D-047
- * com suporte a **chain de múltiplos effects** (combine + reorder).
+ * Effects pipeline editor — Fase 6d (D-023 cat 7), chains em D-047,
+ * **parâmetros editáveis + presets em D-144**.
  *
- * **Two sections**:
+ * **Three things per applied effect**:
+ * 1. Reorder / remove (chain order = aplicação do filtro).
+ * 2. **Param controls** (D-144): slider/number/cor/select/checkbox por knob
+ *    declarado em `Effect.params` — editar dispara um
+ *    {@link SetStylePropertyOnManyCommand} (undo unificado).
+ * 3. **Presets** (D-144): chips de configurações nomeadas (`Effect.presets`).
  *
- * 1. **Active pipeline** — lista ordenada (top→bottom = primeira→última)
- *    dos effects atualmente aplicados ao nó focado. Cada item tem
- *    botões: mover ↑, mover ↓, remover. A ordem reflete a aplicação
- *    do filter chain (efeito 1 alimenta efeito 2, etc).
- * 2. **Add effect** — picker agrupado por categoria. Clicar em um
- *    chip adiciona o effect ao final do pipeline. Effects já na chain
- *    aparecem desabilitados (não há por que duplicar — para isso o
- *    user pode customizar registrando um effect parametrizado novo).
+ * **Storage stateless** (`style.filter`):
+ * - vazio → `undefined`
+ * - 1 effect sem params custom → `url(#effectId)` (compat v1)
+ * - 2+ effects sem params custom → `url(#svge-chain-a__b)` (compat D-047)
+ * - qualquer params custom → `url(#svge-fx-<base64url>)` (D-144; a
+ *   `ParametricEffectRegistry` deriva o `<filter>` e o renderer injeta).
  *
- * **Storage**: o pipeline vive em `style.filter`:
- * - Vazio → `style.filter = undefined`
- * - 1 effect → `style.filter = "url(#effectId)"` (single, mantém
- *   compatibilidade com v1 do panel)
- * - 2+ effects → `style.filter = "url(#svge-chain-a__b__c)"`
- *   (a `ChainFilterRegistry` deriva o `<filter>` composto e o
- *   renderer injeta em defs)
+ * Cada efeito aparece no máximo uma vez no pipeline (para variar o mesmo
+ * efeito, ajuste seus parâmetros). Multi-select aplica a mesma mudança a
+ * todos os nós selecionados.
  *
- * **Commits**: cada mudança no pipeline dispatcha um
- * {@link SetStylePropertyOnManyCommand} — single undo por edit.
- * Multi-select aplica a mesma mudança em todos os nós selecionados.
- *
- * **Reactivity**:
- * - `EffectRegistry.effects()` drives o picker
- * - `SelectionService.focusId()` drives a "active" state
- * - `EditorStateService.document()` drives o pipeline atual
- *
- * **Headless boundary**: importa `MatIcon` + `MatIconButton`, nada
- * mais. Sem dialogs, sem overlays — pure projection panel.
+ * **Headless boundary**: só `MatIcon` + `MatIconButton`; controles de
+ * parâmetro usam inputs nativos (range/number/color/select/checkbox) —
+ * acessíveis e sem dependências Material extras.
  */
 @Component({
   selector: 'svge-effects-panel',
@@ -67,44 +91,138 @@ import {
         <section class="pipeline">
           <h4>Active pipeline ({{ pipelineItems().length }})</h4>
           <ol class="pipeline-list">
-            @for (item of pipelineItems(); track item.id; let i = $index) {
+            @for (item of pipelineItems(); track item.effectId; let i = $index) {
               <li class="pipeline-item">
-                <span class="step-num" aria-hidden="true">{{ i + 1 }}</span>
-                <span class="step-name">{{ item.name }}</span>
-                <span class="step-category">{{ item.category ?? 'other' }}</span>
-                <span class="spacer"></span>
-                <button
-                  mat-icon-button
-                  type="button"
-                  class="step-btn"
-                  [disabled]="i === 0"
-                  [attr.aria-label]="'Move ' + item.name + ' up'"
-                  title="Move up"
-                  (click)="moveUp(item.id)"
-                >
-                  <mat-icon>arrow_upward</mat-icon>
-                </button>
-                <button
-                  mat-icon-button
-                  type="button"
-                  class="step-btn"
-                  [disabled]="i === pipelineItems().length - 1"
-                  [attr.aria-label]="'Move ' + item.name + ' down'"
-                  title="Move down"
-                  (click)="moveDown(item.id)"
-                >
-                  <mat-icon>arrow_downward</mat-icon>
-                </button>
-                <button
-                  mat-icon-button
-                  type="button"
-                  class="step-btn step-btn-remove"
-                  [attr.aria-label]="'Remove ' + item.name"
-                  title="Remove"
-                  (click)="remove(item.id)"
-                >
-                  <mat-icon>close</mat-icon>
-                </button>
+                <div class="step-head">
+                  <span class="step-num" aria-hidden="true">{{ i + 1 }}</span>
+                  <span class="step-name">{{ item.name }}</span>
+                  <span class="step-category">{{ item.category ?? 'other' }}</span>
+                  <span class="spacer"></span>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="step-btn"
+                    [disabled]="i === 0"
+                    [attr.aria-label]="'Move ' + item.name + ' up'"
+                    title="Move up"
+                    (click)="moveUp(item.effectId)"
+                  >
+                    <mat-icon>arrow_upward</mat-icon>
+                  </button>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="step-btn"
+                    [disabled]="i === pipelineItems().length - 1"
+                    [attr.aria-label]="'Move ' + item.name + ' down'"
+                    title="Move down"
+                    (click)="moveDown(item.effectId)"
+                  >
+                    <mat-icon>arrow_downward</mat-icon>
+                  </button>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="step-btn step-btn-remove"
+                    [attr.aria-label]="'Remove ' + item.name"
+                    title="Remove"
+                    (click)="remove(item.effectId)"
+                  >
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+
+                @if (item.presets.length > 0) {
+                  <div class="presets" role="group" [attr.aria-label]="item.name + ' presets'">
+                    @for (preset of item.presets; track preset.id) {
+                      <button
+                        type="button"
+                        class="preset-chip"
+                        [title]="'Apply preset: ' + preset.name"
+                        (click)="applyPreset(item.effectId, preset)"
+                      >
+                        {{ preset.name }}
+                      </button>
+                    }
+                    @if (item.customized) {
+                      <button
+                        type="button"
+                        class="preset-chip reset"
+                        title="Reset to defaults"
+                        (click)="resetParams(item.effectId)"
+                      >
+                        <mat-icon aria-hidden="true">restart_alt</mat-icon>
+                        Reset
+                      </button>
+                    }
+                  </div>
+                }
+
+                @if (item.controls.length > 0) {
+                  <div class="params">
+                    @for (ctrl of item.controls; track ctrl.param.key) {
+                      <div class="param-row">
+                        <span class="param-label">{{ ctrl.param.label }}</span>
+                        @switch (ctrl.kind) {
+                          @case ('number') {
+                            <input
+                              type="range"
+                              class="param-range"
+                              [min]="numMin(ctrl)"
+                              [max]="numMax(ctrl)"
+                              [step]="numStep(ctrl)"
+                              [value]="ctrl.value"
+                              [attr.aria-label]="ctrl.param.label"
+                              (input)="onParam(item.effectId, ctrl, $event)"
+                            />
+                            <input
+                              type="number"
+                              class="param-number"
+                              [min]="numMin(ctrl)"
+                              [max]="numMax(ctrl)"
+                              [step]="numStep(ctrl)"
+                              [value]="ctrl.value"
+                              [attr.aria-label]="ctrl.param.label + ' value'"
+                              (change)="onParam(item.effectId, ctrl, $event)"
+                            />
+                          }
+                          @case ('color') {
+                            <input
+                              type="color"
+                              class="param-color"
+                              [value]="ctrl.value"
+                              [attr.aria-label]="ctrl.param.label"
+                              (change)="onParam(item.effectId, ctrl, $event)"
+                            />
+                          }
+                          @case ('select') {
+                            <select
+                              class="param-select"
+                              [value]="ctrl.value"
+                              [attr.aria-label]="ctrl.param.label"
+                              (change)="onParam(item.effectId, ctrl, $event)"
+                            >
+                              @for (opt of selectOptions(ctrl); track opt.value) {
+                                <option [value]="opt.value" [selected]="opt.value === ctrl.value">
+                                  {{ opt.label }}
+                                </option>
+                              }
+                            </select>
+                          }
+                          @case ('boolean') {
+                            <input
+                              type="checkbox"
+                              class="param-checkbox"
+                              [checked]="ctrl.value === true"
+                              [attr.aria-label]="ctrl.param.label"
+                              (change)="onParam(item.effectId, ctrl, $event)"
+                            />
+                          }
+                        }
+                      </div>
+                    }
+                  </div>
+                }
               </li>
             }
           </ol>
@@ -194,18 +312,17 @@ import {
       margin: 0;
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: 6px;
     }
     .pipeline-item {
+      border-radius: 4px;
+      background: var(--mat-sys-surface-container-low, rgba(0, 0, 0, 0.02));
+      padding: 4px 6px;
+    }
+    .step-head {
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 6px;
-      border-radius: 4px;
-      background: var(--mat-sys-surface-container-low, rgba(0, 0, 0, 0.02));
-    }
-    .pipeline-item:hover {
-      background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.04));
     }
     .step-num {
       display: inline-flex;
@@ -248,6 +365,92 @@ import {
     }
     .step-btn:disabled mat-icon {
       opacity: 0.3;
+    }
+    .presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin: 6px 0 2px 24px;
+    }
+    .preset-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.2));
+      background: transparent;
+      color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.7));
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .preset-chip:hover {
+      background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.04));
+    }
+    .preset-chip.reset {
+      color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.55));
+    }
+    .preset-chip mat-icon {
+      font-size: 13px;
+      width: 13px;
+      height: 13px;
+    }
+    .params {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin: 6px 0 2px 24px;
+    }
+    .param-row {
+      display: grid;
+      grid-template-columns: 78px 1fr auto;
+      align-items: center;
+      gap: 8px;
+    }
+    .param-label {
+      font-size: 11px;
+      color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.7));
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .param-range {
+      width: 100%;
+      accent-color: var(--mat-sys-primary, #1976d2);
+    }
+    .param-number {
+      width: 56px;
+      font-size: 12px;
+      padding: 2px 4px;
+      border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.2));
+      border-radius: 4px;
+      background: var(--mat-sys-surface, #fff);
+      color: var(--mat-sys-on-surface, inherit);
+    }
+    .param-color {
+      grid-column: 2 / 4;
+      justify-self: start;
+      width: 44px;
+      height: 24px;
+      padding: 0;
+      border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.2));
+      border-radius: 4px;
+      background: none;
+      cursor: pointer;
+    }
+    .param-select {
+      grid-column: 2 / 4;
+      font-size: 12px;
+      padding: 2px 4px;
+      border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.2));
+      border-radius: 4px;
+      background: var(--mat-sys-surface, #fff);
+      color: var(--mat-sys-on-surface, inherit);
+    }
+    .param-checkbox {
+      grid-column: 2 / 4;
+      justify-self: start;
+      accent-color: var(--mat-sys-primary, #1976d2);
     }
     .clear-all {
       display: inline-flex;
@@ -345,47 +548,40 @@ export class SvgeEffectsPanel {
   });
 
   /**
-   * Current effect IDs forming the active pipeline on the focus node.
-   * Reads `style.filter`, parses chain ID or single effect URL, returns
-   * the ordered list. Empty array when no filter.
+   * Applied pipeline on the focus node as an ordered list of
+   * {@link EffectInstance}s. Reads `style.filter`, supporting:
+   * - parametric `url(#svge-fx-...)` → instances with params
+   * - chain `url(#svge-chain-a__b)` → instances (no params)
+   * - single `url(#effectId)` → one instance (no params)
    */
-  protected readonly currentEffectIds = computed<readonly string[]>(() => {
+  protected readonly currentInstances = computed<readonly EffectInstance[]>(() => {
     const node = this.focusNode();
     if (node === null) return [];
     const filter = node.style.filter;
     if (filter === undefined) return [];
 
-    // Chain URL: url(#svge-chain-a__b__c)
+    const fxId = extractEffectFilterId(filter);
+    if (fxId !== null) return parseEffectFilterId(fxId) ?? [];
+
     const chainId = extractChainFilterId(filter);
     if (chainId !== null) {
-      const parsed = parseChainFilterId(chainId);
-      return parsed ?? [];
+      return (parseChainFilterId(chainId) ?? []).map((effectId) => ({ effectId }));
     }
 
-    // Single effect URL: url(#effectId)
     const m = /^url\(#(.+)\)$/.exec(filter.trim());
     if (m === null) return [];
-    return [m[1]!];
+    return [{ effectId: m[1]! }];
   });
 
-  /**
-   * Resolved pipeline items — each effect ID mapped to its registered
-   * Effect (with `name` + `category`). IDs that aren't registered get
-   * a placeholder entry so the UI still shows them (and the user can
-   * remove the broken reference).
-   */
-  protected readonly pipelineItems = computed<
-    readonly { id: string; name: string; category: string | undefined }[]
-  >(() => {
-    return this.currentEffectIds().map((id) => {
-      const eff = this.registry.get(id);
-      if (eff !== null) {
-        return { id, name: eff.name, category: eff.category };
-      }
-      // Broken reference — show as "unknown" so user can remove it.
-      return { id, name: '(unknown effect)', category: undefined };
-    });
-  });
+  /** Effect IDs currently in the pipeline (for the picker's "active" state). */
+  protected readonly currentEffectIds = computed<readonly string[]>(() =>
+    this.currentInstances().map((i) => i.effectId),
+  );
+
+  /** Resolved pipeline stages with controls + presets ready to render. */
+  protected readonly pipelineItems = computed<readonly PipelineItem[]>(() =>
+    this.currentInstances().map((inst) => this.toPipelineItem(inst)),
+  );
 
   /** Effects grouped by category (`'other'` when undefined). */
   protected readonly grouped = computed<
@@ -398,72 +594,192 @@ export class SvgeEffectsPanel {
       bucket.push(e);
       byCat.set(cat, bucket);
     }
-    return Array.from(byCat.entries()).map(([category, effects]) => ({
-      category,
-      effects,
-    }));
+    return Array.from(byCat.entries()).map(([category, effects]) => ({ category, effects }));
   });
 
   protected isInPipeline(id: string): boolean {
     return this.currentEffectIds().includes(id);
   }
 
-  /** Add an effect to the END of the pipeline. */
+  // ── template helpers (avoid type-narrowing in the template) ──────────
+  protected numMin(c: ParamControl): number | null {
+    return c.param.type === 'number' || c.param.type === 'percent' || c.param.type === 'angle'
+      ? (c.param.min ?? null)
+      : null;
+  }
+  protected numMax(c: ParamControl): number | null {
+    return c.param.type === 'number' || c.param.type === 'percent' || c.param.type === 'angle'
+      ? (c.param.max ?? null)
+      : null;
+  }
+  protected numStep(c: ParamControl): number | null {
+    return c.param.type === 'number' || c.param.type === 'percent' || c.param.type === 'angle'
+      ? (c.param.step ?? null)
+      : null;
+  }
+  protected selectOptions(
+    c: ParamControl,
+  ): readonly { readonly value: string; readonly label: string }[] {
+    return c.param.type === 'select' ? c.param.options : [];
+  }
+
+  // ── pipeline mutations ───────────────────────────────────────────────
+
+  /** Add an effect to the END of the pipeline (default params). */
   protected add(id: string): void {
     if (this.isInPipeline(id)) return;
-    this.applyPipeline([...this.currentEffectIds(), id], `Add ${id}`);
+    this.applyInstances([...this.currentInstances(), { effectId: id }], `Add ${id}`);
   }
 
-  /** Remove an effect from the pipeline. */
   protected remove(id: string): void {
-    const next = this.currentEffectIds().filter((eid) => eid !== id);
-    this.applyPipeline(next, `Remove ${id}`);
+    this.applyInstances(
+      this.currentInstances().filter((i) => i.effectId !== id),
+      `Remove ${id}`,
+    );
   }
 
-  /** Move an effect one position earlier (toward step 1). */
   protected moveUp(id: string): void {
-    const list = [...this.currentEffectIds()];
-    const idx = list.indexOf(id);
+    const list = [...this.currentInstances()];
+    const idx = list.findIndex((i) => i.effectId === id);
     if (idx <= 0) return;
     [list[idx - 1], list[idx]] = [list[idx]!, list[idx - 1]!];
-    this.applyPipeline(list, `Reorder ${id} up`);
+    this.applyInstances(list, `Reorder ${id} up`);
   }
 
-  /** Move an effect one position later (toward step N). */
   protected moveDown(id: string): void {
-    const list = [...this.currentEffectIds()];
-    const idx = list.indexOf(id);
+    const list = [...this.currentInstances()];
+    const idx = list.findIndex((i) => i.effectId === id);
     if (idx < 0 || idx >= list.length - 1) return;
     [list[idx], list[idx + 1]] = [list[idx + 1]!, list[idx]!];
-    this.applyPipeline(list, `Reorder ${id} down`);
+    this.applyInstances(list, `Reorder ${id} down`);
   }
 
-  /** Wipe the entire pipeline. */
   protected clearAll(): void {
-    this.applyPipeline([], 'Clear filter');
+    this.applyInstances([], 'Clear filter');
+  }
+
+  /** Handle a param control change → merge the new value into the instance. */
+  protected onParam(effectId: string, ctrl: ParamControl, event: Event): void {
+    const effect = this.registry.get(effectId);
+    if (effect === null) return;
+    const target = event.target as HTMLInputElement | HTMLSelectElement;
+    const raw: EffectParamValue =
+      ctrl.kind === 'boolean'
+        ? (target as HTMLInputElement).checked
+        : ctrl.kind === 'number'
+          ? Number(target.value)
+          : target.value;
+    this.setParam(effectId, effect, ctrl.param.key, raw);
+  }
+
+  /** Apply a named preset's params to a pipeline stage. */
+  protected applyPreset(effectId: string, preset: EffectPreset): void {
+    const effect = this.registry.get(effectId);
+    if (effect === null) return;
+    const merged = resolveEffectParams(effect, {
+      ...this.instanceParams(effectId),
+      ...preset.params,
+    });
+    this.commitParams(effectId, effect, merged, `Preset ${preset.name}`);
+  }
+
+  /** Reset a stage's params back to the effect defaults (plain reference). */
+  protected resetParams(effectId: string): void {
+    this.commitParams(effectId, this.registry.get(effectId)!, {}, `Reset ${effectId}`);
+  }
+
+  // ── internals ────────────────────────────────────────────────────────
+
+  private setParam(effectId: string, effect: Effect, key: string, value: EffectParamValue): void {
+    const next = resolveEffectParams(effect, { ...this.instanceParams(effectId), [key]: value });
+    this.commitParams(effectId, effect, next, `Set ${effect.name} ${key}`);
+  }
+
+  /** Current custom params for a stage (empty object when none). */
+  private instanceParams(effectId: string): EffectParams {
+    return this.currentInstances().find((i) => i.effectId === effectId)?.params ?? {};
+  }
+
+  /** Replace one stage's params (stored as non-default only) and re-apply. */
+  private commitParams(
+    effectId: string,
+    effect: Effect,
+    resolved: EffectParams,
+    label: string,
+  ): void {
+    const custom = nonDefaultParams(effect, resolved);
+    const next = this.currentInstances().map((i) =>
+      i.effectId === effectId
+        ? Object.keys(custom).length > 0
+          ? { effectId, params: custom }
+          : { effectId }
+        : i,
+    );
+    this.applyInstances(next, label);
+  }
+
+  private toPipelineItem(inst: EffectInstance): PipelineItem {
+    const effect = this.registry.get(inst.effectId);
+    if (effect === null) {
+      return {
+        effectId: inst.effectId,
+        name: '(unknown effect)',
+        category: undefined,
+        controls: [],
+        presets: [],
+        customized: false,
+        broken: true,
+      };
+    }
+    const resolved = resolveEffectParams(effect, inst.params);
+    const controls: ParamControl[] = (effect.params ?? []).map((param) => ({
+      param,
+      kind:
+        param.type === 'number' || param.type === 'percent' || param.type === 'angle'
+          ? 'number'
+          : param.type,
+      value: resolved[param.key]!,
+    }));
+    return {
+      effectId: inst.effectId,
+      name: effect.name,
+      category: effect.category,
+      controls,
+      presets: effect.presets ?? [],
+      customized: Object.keys(nonDefaultParams(effect, resolved)).length > 0,
+      broken: false,
+    };
   }
 
   /**
-   * Apply a new pipeline to every selected node. Computes the filter
-   * URL (undefined / single / chain) and dispatches a single
-   * `SetStylePropertyOnManyCommand` for one undo entry.
+   * Apply a new pipeline to every selected node via a single
+   * `SetStylePropertyOnManyCommand` (one undo entry). Computes the
+   * stateless `style.filter` URL (plain / chain / parametric).
    */
-  private applyPipeline(effectIds: readonly string[], label: string): void {
+  private applyInstances(instances: readonly EffectInstance[], label: string): void {
     const selected = Array.from(this.selection.selectedIds()) as NodeId[];
     if (selected.length === 0) return;
-    const filter = this.buildFilterUrl(effectIds);
-    this.bus.dispatch(new SetStylePropertyOnManyCommand(selected, 'filter', filter, label));
+    this.bus.dispatch(
+      new SetStylePropertyOnManyCommand(selected, 'filter', this.buildFilterUrl(instances), label),
+    );
   }
 
   /**
-   * Build the `style.filter` value for a given pipeline:
-   * - empty → `undefined` (clears the property)
-   * - 1 effect → `url(#effectId)` (compat with v1)
-   * - 2+ effects → `url(#svge-chain-...)` (composed chain)
+   * Build the `style.filter` value for a pipeline:
+   * - empty → `undefined`
+   * - no custom params: 1 → `url(#effectId)`; 2+ → `url(#svge-chain-...)`
+   * - any custom params → `url(#svge-fx-<encoded>)` (D-144)
    */
-  private buildFilterUrl(effectIds: readonly string[]): string | undefined {
-    if (effectIds.length === 0) return undefined;
-    if (effectIds.length === 1) return `url(#${effectIds[0]!})`;
-    return `url(#${makeChainFilterId(effectIds)})`;
+  private buildFilterUrl(instances: readonly EffectInstance[]): string | undefined {
+    if (instances.length === 0) return undefined;
+    const hasParams = instances.some((i) => i.params && Object.keys(i.params).length > 0);
+    if (!hasParams) {
+      const ids = instances.map((i) => i.effectId);
+      return ids.length === 1 ? `url(#${ids[0]!})` : `url(#${makeChainFilterId(ids)})`;
+    }
+    return `url(#${encodeEffectFilterId(instances)})`;
   }
 }
+
+/** Re-exported so consumers/tests can reference `effectDefaults` if needed. */
+export { effectDefaults };

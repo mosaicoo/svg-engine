@@ -2,7 +2,7 @@ import { type Effect, type EffectParams, resolveEffectParams } from './effect';
 
 /**
  * Built-in effects shipped with the library (Fase 6d / D-047, parametric
- * em D-118 2026-06-28). Each effect is an SVG `<filter>` factory with an
+ * em D-144 2026-06-28). Each effect is an SVG `<filter>` factory with an
  * optional typed `params` schema so the `<svge-effects-panel>` can expose
  * sliders / color pickers / selects per knob.
  *
