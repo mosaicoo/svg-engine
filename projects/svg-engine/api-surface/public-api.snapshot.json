@@ -372,6 +372,7 @@
     "OptimizerRegistry",
     "precisionOptimizer",
     "pruneEmptyGroupsOptimizer",
+    "stripAuthoredIdsOptimizer",
     "stripAuthoredTitlesOptimizer"
   ],
   "svg-engine/edit": [

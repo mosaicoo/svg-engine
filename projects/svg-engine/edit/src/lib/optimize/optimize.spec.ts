@@ -5,6 +5,7 @@ import {
   OptimizerRegistry,
   precisionOptimizer,
   pruneEmptyGroupsOptimizer,
+  stripAuthoredIdsOptimizer,
   stripAuthoredTitlesOptimizer,
 } from '@mosaicoo/svg-engine/optimize';
 import { PluginRegistry } from '../plugin/plugin-registry.service';
@@ -223,13 +224,13 @@ describe('pruneEmptyGroupsOptimizer', () => {
 });
 
 describe('builtinOptimizersPlugin — full pipeline via PluginRegistry', () => {
-  it('install registers all 4 + uninstall removes them', () => {
+  it('install registers all 5 + uninstall removes them', () => {
     const opt = TestBed.inject(OptimizerRegistry);
     const pluginReg = TestBed.inject(PluginRegistry);
     pluginReg.install(builtinOptimizersPlugin);
-    // 3 default-enabled (precision/drop-defaults/prune) + 1 opt-in
-    // D-072-follow-up pass (strip authored titles).
-    expect(opt.optimizers().length).toBe(4);
+    // 3 default-enabled (precision/drop-defaults/prune) + 2 opt-in passes
+    // (strip authored titles, D-072; strip authored ids, D-149).
+    expect(opt.optimizers().length).toBe(5);
     pluginReg.uninstall(builtinOptimizersPlugin.id);
     expect(opt.optimizers().length).toBe(0);
   });
@@ -278,5 +279,33 @@ describe('D-072 follow-up — stripAuthoredTitlesOptimizer', () => {
     const d = doc([r]);
     const out = stripAuthoredTitlesOptimizer.optimize(d);
     expect(out.root.children[0]?.metadata.name).toBe('Bercos');
+  });
+});
+
+describe('D-149 — stripAuthoredIdsOptimizer', () => {
+  it('sets emitAuthoredIds=false on the document', () => {
+    const d = doc([createRect({ x: 0, y: 0, width: 1, height: 1 })]);
+    expect(d.exportPreferences).toBeUndefined();
+    const out = stripAuthoredIdsOptimizer.optimize(d);
+    expect(out.exportPreferences?.emitAuthoredIds).toBe(false);
+  });
+
+  it('is idempotent (returns same ref on second pass)', () => {
+    const d: SvgDocument = {
+      ...doc([createRect({ x: 0, y: 0, width: 1, height: 1 })]),
+      exportPreferences: { emitAuthoredIds: false },
+    };
+    expect(stripAuthoredIdsOptimizer.optimize(d)).toBe(d);
+  });
+
+  it('has defaultEnabled: false (opt-in)', () => {
+    expect(stripAuthoredIdsOptimizer.defaultEnabled).toBe(false);
+  });
+
+  it('does NOT touch metadata.sourceId (only the export preference)', () => {
+    const r = createRect({ x: 0, y: 0, width: 1, height: 1 }, { metadata: { sourceId: 'keep' } });
+    const d = doc([r]);
+    const out = stripAuthoredIdsOptimizer.optimize(d);
+    expect(out.root.children[0]?.metadata.sourceId).toBe('keep');
   });
 });

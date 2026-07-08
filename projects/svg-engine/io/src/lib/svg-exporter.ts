@@ -77,6 +77,15 @@ export const svgExporter: Exporter = {
     // re-open). All other nodes export without `id` — the runtime
     // UUIDs aren't useful externally and would pollute diffs.
     const referencedIds = collectReferencedPathIds(document.root);
+    // **D-149 — Authored `id` round-trip**. Resolve, once, the id every
+    // node will emit: an authored `metadata.sourceId` (when
+    // `emitAuthoredIds` is on) claims the slot; textPath-target paths
+    // (D-068h) fall back to their runtime UUID. The map is deduped so the
+    // output never has two elements sharing an `id`. Threaded via ctx and
+    // read by both the per-element renderers and the `<textPath href>`
+    // emission (so the link always points at whatever id the target got).
+    const emitAuthoredIds = document.exportPreferences?.emitAuthoredIds !== false;
+    const emittedIds = buildEmittedIds(document.root, referencedIds, emitAuthoredIds);
     // **D-072 follow-up — Authored title emission**. Resolved once
     // here so per-node renderers can ask `shouldEmitTitle(node)`
     // cheaply. Default: emit titles for any node with `metadata.name`.
@@ -90,7 +99,7 @@ export const svgExporter: Exporter = {
     const animDocByNode = emitSmil
       ? buildAnimDocIndex(document.root)
       : new Map<NodeId, AnimationDoc>();
-    const ctx: ExportContext = { referencedIds, emitTitles, emitSmil, animDocByNode };
+    const ctx: ExportContext = { emittedIds, emitTitles, emitSmil, animDocByNode };
     const lines: string[] = [];
     lines.push('<?xml version="1.0" encoding="UTF-8"?>');
     lines.push(
@@ -145,6 +154,74 @@ export function collectReferencedPathIds(root: GroupNode): ReadonlySet<NodeId> {
   return out;
 }
 
+/**
+ * **D-149** — Defend an authored `id` value against breaking the output.
+ * Real ids from Illustrator/Inkscape are already valid XML `Name`s, so this
+ * is a no-op for them; it only strips whitespace and the handful of chars
+ * (`"'<>&`) that would corrupt the attribute or a `#`-reference. Kept minimal
+ * on purpose — mangling would defeat the round-trip (a downstream
+ * `getElementById('innerroot')` must still match).
+ */
+function sanitizeXmlId(raw: string): string {
+  return raw.trim().replace(/[\s"'<>&]/g, '');
+}
+
+/**
+ * **D-149 — Resolve every node's exported `id` in one pass.**
+ *
+ * A node emits an `id` for one of two reasons, unified here so an element
+ * never carries two:
+ *
+ * 1. **Authored id** — `metadata.sourceId` (the `id` an external tool wrote,
+ *    captured on import). Emitted only when `emitAuthoredIds` is on. This is
+ *    what lets a downstream consumer keep binding data to `#someId` after an
+ *    import → edit → export round-trip.
+ * 2. **textPath target** (D-068h) — a path referenced by some
+ *    `<textPath href>`. Falls back to the runtime UUID when it has no
+ *    authored id, so the link resolves in the exported file.
+ *
+ * Authored ids win the first pass (so a referenced path that also has a
+ * sourceId links via the readable id). Uniqueness is enforced with a
+ * suffix (`-2`, `-3`, …) — after editing (duplicate/paste) two nodes can
+ * share the same sourceId, and a valid SVG must not repeat an `id`.
+ *
+ * @returns `nodeId → emitted id`. Nodes absent from the map emit no `id`.
+ */
+function buildEmittedIds(
+  root: GroupNode,
+  referencedIds: ReadonlySet<NodeId>,
+  emitAuthoredIds: boolean,
+): ReadonlyMap<NodeId, string> {
+  const map = new Map<NodeId, string>();
+  const used = new Set<string>();
+  const claim = (desired: string): string => {
+    let id = desired;
+    let n = 2;
+    while (used.has(id)) id = `${desired}-${n++}`;
+    used.add(id);
+    return id;
+  };
+  if (emitAuthoredIds) {
+    walk(root, (node) => {
+      const raw = node.metadata.sourceId;
+      if (typeof raw !== 'string') return;
+      const clean = sanitizeXmlId(raw);
+      if (clean.length > 0) map.set(node.id, claim(clean));
+    });
+  }
+  // textPath targets that didn't already get an authored id keep their UUID.
+  for (const nid of referencedIds) {
+    if (!map.has(nid)) map.set(nid, claim(nid));
+  }
+  return map;
+}
+
+/** **D-149** — the `id` attribute a node emits, or `[]` when it emits none. */
+function idAttr(node: SvgNode, ctx: ExportContext): [string, string][] {
+  const id = ctx.emittedIds.get(node.id);
+  return id !== undefined ? [['id', id]] : [];
+}
+
 // ── Export context (shared across pre-scan + render) ────────────────
 
 /**
@@ -170,7 +247,7 @@ export function collectReferencedPathIds(root: GroupNode): ReadonlySet<NodeId> {
  */
 export function nodeToSvgMarkup(node: SvgNode): string {
   const ctx: ExportContext = {
-    referencedIds: new Set<NodeId>(),
+    emittedIds: new Map<NodeId, string>(),
     emitTitles: false,
     emitSmil: false,
     animDocByNode: new Map<NodeId, AnimationDoc>(),
@@ -181,9 +258,11 @@ export function nodeToSvgMarkup(node: SvgNode): string {
 /**
  * Per-export bundle threaded through every `render*` function:
  *
- * - `referencedIds`: paths that some `<text textPathRef>` points at
- *   (D-068h). Such paths MUST emit `id="UUID"` in the output or the
- *   href dangles after re-open.
+ * - `emittedIds`: `nodeId → id` for every node that emits an `id` — either
+ *   an authored `metadata.sourceId` (D-149) or a textPath-target UUID
+ *   (D-068h). Deduped; built once in {@link buildEmittedIds}. Nodes absent
+ *   from the map emit no `id`. The `<textPath href>` emission reads the
+ *   same map so the link always resolves to the target's actual id.
  *
  * - `emitTitles`: resolved from `document.exportPreferences?.
  *   emitAuthoredTitles` (default `true`). When `true`, any node with
@@ -191,7 +270,7 @@ export function nodeToSvgMarkup(node: SvgNode): string {
  *   human-authored name survives export → re-import.
  */
 interface ExportContext {
-  readonly referencedIds: ReadonlySet<NodeId>;
+  readonly emittedIds: ReadonlyMap<NodeId, string>;
   readonly emitTitles: boolean;
   /** **D-082 F9c** — whether to inject SMIL animation children (opt-in). */
   readonly emitSmil: boolean;
@@ -291,7 +370,11 @@ function renderLeaf(
 ): string {
   const indent = '  '.repeat(depth);
   const anim = nodeAnimation(node, ctx);
+  // **D-149** — authored `id` first (conventional attribute order), then
+  // geometry, then presentation/transform. `idAttr` is `[]` for the common
+  // case (no sourceId, not a textPath target), so nothing changes there.
   const attrsString = attrsStr([
+    ...idAttr(node, ctx),
     ...geometryAttrs,
     ...baseAttrs(node, anim?.dropTransform ?? false),
   ]);
@@ -361,7 +444,11 @@ function renderGroup(node: GroupNode, depth: number, ctx: ExportContext): string
   // **D-082 F9c** — a group can itself be animated (transform/opacity); resolve
   // its SMIL children + transform-drop before building the attribute set.
   const anim = nodeAnimation(node, ctx);
-  const attrs = baseAttrs(node, anim?.dropTransform ?? false);
+  // **D-149** — authored `id` first, then presentation; kind flags append below.
+  const attrs: [string, string][] = [
+    ...idAttr(node, ctx),
+    ...baseAttrs(node, anim?.dropTransform ?? false),
+  ];
   // Capture metadata.name BEFORE the kind-narrowing if-chain. The
   // chained `is GroupNode` guards (isLayer/isSmartObject/isPage) cause
   // TS to narrow `node` to `never` after a few branches even though
@@ -526,14 +613,10 @@ function renderPath(node: PathNode, depth: number, ctx: ExportContext): string {
   // canvas.
   const r = node.cornerRadius ?? 0;
   const effectiveD = r > 0 ? roundPathCorners(node.d, r) : node.d;
-  // **D-068h** — emit `id="UUID"` ONLY when the path is the target
-  // of some `<textPath href>`. Keeps the runtime-only-id rule intact
-  // for the 99% of paths that nobody references while making text-on-
-  // path links resolvable in the exported SVG.
+  // The `id` attribute (textPath-target UUID, D-068h, or authored
+  // `sourceId`, D-149) is emitted generically by `renderLeaf` via
+  // `idAttr(node, ctx)` — no path-specific handling needed here.
   const attrs: [string, string][] = [['d', effectiveD]];
-  if (ctx.referencedIds.has(node.id)) {
-    attrs.push(['id', node.id]);
-  }
   return renderLeaf('path', attrs, depth, node, ctx);
 }
 
@@ -576,7 +659,11 @@ function renderText(node: TextNode, depth: number, ctx: ExportContext): string {
   // text shape (textPath / multi-line / single-line). `attrsString` and the
   // child-indent are shared by all branches below.
   const anim = nodeAnimation(node, ctx);
-  const attrsString = attrsStr([...attrs, ...baseAttrs(node, anim?.dropTransform ?? false)]);
+  const attrsString = attrsStr([
+    ...idAttr(node, ctx),
+    ...attrs,
+    ...baseAttrs(node, anim?.dropTransform ?? false),
+  ]);
   const childIndent = '  '.repeat(depth + 1);
   const animLines = anim !== null ? anim.smil.map((el) => `${childIndent}${el}`) : [];
   const titleLine = shouldEmitTitle(node, ctx) ? titleChildLine(node, depth + 1, ctx) : null;
@@ -594,10 +681,14 @@ function renderText(node: TextNode, depth: number, ctx: ExportContext): string {
         ? ` startOffset="${escapeAttr(startOffset)}"`
         : '';
     const refStr = ref as unknown as string;
+    // **D-149** — link to whatever id the target path actually emitted (its
+    // authored `sourceId`, or its runtime UUID). `emittedIds` always has an
+    // entry for a textPath target because `referencedIds` seeds the map.
+    const hrefId = ctx.emittedIds.get(ref as NodeId) ?? refStr;
     const children = [
       ...titleLines,
       ...animLines,
-      `${childIndent}<textPath href="#${escapeAttr(refStr)}"${offsetAttr}>${escapeXml(flat)}</textPath>`,
+      `${childIndent}<textPath href="#${escapeAttr(hrefId)}"${offsetAttr}>${escapeXml(flat)}</textPath>`,
     ];
     return `${indent}<text${attrsString}>\n${children.join('\n')}\n${indent}</text>`;
   }

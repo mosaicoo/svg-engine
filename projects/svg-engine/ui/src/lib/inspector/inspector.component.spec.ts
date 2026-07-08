@@ -164,6 +164,51 @@ describe('SvgeInspector — header', () => {
   });
 });
 
+describe('SvgeInspector — D-149 Element ID (Data tab)', () => {
+  function setupWith(node: SvgNode) {
+    const ctx = setup();
+    ctx.state.setDocument({
+      ...ctx.state.document(),
+      root: createGroup([node], { id: ctx.state.document().root.id }),
+    });
+    ctx.selection.select(node.id);
+    ctx.fixture.detectChanges();
+    return ctx;
+  }
+
+  function elementIdInput(ctx: ReturnType<typeof setup>): HTMLInputElement {
+    activateTab(ctx.fixture.nativeElement, 'data');
+    ctx.fixture.detectChanges();
+    return ctx.fixture.nativeElement.querySelector(
+      'input[aria-label="Element ID"]',
+    ) as HTMLInputElement;
+  }
+
+  it('renders the current sourceId and commits an edit into metadata.sourceId', () => {
+    const r = createRect({ x: 0, y: 0, width: 10, height: 10 }, { metadata: { sourceId: 'old' } });
+    const ctx = setupWith(r);
+    const input = elementIdInput(ctx);
+    expect(input.value).toBe('old');
+    input.value = 'innerroot';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    ctx.fixture.detectChanges();
+    expect(ctx.state.document().root.children[0]?.metadata.sourceId).toBe('innerroot');
+  });
+
+  it('dropping the id (empty field) removes metadata.sourceId', () => {
+    const r = createRect(
+      { x: 0, y: 0, width: 10, height: 10 },
+      { metadata: { sourceId: 'drop-me' } },
+    );
+    const ctx = setupWith(r);
+    const input = elementIdInput(ctx);
+    input.value = '';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    ctx.fixture.detectChanges();
+    expect(ctx.state.document().root.children[0]?.metadata.sourceId).toBeUndefined();
+  });
+});
+
 describe('SvgeInspector — geometry per type', () => {
   function setupWith(node: SvgNode) {
     const ctx = setup();

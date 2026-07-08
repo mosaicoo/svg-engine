@@ -52,18 +52,18 @@ a fase do roadmap implementa o conteúdo.
 
 #### Tipos primitivos (`./lib/types/`)
 
-| Símbolo                                                               | Descrição                                       |
-| --------------------------------------------------------------------- | ----------------------------------------------- |
-| `NodeId`                                                              | branded `string` para IDs de nó                 |
-| `toNodeId(value: string): NodeId`                                     | coerção segura a partir de uma string externa   |
-| `generateNodeId(): NodeId`                                            | gera UUID via `crypto.randomUUID` (ou fallback) |
-| `Transform`                                                           | matriz afim 6-elementos `[a,b,c,d,e,f]`         |
-| `IDENTITY_TRANSFORM`                                                  | constante para identidade                       |
-| `translate / scale / rotate / multiply / applyTransform / isIdentity` | ops de matriz                                   |
-| `Point`, `ORIGIN`                                                     | ponto 2D imutável                               |
-| `BoundingBox`, `bbox`, `unionBBox`, `containsPoint`                   | caixa axis-aligned + helpers                    |
-| `SvgStyle`, `EMPTY_STYLE`, `DEFAULT_STYLE`                            | atributos de apresentação                       |
-| `SvgMetadata`, `EMPTY_METADATA`                                       | metadados do editor (nome, lock, visibilidade)  |
+| Símbolo                                                               | Descrição                                                                     |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `NodeId`                                                              | branded `string` para IDs de nó                                               |
+| `toNodeId(value: string): NodeId`                                     | coerção segura a partir de uma string externa                                 |
+| `generateNodeId(): NodeId`                                            | gera UUID via `crypto.randomUUID` (ou fallback)                               |
+| `Transform`                                                           | matriz afim 6-elementos `[a,b,c,d,e,f]`                                       |
+| `IDENTITY_TRANSFORM`                                                  | constante para identidade                                                     |
+| `translate / scale / rotate / multiply / applyTransform / isIdentity` | ops de matriz                                                                 |
+| `Point`, `ORIGIN`                                                     | ponto 2D imutável                                                             |
+| `BoundingBox`, `bbox`, `unionBBox`, `containsPoint`                   | caixa axis-aligned + helpers                                                  |
+| `SvgStyle`, `EMPTY_STYLE`, `DEFAULT_STYLE`                            | atributos de apresentação                                                     |
+| `SvgMetadata`, `EMPTY_METADATA`                                       | metadados do editor (nome, lock, visibilidade, `sourceId` = id autoral D-149) |
 
 #### Modelo (`./lib/model/`)
 
@@ -319,6 +319,14 @@ a fase do roadmap implementa o conteúdo.
 | `precisionOptimizer`        | 10    | Arredonda numerics a 3 casas (rect x/y/w/h, path `d` tokens, style fields numéricos) |
 | `dropDefaultsOptimizer`     | 50    | Remove `opacity:1`/`fillOpacity:1`/`strokeOpacity:1`/`visibility:visible`            |
 | `pruneEmptyGroupsOptimizer` | 90    | Remove `<g></g>` recursivamente (document root sempre preservado)                    |
+
+**Passes opt-in** (`defaultEnabled: false`) — alternam preferências de export
+de metadados autorais, sem tocar o modelo:
+
+| Símbolo                        | Order | Efeito                                                                                     |
+| ------------------------------ | ----- | ------------------------------------------------------------------------------------------ |
+| `stripAuthoredTitlesOptimizer` | 80    | `exportPreferences.emitAuthoredTitles=false` — omite `<title>` de `metadata.name` (D-072g) |
+| `stripAuthoredIdsOptimizer`    | 81    | `exportPreferences.emitAuthoredIds=false` — omite `id="…"` de `metadata.sourceId` (D-149)  |
 
 > **Plugin wrapper** (`builtinOptimizersPlugin`) fica em `svg-engine/edit`.
 

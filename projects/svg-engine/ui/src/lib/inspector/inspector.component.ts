@@ -8,7 +8,7 @@ import {
   type Signal,
 } from '@angular/core';
 import { MatButton, MatIconButton } from '@angular/material/button';
-import { MatFormField, MatLabel } from '@angular/material/form-field';
+import { MatFormField, MatHint, MatLabel } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
 import { MatMenu, MatMenuTrigger } from '@angular/material/menu';
@@ -130,6 +130,7 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
   imports: [
     MatFormField,
     MatLabel,
+    MatHint,
     MatInput,
     MatIcon,
     MatIconButton,
@@ -1146,6 +1147,27 @@ import { EllipseFieldPipe, LineFieldPipe, RectFieldPipe, roundForDisplay } from 
           RenameCustomAttrCommand) so plugins and scripts share this path.
         -->
         <ng-template svgePanelGroupTab svgePanelGroupTabId="data" label="Data" icon="data_object">
+          <!--
+            D-149 — Element ID. The authored id (captured on import, or typed
+            here) round-trips to an id="..." attribute on export, so downstream
+            systems that bind data/thresholds to that id keep working. Empty =
+            no id emitted. Distinct from the runtime node id in the header.
+          -->
+          <section class="section">
+            <h3 class="section-title">Element ID</h3>
+            <mat-form-field appearance="outline" class="ca-name">
+              <mat-label>id</mat-label>
+              <input
+                matInput
+                [disabled]="isLocked()"
+                [value]="sourceId()"
+                (change)="commitSourceId($any($event.target).value)"
+                aria-label="Element ID"
+              />
+              <mat-hint>Exported as id="…" — external tools bind data to it.</mat-hint>
+            </mat-form-field>
+          </section>
+
           <section class="section">
             <h3 class="section-title">Custom attributes (data-*)</h3>
 
@@ -2973,6 +2995,14 @@ export class SvgeInspector {
   });
 
   /**
+   * **D-149 — Element ID.** The focused node's authored `id`
+   * (`metadata.sourceId`), or `''` when it has none. Bound to the Element
+   * ID field in the Data tab. Distinct from `node.id` (runtime UUID) shown
+   * in the header.
+   */
+  protected readonly sourceId = computed(() => this.focusNode()?.metadata.sourceId ?? '');
+
+  /**
    * Material icon name for the node's type. Mirrors the layers panel
    * convention so consumers get visual consistency across panels.
    */
@@ -3847,6 +3877,35 @@ export class SvgeInspector {
     if (node === null || this.layers.isLocked(node.id)) return;
     if (readCustomAttrs(node)[name] === raw) return;
     this.bus.dispatch(new SetCustomAttrCommand(node.id, name, raw));
+  }
+
+  /**
+   * **D-149 — Element ID.** Commit the authored `id` into
+   * `metadata.sourceId` via a metadata {@link SetPropertyCommand} — the
+   * same path the Layer Panel rename uses for `metadata.name`. An empty
+   * value drops the id (the element exports without one again). One undo
+   * entry per edit; a no-op edit pushes nothing.
+   */
+  protected commitSourceId(raw: string): void {
+    const node = this.focusNode();
+    if (node === null || this.layers.isLocked(node.id)) return;
+    const next = raw.trim();
+    const current = node.metadata.sourceId ?? '';
+    if (next === current) return;
+    // Build the next metadata: set when non-empty, drop the key when empty
+    // (shallow clone + delete via a mutable view — avoids leaving `sourceId`
+    // as `undefined`, which would survive the round-trip as a real key).
+    let nextMetadata: SvgNode['metadata'];
+    if (next.length === 0) {
+      const clone = { ...node.metadata } as Record<string, unknown>;
+      delete clone['sourceId'];
+      nextMetadata = clone as SvgNode['metadata'];
+    } else {
+      nextMetadata = { ...node.metadata, sourceId: next };
+    }
+    this.bus.dispatch(
+      new SetPropertyCommand<SvgNode, 'metadata'>(node.id, 'metadata', nextMetadata),
+    );
   }
 
   /** Remove an attribute from the focused node. */

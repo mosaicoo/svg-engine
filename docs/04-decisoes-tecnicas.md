@@ -2932,3 +2932,55 @@ number 50 + unit`), o slider sobrava ~75px.
   verdes; browser no `/pro-editor` (drag 360→440px + persistência; id
   `.drop-shadow` sem o prefixo longo). Referência: histórico 08 (2026-06-29,
   D-148).
+
+## D-149 — Preservação do `id` autoral no round-trip (import→export) + campo Element ID
+
+- **Data**: 2026-07-07
+- **Status**: Aceita
+- **Contexto**: SVGs autorados por ferramentas externas (Illustrator/Inkscape)
+  usam `id` para identificar elementos que sistemas downstream (ex.: mapas do
+  `two`, consumidor do svg-engine) ligam a dados/thresholds. O round-trip
+  `svgImporter → svgExporter` **descartava** esse `id`: o importer sequer o
+  capturava (a resolução de nome lê `<title>`/`inkscape:label`/`data-svge-name`,
+  não `id`), e o exporter só emitia `<title>` de `metadata.name` (decisão
+  **D-072g**, que optou por "editor como ferramenta de criação"). Editar e
+  salvar um asset quebrava o bind por `#id`. O D-149 reconcilia os dois casos
+  de uso — asset criado no editor (sem id) × asset externo portador de id — via
+  preferência **opt-in default-on-when-present**.
+- **Model** (`core`): novo `SvgMetadata.sourceId?` — o `id` de origem, distinto
+  do UUID de runtime (`node.id`, interno) e de `metadata.name` (→ `<title>`;
+  renomear uma layer NÃO deve mudar o id de bind). Nova flag
+  `exportPreferences.emitAuthoredIds?`.
+- **Importer** (`io`): `baseFactoryOpts` lê `el.getAttribute('id')` →
+  `metadata.sourceId` (quando presente e não-vazio), separado de `name`/
+  `customData`.
+- **Exporter** (`io`): `buildEmittedIds(root, referencedIds, emitAuthoredIds)`
+  resolve, em uma passada, o `id` que cada nó emite — precedência ao `sourceId`
+  (quando `emitAuthoredIds !== false`), com fallback ao UUID para paths alvo de
+  `<textPath>` (D-068h) — **deduplicado** (colisão de sourceId após duplicar/
+  colar vira `-2`, `-3`, …; um SVG válido não repete `id`). O `id` deixa de ser
+  específico de path e é emitido genericamente por `idAttr(node, ctx)` em
+  `renderLeaf`/`renderGroup`/`renderText` (rect/g/text/path/etc). O `href` do
+  `<textPath>` passa a apontar para o id realmente emitido do alvo (lê o mesmo
+  mapa), então o link resolve independentemente de o alvo ter sourceId ou UUID.
+  `sanitizeXmlId` é um no-op para ids válidos (só remove whitespace/`"'<>&`).
+- **Optimize**: `stripAuthoredIdsOptimizer` (`order:81`, `defaultEnabled:false`),
+  gêmeo do `stripAuthoredTitlesOptimizer` — seta `emitAuthoredIds:false` para
+  saída sem id. Registrado no `builtinOptimizersPlugin` (agora 5 passes).
+- **UI** (`ui`): campo **Element ID** no topo da aba Data do Inspector, com
+  `mat-hint`. Editável via `commitSourceId` → `SetPropertyCommand<'metadata'>`
+  (mesmo caminho do rename do Layer Panel); vazio dropa a key. Computed
+  `sourceId()` lê `metadata.sourceId`.
+- **Consequências**: nós criados no editor não têm `sourceId` → saída continua
+  livre de ruído de id; o autosave (export→import) permanece estável, pois o id
+  agora persiste como sourceId. Alvos de textPath já emitiam UUID (D-068h);
+  agora esse id round-trippa via sourceId — cosmético (id UUID-like em asset
+  round-trippado por nós), documentado e aceitável.
+- **Alternativas descartadas**: (a) emitir sempre = poluiria o output de assets
+  criados no editor; (b) reusar `metadata.name` como id = mistura nome humano
+  com id de bind (renomear quebraria o bind); (c) script pós-export (a saída do
+  D-072g) = não serve ao fluxo editar-e-salvar do `two`.
+- **Verificação**: `build:lib` + `lint` (3 projetos) + `test:lib` (**3012**)
+  verdes; API snapshot regenerado (+`stripAuthoredIdsOptimizer`); browser no
+  `/pro-editor` (campo Element ID renderiza; nó novo = vazio; digitar `innerroot`
+  comita e reflete ao vivo). Referência: histórico 08 (2026-07-07, D-149).

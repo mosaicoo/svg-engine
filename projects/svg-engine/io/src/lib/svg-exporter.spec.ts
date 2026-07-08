@@ -238,6 +238,82 @@ describe('collectReferencedPathIds — pure helper', () => {
   });
 });
 
+// ── D-149 — authored id round-trip (metadata.sourceId → id="...") ─────
+
+describe('svgExporter — D-149 authored id round-trip', () => {
+  function docWith(children: readonly SvgNode[], prefs?: SvgDocument['exportPreferences']): string {
+    const doc: SvgDocument = {
+      id: 'doc' as never,
+      viewBox: { x: 0, y: 0, width: 100, height: 100 },
+      root: createGroup(children, { id: 'root' as never }),
+      ...(prefs ? { exportPreferences: prefs } : {}),
+    };
+    const out = svgExporter.export(doc);
+    if (typeof out !== 'string') {
+      throw new Error('svgExporter unexpectedly returned non-string');
+    }
+    return out;
+  }
+
+  it('re-emits an authored sourceId as id="..." (default on-when-present)', () => {
+    const rect = createRect(
+      { x: 0, y: 0, width: 10, height: 10 },
+      { metadata: { sourceId: 'innerroot' } },
+    );
+    expect(docWith([rect])).toContain('id="innerroot"');
+  });
+
+  it('works for groups too (a <g id="..."> from an authoring tool)', () => {
+    const g = createGroup([], { metadata: { name: 'Layer', sourceId: 'grp-1' } });
+    const out = docWith([g]);
+    expect(out).toContain('id="grp-1"');
+  });
+
+  it('emits NO id for an editor-created node (no sourceId)', () => {
+    const rect = createRect({ x: 0, y: 0, width: 10, height: 10 });
+    const out = docWith([rect]);
+    expect(out).not.toContain(' id=');
+  });
+
+  it('emitAuthoredIds:false suppresses the id (stripAuthoredIds optimizer path)', () => {
+    const rect = createRect(
+      { x: 0, y: 0, width: 10, height: 10 },
+      { metadata: { sourceId: 'innerroot' } },
+    );
+    const out = docWith([rect], { emitAuthoredIds: false });
+    expect(out).not.toContain('id="innerroot"');
+  });
+
+  it('deduplicates a sourceId shared by two nodes (valid SVG never repeats an id)', () => {
+    const a = createRect({ x: 0, y: 0, width: 10, height: 10 }, { metadata: { sourceId: 'dup' } });
+    const b = createRect({ x: 20, y: 0, width: 10, height: 10 }, { metadata: { sourceId: 'dup' } });
+    const out = docWith([a, b]);
+    expect(out).toContain('id="dup"');
+    expect(out).toContain('id="dup-2"');
+  });
+
+  it('sanitizes an id that would corrupt the attribute (whitespace stripped)', () => {
+    const rect = createRect(
+      { x: 0, y: 0, width: 10, height: 10 },
+      { metadata: { sourceId: 'has space' } },
+    );
+    expect(docWith([rect])).toContain('id="hasspace"');
+  });
+
+  it('a textPath target with a sourceId links via that id (path id === href)', () => {
+    const targetPath = { ...createPath('M0 50 Q50 0 100 50'), metadata: { sourceId: 'wave' } };
+    const text = {
+      ...createText({ x: 0, y: 0, content: 'On the curve' }),
+      textPathRef: targetPath.id,
+    };
+    const out = docWith([targetPath, text]);
+    expect(out).toContain('id="wave"');
+    expect(out).toContain('<textPath href="#wave"');
+    // the runtime UUID must NOT appear as the link (the authored id wins)
+    expect(out).not.toContain(`href="#${targetPath.id}"`);
+  });
+});
+
 // ── D-069 — typography basics (font-style / text-decoration) ─────────
 //
 // The fontSize/fontFamily/fontWeight/textAnchor attrs were already

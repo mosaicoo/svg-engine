@@ -48,12 +48,15 @@ export interface SvgDocument {
    * - Allows duplicates freely (two nodes named "Logo" → two
    *   `<title>Logo</title>` children, no collision)
    *
-   * `id` is NOT emitted from `metadata.name` because in the
-   * editor-as-creation-tool flow it's overhead serving minority
-   * downstream cases (CSS/JS external refs). Consumers who need
-   * stable ids can add a post-export script. `id` is still emitted
-   * for paths that are targets of `<textPath href>` (D-068h) — that
-   * usage is internal and unconditional.
+   * `id` is NOT emitted from `metadata.name` (name → `<title>`, id is a
+   * different concept — renaming a layer must not change a data-binding
+   * id). `id` IS emitted from `metadata.sourceId` — the `id` an external
+   * tool authored, captured on import — gated by `emitAuthoredIds`
+   * (D-149). This lets a downstream system that binds data/thresholds to
+   * element ids (e.g. a map viewer) survive an import → edit → export
+   * round-trip. `id` is also emitted, unconditionally, for paths that are
+   * targets of `<textPath href>` (D-068h). Nodes created in the editor
+   * have no `sourceId`, so their output stays id-free.
    *
    * **`emitAuthoredTitles`** defaults to `true` when unset — `??`
    * semantics preserve names for any document that doesn't
@@ -67,6 +70,16 @@ export interface SvgDocument {
      * Default `true`.
      */
     readonly emitAuthoredTitles?: boolean;
+    /**
+     * **D-149 — Authored `id` round-trip.** Emit `id="..."` for nodes that
+     * carry a `metadata.sourceId` (the `id` captured from the imported
+     * source). Default `true` — emission only happens for nodes that
+     * actually have a `sourceId`, so editor-created content stays id-free
+     * ("on-when-present"). The opt-in optimizer `stripAuthoredIdsOptimizer`
+     * (`defaultEnabled: false`) flips it to `false` for id-free output.
+     * Independent of textPath-target ids (D-068h), which are always emitted.
+     */
+    readonly emitAuthoredIds?: boolean;
     /**
      * **D-082 F9c — Animated SVG (SMIL) export.** When `true`, the SVG
      * exporter injects native SMIL `<animate>` / `<animateTransform>`

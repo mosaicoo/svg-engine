@@ -505,6 +505,13 @@ function baseFactoryOpts(el: Element): MutableFactoryOpts {
     style: parseStyle(el),
   };
   const name = parseAuthoredName(el);
+  // **D-149 — Authored `id` preservation.** Capture the source element's
+  // `id` verbatim into `metadata.sourceId` (distinct from the runtime UUID
+  // and from `name`/`<title>`) so it can round-trip back to `id="..."` on
+  // export. External tools (Illustrator/Inkscape) use `id` to identify
+  // elements that downstream systems bind data to; dropping it broke that.
+  const idAttr = el.getAttribute('id');
+  const sourceId = idAttr !== null && idAttr.trim().length > 0 ? idAttr : undefined;
   // **D-089 — Custom `data-*` attributes**. Read every user `data-*`
   // attribute (excluding the engine-reserved `data-svge-*` namespace,
   // filtered by `dataNameToCustomAttr`) back into
@@ -513,9 +520,10 @@ function baseFactoryOpts(el: Element): MutableFactoryOpts {
   // clobbers) this when it adds its kind/page/animation flags.
   const customAttrs = parseCustomAttrs(el);
   const hasCustom = Object.keys(customAttrs).length > 0;
-  if (name !== undefined || hasCustom) {
+  if (name !== undefined || sourceId !== undefined || hasCustom) {
     opts.metadata = {
       ...(name !== undefined ? { name } : {}),
+      ...(sourceId !== undefined ? { sourceId } : {}),
       ...(hasCustom ? { customData: { [SVGE_CUSTOM_ATTRS_KEY]: customAttrs } } : {}),
     };
   }

@@ -3,6 +3,7 @@ import {
   OptimizerRegistry,
   precisionOptimizer,
   pruneEmptyGroupsOptimizer,
+  stripAuthoredIdsOptimizer,
   stripAuthoredTitlesOptimizer,
 } from '@mosaicoo/svg-engine/optimize';
 import type { EditorPlugin, PluginContext } from '../plugin/plugin';
@@ -16,13 +17,13 @@ import { PLUGIN_API_VERSION } from '../plugin/plugin';
  * 2. {@link dropDefaultsOptimizer} (order 50) — strip redundant defaults
  * 3. {@link pruneEmptyGroupsOptimizer} (order 90) — drop `<g></g>`
  *
- * Plus 1 D-072-follow-up **opt-in** pass (`defaultEnabled: false`)
- * that toggles the document's export preference for authored-name
- * persistence (the `<title>` child element that the exporter emits
- * for nodes with `metadata.name`):
+ * Plus 2 **opt-in** passes (`defaultEnabled: false`) that toggle the
+ * document's export preferences for authored-metadata persistence:
  *
  * 4. {@link stripAuthoredTitlesOptimizer} (order 80) — opt out of
- *    emitting `<title>` children
+ *    emitting `<title>` children (from `metadata.name`)
+ * 5. {@link stripAuthoredIdsOptimizer} (order 81, D-149) — opt out of
+ *    re-emitting `id="..."` (from `metadata.sourceId`)
  *
  * "Conservative" here means: each pass is safe to run on any well-
  * formed document — never alters visual rendering, only file size /
@@ -42,5 +43,6 @@ export const builtinOptimizersPlugin: EditorPlugin = {
     ctx.track(reg.register(dropDefaultsOptimizer));
     ctx.track(reg.register(pruneEmptyGroupsOptimizer));
     ctx.track(reg.register(stripAuthoredTitlesOptimizer));
+    ctx.track(reg.register(stripAuthoredIdsOptimizer));
   },
 };

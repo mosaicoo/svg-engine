@@ -119,6 +119,40 @@ export const stripAuthoredTitlesOptimizer: Optimizer = {
 };
 
 /**
+ * **D-149 — Strip authored `id` emission.**
+ *
+ * Twin of {@link stripAuthoredTitlesOptimizer}: sets
+ * `document.exportPreferences.emitAuthoredIds = false` so the exporter
+ * omits the `id="..."` it would otherwise re-emit from each node's
+ * `metadata.sourceId` (the id captured on import). For consumers who want
+ * id-free output — the OPPOSITE of the round-trip use case, so it's
+ * **opt-in** (`defaultEnabled: false`); the default pipeline preserves
+ * authored ids so downstream `#id` bindings survive.
+ *
+ * Like its title twin, it does NOT remove `metadata.sourceId` from the
+ * model — the id stays available for a future un-stripped export.
+ * textPath-target ids (D-068h) are unaffected (they're not gated by this).
+ */
+export const stripAuthoredIdsOptimizer: Optimizer = {
+  id: 'svge.builtin.optimize.strip-authored-ids',
+  name: 'Strip authored id',
+  description:
+    'Omit id="..." re-emitted for nodes with metadata.sourceId. Toggles document.exportPreferences.emitAuthoredIds.',
+  order: 81,
+  defaultEnabled: false,
+  optimize(document: SvgDocument): SvgDocument {
+    if (document.exportPreferences?.emitAuthoredIds === false) return document;
+    return {
+      ...document,
+      exportPreferences: {
+        ...document.exportPreferences,
+        emitAuthoredIds: false,
+      },
+    };
+  },
+};
+
+/**
  * Remove empty groups (`<g>` with no children) recursively. Common
  * after a delete-then-undo cycle or after the user ungroups+regroups.
  *

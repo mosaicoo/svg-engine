@@ -6,6 +6,35 @@
 
 ---
 
+## 2026-07-07 — D-149 — Preservação do `id` autoral no round-trip (import→export) + campo Element ID 🔖
+
+SVGs autorados por ferramentas externas (Illustrator/Inkscape) usam `id` para
+identificar elementos que sistemas downstream (ex.: mapas do `two`, consumidor
+do svg-engine) ligam a dados/thresholds. O round-trip `svgImporter →
+svgExporter` **descartava** esse `id` — o importer nem o capturava, e o exporter
+só emitia `<title>` de `metadata.name` (decisão D-072g) — quebrando o bind ao
+editar-e-salvar.
+
+- **Model** (`core`): `metadata.sourceId?` — o `id` de origem, distinto do UUID
+  de runtime (`node.id`) e do nome (`<title>`). `exportPreferences.emitAuthoredIds?`.
+- **Importer** (`io`): captura `el.getAttribute('id')` → `metadata.sourceId` em
+  `baseFactoryOpts` (separado de `name`/`customData`).
+- **Exporter** (`io`): `buildEmittedIds` resolve, em 1 passada, o `id` que cada
+  nó emite — `sourceId` (quando `emitAuthoredIds`, default on-when-present) OU o
+  UUID de alvo de `<textPath>` (D-068h) — **deduplicado** (colisão vira `-2`). O
+  `id` passa a ser emitido genericamente (rect/g/text/path/…) via `idAttr(node,
+ctx)`; o `href` do `<textPath>` aponta para o id realmente emitido do alvo.
+- **Optimize**: `stripAuthoredIdsOptimizer` (opt-in, `defaultEnabled:false`),
+  gêmeo do `stripAuthoredTitlesOptimizer`, para saída sem id.
+- **UI** (`ui`): campo **Element ID** no topo da aba Data do Inspector (mesmo
+  caminho `SetPropertyCommand<metadata>` do rename do Layer Panel); vazio = sem id.
+- Nós criados no editor não têm `sourceId` → saída continua limpa; o autosave
+  round-trip permanece estável (o id agora persiste).
+- `build:lib` + `lint` (3 projetos) + `test:lib` (**3012**) verdes; API snapshot
+  regenerado (+`stripAuthoredIdsOptimizer`); navegado no `/pro-editor` (campo
+  Element ID renderiza + comita ao vivo). Decisão em
+  [04-decisoes-tecnicas](04-decisoes-tecnicas.md) (D-149).
+
 ## 2026-06-29 — D-148 — Right rail redimensionável + ids de efeito paramétrico mais curtos 📐🔖
 
 Dois ajustes pedidos: rail direito arrastável (a solução definitiva do D-147) e

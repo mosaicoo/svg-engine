@@ -28,6 +28,9 @@ export {
   dropDefaultsOptimizer,
   precisionOptimizer,
   pruneEmptyGroupsOptimizer,
+  // D-149 — opt-in pass that toggles the export preference for authored
+  // `id` re-emission (metadata.sourceId → id="...").
+  stripAuthoredIdsOptimizer,
   // D-072 follow-up — opt-in pass that toggles the export preference
   // for authored-name persistence via `<title>` children.
   stripAuthoredTitlesOptimizer,
