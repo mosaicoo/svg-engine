@@ -71,11 +71,15 @@ jobs:
       - name: Lint
         run: npx ng lint
 
-      - name: Test library
-        run: npx ng test svg-engine --watch=false
-
+      # Build ANTES do Test: os specs importam `@mosaicoo/svg-engine/*`, que
+      # o tsconfig raiz mapeia para `dist/svg-engine/*` (o build APF, não a
+      # fonte). Sem o dist, `ng test` quebra com TS2307 "Cannot find module".
+      # (Era o motivo de a Release #1/#2 falharem no step Test.)
       - name: Build library
         run: npx ng build svg-engine
+
+      - name: Test library
+        run: npx ng test svg-engine --watch=false
 
       - name: Strip sourcemaps
         run: npm run strip:maps
