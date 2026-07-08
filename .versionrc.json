@@ -5,6 +5,10 @@
     {
       "filename": "projects/svg-engine/package.json",
       "type": "json"
+    },
+    {
+      "filename": "projects/svg-engine/src/public-api.ts",
+      "updater": "scripts/version-updater.cjs"
     }
   ],
   "packageFiles": [
