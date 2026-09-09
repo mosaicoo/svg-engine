@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mosaicoo/svgengine-site/main/public/og.png" alt="SVGEngine" width="640">
+  <img src="https://raw.githubusercontent.com/mosaicoo/svg-engine/main/projects/svg-engine/brand/og.png" alt="SVGEngine" width="640">
 </p>
 
 # svg-engine

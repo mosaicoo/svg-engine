@@ -150,7 +150,42 @@ message, so it should follow the Conventional Commits format above.
 Maintainers may ask for changes. Once the checks pass and the review is
 approved, a maintainer merges the pull request.
 
+## Versioning
+
+The package follows [Semantic Versioning](https://semver.org).
+
+### What the version number covers
+
+The public API is what each entry point exports. Every one of those exports is
+recorded in a snapshot test, so a change to that surface is always visible in
+review and never accidental.
+
+Anything not exported from an entry point is internal. It may change in any
+release, even when a type makes it reachable.
+
+### While the version is `0.x`
+
+Breaking changes ship as a minor bump (`0.2.0` to `0.3.0`) and are called out
+in the changelog. Patch releases never change the public API. The full
+major/minor/patch guarantees begin at `1.0.0`.
+
+### Deprecation
+
+An export scheduled for removal is marked `@deprecated` in the same release
+that introduces its replacement, and the message names that replacement. It is
+removed no earlier than the following minor release.
+
 ## Releases
 
-Releases are cut by maintainers only. Publication to npm runs from a tagged
-build in CI; contributors never need credentials.
+Releases are cut by maintainers only:
+
+1. `npm run release` (or `release:patch` / `release:minor`) — standard-version
+   derives the version from the commit history, updates `CHANGELOG.md` and the
+   `SVG_ENGINE_VERSION` constant, then commits and tags.
+2. `git push --follow-tags`.
+3. The tag triggers the release workflow, which checks the version lockstep,
+   lints, builds, tests and packs before publishing to npm through Trusted
+   Publishing (OIDC), and then opens the GitHub Release from the changelog.
+
+Publication waits for a maintainer's approval, and no long-lived npm token
+exists. Contributors never need credentials.
