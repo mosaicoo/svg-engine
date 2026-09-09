@@ -60,6 +60,41 @@ Out of scope:
 - Denial of service caused by intentionally pathological documents (very large
   path data, deeply nested groups). These are handled as performance issues.
 
+## Known advisories
+
+Some advisories reported by `npm audit` have no upstream fix at the time of
+writing. They are listed here so they are not mistaken for an oversight.
+
+All of them come from a single chain: the **optional** peer dependency
+`@huggingface/transformers`, which is required only by the
+`@mosaicoo/svg-engine/ai/nlu-voice-wasm` entry point (local speech
+recognition).
+
+| Package                     | Severity | Reached through             |
+| --------------------------- | -------- | --------------------------- |
+| `@huggingface/transformers` | High     | Optional peer dependency    |
+| `onnxruntime-node`          | High     | `@huggingface/transformers` |
+| `sharp`                     | High     | `@huggingface/transformers` |
+| `adm-zip`                   | High     | `onnxruntime-node`          |
+
+What this means for you:
+
+- **If you do not use `ai/nlu-voice-wasm`, you are not affected.**
+  `@huggingface/transformers` is declared optional in
+  `peerDependenciesMeta`, so npm does not install it — or anything below it —
+  unless you ask for it.
+- **None of these ship inside the package.** The only runtime dependencies of
+  `@mosaicoo/svg-engine` are `polygon-clipping` and `tslib`.
+- `onnxruntime-node`, `sharp` and `adm-zip` are the **Node-side** half of
+  `@huggingface/transformers`. The browser speech path runs on WebAssembly and
+  does not load them, so for a browser application the exposure is limited to
+  the build environment.
+
+These advisories are re-evaluated before every release. If you need the voice
+entry point in a security-sensitive environment, pin and audit the
+`@huggingface/transformers` chain yourself, or use the text-only
+`ai/nlu` entry point, which has no such dependencies.
+
 ## Handling untrusted SVG
 
 The importer sanitizes incoming documents — it strips `<script>` elements,
