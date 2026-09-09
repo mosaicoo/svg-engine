@@ -54,13 +54,17 @@ updates:
           - 'ng-packagr'
           - 'angular-eslint'
     ignore:
-      # An Angular major is a coordinated migration: `ng update`, the peer range
-      # published to consumers, and the Node version in CI all move together.
-      # It is never an automatic pull request.
-      - dependency-name: '@angular/*'
-        update-types: ['version-update:semver-major']
-      # TypeScript majors are bound to the Angular version that supports them.
-      - dependency-name: 'typescript'
+      # No major is ever an automatic pull request.
+      #
+      # The toolchain moves as one unit: ng-packagr 22 requires
+      # @angular/compiler-cli ^22 and TypeScript >=6, angular-eslint tracks the
+      # Angular major, and a vitest or jsdom major changes how the whole suite
+      # runs. A major is a deliberate, coordinated migration — the peer range
+      # published to consumers moves with it — so majors are raised by hand.
+      #
+      # Patch and minor updates still arrive automatically, and so do the
+      # security updates that matter day to day.
+      - dependency-name: '*'
         update-types: ['version-update:semver-major']
 
   # --- GitHub Actions -----------------------------------------------------
