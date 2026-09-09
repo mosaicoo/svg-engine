@@ -1,0 +1,82 @@
+# Dependabot configuration.
+#
+# Two ecosystems are watched: the npm workspace and the GitHub Actions used by
+# the workflows. Updates are grouped so a routine bump arrives as one pull
+# request instead of a dozen.
+version: 2
+
+updates:
+  # --- npm ----------------------------------------------------------------
+  # The workspace has a single lockfile at the root, shared by the library and
+  # the two applications.
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    open-pull-requests-limit: 5
+    # Prefer moving the lockfile only. The declared ranges already allow patch
+    # and minor updates, so package.json changes only when a range must move.
+    versioning-strategy: 'increase-if-necessary'
+    # The changelog and the version bump are generated from the commit history
+    # (Conventional Commits). `chore` is excluded from the changelog, which is
+    # the right bucket for a dependency bump.
+    commit-message:
+      prefix: 'chore'
+      include: 'scope'
+    labels:
+      - 'dependencies'
+    groups:
+      # Angular packages are released in lockstep and must be updated together.
+      angular:
+        patterns:
+          - '@angular/*'
+          - '@angular-devkit/*'
+          - 'ng-packagr'
+          - 'angular-eslint'
+      # Everything else, split by dependency type so the diffs stay readable.
+      production:
+        dependency-type: 'production'
+        patterns:
+          - '*'
+        exclude-patterns:
+          - '@angular/*'
+          - '@angular-devkit/*'
+          - 'ng-packagr'
+          - 'angular-eslint'
+      development:
+        dependency-type: 'development'
+        patterns:
+          - '*'
+        exclude-patterns:
+          - '@angular/*'
+          - '@angular-devkit/*'
+          - 'ng-packagr'
+          - 'angular-eslint'
+    ignore:
+      # An Angular major is a coordinated migration: `ng update`, the peer range
+      # published to consumers, and the Node version in CI all move together.
+      # It is never an automatic pull request.
+      - dependency-name: '@angular/*'
+        update-types: ['version-update:semver-major']
+      # TypeScript majors are bound to the Angular version that supports them.
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
+
+  # --- GitHub Actions -----------------------------------------------------
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'ci'
+      include: 'scope'
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+    groups:
+      actions:
+        patterns:
+          - '*'
