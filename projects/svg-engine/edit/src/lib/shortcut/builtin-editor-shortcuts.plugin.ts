@@ -74,7 +74,7 @@ import { ShortcutRegistry } from './shortcut-registry.service';
  */
 export const builtinEditorShortcutsPlugin: EditorPlugin = {
   id: 'svge.builtin.editor-shortcuts',
-  name: 'Built-in editor shortcuts (D-040)',
+  name: 'Built-in editor shortcuts',
   version: '1.0.0',
   apiVersion: PLUGIN_API_VERSION,
 

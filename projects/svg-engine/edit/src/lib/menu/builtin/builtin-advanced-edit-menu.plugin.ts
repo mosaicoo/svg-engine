@@ -44,7 +44,7 @@ import { MENU_SLOT } from '../menu-slots';
  */
 export const builtinAdvancedEditMenuPlugin: EditorPlugin = {
   id: 'svge.builtin.advanced-edit-menu',
-  name: 'Built-in advanced edit menu items (compound paths + live boolean) — D-054/D-056',
+  name: 'Built-in advanced edit menu items (compound paths, live boolean)',
   version: '1.0.0',
   apiVersion: PLUGIN_API_VERSION,
 

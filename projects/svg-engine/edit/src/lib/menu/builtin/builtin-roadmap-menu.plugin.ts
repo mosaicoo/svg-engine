@@ -189,7 +189,7 @@ function splitTargetFromAnchorSelection(
 
 export const builtinRoadmapMenuPlugin: EditorPlugin = {
   id: 'svge.builtin.roadmap-menu',
-  name: 'Menubar Option B — Path/Tools/Window menus, Mask + roadmap items (D-085)',
+  name: 'Built-in Path, Tools and Window menus',
   version: '1.0.0',
   apiVersion: PLUGIN_API_VERSION,
 

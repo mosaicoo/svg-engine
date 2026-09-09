@@ -36,7 +36,7 @@ import { SvgeCodeGeneratorDialogService } from './code-generator-dialog.service'
  */
 export const codeGeneratorsPlugin: EditorPlugin = {
   id: 'svge.builtin.ui.code-generators',
-  name: 'Code Generators (React JSX / Component / Data URI) (D-110)',
+  name: 'Code generators (React JSX, component, data URI)',
   version: '1.0.0',
   apiVersion: PLUGIN_API_VERSION,
 

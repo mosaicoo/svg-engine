@@ -391,7 +391,7 @@ function coerceGradientSpec(slots: Record<string, unknown>): NluGradientSpec | u
 
 export const builtinNluPlugin: EditorPlugin = {
   id: 'svge.builtin.nlu',
-  name: 'Built-in NLU (rule-based, Fase 1)',
+  name: 'Built-in NLU (rule-based)',
   version: '1.0.0',
   apiVersion: PLUGIN_API_VERSION,
   description: 'Natural-language commands (rule-based): create shapes, set fill, and more.',

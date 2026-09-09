@@ -162,7 +162,7 @@ import { CONTEXT_MENU_SLOT, MENU_SLOT, TOOLBAR_SLOT } from '../menu-slots';
  */
 export const builtinMenuContributionsPlugin: EditorPlugin = {
   id: 'svge.builtin.menu-contributions',
-  name: 'Built-in editor menu / toolbar / context items (D-043)',
+  name: 'Built-in editor menu, toolbar and context items',
   version: '1.0.0',
   apiVersion: PLUGIN_API_VERSION,
 

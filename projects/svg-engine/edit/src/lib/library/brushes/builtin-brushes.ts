@@ -348,7 +348,7 @@ export const BUILTIN_BRUSHES: readonly BrushLibraryItem[] = [
  */
 export const builtinBrushesPlugin: EditorPlugin = {
   id: 'svge.builtin.brushes',
-  name: 'Built-in brushes (18 calligraphic) — D-060',
+  name: 'Built-in brushes (18 calligraphic)',
   version: '1.0.0',
   apiVersion: PLUGIN_API_VERSION,
 

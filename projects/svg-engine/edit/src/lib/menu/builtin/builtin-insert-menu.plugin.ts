@@ -93,7 +93,7 @@ import { MENU_SLOT } from '../menu-slots';
  */
 export const builtinInsertMenuPlugin: EditorPlugin = {
   id: 'svge.builtin.insert-menu',
-  name: 'Built-in Insert menu (shapes/text/image) — D-052',
+  name: 'Built-in Insert menu (shapes, text, image)',
   version: '1.0.0',
   apiVersion: PLUGIN_API_VERSION,
 

@@ -121,7 +121,7 @@ export const BUILTIN_SYMBOLS: readonly SymbolLibraryItem[] = [
  */
 export const builtinSymbolsPlugin: EditorPlugin = {
   id: 'svge.builtin.symbols',
-  name: 'Built-in symbols (4 items) — D-059',
+  name: 'Built-in symbols (4 items)',
   version: '1.0.0',
   apiVersion: PLUGIN_API_VERSION,
 

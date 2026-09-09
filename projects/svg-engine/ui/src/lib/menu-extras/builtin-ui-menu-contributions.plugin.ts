@@ -114,7 +114,7 @@ import { WorkspaceLayoutService } from '../workspace-layout';
  */
 export const builtinUiMenuContributionsPlugin: EditorPlugin = {
   id: 'svge.builtin.ui-menu-contributions',
-  name: 'Built-in UI menu contributions (dialogs) (D-044)',
+  name: 'Built-in UI menu contributions (dialogs)',
   version: '1.0.0',
   apiVersion: PLUGIN_API_VERSION,
 
