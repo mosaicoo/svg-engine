@@ -110,3 +110,40 @@ jobs:
       - name: Publish to npm (Trusted Publishing / OIDC)
         working-directory: dist/svg-engine
         run: npm publish
+
+  github-release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    needs: build-and-publish
+
+    # This is the only job that writes to the repository, and only to create
+    # the release entry. The publishing job stays read-only plus its OIDC
+    # token. Running after the publish means a failure here cannot affect a
+    # version that already reached npm.
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # The notes are taken from the changelog that standard-version already
+      # generated for this version, so the release page and CHANGELOG.md never
+      # disagree. If the section is missing, fall back to generated notes
+      # rather than failing the release.
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="$version" '
+            index($0, "## [" ver "]") == 1 { inside = 1; next }
+            inside && index($0, "## [") == 1 { exit }
+            inside { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ -s release-notes.md ]; then
+            gh release create "$GITHUB_REF_NAME"               --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+          else
+            echo "No changelog section for $version; using generated notes."
+            gh release create "$GITHUB_REF_NAME"               --title "$GITHUB_REF_NAME" --generate-notes
+          fi
