@@ -43,6 +43,12 @@ jobs:
   build-and-publish:
     name: Build + Publish (OIDC)
     runs-on: ubuntu-latest
+    # Gate de publicação: o environment `npm-release` exige aprovação de um
+    # revisor antes do job rodar, e só aceita ser alcançado a partir de uma
+    # tag `v*`. Publicar no npm é irreversível (não se despublica uma versão,
+    # e republicar a mesma dá 403), então a confirmação é explícita — mesmo
+    # que alguém consiga criar uma tag, nada é publicado sem aprovação.
+    environment: npm-release
 
     steps:
       - name: Checkout
