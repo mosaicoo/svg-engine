@@ -10,8 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Token mínimo: a CI só precisa ler o repositório. Nenhum job aqui escreve no
-# repo, publica pacote ou usa OIDC — isso é exclusivo do release.yml.
+# Least privilege: continuous integration only needs to read the repository.
+# No job here writes to it, publishes a package, or uses OIDC — publishing is
+# exclusive to release.yml.
 permissions:
   contents: read
 
@@ -42,9 +43,9 @@ jobs:
       - name: Build library svg-engine
         run: npx ng build svg-engine
 
-      # Test DEPOIS do Build: os specs importam `@mosaicoo/svg-engine/*`, que o
-      # tsconfig raiz mapeia para `dist/svg-engine/*`. Sem a lib buildada o
-      # `ng test` falha com TS2307 "Cannot find module".
+      # Test AFTER build: the specs import `@mosaicoo/svg-engine/*`, which the
+      # root tsconfig maps to `dist/svg-engine/*`. Without the built library,
+      # `ng test` fails with TS2307 "Cannot find module".
       - name: Test library (unit)
         run: npx ng test svg-engine --watch=false
 

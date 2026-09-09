@@ -1,29 +1,29 @@
 name: Release
 
 # ─────────────────────────────────────────────────────────────────────
-# Publish-on-tag via npm Trusted Publishing (OIDC) — sem NPM_TOKEN.
+# Publish-on-tag through npm Trusted Publishing (OIDC) — no NPM_TOKEN.
 #
-# Trigger: push de uma tag Git `v*` (criada por `npm run release` via
-# standard-version).
+# Trigger: pushing a Git tag `v*`, created by `npm run release`
+# (standard-version).
 #
-# Autenticação: OIDC (Trusted Publisher). NÃO usa secret NPM_TOKEN nem
-# "bypass 2FA". Requisitos:
-#   - `permissions: id-token: write` (gera o token OIDC efêmero).
-#   - npm CLI >= 11.5.1 (instalado abaixo; o Node 22 traz o npm 10).
-#   - O pacote `@mosaicoo/svg-engine` PRECISA já existir no npm E um
-#     Trusted Publisher precisa estar configurado em npmjs.com apontando
-#     para: org/usuário = mosaicoo, repositório = svg-engine, workflow =
-#     release.yml. Bootstrap: publique a 1ª versão localmente
-#     (`npm run publish:lib`), configure o Trusted Publisher, e a partir
-#     daí as tags publicam por aqui.
+# Authentication: OIDC (Trusted Publisher). No NPM_TOKEN secret, no 2FA
+# bypass. Requirements:
+#   - `permissions: id-token: write`, which mints the short-lived OIDC token.
+#   - npm CLI >= 11.5.1 (installed below; Node 22 ships npm 10).
+#   - The package `@mosaicoo/svg-engine` must already exist on npm, and a
+#     Trusted Publisher must be configured at npmjs.com pointing to
+#     organization `mosaicoo`, repository `svg-engine`, workflow
+#     `release.yml`. Bootstrap: publish the first version locally with
+#     `npm run publish:lib`, configure the Trusted Publisher, and every tag
+#     from then on publishes from here.
 #
-# Proveniência (provenance) é gerada AUTOMATICAMENTE em publicações OIDC
-# (repo público + pacote público) — sem precisar do flag `--provenance`.
+# Provenance is generated automatically for an OIDC publish of a public
+# package from a public repository — the `--provenance` flag is not needed.
 #
-# Só a LIB é publicada (`dist/svg-engine`). Os apps (playground,
-# svg-studio) nunca são publicados. O pacote leva apenas o código
-# compilado (`.mjs` + `.d.ts`): os sourcemaps são removidos pelo
-# `strip:maps` antes do publish.
+# Only the library is published (`dist/svg-engine`). The applications
+# (playground, svg-studio) are never published. The package carries compiled
+# output only (`.mjs` + `.d.ts`); `strip:maps` removes the sourcemaps
+# before the publish step.
 # ─────────────────────────────────────────────────────────────────────
 
 on:
@@ -43,11 +43,11 @@ jobs:
   build-and-publish:
     name: Build + Publish (OIDC)
     runs-on: ubuntu-latest
-    # Gate de publicação: o environment `npm-release` exige aprovação de um
-    # revisor antes do job rodar, e só aceita ser alcançado a partir de uma
-    # tag `v*`. Publicar no npm é irreversível (não se despublica uma versão,
-    # e republicar a mesma dá 403), então a confirmação é explícita — mesmo
-    # que alguém consiga criar uma tag, nada é publicado sem aprovação.
+    # Publication gate: the `npm-release` environment requires a reviewer's
+    # approval before this job runs, and only accepts being reached from a
+    # `v*` tag. Publishing to npm is irreversible — a version cannot be
+    # unpublished and republishing the same one returns 403 — so the
+    # confirmation is explicit: creating a tag alone publishes nothing.
     environment: npm-release
 
     steps:
@@ -63,24 +63,23 @@ jobs:
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
 
-      # Trusted Publishing (OIDC) exige npm >= 11.5.1; o Node 22 traz o npm 10.
+      # Trusted Publishing (OIDC) requires npm >= 11.5.1; Node 22 ships npm 10.
       - name: Upgrade npm (OIDC support)
         run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci
 
-      # Garante que package.json .version === SVG_ENGINE_VERSION antes de tudo.
+      # Fail early when package.json .version and SVG_ENGINE_VERSION disagree.
       - name: Check version lockstep
         run: npm run check:version
 
       - name: Lint
         run: npx ng lint
 
-      # Build ANTES do Test: os specs importam `@mosaicoo/svg-engine/*`, que
-      # o tsconfig raiz mapeia para `dist/svg-engine/*` (o build APF, não a
-      # fonte). Sem o dist, `ng test` quebra com TS2307 "Cannot find module".
-      # (Era o motivo de a Release #1/#2 falharem no step Test.)
+      # Build BEFORE test: the specs import `@mosaicoo/svg-engine/*`, which the
+      # root tsconfig maps to `dist/svg-engine/*` — the built package, not the
+      # sources. Without it, `ng test` fails with TS2307 "Cannot find module".
       - name: Build library
         run: npx ng build svg-engine
 
@@ -106,7 +105,8 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      # OIDC: sem token. `access`/provenance vêm do publishConfig + ambiente.
+      # OIDC: no token. `access` and provenance come from publishConfig and
+      # the workflow environment.
       - name: Publish to npm (Trusted Publishing / OIDC)
         working-directory: dist/svg-engine
         run: npm publish

@@ -1,0 +1,27 @@
+# Normalize line endings. Text files are stored with LF in the repository and
+# checked out with LF on every platform, so contributors on Windows and on
+# Unix produce identical diffs.
+* text=auto eol=lf
+
+# Files that must keep LF to be executable.
+*.sh text eol=lf
+
+# Binary assets — never diffed, never line-ending converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.onnx binary
+*.bin binary
+*.part* binary
+
+# Language statistics: keep build output and generated files from skewing the
+# repository's reported language breakdown.
+dist/** linguist-generated
+**/*.snapshot.json linguist-generated
+docs/** linguist-documentation

@@ -1333,7 +1333,7 @@ rule-based funcionava (sem as atividades de IA das Fases 1-8: composição "card
 escalonamento, "Pedir à IA"). Esta fatia liga o `AI_CHAT_PROVIDER`.
 
 - **`environment.ts` / `environment.development.ts` (padrão D-096):** novo campo
-  `aiChat: { baseUrl, model } | null`. **Dev** = Ollama local (`192.168.1.21`,
+  `aiChat: { baseUrl, model } | null`. **Dev** = Ollama local (`localhost`,
   `qwen2.5:3b`, igual ao playground); **prod** = `null` (não há servidor publicado → NLU
   segue 100% rule-based, sem rede). Host/URL fica no environment, nunca no código.
 - **`app.config.ts`:** `...(environment.aiChat ? provideOllamaChat(environment.aiChat) : [])`
@@ -1519,7 +1519,7 @@ dispara `beforeunload` e **trava o renderer**; usar navegação SPA via link de 
 
 Segunda fatia: ligar o resolver LLM (D-093 Fase 1) na UI real.
 
-- **`app.config.ts` (playground):** `provideOllamaChat({ baseUrl: 'http://192.168.1.21:11434',
+- **`app.config.ts` (playground):** `provideOllamaChat({ baseUrl: 'http://localhost:11434',
 model: 'qwen2.5:3b' })` no tier AI. Opt-in — constantes `OLLAMA_BASE_URL`/`OLLAMA_MODEL`
   no topo do arquivo para troca fácil. Sem este provider, o NLU segue só rule-based.
 - **`<svge-nlu-input>` (nlu-ui):** novo **escalonamento**. Quando o `runNow()` rule-based
@@ -1553,7 +1553,7 @@ true`, catálogo com **222 intents**, fallback habilitado — **wiring confirmad
 ## 2026-06-20 — D-093 (Fase 1) — Camada LLM: resolver de intents via Ollama ✅
 
 Primeira fatia da "camada de inteligência" pedida pelo usuário (LLM local
-Ollama/`qwen2.5` rodando em `192.168.1.21`). É o **fallback inteligente** do NLU:
+Ollama/`qwen2.5` rodando em `localhost`). É o **fallback inteligente** do NLU:
 quando o rule-based não resolve, o texto livre vai ao LLM, que devolve um **plano
 de comandos já registrados** (não SVG cru) — cada passo validado e executado pelo
 pipeline seguro existente. **O LLM nunca inventa comando.**

@@ -11,11 +11,12 @@ import { builtinNluPlugin, provideOllamaChat } from '@mosaicoo/svg-engine/ai/nlu
 import { provideWhisperVoiceEngine } from '@mosaicoo/svg-engine/ai/nlu-voice-wasm';
 
 /**
- * **D-093** — endereço do servidor Ollama local (DEV). Troque para o seu
- * (ou `http://localhost:11434` se rodar na mesma máquina). Requer
- * `OLLAMA_ORIGINS` liberado no servidor para o fetch do browser passar.
+ * Address of the local Ollama server used by the natural-language layer in
+ * development. Defaults to Ollama's own default port on this machine; point it
+ * at another host if your server runs elsewhere. The server must allow the
+ * browser's origin through `OLLAMA_ORIGINS`, otherwise the fetch is blocked.
  */
-const OLLAMA_BASE_URL = 'http://192.168.1.21:11434';
+const OLLAMA_BASE_URL = 'http://localhost:11434';
 const OLLAMA_MODEL = 'qwen2.5:3b';
 
 import { LOADER_DEMO_ORIGIN, loaderDemoModuleLoader } from './pages/plugins/loader-demo';

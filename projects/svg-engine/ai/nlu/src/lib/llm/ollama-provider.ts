@@ -35,7 +35,7 @@ export const DEFAULT_OLLAMA_MODELS: readonly string[] = [
 
 /** Optional configuration for {@link OllamaChatProvider} / {@link provideOllamaChat}. */
 export interface OllamaChatConfig {
-  /** Base URL of the Ollama server, e.g. `http://192.168.1.21:11434`. */
+  /** Base URL of the Ollama server, e.g. `http://localhost:11434`. */
   readonly baseUrl?: string;
   /** Default model id, e.g. `qwen2.5:3b`. Overridable per-call via `opts.model`. */
   readonly model?: string;
@@ -176,7 +176,7 @@ export class OllamaChatProvider implements AiChatProvider {
  *
  * ```ts
  * providers: [
- *   provideOllamaChat({ baseUrl: 'http://192.168.1.21:11434', model: 'qwen2.5:3b' }),
+ *   provideOllamaChat({ baseUrl: 'http://localhost:11434', model: 'qwen2.5:3b' }),
  * ]
  * ```
  *

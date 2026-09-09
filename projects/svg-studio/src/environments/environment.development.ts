@@ -18,7 +18,7 @@ export const environment = {
   // Aponta p/ o servidor de dev do usuário (mesmo do playground). Trocar
   // baseUrl/model aqui conforme o hardware (3b cabe na GPU; 7b é mais lento).
   // `null` desliga o LLM (NLU vira só rule-based) — vide environment.ts (prod).
-  aiChat: { baseUrl: 'http://192.168.1.21:11434', model: 'qwen2.5:3b' } as {
+  aiChat: { baseUrl: 'http://localhost:11434', model: 'qwen2.5:3b' } as {
     readonly baseUrl: string;
     readonly model: string;
   } | null,

@@ -43,6 +43,27 @@ The `start` and `build` scripts are preceded by `assemble:ml`, which assembles
 the local speech-recognition model used by the optional
 `svg-engine/ai/nlu-voice-wasm` entry point. It runs automatically.
 
+### The speech-model submodule
+
+The repository declares a git submodule at `assets/ml/whisper` that holds the
+speech-recognition model weights. **That submodule is private, and you do not
+need it.**
+
+Clone normally — without `--recurse-submodules`, which is the default:
+
+```bash
+git clone https://github.com/mosaicoo/svg-engine.git
+```
+
+Everything builds, every test passes, and the whole editor works. The only
+consequence is that `assemble:ml` prints a notice and skips: the local speech
+model is not assembled, so voice input is unavailable in your development
+build. The continuous integration pipeline runs the same way, without the
+submodule.
+
+Using `--recurse-submodules` will fail with an authentication error. That is
+expected.
+
 ## Repository layout
 
 The workspace holds three Angular projects:

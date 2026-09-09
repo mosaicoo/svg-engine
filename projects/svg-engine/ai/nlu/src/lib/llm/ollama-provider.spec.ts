@@ -92,13 +92,13 @@ describe('OllamaChatProvider (D-093)', () => {
   it('setBaseUrl normalizes a trailing slash; setModel changes the default', async () => {
     const fetchFn = mockFetchOnce({ message: { content: 'x' } });
     const p = make();
-    p.setBaseUrl('http://192.168.1.21:11434/');
+    p.setBaseUrl('http://localhost:11434/');
     p.setModel('qwen2.5:7b');
-    expect(p.baseUrl()).toBe('http://192.168.1.21:11434');
+    expect(p.baseUrl()).toBe('http://localhost:11434');
     expect(p.defaultModel()).toBe('qwen2.5:7b');
     await p.chat([{ role: 'user', content: 'oi' }]);
     const [url] = fetchFn.mock.calls[0];
-    expect(url).toBe('http://192.168.1.21:11434/api/chat');
+    expect(url).toBe('http://localhost:11434/api/chat');
     expect(lastBody(fetchFn)['model']).toBe('qwen2.5:7b');
   });
 
@@ -154,12 +154,12 @@ describe('OllamaChatProvider (D-093)', () => {
 
   it('provideOllamaChat wires AI_CHAT_PROVIDER to the same instance + applies config', () => {
     TestBed.configureTestingModule({
-      providers: [provideOllamaChat({ baseUrl: 'http://192.168.1.21:11434', model: 'qwen2.5:7b' })],
+      providers: [provideOllamaChat({ baseUrl: 'http://localhost:11434', model: 'qwen2.5:7b' })],
     });
     const token = TestBed.inject(AI_CHAT_PROVIDER);
     const concrete = TestBed.inject(OllamaChatProvider);
     expect(token).toBe(concrete);
     expect(concrete.defaultModel()).toBe('qwen2.5:7b');
-    expect(concrete.baseUrl()).toBe('http://192.168.1.21:11434');
+    expect(concrete.baseUrl()).toBe('http://localhost:11434');
   });
 });
