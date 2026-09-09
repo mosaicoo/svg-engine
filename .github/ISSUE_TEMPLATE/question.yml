@@ -1,0 +1,23 @@
+name: Question
+description: Ask how to use the library
+labels: ['question']
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What are you trying to achieve?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: What you tried
+      description: Relevant code, configuration or documentation you already looked at.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmation
+      options:
+        - label: I searched the existing issues and the documentation
+          required: true

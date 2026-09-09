@@ -1,0 +1,84 @@
+name: Bug report
+description: Report incorrect behaviour in the library
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please do not use this form for security
+        vulnerabilities — follow the security policy instead.
+  - type: input
+    id: version
+    attributes:
+      label: Library version
+      description: The version of `@mosaicoo/svg-engine` you are using.
+      placeholder: 0.2.0
+    validations:
+      required: true
+  - type: dropdown
+    id: entrypoint
+    attributes:
+      label: Entry point
+      description: Which entry point is involved?
+      options:
+        - core
+        - render
+        - io
+        - optimize
+        - edit
+        - ui
+        - ai/nlu
+        - ai/nlu-ui
+        - ai/nlu-voice-wasm
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: angular
+    attributes:
+      label: Angular version
+      placeholder: '21.2.0'
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and operating system
+      placeholder: Chrome 141 on Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: |
+        A minimal reproduction. Include the SVG document or a short code
+        snippet if the problem depends on specific input.
+      placeholder: |
+        1. Import the SVG below
+        2. Apply ...
+        3. Export
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: Include any console errors.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmation
+      options:
+        - label: I searched the existing issues and this is not a duplicate
+          required: true
+        - label: This is not a security vulnerability
+          required: true

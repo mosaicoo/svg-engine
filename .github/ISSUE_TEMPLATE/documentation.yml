@@ -1,0 +1,23 @@
+name: Documentation
+description: Report something missing, unclear or incorrect in the documentation
+labels: ['documentation']
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Where
+      description: The page, file or section affected.
+      placeholder: README — Install
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong or missing
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested wording
+      description: Optional, but a concrete suggestion speeds things up.

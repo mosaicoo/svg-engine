@@ -13,13 +13,11 @@ from a ~30 kB read-only viewer to a full Material-styled editor with path
 editing, boolean operations, pages/artboards, effects, libraries and an
 optional AI/natural-language command layer.
 
-> **Status**: pre-`1.0` (`0.1.2`, APIs hardening). Build green; **2953
-> specs passing across 223 files** (Vitest, 1 skipped). Licensed
-> **Apache-2.0**. Public surface in
-> [`docs/09-api-publica.md`](docs/09-api-publica.md); changes in
-> [`docs/08-historico-de-alteracoes.md`](docs/08-historico-de-alteracoes.md).
+> Published as [`@mosaicoo/svg-engine`](https://www.npmjs.com/package/@mosaicoo/svg-engine)
+> under **Apache-2.0**. **3012 specs across 227 files** pass on every change
+> (Vitest, 1 skipped). See [Project status](#project-status).
 >
-> The editor now spans a professional feature set:
+> The editor covers a professional feature set:
 >
 > - **Drawing**: Select/Direct-Select, Pen, Pencil, Rectangle/Ellipse/
 >   Polygon (+ star), Text (rich-text runs, variable fonts, text-on-path),
@@ -43,21 +41,15 @@ optional AI/natural-language command layer.
 
 ---
 
-## Why another SVG editor?
+## Design
 
-Most existing libraries either:
+SVGEngine is a plugin-extensible editor core: the model, rendering, editing
+services and the Material UI are **separate entry points**, so an application
+composes only what it needs.
 
-- **Ship as a black-box widget** (you embed it as-is, hard to extend, drags
-  its own UI stack), or
-- **Ship as a pure parser/serializer** (no editing, no rendering, no UX).
+### Architectural guarantees
 
-SVGEngine sits in the middle: a **plugin-extensible editor core** (D-020,
-D-023) where the model, rendering, editing services and Material UI are
-**separate entry points**. You compose only what your app needs.
-
-### Architectural guarantees (the hard rules)
-
-- **Headless boundary (D-017)**: `@mosaicoo/svg-engine/core`, `render`, and `edit`
+- **Headless boundary**: `@mosaicoo/svg-engine/core`, `render`, and `edit`
   have **zero dependency on `@angular/material` or `@angular/cdk`**. The
   Material UI lives only in `@mosaicoo/svg-engine/ui`, which is opt-in.
 - **Immutable model**: every mutation produces a new tree (structural
@@ -181,15 +173,14 @@ Each entry point is independently lazy-loadable. Consuming `core` does
 **not** drag in `render`, `io`, `optimize`, `edit`, `ui`, or `ai/*`. The
 `ai/*` trio is fully opt-in — none of the editor depends on it.
 
-> **D-026 (2026-05-20)**: `@mosaicoo/svg-engine/io` and `@mosaicoo/svg-engine/optimize`
-> were extracted from `@mosaicoo/svg-engine/edit` as dedicated entry points,
-> enabling use case "B" of D-016 (optimize/convert without dragging
-> the editor in). `@mosaicoo/svg-engine/edit` re-exports their public API for
-> backward compatibility — existing imports keep working unchanged.
+> `@mosaicoo/svg-engine/io` and `@mosaicoo/svg-engine/optimize` are dedicated
+> entry points, so an application can import, optimize or convert documents
+> without pulling the editor in. `@mosaicoo/svg-engine/edit` re-exports their
+> public API, so imports through `edit` keep working.
 
 ---
 
-## Plugin extensibility (D-020, D-023)
+## Plugin extensibility
 
 A dozen plugin categories let third parties contribute capabilities
 without forking the core:
@@ -286,7 +277,7 @@ bus.dispatch(new DivideCommand([rectId, circleId])); // each region a separate p
 
 ---
 
-## Accessibility (Fase 6c)
+## Accessibility
 
 Every interactive surface — overlays, panels, handles — implements
 the WAI-ARIA Authoring Practices for its role. Highlights:
@@ -321,11 +312,9 @@ so screen-readers don't announce hundreds of unnamed graphics.
 
 ## Performance characteristics
 
-Measured against synthetic + real Illustrator output (see
-[`docs/08-historico-de-alteracoes.md`](docs/08-historico-de-alteracoes.md)
-2026-05-18 entry for the full tables).
+Measured against synthetic documents and real-world Illustrator exports.
 
-Roadmap meta: **60 fps in pan/zoom at 1k+ nodes** — exceeded with margin:
+Target: **60 fps in pan/zoom at 1k+ nodes** — met with margin:
 
 | Nodes  | Pan/Zoom FPS | Reset → paint |
 | ------ | ------------ | ------------- |
@@ -379,23 +368,76 @@ Project layout follows the standard Angular workspace:
 
 ---
 
-## Documentation map
+## Documentation
 
-| File                                                                         | Purpose                              |
-| ---------------------------------------------------------------------------- | ------------------------------------ |
-| [`docs/01-visao-geral.md`](docs/01-visao-geral.md)                           | Vision, scope, non-goals             |
-| [`docs/02-arquitetura.md`](docs/02-arquitetura.md)                           | Layering, entry-point structure      |
-| [`docs/03-restricoes.md`](docs/03-restricoes.md)                             | Agent operational constraints        |
-| [`docs/04-decisoes-tecnicas.md`](docs/04-decisoes-tecnicas.md)               | Numbered ADRs (D-001 … D-115)        |
-| [`docs/05-roadmap.md`](docs/05-roadmap.md)                                   | Phase-by-phase delivery plan         |
-| [`docs/06-componentes-editor-svg.md`](docs/06-componentes-editor-svg.md)     | Component catalogue                  |
-| [`docs/07-backend-dotnet.md`](docs/07-backend-dotnet.md)                     | Optional .NET backend notes          |
-| [`docs/08-historico-de-alteracoes.md`](docs/08-historico-de-alteracoes.md)   | Detailed change log                  |
-| [`docs/09-api-publica.md`](docs/09-api-publica.md)                           | Public API surface (SemVer contract) |
-| [`docs/10-guia-plugin.md`](docs/10-guia-plugin.md)                           | Plugin author guide                  |
-| [`docs/11-auditoria-pendencias.md`](docs/11-auditoria-pendencias.md)         | Audit & open items                   |
-| [`docs/12-gerenciamento-de-plugins.md`](docs/12-gerenciamento-de-plugins.md) | Plugin management (install/manage)   |
-| [`docs/13-plataforma-de-plugins.md`](docs/13-plataforma-de-plugins.md)       | Plugin platform direction            |
+The full documentation — guides, usage and API reference — is published in
+**English, Portuguese and Spanish** at:
+
+**https://mosaicoo.github.io/svgengine-site**
+
+Other references in this repository:
+
+| Document                                   | Purpose                                                 |
+| ------------------------------------------ | ------------------------------------------------------- |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md)       | Development setup, tests, commit and pull-request rules |
+| [`CHANGELOG.md`](CHANGELOG.md)             | Released versions and their changes                     |
+| [`SECURITY.md`](SECURITY.md)               | Supported versions and how to report a vulnerability    |
+| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Expected behaviour in the project spaces                |
+
+The `docs/` directory holds internal design and architecture notes, written in
+Portuguese. They are working material for maintainers, not product
+documentation.
+
+---
+
+## Requirements
+
+| Requirement              | Version                                        |
+| ------------------------ | ---------------------------------------------- |
+| Angular                  | `^21.2.0` (`@angular/common`, `@angular/core`) |
+| Angular Material and CDK | `^21.2.0` — only for `@mosaicoo/svg-engine/ui` |
+| Node.js                  | 22 (development and build)                     |
+
+`@mosaicoo/svg-engine/ui` renders Angular Material components, so the host
+application must provide a Material theme. The remaining entry points have no
+UI dependency.
+
+Local speech recognition (`@mosaicoo/svg-engine/ai/nlu-voice-wasm`) additionally
+requires `@huggingface/transformers` `^4.2.0`. It is opt-in — nothing else in
+the library depends on it.
+
+---
+
+## Project status
+
+SVGEngine is published on npm and used in production applications. It is in the
+`0.x` series: the public API is stable in day-to-day use, but exports may still
+change between minor versions. Full Semantic Versioning guarantees start at
+`1.0.0`. Every entry point's public surface is covered by a snapshot test, so
+API changes are always deliberate and visible in review.
+
+---
+
+## Contributing
+
+Contributions are welcome. [`CONTRIBUTING.md`](CONTRIBUTING.md) covers the
+development setup, the checks a change must pass, and the pull-request process.
+Participation is governed by the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+---
+
+## Security
+
+Do not report vulnerabilities through public issues. [`SECURITY.md`](SECURITY.md)
+describes the private reporting process and what is in scope.
+
+---
+
+## Support
+
+- **Bugs and feature requests:** [open an issue](https://github.com/mosaicoo/svg-engine/issues/new/choose)
+- **Documentation:** https://mosaicoo.github.io/svgengine-site
 
 ---
 

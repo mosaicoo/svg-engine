@@ -1,0 +1,52 @@
+# Code owners for SVGEngine.
+#
+# Every line maps a path pattern to the accounts that must review changes to it.
+# The last matching pattern wins, so the specific rules below override the
+# global one.
+#
+# These rules only take effect once branch protection for `main` enables
+# "Require review from Code Owners".
+#
+# There is currently a single maintainer. When the project gains additional
+# maintainers, create a GitHub team (for example `@mosaicoo/svg-engine-core`)
+# and replace the individual account below with the team handle — do not add
+# accounts here before they exist and have write access.
+
+# Default owner for everything in the repository.
+*                               @mrcavalcanti
+
+# --- Critical areas -------------------------------------------------------
+# Changes here affect the published contract, the build, or the supply chain.
+
+# Published library source.
+/projects/svg-engine/           @mrcavalcanti
+
+# Public API surface: entry-point barrels and the guard-rail snapshot.
+/projects/svg-engine/src/public-api.ts          @mrcavalcanti
+/projects/svg-engine/*/src/public-api.ts        @mrcavalcanti
+/projects/svg-engine/*/*/src/public-api.ts      @mrcavalcanti
+/projects/svg-engine/api-surface/               @mrcavalcanti
+
+# Package manifest, packaging and release tooling.
+/projects/svg-engine/package.json   @mrcavalcanti
+/projects/svg-engine/ng-package.json @mrcavalcanti
+/package.json                   @mrcavalcanti
+/package-lock.json              @mrcavalcanti
+/.versionrc.json                @mrcavalcanti
+/scripts/                       @mrcavalcanti
+
+# CI/CD and repository automation.
+/.github/                       @mrcavalcanti
+
+# Licensing, security and governance.
+/LICENSE                        @mrcavalcanti
+/NOTICE                         @mrcavalcanti
+/THIRD-PARTY-NOTICES.md         @mrcavalcanti
+/SECURITY.md                    @mrcavalcanti
+/CODE_OF_CONDUCT.md             @mrcavalcanti
+/CONTRIBUTING.md                @mrcavalcanti
+
+# Build configuration.
+/angular.json                   @mrcavalcanti
+/tsconfig.json                  @mrcavalcanti
+/eslint.config.js               @mrcavalcanti

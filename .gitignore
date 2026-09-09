@@ -98,3 +98,6 @@ Thumbs.db
 # em .claude/settings.local.json (convencao oficial Claude Code, gitignored).
 .claude/settings.local.json
 .tmp-*
+
+# Material interno (briefings, notas de trabalho) — NUNCA versionar
+/docs-internal/
