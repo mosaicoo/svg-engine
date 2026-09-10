@@ -21,7 +21,7 @@
  * - **Destrutivo (com confirmGate)**: delete-selected
  *
  * **NÃO COBERTOS** (gap documentado em
- * `docs/11-auditoria-pendencias.md` item #22, headers desta classe
+ * `docs/internal/11-auditoria-pendencias.md` item #22, headers desta classe
  * historicamente prometeram mas implementação ficou para depois):
  *
  * - `align-*` / `distribute-*` — requerem **bbox renderizado** que o

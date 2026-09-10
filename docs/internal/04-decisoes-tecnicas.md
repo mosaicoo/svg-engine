@@ -2437,7 +2437,7 @@ sampleAnimation(anim, playhead))`. **Única fiação cross-cutting**, atrás
 
 - **Data**: 2026-06-10 (proposta); 2026-06-11 (decidida + Fases 1 e 2 implementadas)
 - **Status**: **Aceita — Fases 1 e 2 implementadas.** Material de decisão completo
-  em [`12-gerenciamento-de-plugins.md`](12-gerenciamento-de-plugins.md). Fase 3
+  em [`12-gerenciamento-de-plugins.md`](../12-gerenciamento-de-plugins.md). Fase 3
   (repositório online — scripts sandboxed / marketplace curado) segue
   **planejada, não iniciada**.
 - **Contexto**: O motor de plugins (D-020/D-023) já tem ciclo de vida runtime

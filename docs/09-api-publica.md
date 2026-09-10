@@ -570,7 +570,7 @@ Material aberto pelo item **File ▸ Manage Plugins…** do
 ```
 
 Detalhes de quando culling ajuda (e quando não) em
-[`docs/08-historico-de-alteracoes.md`](08-historico-de-alteracoes.md)
+[`docs/08-historico-de-alteracoes.md`](internal/08-historico-de-alteracoes.md)
 seção 2026-05-18.
 
 #### Acessibilidade (Fase 6c)

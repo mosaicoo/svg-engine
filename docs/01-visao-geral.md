@@ -163,10 +163,10 @@ publicável e cobre engine, edição, UI profissional e camada de IA.
 ## Ver também
 
 - [02 — Arquitetura](02-arquitetura.md)
-- [03 — Restrições](03-restricoes.md)
-- [04 — Decisões técnicas](04-decisoes-tecnicas.md)
-- [05 — Roadmap](05-roadmap.md)
+- [03 — Restrições](internal/03-restricoes.md)
+- [04 — Decisões técnicas](internal/04-decisoes-tecnicas.md)
+- [05 — Roadmap](internal/05-roadmap.md)
 - [06 — Componentes do Editor SVG](06-componentes-editor-svg.md)
-- [07 — Backend .NET (futuro/opcional)](07-backend-dotnet.md)
-- [08 — Histórico de alterações](08-historico-de-alteracoes.md)
+- [07 — Backend .NET (futuro/opcional)](internal/07-backend-dotnet.md)
+- [08 — Histórico de alterações](internal/08-historico-de-alteracoes.md)
 - [09 — API Pública (versionada)](09-api-publica.md)

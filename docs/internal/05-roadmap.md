@@ -529,7 +529,7 @@ entry points `core`/`edit`/`ui` (sem novo `@mosaicoo/svg-engine/animate`).
 ## Gerenciamento de plugins (D-083)
 
 Camada de **produto** sobre o motor de plugins (D-020). Decisão e raciocínio
-em **D-083** + [`docs/12-gerenciamento-de-plugins.md`](12-gerenciamento-de-plugins.md).
+em **D-083** + [`docs/12-gerenciamento-de-plugins.md`](../12-gerenciamento-de-plugins.md).
 Princípio: a library entrega **mecanismo, não política** (sem login/papéis; o
 consumer controla acesso).
 

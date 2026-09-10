@@ -4796,7 +4796,7 @@ em cada etapa). Tudo headless em `svg-engine/edit` (`edit/lib/plugin/`):
 
 Detalhes: [D-083](04-decisoes-tecnicas.md#d-083--gerenciamento-e-distribuição-de-plugins)
 
-- [doc 12](12-gerenciamento-de-plugins.md). Falta a Fase 3 (repositório online —
+- [doc 12](../12-gerenciamento-de-plugins.md). Falta a Fase 3 (repositório online —
   scripts sandboxed D-024 / marketplace curado).
 
 ---
@@ -4864,7 +4864,7 @@ playground + lint, tudo verde; snapshot da API regenerado. Fases 2 (loader de
 origem confiável) e 3 (repositório de scripts sandboxed / marketplace curado)
 seguem planejadas. Detalhes:
 [D-083](04-decisoes-tecnicas.md#d-083--gerenciamento-e-distribuição-de-plugins) +
-[doc 12](12-gerenciamento-de-plugins.md).
+[doc 12](../12-gerenciamento-de-plugins.md).
 
 ---
 
@@ -4872,7 +4872,7 @@ seguem planejadas. Detalhes:
 
 Investigação read-only do sistema de plugins (ancorada no código:
 `edit/lib/plugin/*`, D-020/D-023/D-024, guia 10) + novo documento de decisão
-[`12-gerenciamento-de-plugins.md`](12-gerenciamento-de-plugins.md) e a entrada
+[`12-gerenciamento-de-plugins.md`](../12-gerenciamento-de-plugins.md) e a entrada
 [D-083](04-decisoes-tecnicas.md#d-083--gerenciamento-e-distribuição-de-plugins)
 (status **PROPOSTA**). **Nenhum código alterado** — entregável é o material
 para decidir _como_ gerenciar/instalar/desinstalar/ativar/desativar plugins e

@@ -1,9 +1,9 @@
 # 10 — Guia do autor de plugin
 
 > Como estender o SVGEngine sem editar o core. Cobre a infra
-> ([D-020](04-decisoes-tecnicas.md#d-020--plugin-extensibility-via-typescript-d-020)),
+> ([D-020](internal/04-decisoes-tecnicas.md#d-020--plugin-extensibility-via-typescript-d-020)),
 > as 9 categorias mapeadas
-> ([D-023](04-decisoes-tecnicas.md#d-023--categorias-de-plugin-roadmap)),
+> ([D-023](internal/04-decisoes-tecnicas.md#d-023--categorias-de-plugin-roadmap)),
 > e padrões práticos. Leia este guia + D-020 + D-023 e você tem o
 > quadro completo (~10 min total).
 
@@ -506,7 +506,7 @@ o ciclo disable→enable seja limpo.
 
 **Acesso é do consumer**: a library entrega o mecanismo (serviço + UI), não
 política. Monte o `<svge-plugin-manager>` onde a autorização do seu app
-permitir. Detalhes + roadmap: [D-083](04-decisoes-tecnicas.md#d-083--gerenciamento-e-distribuição-de-plugins)
+permitir. Detalhes + roadmap: [D-083](internal/04-decisoes-tecnicas.md#d-083--gerenciamento-e-distribuição-de-plugins)
 
 - [doc 12](12-gerenciamento-de-plugins.md).
 
@@ -543,9 +543,9 @@ infraestrutura para o consumer, não um "cole URL e rode" para o usuário final.
 
 ## Referências
 
-- [D-020 — Plugin extensibility via TypeScript](04-decisoes-tecnicas.md#d-020--plugin-extensibility-via-typescript-d-020)
-- [D-023 — Categorias de plugin (roadmap)](04-decisoes-tecnicas.md#d-023--categorias-de-plugin-roadmap)
-- [D-024 — ScriptRuntimePlugin (deferido)](04-decisoes-tecnicas.md#d-024--scriptruntimeplugin-deferido-para-fase-6)
+- [D-020 — Plugin extensibility via TypeScript](internal/04-decisoes-tecnicas.md#d-020--plugin-extensibility-via-typescript-d-020)
+- [D-023 — Categorias de plugin (roadmap)](internal/04-decisoes-tecnicas.md#d-023--categorias-de-plugin-roadmap)
+- [D-024 — ScriptRuntimePlugin (deferido)](internal/04-decisoes-tecnicas.md#d-024--scriptruntimeplugin-deferido-para-fase-6)
 - [API pública](09-api-publica.md)
 - Exemplos no código (caminhos confirmados em 2026-05-29):
   - `projects/svg-engine/edit/src/lib/tool/builtin-tools.ts` — `selectToolPlugin`, `pageToolPlugin`, `pencilToolPlugin` (vivem todos neste arquivo, não em arquivos separados)
