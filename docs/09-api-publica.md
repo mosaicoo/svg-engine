@@ -19,7 +19,7 @@
 - **Política após `1.0.0`**: breaking = major.
 - **Cobertura**: **223 arquivos `.spec.ts`** na library (≈2885 casos `it`),
   cobrindo os 9 entry points (`npm run test:lib`).
-- **Status por fase** (ver `docs/05-roadmap.md` para histórico completo):
+- **Status por fase**:
   - Fase 5 (IO + Optimize) ✅
   - Fase 6a (perf baseline) ✅
   - Fase 6b (viewport culling) ✅

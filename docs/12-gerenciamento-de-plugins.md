@@ -365,9 +365,3 @@ As perguntas em aberto foram respondidas e registradas em
 > provada em produção** (plugin real carregado de
 > `svgstudio.mosaicoo.tech/plugins/...` no Studio publicado) — ver D-083 e o
 > histórico 2026-06-11.
->
-> A **Fase 3 foi redesenhada como [D-084]** após o spike de Native Federation:
-> a arquitetura definitiva da plataforma (três canais: build-time/npm,
-> **marketplace via Host-API factory** e scripts sandboxed) está em
-> **[13-plataforma-de-plugins.md](13-plataforma-de-plugins.md)** — este
-> documento (12) permanece como registro histórico das decisões das Fases 1–2.

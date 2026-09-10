@@ -122,7 +122,6 @@ Neither application is the distributed product.
 - [09 — Public API](09-api-publica.md)
 - [10 — Plugin author guide](10-guia-plugin.md)
 - [12 — Plugin management](12-gerenciamento-de-plugins.md)
-- [13 — Plugin platform](13-plataforma-de-plugins.md)
 
 Full usage documentation is published at
 <https://mosaicoo.github.io/svgengine-site>.
