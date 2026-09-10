@@ -20,9 +20,8 @@
  * - **Movimento absoluto**: move-to-position, move-to-x, move-to-y
  * - **Destrutivo (com confirmGate)**: delete-selected
  *
- * **NÃO COBERTOS** (gap documentado em
- * `docs/internal/11-auditoria-pendencias.md` item #22, headers desta classe
- * historicamente prometeram mas implementação ficou para depois):
+ * **NÃO COBERTOS** (headers desta classe historicamente prometeram, mas a
+ * implementação ficou para depois):
  *
  * - `align-*` / `distribute-*` — requerem **bbox renderizado** que o
  *   handler NÃO tem acesso (D-017 headless). UI consumer pode injetar

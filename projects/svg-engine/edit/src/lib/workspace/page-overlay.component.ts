@@ -71,7 +71,6 @@ import { type PageRect, resolvePageBounds, WorkspaceService } from './workspace.
   // attributes, NOT host bindings. We tried auto-tagging via
   // `host: { svgeBehind: '' }` and it doesn't work (the attribute
   // appears in the DOM but the projection slot was already decided).
-  // See `docs/internal/08-historico-de-alteracoes.md` for the bug history.
   host: { 'aria-hidden': 'true' },
   template: `
     @if (pageBounds(); as p) {

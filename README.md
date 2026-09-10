@@ -365,7 +365,6 @@ Project layout follows the standard Angular workspace:
 - `projects/svg-studio/` — standalone studio app
 - `e2e/` — Playwright end-to-end specs + Page Objects + helpers
 - `docs/` — architecture, component catalogue, public API surface, plugin guides
-- `docs/internal/` — maintainer working material (decision log, history, roadmap)
 
 ---
 
@@ -390,9 +389,10 @@ the component catalogue, the public API surface and the plugin guides. They are
 written in Portuguese and aimed at people working on the library rather than at
 people integrating it.
 
-`docs/internal/` holds maintainer working material: the decision log the
-`D-nnn` comments in the source point at, the change history and the roadmap.
-See [`docs/internal/README.md`](docs/internal/README.md).
+The decision log, the change history and the roadmap are maintainer working
+material and are not distributed with the repository. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for what the `D-nnn` markers in the
+source mean.
 
 ---
 

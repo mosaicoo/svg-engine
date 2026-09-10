@@ -45,8 +45,7 @@ import { type PageRect, resolvePageBounds, WorkspaceService } from './workspace.
   // ⚠ Z-order: consumers MUST write `<svg:g svgeGridOverlay
   // svgeBehind>` literally so SvgeRenderer projects it under content.
   // Host bindings don't affect Angular's compile-time projection slot
-  // resolution — see `docs/internal/08-historico-de-alteracoes.md` and the
-  // sibling PageOverlay for the same caveat.
+  // resolution — see the sibling PageOverlay for the same caveat.
   host: { 'aria-hidden': 'true' },
   template: `
     @if (visible()) {
