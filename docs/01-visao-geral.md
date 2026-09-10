@@ -1,172 +1,128 @@
-# 01 — Visão Geral
+# 01 — Overview
 
-## Projeto
+## What SVGEngine is
 
-**SVGEngine** — Library Angular profissional para **renderização,
-manipulação e otimização** de SVG, com camada de editor visual completa.
-Distribuída para ser **embutida em sistemas de terceiros** (Mosaicoo
-e externos).
+An Angular library for **rendering, manipulating and optimizing SVG**, with a
+complete visual editor layer on top. It is published as
+[`@mosaicoo/svg-engine`](https://www.npmjs.com/package/@mosaicoo/svg-engine) and
+is designed to be embedded inside other applications rather than run as one.
 
-## Posicionamento
+## The engine is the product
 
-**Não é MVP — é produto de mercado.** Implicações que valem para
-toda decisão técnica:
+The product is the **headless engine** — the entry points that carry no
+mandatory UI. The ready-made Material interface (`<svge-shell-pro>` and its
+companions) is an opt-in convenience layer that a consumer can replace
+entirely.
 
-- **Componentização rigorosa**: cada componente/serviço com uma única
-  responsabilidade clara. Composição preferida sobre herança ou módulos
-  monolíticos.
-- **Boas práticas Angular** (signals, standalone, OnPush, control flow
-  novo, sem ngClass/ngStyle, etc.) seguidas sempre.
-- **UX/UI** segue padrões de mercado (Material Design 3 com
-  acessibilidade WCAG AA mínimo).
-- **API pública estável**, versionada (semver), documentada.
-- **Cobertura de testes** desde o primeiro código de produção.
-- **Documentação viva** sincronizada com cada PR.
+This shapes the library concretely:
 
-### O que é "o produto" (D-041)
+- The headless entry points never import `@angular/material` or
+  `@angular/cdk`. That boundary is enforced, not merely intended.
+- Performance is measured against the headless engine, not against the shell.
+- The API documentation treats the headless surface as the primary contract.
+- The dependencies of the headless entry points are kept deliberately small.
 
-O produto principal do SVGEngine é o **Canvas Engine headless** — o
-conjunto de entry points sem UI obrigatória. A UI profissional pronta
-(`<svge-shell-pro>` e companhia) é **camada de conveniência opt-in**,
-substituível pelo consumer.
+## Entry points
 
-Em uma frase: **"Vendemos uma engine. A UI profissional é cortesia."**
+The package ships as a single npm package with nine secondary entry points.
+Consuming one does not pull in the others.
 
-Implicações práticas:
+| Entry point         | What it provides                                                     |
+| ------------------- | -------------------------------------------------------------------- |
+| `core`              | The document model, commands, history and editor state               |
+| `render`            | `<svge-renderer>` and the per-type rendering directives              |
+| `io`                | SVG import and export, PNG export, code generators                   |
+| `optimize`          | The optimization pipeline and its built-in passes                    |
+| `edit`              | Tools, selection, gestures, libraries, effects and the plugin system |
+| `ui`                | Material components: panels, dialogs, toolbars and the shells        |
+| `ai/nlu`            | Natural-language command resolution                                  |
+| `ai/nlu-ui`         | Material input surface for natural-language commands                 |
+| `ai/nlu-voice-wasm` | Local speech recognition, running entirely in the browser            |
 
-1. Roadmap prioriza features headless primeiro — UI segue
-2. Breaking changes em `ui` são menos graves do que em headless
-3. Documentação de API prioriza headless
-4. Dependências do headless são vigiadas; do `ui` podem crescer
-5. Performance é medida contra o headless puro
+Only `ui` and `ai/nlu-ui` depend on Angular Material.
 
-Detalhes completos em D-041 (`docs/04-decisoes-tecnicas.md`).
+## Four ways to consume it
 
-## Vocabulário canônico
+The library is designed so that all four of these work without compromising
+each other.
 
-Para alinhamento entre time, doc e marketing, usamos este vocabulário:
+| Approach           | What you import                                             | UI involved                   |
+| ------------------ | ----------------------------------------------------------- | ----------------------------- |
+| **Headless**       | `core`, `render`, `io`, `optimize`, `edit`                  | None — you build your own     |
+| **Complete shell** | `ui` — `<svge-shell-pro>` or `<svge-editor [shell]="true">` | A full editor                 |
+| **Partial shell**  | `ui`, choosing individual components                        | Whichever pieces you pick     |
+| **Canvas only**    | `render`, optionally `edit` for gestures                    | The canvas, with pan and zoom |
 
-| Termo conceitual            | Implementação real                                                                                                                                                                                                                                       |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **SVG Engine** (produto)    | npm package `@mosaicoo/svg-engine` — versão atual `0.1.2`                                                                                                                                                                                                |
-| **Canvas Engine / Core**    | conjunto headless: `svg-engine/{core,render,io,optimize,edit}` — 5 entry points sem dependência de Material                                                                                                                                              |
-| **Canvas físico**           | `<svge-renderer>` (read-only, em `render`) — gestures vêm via diretivas de `edit` aplicadas em projeção. **Não existe `<svge-canvas>`** — esse selector era da fase de planejamento, a composição real é renderer+diretivas.                             |
-| **SVG Engine Professional** | entry point `svg-engine/ui` — em particular `<svge-shell-pro>` (drop-in completo) e `<svge-editor>` (configurável)                                                                                                                                       |
-| **Shell parcial**           | Modo 3 (D-037) — composição manual de componentes de `svg-engine/ui`                                                                                                                                                                                     |
-| **NLU layer** (D-046)       | Entry points `svg-engine/ai/{nlu,nlu-ui,nlu-voice-wasm}` — comandos por linguagem natural: NLU rule-based (~33 intents) + escalonamento opcional para LLM (Ollama, D-093/D-095) + voz (Web Speech e Whisper WASM local, D-046). Opt-in, separado do core |
-| **Playground**              | app `projects/playground/` — sandbox + showcase + benchmark com **9 rotas + stampToolPlugin demo**. Não é produto, é referência para consumers entenderem cada modo                                                                                      |
-| **SVG Studio**              | app `projects/svg-studio/` — **deliverable de produto** standalone (1 rota full-bleed, `<svge-shell-pro>` puro). Set de plugins espelhado do playground **menos demos pedagógicos**. Single-page, deep-links sempre no editor                            |
+## What the library implements
 
-### Rotas do playground (slugs EN / labels PT — D-041)
+**Document model.** Ten node types — rectangle, ellipse, line, polygon,
+polyline, path, text, image, group and symbol use. The model is immutable:
+every mutation produces a new tree with structural sharing.
 
-Cada rota tem **nome que descreve a atividade**, não a categoria arquitetural:
+**Commands and history.** Every mutation goes through a command bus that routes
+through the history service, so undo and redo come for free. State is scoped per
+editor, so several editors can coexist on a page.
 
-| Rota                 | Atividade                                                                                                               | Modo D-037            |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| `/custom-editor`     | Editor completo **construído à mão**: canvas headless + painéis de `ui` wireados sem `<svge-editor>`/`<svge-shell-pro>` | Modo 1+3 misto        |
-| `/basic-editor`      | `<svge-editor>` drop-in **mínimo** (toolbar+canvas+statusbar)                                                           | Modo 2 minimal        |
-| `/modular-editor`    | `<svge-editor>` com **6 checkboxes** ligando/desligando partes individuais                                              | Configurador Modo 2/4 |
-| `/embeddable-canvas` | `<svge-editor>` com **tudo off** — só área de edição (sem chrome) mas ainda permite editar                              | Modo 4                |
-| `/pro-editor`        | `<svge-shell-pro>` editor **profissional completo** (Illustrator/Affinity-grade)                                        | Modo 2 pro            |
-| `/svg-viewer`        | `<svge-renderer>` puro **read-only** — textarea/arquivo SVG, sem `edit`, **bundle mínimo**                              | Render-only           |
-| `/benchmark`         | Harness de **performance** (FPS + render-to-paint latency)                                                              | Bench                 |
-| `/nlu-test`          | NLU bench: `<svge-editor>` lado a lado com `<svge-nlu-input>` (texto + voz) — comandos em linguagem natural (D-046)     | Showcase              |
-| `/plugins`           | Showcase do `<svge-plugin-manager>` — instala/desinstala plugin externo em runtime (D-083)                              | Showcase              |
+**Rendering.** One component per node type, a viewport service, and a registry
+that lets a consumer replace how any node type is drawn.
 
-**URLs antigas redirecionam para os novos slugs** (`/raw-primitives`,
-`/shell-demo`, `/shell-partial-demo`, `/shell-canvas-only`,
-`/shell-pro-demo`, `/perf`) — bookmarks continuam funcionando.
+**Import, export and optimization.** A deterministic SVG importer and exporter,
+PNG export at several scales, and an optimization pipeline with built-in passes
+that never alter what the document renders.
 
-## Quatro casos de uso explícitos (D-037)
+**Editing.** Drawing and selection tools, a path and anchor editor, boolean
+operations, path operations, alignment and distribution, multi-page artboards, a
+non-destructive animation timeline, effects, and libraries of shapes, palettes,
+gradients, patterns, symbols and brushes.
 
-A library é desenhada para que terceiros consumam de **quatro** formas
-distintas. Todas precisam funcionar sem quebrar as outras:
+**Extensibility.** A plugin system covering tools, libraries, effects,
+optimizers, importers, exporters, menus, keyboard shortcuts and code
+generators. Plugins can be installed at runtime.
 
-| Modo                  | O que o consumer importa                                                                                   | Componentes UI envolvidos              |
-| --------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| **1. Headless puro**  | `svg-engine/{core,render,io,optimize,edit}` — sem `ui`                                                     | Nenhum — consumer constrói UI própria  |
-| **2. Shell completo** | `svg-engine/ui` (`<svge-shell-pro>` ou `<svge-editor [shell]="true">`)                                     | Editor profissional pronto             |
-| **3. Shell parcial**  | `svg-engine/ui` (escolhendo componentes individuais)                                                       | Toolbar + canvas + inspector (por ex.) |
-| **4. Canvas-only**    | `svg-engine/render` (`<svge-renderer>`) + opcionalmente `edit` para gestures via `[svgeShellInteractions]` | Só o canvas + pan/zoom                 |
+**Natural language.** An optional layer that resolves typed or spoken commands
+into editor actions, with rule-based resolution and optional escalation to a
+language model. Speech recognition can run locally in the browser.
 
-**Consequência arquitetural**: nenhum entry point headless pode
-importar Material/CDK (D-017). Apenas `svg-engine/ui` e
-`svg-engine/ai/nlu-ui` podem. A `playground` demonstra os 4 modos em
-rotas separadas.
+## Applications in this workspace
 
-## Diretório raiz
+Neither application is the distributed product.
 
-`C:\Projetos\ClaudeCode\SVGEngine`
+- `projects/playground/` — a sandbox that demonstrates each way of consuming the
+  library, plus a performance harness.
+- `projects/svg-studio/` — a standalone editor built on the professional shell.
 
-## Repositório
+## Requirements
 
-- GitHub: `https://github.com/mosaicoo/svg-engine` (privado)
-- Owner: `mosaicoo`
-- Branch padrão: `main`
+- **Angular 21** and **Angular Material 21** (Material only for `ui` and
+  `ai/nlu-ui`).
+- **TypeScript** in `strict` mode.
+- SVG is handled through the native SVG DOM with the library's own abstraction
+  layer over it.
 
-## Estado atual (2026-06-27)
+## Design principles
 
-A **primeira etapa de desenvolvimento está concluída**: a library é
-publicável e cobre engine, edição, UI profissional e camada de IA.
+1. **Headless first** — the model, engine and optimization never depend on a UI
+   choice.
+2. **Immutable model** — mutations produce new trees; undo is snapshot and
+   replay.
+3. **Signal-first** — reactive state is expressed with signals and computed
+   values, never as subjects in the public API.
+4. **Command pattern** — every mutation is a command, which is what makes
+   history universal.
+5. **Small, focused components** — composition over inheritance.
+6. **Strong typing** — `strict`, no `any`, discriminated unions for variants.
+7. **A versioned public API** — an explicit surface, guarded by a snapshot test.
+8. **Accessibility** — WCAG AA as the minimum across the interface.
+9. **Performance and extensibility** as first-class requirements.
 
-- **Library publicável** (`projects/svg-engine/`) versão **0.1.2** com **9 secondary entry points** (`core`, `render`, `io`, `optimize`, `edit`, `ui`, `ai/nlu`, `ai/nlu-ui`, `ai/nlu-voice-wasm`) + 1 umbrella não-funcional. Headless boundary D-017 íntegra (Material/CDK só em `ui` e `ai/nlu-ui`; nenhum import real de Material/CDK nos 5 entry points headless).
-- **2 apps consumers**: `playground` (showcase com 9 rotas) e `svg-studio` (deliverable de produto, full-bleed pro-editor).
-- **Cobertura de testes**: **223 arquivos `.spec.ts`** na library (≈2885 casos `it`), cobrindo os 9 entry points. Build limpo nos 3 projetos; lint limpo.
-- **Features shipadas** (resumido — ver `docs/05-roadmap.md`):
-  - **Core engine**: 10 tipos de nó, 71 comandos undoable, scope per-editor (D-042), CommandBus com auto-snapshot interceptor (D-073)
-  - **Render**: `<svge-renderer>` + 9 diretivas per-tipo + ViewportService + NodeRendererRegistry (extensível)
-  - **IO + Optimize**: SVG importer/exporter determinístico + PNG exporter (@1x/@2x/@3x) + 4 optimizers built-in
-  - **Edit + UI**: 15 tools, 10 catálogos de biblioteca built-in (shapes/palettes/graphic-styles/gradients/patterns/templates/symbols/brushes/clip-paths/masks), 30 plugins built-in, 51 componentes UI (todos `standalone`+`OnPush`), 10 dialogs Material via service opener centralizado (D-044)
-  - **Performance**: viewport culling opt-in + harness de performance (rota `/benchmark`)
-  - **Path Editor + Pathfinder**: AnchorOverlay + comandos de anchor + 5 boolean ops via `polygon-clipping` + operações de path (Simplify/Split/Join/Reverse/Outline Stroke/Offset/Clean Up, D-090)
-  - **NLU + IA** (D-046): `NaturalLanguageService` rule-based (intents builtin + auto-descobertos do menu) + escalonamento opcional para LLM (Ollama, D-093/D-095) + voz (Web Speech + Whisper WASM local) — entry points `ai/nlu`, `ai/nlu-ui`, `ai/nlu-voice-wasm`
-  - **Pages / Artboards** (D-079 + D-080): multi-page com `<svge-page-selection-overlay>`, page tool (padrão Illustrator Artboard), persistência localStorage
-  - **Animation Timeline** (D-082): tracks/keyframes não-destrutivos + `<svge-timeline>` editável
-  - **Outros**: History Snapshots (D-073), Smart Objects (D-074), Asset Export (D-077), Find & Replace (D-070), Logical Layers (D-072), Custom Attributes (D-089), Keybindings customizáveis (D-086), Effects ecosystem (D-047), Libraries ecosystem (D-048), fidelidade de import (D-098–D-101)
-- **Auditoria persistente**: `docs/11-auditoria-pendencias.md` cataloga as pendências conhecidas com `file:line` por item. Protocolo "auditar antes de agir" estabelecido como regra.
-- **Próximos passos**: ver `docs/05-roadmap.md`.
+## See also
 
-## Stack alvo
+- [02 — Architecture](02-arquitetura.md)
+- [06 — Editor components](06-componentes-editor-svg.md)
+- [09 — Public API](09-api-publica.md)
+- [10 — Plugin author guide](10-guia-plugin.md)
+- [12 — Plugin management](12-gerenciamento-de-plugins.md)
+- [13 — Plugin platform](13-plataforma-de-plugins.md)
 
-- **Front-end**: Angular **v21** (vira LTS em 2026-05-19, suporte até 2027-05-19). Decisão D-006.
-- **UI**: Angular Material **v21** (alinhado).
-- **Linguagem**: TypeScript em modo `strict`.
-- **Estilo de SVG**: DOM SVG nativo + camada de abstração própria.
-  Sem dependência de `svg.js`, `snap.svg`, `fabric.js` ou similares.
-- **Distribuição**: workspace Angular com **library** `svg-engine`
-  (npm package `@mosaicoo/svg-engine`, 9 secondary entry points) + **apps**
-  `playground` (sandbox/showcase/benchmark) e `svg-studio` (deliverable de
-  produto) — **nenhum** dos apps é o produto distribuído.
-- **Back-end**: .NET 10 LTS — **somente se** surgir necessidade real
-  (persistência server-side, colaboração, exportação pesada).
-
-## Princípios condutores
-
-1. **Zero alucinação** — tudo verificado antes de afirmar/implementar.
-2. **Library-first** — qualquer feature nasce na `svg-engine`; a
-   `playground` apenas consome (e simula um terceiro qualquer).
-3. **Headless-first** — núcleo (modelo, engine, otimização) **não pode**
-   depender de Angular Material ou de qualquer escolha de UI. Terceiros
-   podem usar só o engine e plugar a UI deles.
-4. **Componentização rigorosa** — single responsibility, composição,
-   componentes pequenos e focados.
-5. **API pública versionada** — surface explícita, semver, breaking
-   changes documentados em `04-decisoes-tecnicas.md`.
-6. **Evolução incremental** — sem mudanças massivas sem justificativa.
-7. **Tipagem forte** — `strict`, sem `any`, união discriminada para
-   variantes (ex.: `SvgNode`).
-8. **Documentação viva** — muda o código, muda o doc no mesmo turno.
-9. **Performance e extensibilidade** como requisitos não-funcionais centrais.
-10. **Acessibilidade WCAG AA** mínimo em toda UI.
-11. **Sem dependências sem justificativa** registrada em `04-decisoes-tecnicas.md`.
-
-## Ver também
-
-- [02 — Arquitetura](02-arquitetura.md)
-- [03 — Restrições](03-restricoes.md)
-- [04 — Decisões técnicas](04-decisoes-tecnicas.md)
-- [05 — Roadmap](05-roadmap.md)
-- [06 — Componentes do Editor SVG](06-componentes-editor-svg.md)
-- [07 — Backend .NET (futuro/opcional)](07-backend-dotnet.md)
-- [08 — Histórico de alterações](08-historico-de-alteracoes.md)
-- [09 — API Pública (versionada)](09-api-publica.md)
+Full usage documentation is published at
+<https://mosaicoo.github.io/svgengine-site>.
