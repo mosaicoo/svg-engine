@@ -176,7 +176,8 @@ import { SvgeTextDirective } from './text-renderer.directive';
           paper rect now carries data-node-id={pageId} +
           pointer-events: all when a D-079 page is active, so it
           serves as a persistent hit-target without re-mounting on
-          selection change.
+          selection change. See Fase 4 in
+          docs/08-historico-de-alteracoes.md.
         -->
         @for (child of groupChildren(); track child.id) {
           <svg:g svgeNode [node]="child"></svg:g>

@@ -6,7 +6,7 @@ import { Routes } from '@angular/router';
  * **Convenção D-041**: slugs em inglês (URLs); labels em PT-BR (nav).
  * Cada rota tem **nome que descreve a atividade**, não a categoria
  * arquitetural. Detalhes em `docs/01-visao-geral.md` → "Vocabulário
- * canônico".
+ * canônico" e D-041 em `docs/04-decisoes-tecnicas.md`.
  *
  * **Compatibilidade**: URLs antigas (`/raw-primitives`, `/shell-demo`,
  * `/shell-partial-demo`, `/shell-canvas-only`, `/shell-pro-demo`,

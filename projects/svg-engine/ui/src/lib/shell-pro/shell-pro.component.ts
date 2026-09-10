@@ -261,7 +261,8 @@ import { SvgeToolsPalette } from '../tools-palette';
               attribute. Angular content projection is compile-time so
               host bindings on PageOverlay don't help here. See the
               detailed explanation in editor.component.ts (sibling
-              shell).
+              shell) and docs/08-historico-de-alteracoes.md for the
+              fix history.
             -->
             <svg:g svgePageOverlay svgeBehind></svg:g>
             <!--

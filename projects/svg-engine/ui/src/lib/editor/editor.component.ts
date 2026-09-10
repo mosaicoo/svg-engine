@@ -241,7 +241,8 @@ import { SvgeToolOptions } from '../tool-options';
             consumer's template. Runtime host bindings on the projected
             component don't affect the projection slot — they only mark
             the DOM after the slot is already decided. This caught us
-            in a previous attempt at "auto-tagging".
+            in a previous attempt at "auto-tagging" — see the fix
+            history in docs/08-historico-de-alteracoes.md.
 
             Consumers can hide the page by zeroing out width/height in
             WorkspaceService.patchPage (rejected silently, so set via

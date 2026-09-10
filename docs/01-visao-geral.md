@@ -158,10 +158,15 @@ publicável e cobre engine, edição, UI profissional e camada de IA.
 8. **Documentação viva** — muda o código, muda o doc no mesmo turno.
 9. **Performance e extensibilidade** como requisitos não-funcionais centrais.
 10. **Acessibilidade WCAG AA** mínimo em toda UI.
-11. **Sem dependências** sem justificativa registrada.
+11. **Sem dependências sem justificativa** registrada em `04-decisoes-tecnicas.md`.
 
 ## Ver também
 
 - [02 — Arquitetura](02-arquitetura.md)
+- [03 — Restrições](03-restricoes.md)
+- [04 — Decisões técnicas](04-decisoes-tecnicas.md)
+- [05 — Roadmap](05-roadmap.md)
 - [06 — Componentes do Editor SVG](06-componentes-editor-svg.md)
+- [07 — Backend .NET (futuro/opcional)](07-backend-dotnet.md)
+- [08 — Histórico de alterações](08-historico-de-alteracoes.md)
 - [09 — API Pública (versionada)](09-api-publica.md)

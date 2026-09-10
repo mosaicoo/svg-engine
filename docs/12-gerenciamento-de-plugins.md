@@ -2,16 +2,16 @@
 
 > **Status: decidido — Fases 1 e 2 implementadas (2026-06-11).** As decisões
 > foram tomadas e registradas em
-> D-083;
+> [D-083](04-decisoes-tecnicas.md#d-083--gerenciamento-e-distribuição-de-plugins);
 > a **Fase 1** (gerenciador dos plugins bundlados) e a **Fase 2**
 > (carregamento runtime de origem confiável) estão implementadas e verdes.
 > A **Fase 3** (repositório/marketplace + scripts sandboxed) segue planejada.
 > Este documento permanece como o mapa de raciocínio: opções com
 > trade-offs e a recomendação faseada que foi adotada.
 >
-> Pré-requisitos de leitura: D-020
-> (infra), D-023
-> (categorias), D-024
+> Pré-requisitos de leitura: [D-020](04-decisoes-tecnicas.md#d-020--sistema-de-plugins-de-primeira-classe)
+> (infra), [D-023](04-decisoes-tecnicas.md#d-023--categorias-de-plugin-roadmap)
+> (categorias), [D-024](04-decisoes-tecnicas.md#d-024--scriptruntimeplugin-deferido-para-fase-6)
 > (scripts sandboxed) e o [Guia do autor de plugin](10-guia-plugin.md).
 
 ---
@@ -348,7 +348,7 @@ moduleLoader })` opt-in — o `import()` real + SRI vivem no `moduleLoader` do
 ## 11. Decisões tomadas (resolvido)
 
 As perguntas em aberto foram respondidas e registradas em
-D-083:
+[D-083](04-decisoes-tecnicas.md#d-083--gerenciamento-e-distribuição-de-plugins):
 
 1. **Público-alvo:** há **dev** (embarca a lib e cria plugins internos) e
    **usuário** (opera a aplicação final), mas a library **não modela papéis

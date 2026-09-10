@@ -74,17 +74,6 @@ The workspace holds three Angular projects:
 | `playground` | Demo and manual-testing application           |
 | `svg-studio` | Full editor application                       |
 
-### The `D-nnn` markers in the source
-
-Comments throughout the source refer to decisions as `D-042`, `D-149` and so
-on. Those identifiers index a decision log kept as maintainer working material,
-outside this repository, where each entry records why an approach was chosen
-and what was rejected.
-
-You do not need it to read the code. Every such comment states its point in
-full, and the identifier is only a pointer to the longer rationale — treat it
-the way you would treat a ticket number in a comment.
-
 The library is a single npm package exposing nine entry points
 (`core`, `render`, `io`, `optimize`, `edit`, `ui`, `ai/nlu`, `ai/nlu-ui`,
 `ai/nlu-voice-wasm`).
