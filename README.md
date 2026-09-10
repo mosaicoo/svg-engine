@@ -364,7 +364,8 @@ Project layout follows the standard Angular workspace:
 - `projects/playground/` — reference application (the editor's showcase)
 - `projects/svg-studio/` — standalone studio app
 - `e2e/` — Playwright end-to-end specs + Page Objects + helpers
-- `docs/` — architecture, decisions, roadmap, history, public API, plugin guides
+- `docs/` — architecture, component catalogue, public API surface, plugin guides
+- `docs/internal/` — maintainer working material (decision log, history, roadmap)
 
 ---
 
@@ -384,9 +385,14 @@ Other references in this repository:
 | [`SECURITY.md`](SECURITY.md)               | Supported versions and how to report a vulnerability    |
 | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Expected behaviour in the project spaces                |
 
-The `docs/` directory holds internal design and architecture notes, written in
-Portuguese. They are working material for maintainers, not product
-documentation.
+The `docs/` directory holds design notes on the library itself — architecture,
+the component catalogue, the public API surface and the plugin guides. They are
+written in Portuguese and aimed at people working on the library rather than at
+people integrating it.
+
+`docs/internal/` holds maintainer working material: the decision log the
+`D-nnn` comments in the source point at, the change history and the roadmap.
+See [`docs/internal/README.md`](docs/internal/README.md).
 
 ---
 
