@@ -13,7 +13,7 @@ import { defineConfig, devices } from '@playwright/test';
  * `prestart` ML-model assembly (`assemble:ml`) — the Whisper model is only
  * needed by the voice feature, which E2E never triggers.
  */
-const PORT = 4200;
+const PORT = Number(process.env['PORT'] ?? 4200);
 const isCI = !!process.env['CI'];
 
 export default defineConfig({
