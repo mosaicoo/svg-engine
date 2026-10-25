@@ -2984,3 +2984,43 @@ number 50 + unit`), o slider sobrava ~75px.
   verdes; API snapshot regenerado (+`stripAuthoredIdsOptimizer`); browser no
   `/pro-editor` (campo Element ID renderiza; nó novo = vazio; digitar `innerroot`
   comita e reflete ao vivo). Referência: histórico 08 (2026-07-07, D-149).
+
+## D-150 — Upgrade para Angular/Material 22 + duas linhas de suporte (0.2.x = Angular 21, 0.3.x = Angular 22)
+
+- **Data**: 2026-10-25
+- **Status**: Aceita
+- **Contexto**: Angular 22.2 (estável desde 2026-06-03) exige **TypeScript 6.0**
+  e **Node ≥ 22.22.3 / ≥ 24.15**. Política oficial: um app só consome lib
+  compilada com Angular **igual ou menor** — publicar a lib buildada em 22
+  arrastaria todos os consumidores (mosaicoo-front-end, svgengine-playground,
+  svgengine-test-npm, todos em 21.2). Exigência do produto: subir a lib **sem**
+  obrigar a migração dos consumidores agora.
+- **Decisão — duas linhas**: `main` → **0.3.x** (Angular 22, peers `^22.0.0`,
+  dist-tag `latest`); `release/0.2.x` → **0.2.x** (Angular 21, cortado de
+  `e9de76d`, `publishConfig.tag = "angular-21"` para nunca tomar o `latest`).
+  Semver `0.x` protege: `^0.2.0` é `<0.3.0`. Ruleset da `main` estendido a
+  `refs/heads/release/**`.
+- **Node sem tocar na máquina**: nvm-windows `nvm install 24.22.1` (sem
+  `nvm use`, que é global e afetaria Node-RED/Superset/Dagster/ObrasScanAR);
+  uso por prefixo de `PATH` no shell do repo. `.nvmrc` = 24.22.1; `engines`
+  `^22.22.3 || ^24.15.0 || ^26.0.0`; CI testa Node 22 **e** 24 (ruleset exige
+  os dois checks).
+- **O que o `ng update` fez**: @angular/* 22.2.3, CLI/build 22.2.4,
+  Material/CDK 22.2.4 (sem migrações), TS 6.0.3, ng-packagr 22.2.5,
+  angular-eslint 22.6.0, typescript-eslint 8.72.0. Migrações do core: nenhuma
+  alteração de código de produção.
+- **O que foi descartado da migração**: (a) `ChangeDetectionStrategy.Eager`
+  nos 27 spec-hosts — a suíte inteira (3012) passa com os hosts no OnPush
+  padrão do v22 e o angular-eslint 22 recusa `Eager`; (b) o opt-out dos
+  diagnósticos `nullishCoalescingNotNullable`/`optionalChainNotNullable` em 5
+  tsconfigs — lib, playground e svg-studio compilam sem nenhum diagnóstico.
+- **Levantamento prévio (verificado por grep contra o CHANGELOG 22.0.0)**:
+  zero uso de API removida (checkNoChanges, ComponentFactoryResolver,
+  provideRoutes, Hammer, `[data-*]` binding, APIs quebradas do CDK/Material);
+  tsconfig já blindado aos novos defaults do TS 6 (`types` explícito, sem
+  `baseUrl`, `module`/`target` explícitos).
+- **E2E**: `playwright.config.ts` passa a ler `PORT` da env (o `ng serve` 22
+  dá prioridade máxima a ela), permitindo rodar fora da 4200.
+- **Verificação**: build lib/playground/svg-studio sem erros; `test:lib` 3012
+  passed (inclui guard-rail da API — superfície inalterada); lint 3 projetos.
+  Referência: histórico 08 (2026-10-25, D-150).

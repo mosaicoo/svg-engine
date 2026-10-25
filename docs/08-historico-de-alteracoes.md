@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-10-25 — D-150 — Angular/Material 22 + TypeScript 6 + duas linhas de suporte 🚀
+
+Upgrade da biblioteca para **Angular 22.2 / Material 22.2 / TypeScript 6.0**
+**sem arrastar os consumidores**: nasce a linha `release/0.2.x` (Angular 21,
+dist-tag `angular-21`) e a `main` segue para **0.3.x** (Angular 22, `latest`).
+
+- Node 24.22.1 via nvm **sem `nvm use`** (global da máquina intocado);
+  `.nvmrc`, `engines ^22.22.3 || ^24.15.0 || ^26.0.0`, CI em Node 22 **e** 24.
+- `ng update`: core/CLI/build/Material/CDK/ng-packagr/angular-eslint/
+  typescript-eslint; nenhuma migração tocou código de produção.
+- Descartados: `Eager` nos 27 spec-hosts (suíte passa em OnPush) e o opt-out
+  de diagnósticos em 5 tsconfigs (zero diagnósticos nos 3 builds).
+- Peers da lib → `^22.0.0`; `playwright.config` lê `PORT` da env.
+- `build:lib` + playground + svg-studio, `test:lib` (**3012**), lint (3
+  projetos) verdes. Decisão em [04-decisoes-tecnicas](04-decisoes-tecnicas.md)
+  (D-150).
+
 ## 2026-07-07 — D-149 — Preservação do `id` autoral no round-trip (import→export) + campo Element ID 🔖
 
 SVGs autorados por ferramentas externas (Illustrator/Inkscape) usam `id` para

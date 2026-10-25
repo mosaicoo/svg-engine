@@ -4,7 +4,8 @@
 
 # svg-engine
 
-> Headless-first, plugin-extensible **SVG editor library** for Angular v21+.
+> Headless-first, plugin-extensible **SVG editor library** for Angular v22+.
+> Angular 21 apps: install the `angular-21` dist-tag (the `0.2.x` line).
 > Render, manipulate and optimize SVG inside any Angular app.
 
 [![npm version](https://img.shields.io/npm/v/@mosaicoo/svg-engine.svg)](https://www.npmjs.com/package/@mosaicoo/svg-engine)

@@ -93,8 +93,9 @@ Neither application is the distributed product.
 
 ## Requirements
 
-- **Angular 21** and **Angular Material 21** (Material only for `ui` and
-  `ai/nlu-ui`).
+- **Angular 22** and **Angular Material 22** (Material only for `ui` and
+  `ai/nlu-ui`); **Node.js 22.22.3+ or 24.15+**. Angular 21 consumers use the
+  `0.2.x` line (`release/0.2.x`, npm dist-tag `angular-21`).
 - **TypeScript** in `strict` mode.
 - SVG is handled through the native SVG DOM with the library's own abstraction
   layer over it.

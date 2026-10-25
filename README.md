@@ -7,11 +7,12 @@
 
 # SVGEngine
 
-An embeddable, headless-first SVG editor built on Angular v21 signals.
+An embeddable, headless-first SVG editor built on Angular v22 signals.
 **Nine** lazy-loaded entry points let you pick **exactly** what you need —
 from a ~30 kB read-only viewer to a full Material-styled editor with path
 editing, boolean operations, pages/artboards, effects, libraries and an
 optional AI/natural-language command layer.
+Still on Angular 21? Install the `angular-21` dist-tag (the `0.2.x` line).
 
 > Published as [`@mosaicoo/svg-engine`](https://www.npmjs.com/package/@mosaicoo/svg-engine)
 > under **Apache-2.0**. **3012 specs across 227 files** pass on every change

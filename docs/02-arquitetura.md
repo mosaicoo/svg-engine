@@ -2,7 +2,7 @@
 
 ## 1. Visão macro
 
-O **SVGEngine** é um **workspace Angular v21** contendo:
+O **SVGEngine** é um **workspace Angular v22** contendo:
 
 - Uma **library** publicável: `@mosaicoo/svg-engine` (núcleo + UI do editor) com **9 secondary entry points + 1 umbrella** (versão atual 0.1.2).
 - **Duas** aplicações consumers (D-041 follow-up de 2026-05-28):

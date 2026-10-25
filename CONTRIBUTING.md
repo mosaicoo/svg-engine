@@ -22,7 +22,10 @@ version, and a minimal reproduction (an SVG document or a short snippet).
 
 ## Requirements
 
-- **Node.js 22** (the version the CI runs).
+- **Node.js 22.22.3+ or 24.15+** (`.nvmrc` pins 24.22.1; the CI runs both
+  lines). Angular 22 refuses older runtimes. With nvm-windows, `nvm use`
+  switches the whole machine; prefer prepending the version folder to `PATH`
+  in the shell you use for this repository.
 - **npm** (the repository ships a `package-lock.json`; use `npm ci`).
 
 ## Getting started
@@ -168,6 +171,21 @@ release, even when a type makes it reachable.
 Breaking changes ship as a minor bump (`0.2.0` to `0.3.0`) and are called out
 in the changelog. Patch releases never change the public API. The full
 major/minor/patch guarantees begin at `1.0.0`.
+
+### Support lines
+
+| Line              | Angular | Branch          | npm dist-tag | Install                                 |
+| ----------------- | ------- | --------------- | ------------ | --------------------------------------- |
+| `0.3.x` and later | 22      | `main`          | `latest`     | `npm i @mosaicoo/svg-engine`            |
+| `0.2.x`           | 21      | `release/0.2.x` | `angular-21` | `npm i @mosaicoo/svg-engine@angular-21` |
+
+An application must run the same or a newer Angular major than the one the
+library was built with, so the `0.2.x` line stays on Angular 21 for consumers
+that have not upgraded yet. Fixes for that line land on `release/0.2.x` and are
+released with `npm run release:patch` from that branch; its `publishConfig.tag`
+keeps those releases under `angular-21`, never `latest`. Because `^0.2.0`
+resolves to `<0.3.0`, consumers on the old line never receive the new one by
+accident.
 
 ### Deprecation
 
