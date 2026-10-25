@@ -3,12 +3,12 @@ import { TestBed } from '@angular/core/testing';
 import type { SvgNode } from '@mosaicoo/svg-engine/core';
 import { NodeRendererRegistry } from './node-renderer-registry.service';
 
-@Component({ selector: 'svge-test-fake-star', standalone: true, template: '' })
+@Component({ selector: 'svge-test-fake-star', template: '' })
 class FakeStarRenderer {
   readonly node = input.required<SvgNode>();
 }
 
-@Component({ selector: 'svge-test-fake-other', standalone: true, template: '' })
+@Component({ selector: 'svge-test-fake-other', template: '' })
 class FakeOtherRenderer {
   readonly node = input.required<SvgNode>();
 }
