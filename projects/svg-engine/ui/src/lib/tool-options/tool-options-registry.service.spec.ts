@@ -12,10 +12,10 @@ import { ToolOptionsRegistry } from './tool-options-registry.service';
  * - id snapshot for diagnostics
  */
 
-@Component({ standalone: true, template: `<span class="x"></span>` })
+@Component({ template: `<span class="x"></span>` })
 class StubA {}
 
-@Component({ standalone: true, template: `<span class="y"></span>` })
+@Component({ template: `<span class="y"></span>` })
 class StubB {}
 
 class StubTool implements Tool {

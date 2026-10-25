@@ -6,6 +6,36 @@ This file is **auto-generated** from [Conventional Commits](https://www.conventi
 
 The versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0](https://github.com/mosaicoo/svg-engine/compare/v0.2.0...v0.3.0) (2026-10-25)
+
+### ⚠ BREAKING CHANGES
+
+- **angular:** peerDependencies de @angular/{core,common,material,cdk}
+  agora exigem ^22.0.0 e o Node mínimo é 22.22.3 ou 24.15.0. Aplicações em
+  Angular 21 devem instalar `@mosaicoo/svg-engine@angular-21` (0.2.x).
+
+Co-Authored-By: Marcelo Cavalcanti <marcelo.cavalcanti@mosaicoo.tech>
+
+### Features
+
+- **angular:** suporte a Angular 22 e Angular Material 22 ([c53b15b](https://github.com/mosaicoo/svg-engine/commit/c53b15b9ebe40da252448c9ec96601a45484e9a6))
+
+### Refactor
+
+- **plugins:** remove internal markers from user-facing plugin names ([0289825](https://github.com/mosaicoo/svg-engine/commit/0289825c664197869291494dc83c9202fdb0237f))
+
+### Documentation
+
+- **01:** rewrite the overview to describe the library, not its making ([5b7f134](https://github.com/mosaicoo/svg-engine/commit/5b7f1343972db356d9820059e659325b3c691a6e))
+- **09:** rewrite the public API document as a guide, not an inventory ([0903b69](https://github.com/mosaicoo/svg-engine/commit/0903b69290c25d8043fcf80a5c026b38ffbc54a9))
+- add a versioning policy and self-host the package banner ([29bbe26](https://github.com/mosaicoo/svg-engine/commit/29bbe2641bf6da28594289842683722fe2f50092))
+- **D-150:** registra o upgrade para Angular 22 e as duas linhas de suporte ([d286bd4](https://github.com/mosaicoo/svg-engine/commit/d286bd49b767728bac4700b23d6aa3ddc5763e66))
+- drop the plugin-platform and roadmap documents ([8f6745f](https://github.com/mosaicoo/svg-engine/commit/8f6745fe5548910562af91fcbcb6066a6e11641c))
+- **readme:** describe the docs split accurately ([25cd120](https://github.com/mosaicoo/svg-engine/commit/25cd120863b7462cf421e5a75e15dfb04ab2ab0b))
+- remove maintainer working material from the repository ([226183e](https://github.com/mosaicoo/svg-engine/commit/226183e9f3db5f05265c4a984a89394cef175e2d))
+- **security:** documenta as advisories conhecidas sem correção upstream ([608f2c6](https://github.com/mosaicoo/svg-engine/commit/608f2c61dfe02d288a0fd122cd338e1593aa74bc))
+- separate maintainer working material into docs/internal ([a5d922c](https://github.com/mosaicoo/svg-engine/commit/a5d922c54ddde0faea47cdc12750ccfe83cec597))
+
 ## [0.2.0](https://github.com/mosaicoo/svg-engine/compare/v0.1.2...v0.2.0) (2026-07-08)
 
 ### Features
