@@ -1,6 +1,6 @@
 {
   "name": "@mosaicoo/svg-engine",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "engines": {
     "node": "^22.22.3 || ^24.15.0 || ^26.0.0"
   },
