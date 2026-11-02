@@ -66,7 +66,7 @@
     "prettier": "^3.8.1",
     "standard-version": "9.5.0",
     "typescript": "~6.0.3",
-    "typescript-eslint": "8.72.0",
+    "typescript-eslint": "8.72.1",
     "vitest": "^4.0.8"
   },
   "lint-staged": {
